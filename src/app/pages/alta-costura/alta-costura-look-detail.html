@@ -1,0 +1,55 @@
+@if (look(); as lk) {
+  @if (book(); as lb) {
+    <article class="aclk">
+      <header class="aclk-bar lc-container">
+        <a class="aclk-bar__back" [routerLink]="looksHref()">Os looks</a>
+        <p class="aclk-bar__collection">{{ lb.title }}</p>
+        <nav class="aclk-bar__nav" aria-label="Navegação entre looks">
+          @if (prevHref(); as prev) {
+            <a [routerLink]="prev">Anterior</a>
+          } @else {
+            <span class="is-disabled">Anterior</span>
+          }
+          <span class="aclk-bar__sep" aria-hidden="true">·</span>
+          @if (nextHref(); as next) {
+            <a [routerLink]="next">Próximo</a>
+          } @else {
+            <span class="is-disabled">Próximo</span>
+          }
+        </nav>
+      </header>
+
+      <section class="aclk-stage">
+        <figure class="aclk-stage__main">
+          <img
+            [src]="lk.images[activeImage()]"
+            [alt]="lk.name"
+          />
+        </figure>
+
+        @if (lk.images.length > 1) {
+          <div class="aclk-thumbs lc-container" role="list">
+            @for (img of lk.images; track img; let i = $index) {
+              <button
+                type="button"
+                class="aclk-thumbs__item"
+                [class.is-active]="activeImage() === i"
+                (click)="selectImage(i)"
+                [attr.aria-label]="'Foto ' + (i + 1)"
+              >
+                <img [src]="img" alt="" />
+              </button>
+            }
+          </div>
+        }
+      </section>
+
+      <footer class="aclk-meta lc-container">
+        <h1>{{ lk.name }}</h1>
+        @if (productHref(); as href) {
+          <a class="aclk-meta__shop" [routerLink]="href">Ver produto</a>
+        }
+      </footer>
+    </article>
+  }
+}

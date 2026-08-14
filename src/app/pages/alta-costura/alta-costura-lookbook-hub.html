@@ -1,0 +1,40 @@
+<article class="alb">
+  <header class="alb-head lc-container">
+    <a class="alb-head__crumb" [routerLink]="home">Início</a>
+    <h1>Lookbook</h1>
+    <p class="alb-head__mention">Escolha a coleção para conhecer as peças e os looks.</p>
+  </header>
+
+  <section class="alb-grid" aria-label="Coleções">
+    @for (col of collections; track col.slug) {
+      <article class="alb-card" [class.alb-card--soon]="!col.available">
+        <figure class="alb-card__media">
+          @if (col.poster) {
+            <img [src]="col.poster" [alt]="col.title" />
+          } @else {
+            <div class="alb-card__placeholder" aria-hidden="true"></div>
+          }
+        </figure>
+        <div class="alb-card__meta">
+          <h2>{{ col.title }}</h2>
+          @if (col.available) {
+            <p>{{ col.lookCount }} Looks</p>
+          } @else {
+            <p>Em breve</p>
+          }
+          <div class="alb-card__actions">
+            <a class="alb-card__cta alb-card__cta--primary" [routerLink]="col.shopHref">
+              Conhecer a coleção
+            </a>
+            @if (col.looksHref; as looksHref) {
+              <a class="alb-card__cta" [routerLink]="looksHref">Veja os looks</a>
+            }
+            @if (col.desfileHref; as desfileHref) {
+              <a class="alb-card__cta" [routerLink]="desfileHref">Ver desfile</a>
+            }
+          </div>
+        </div>
+      </article>
+    }
+  </section>
+</article>

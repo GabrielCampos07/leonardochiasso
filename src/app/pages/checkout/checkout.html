@@ -1,0 +1,304 @@
+<section class="checkout">
+  <nav class="checkout__crumb lc-caption" aria-label="Breadcrumb">
+    <a [routerLink]="home">Home</a>
+    <span>/</span>
+    <span>Checkout</span>
+  </nav>
+
+  <header class="checkout__head">
+    <h1>Checkout</h1>
+    <ol class="checkout__steps" aria-label="Etapas">
+      <li [class.is-active]="step() === 1" [class.is-done]="step() > 1">1 Dados</li>
+      <li [class.is-active]="step() === 2" [class.is-done]="step() > 2">2 Endereço</li>
+      <li [class.is-active]="step() === 3">3 Pagamento</li>
+    </ol>
+  </header>
+
+  <div class="checkout__layout">
+    <div class="checkout__main">
+      @if (step() === 1) {
+        <form class="checkout__form" (ngSubmit)="continueFromData()">
+          <label>
+            <span>Nome</span>
+            <input
+              name="name"
+              [ngModel]="draft().name"
+              (ngModelChange)="draftSvc.patch({ name: $event })"
+              required
+              autocomplete="name"
+            />
+          </label>
+          <label>
+            <span>E-mail</span>
+            <input
+              type="email"
+              name="email"
+              [ngModel]="draft().email"
+              (ngModelChange)="draftSvc.patch({ email: $event })"
+              required
+              autocomplete="email"
+            />
+          </label>
+          <label>
+            <span>CPF</span>
+            <input
+              name="cpf"
+              [ngModel]="draft().cpf"
+              (ngModelChange)="draftSvc.patch({ cpf: $event })"
+              required
+              inputmode="numeric"
+              autocomplete="off"
+              placeholder="000.000.000-00"
+            />
+          </label>
+          <label>
+            <span>Telefone</span>
+            <input
+              name="phone"
+              [ngModel]="draft().phone"
+              (ngModelChange)="draftSvc.patch({ phone: $event })"
+              required
+              inputmode="tel"
+              autocomplete="tel"
+              placeholder="DDD + número"
+            />
+          </label>
+          @if (error()) {
+            <p class="checkout__error">{{ error() }}</p>
+          }
+          <button class="checkout__cta" type="submit" [disabled]="busy()">
+            Continuar
+          </button>
+        </form>
+      }
+
+      @if (step() === 2) {
+        <div class="checkout__form">
+          <fieldset class="checkout__mode">
+            <legend>Entrega</legend>
+            <label class="checkout__radio">
+              <input
+                type="radio"
+                name="addressMode"
+                [checked]="draft().addressMode === 'saved'"
+                (change)="draftSvc.patch({ addressMode: 'saved' })"
+                [disabled]="!addresses().length"
+              />
+              <span>Usar endereço cadastrado</span>
+            </label>
+            <label class="checkout__radio">
+              <input
+                type="radio"
+                name="addressMode"
+                [checked]="draft().addressMode === 'new'"
+                (change)="draftSvc.patch({ addressMode: 'new', addressId: null })"
+              />
+              <span>Novo endereço</span>
+            </label>
+          </fieldset>
+
+          @if (draft().addressMode === 'saved') {
+            <ul class="checkout__addr-list">
+              @for (a of addresses(); track a.id) {
+                <li>
+                  <label class="checkout__addr-option">
+                    <input
+                      type="radio"
+                      name="addressId"
+                      [checked]="draft().addressId === a.id"
+                      (change)="draftSvc.patch({ addressId: a.id })"
+                    />
+                    <span>
+                      @if (a.isDefault) {
+                        <em>Padrão · </em>
+                      }
+                      {{ addressLabel(a) }}
+                      <small>{{ a.cep }} · {{ a.district }}</small>
+                    </span>
+                  </label>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="checkout__form">
+              <label>
+                <span>CEP</span>
+                <input
+                  name="cep"
+                  [ngModel]="draft().address.cep"
+                  (ngModelChange)="patchAddress({ cep: $event })"
+                  (blur)="lookupCep()"
+                  required
+                  inputmode="numeric"
+                  autocomplete="postal-code"
+                />
+                @if (cepBusy()) {
+                  <small class="checkout__hint">Buscando CEP…</small>
+                }
+              </label>
+              <label>
+                <span>Rua</span>
+                <input
+                  name="street"
+                  [ngModel]="draft().address.street"
+                  (ngModelChange)="patchAddress({ street: $event })"
+                  required
+                  autocomplete="address-line1"
+                />
+              </label>
+              <div class="checkout__row">
+                <label>
+                  <span>Número</span>
+                  <input
+                    name="number"
+                    [ngModel]="draft().address.number"
+                    (ngModelChange)="patchAddress({ number: $event })"
+                    required
+                    autocomplete="address-line2"
+                  />
+                </label>
+                <label>
+                  <span>Complemento</span>
+                  <input
+                    name="complement"
+                    [ngModel]="draft().address.complement"
+                    (ngModelChange)="patchAddress({ complement: $event })"
+                  />
+                </label>
+              </div>
+              <label>
+                <span>Bairro</span>
+                <input
+                  name="district"
+                  [ngModel]="draft().address.district"
+                  (ngModelChange)="patchAddress({ district: $event })"
+                  required
+                />
+              </label>
+              <div class="checkout__row">
+                <label>
+                  <span>Cidade</span>
+                  <input
+                    name="city"
+                    [ngModel]="draft().address.city"
+                    (ngModelChange)="patchAddress({ city: $event })"
+                    required
+                    autocomplete="address-level2"
+                  />
+                </label>
+                <label>
+                  <span>UF</span>
+                  <input
+                    name="state"
+                    [ngModel]="draft().address.state"
+                    (ngModelChange)="patchAddress({ state: $event })"
+                    required
+                    maxlength="2"
+                    autocomplete="address-level1"
+                  />
+                </label>
+              </div>
+              <label class="checkout__check">
+                <input
+                  type="checkbox"
+                  name="saveNew"
+                  [ngModel]="draft().saveNewAddress"
+                  (ngModelChange)="draftSvc.patch({ saveNewAddress: $event })"
+                />
+                <span>Salvar este endereço na minha conta</span>
+              </label>
+            </div>
+          }
+
+          @if (error()) {
+            <p class="checkout__error">{{ error() }}</p>
+          }
+          <div class="checkout__actions">
+            <button class="checkout__back" type="button" (click)="goStep(1)">Voltar</button>
+            <button
+              class="checkout__cta"
+              type="button"
+              [disabled]="busy()"
+              (click)="continueFromAddress()"
+            >
+              Continuar
+            </button>
+          </div>
+        </div>
+      }
+
+      @if (step() === 3) {
+        <div class="checkout__review">
+          <section>
+            <h2>Dados</h2>
+            <p>{{ draft().name }}</p>
+            <p>{{ draft().email }}</p>
+            <p>CPF {{ draft().cpf }} · Tel. {{ draft().phone }}</p>
+            <button class="checkout__edit" type="button" (click)="goStep(1)">Editar</button>
+          </section>
+          <section>
+            <h2>Entrega</h2>
+            @if (draft().addressMode === 'saved' && selectedAddress(); as a) {
+              <p>{{ addressLabel(a) }}</p>
+              <p class="checkout__muted">{{ a.cep }} · {{ a.district }}</p>
+            } @else {
+              <p>
+                {{ draft().address.street }}, {{ draft().address.number }}
+                @if (draft().address.complement) {
+                  — {{ draft().address.complement }}
+                }
+              </p>
+              <p class="checkout__muted">
+                {{ draft().address.district }} · {{ draft().address.city }}/{{ draft().address.state }} ·
+                {{ draft().address.cep }}
+              </p>
+            }
+            <button class="checkout__edit" type="button" (click)="goStep(2)">Editar</button>
+          </section>
+
+          @if (cart.checkoutError()) {
+            <p class="checkout__error">{{ cart.checkoutError() }}</p>
+          }
+          @if (error()) {
+            <p class="checkout__error">{{ error() }}</p>
+          }
+
+          <div class="checkout__actions">
+            <button class="checkout__back" type="button" (click)="goStep(2)">Voltar</button>
+            <button
+              class="checkout__cta"
+              type="button"
+              [disabled]="cart.checkoutBusy()"
+              (click)="pay()"
+            >
+              {{ cart.checkoutBusy() ? 'Redirecionando…' : 'Pagar com cartão' }}
+            </button>
+          </div>
+          <p class="checkout__stripe lc-caption">
+            Pagamento seguro via Stripe. Você será redirecionado.
+          </p>
+        </div>
+      }
+    </div>
+
+    <aside class="checkout__summary" aria-label="Resumo da sacola">
+      <h2>Sua sacola</h2>
+      <ul>
+        @for (line of cart.lines(); track line.key) {
+          <li>
+            <img [src]="line.product.thumb" [alt]="line.product.name" />
+            <div>
+              <p class="checkout__sum-name">{{ line.product.name }}</p>
+              <p class="checkout__muted">Qtd {{ line.quantity }}</p>
+              <p>{{ priceLabel(line.product.priceLabel) }}</p>
+            </div>
+          </li>
+        }
+      </ul>
+      <div class="checkout__total">
+        <span>Subtotal</span>
+        <strong>{{ cart.subtotalLabel() }}</strong>
+      </div>
+    </aside>
+  </div>
+</section>

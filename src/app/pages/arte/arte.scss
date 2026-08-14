@@ -1,0 +1,413 @@
+.arte {
+  position: relative;
+  min-height: 60vh;
+  background: var(--lc-white);
+  overflow: clip;
+}
+
+.arte-intro {
+  position: relative;
+  width: 100%;
+  min-height: min(92vh, 920px);
+  height: min(92vh, 920px);
+  background: #0e0c0e;
+  overflow: hidden;
+  color: var(--lc-white);
+}
+
+.arte-intro__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+  background: #0e0c0e;
+}
+
+.arte-intro__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgb(14 12 14 / 72%) 0%,
+    rgb(14 12 14 / 22%) 45%,
+    rgb(14 12 14 / 10%) 100%
+  );
+}
+
+.arte-intro__copy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  max-width: var(--lc-max);
+  margin: 0 auto;
+  padding: 40px var(--lc-space-24) 48px;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .arte-intro__copy {
+    padding: 56px var(--lc-space-40) 64px;
+  }
+}
+
+.arte-intro__eyebrow {
+  margin: 0 0 10px;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-white) 62%, transparent);
+}
+
+.arte-intro__title {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(36px, 7vw, 72px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.02;
+}
+
+.arte-intro__body {
+  margin: 14px 0 0;
+  max-width: 28rem;
+  font-family: var(--lc-font-body);
+  font-size: 1rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--lc-white) 82%, transparent);
+}
+
+.arte-series {
+  display: flex;
+  flex-direction: column;
+}
+
+.arte-present {
+  width: 100%;
+  background: var(--lc-void);
+}
+
+.arte-present__open {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: min(72vh, 700px);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.arte-present__open img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+}
+
+.arte-present--video {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--lc-void);
+  color: var(--lc-white);
+  align-items: stretch;
+}
+
+@media (min-width: 800px) {
+  .arte-present--video {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    min-height: min(72vh, 700px);
+  }
+}
+
+.arte-present__video {
+  position: relative;
+  width: 100%;
+  background: #0e0c0e;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 0;
+}
+
+.arte-present__video video {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(72vh, 700px);
+  aspect-ratio: 9 / 16;
+  object-fit: contain;
+  background: #0e0c0e;
+}
+
+@media (min-width: 800px) {
+  .arte-present__video {
+    justify-content: flex-end;
+    padding: 0;
+  }
+
+  .arte-present__video video {
+    width: auto;
+    height: min(72vh, 700px);
+    max-width: 100%;
+  }
+}
+
+.arte-present__copy {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 28px var(--lc-space-24) 36px;
+  background: color-mix(in srgb, var(--lc-void) 92%, #2a2628);
+}
+
+@media (min-width: 800px) {
+  .arte-present__copy {
+    padding: 48px clamp(32px, 5vw, 72px);
+  }
+}
+
+.arte-present__title {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(18px, 2.6vw, 28px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.15;
+}
+
+.arte-present__caption {
+  margin: 0;
+  max-width: 28rem;
+  font-family: var(--lc-font-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--lc-white) 78%, transparent);
+}
+
+.arte-series__intro {
+  max-width: var(--lc-max);
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--lc-space-64) var(--lc-space-24);
+  background: var(--lc-white);
+  color: var(--lc-void);
+}
+
+@media (min-width: 768px) {
+  .arte-series__intro {
+    padding: var(--lc-space-96) var(--lc-space-40);
+  }
+}
+
+.arte-series__eyebrow {
+  margin: 0 0 12px;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 48%, transparent);
+}
+
+.arte-series__title {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 4.5vw, 48px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.08;
+}
+
+.arte-series__body {
+  margin: 20px 0 0;
+  max-width: 38rem;
+  font-family: var(--lc-font-body);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--lc-void) 78%, transparent);
+}
+
+.arte-series[data-series='paper'] {
+  border-top: 1px solid color-mix(in srgb, var(--lc-void) 10%, transparent);
+}
+
+.arte-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.arte-piece {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  gap: 0;
+  border-top: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
+  align-items: stretch;
+  background: var(--lc-white);
+  overflow: hidden;
+}
+
+/* Mobile: media above meta */
+.arte-piece__media {
+  order: 1;
+}
+
+.arte-piece__meta {
+  order: 2;
+}
+
+@media (min-width: 900px) {
+  .arte-piece {
+    grid-template-rows: auto;
+    min-height: min(78vh, 820px);
+  }
+
+  .arte-piece--media-left {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.85fr);
+  }
+
+  .arte-piece--media-right {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.5fr);
+  }
+
+  .arte-piece--media-left .arte-piece__media,
+  .arte-piece--media-left .arte-piece__meta,
+  .arte-piece--media-right .arte-piece__media,
+  .arte-piece--media-right .arte-piece__meta {
+    order: 0;
+  }
+
+  .arte-piece--media-right .arte-piece__meta {
+    order: 1;
+  }
+
+  .arte-piece--media-right .arte-piece__media {
+    order: 2;
+  }
+}
+
+.arte-piece__media {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: color-mix(in srgb, var(--lc-ash) 8%, var(--lc-white));
+  position: relative;
+  padding: 16px 12px 20px;
+  box-sizing: border-box;
+}
+
+@media (min-width: 900px) {
+  .arte-piece__media {
+    align-self: stretch;
+    padding: 28px 20px;
+  }
+}
+
+.arte-piece__meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  padding: var(--lc-space-40) var(--lc-space-24);
+  background: var(--lc-white);
+  box-sizing: border-box;
+}
+
+@media (min-width: 900px) {
+  .arte-piece__meta {
+    padding: 48px clamp(32px, 4vw, 64px);
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+.arte-piece__title-link {
+  color: inherit;
+}
+
+.arte-piece__title-link h3 {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  transition: opacity 0.25s ease;
+}
+
+.arte-piece__title-link:hover h3 {
+  opacity: 0.65;
+}
+
+.arte-piece__medium {
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 55%, transparent);
+}
+
+.arte-piece__slot {
+  padding-top: 4px;
+}
+
+.arte-piece__slot-label {
+  display: block;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: color-mix(in srgb, var(--lc-void) 45%, transparent);
+}
+
+.arte-piece__slot p {
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 1.55em;
+}
+
+.arte-piece__placeholder {
+  color: color-mix(in srgb, var(--lc-void) 38%, transparent);
+  font-style: italic;
+}
+
+.arte-piece__price {
+  font-family: var(--lc-font-display);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.arte-piece__more {
+  align-self: flex-start;
+  margin-top: 8px;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: opacity 0.2s ease;
+}
+
+.arte-piece__more:hover {
+  opacity: 0.55;
+}

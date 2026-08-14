@@ -1,0 +1,349 @@
+<section class="account">
+  <nav class="account__crumb lc-caption" aria-label="Breadcrumb">
+    <a [routerLink]="home">Home</a>
+    <span>/</span>
+    <span>Conta</span>
+  </nav>
+
+  <header class="account__head">
+    <h1>Minha conta</h1>
+  </header>
+
+  @if (auth.user(); as customer) {
+    <div class="account__profile">
+      <p class="account__eyebrow lc-label-outline">Perfil</p>
+      <p class="account__name">{{ customer.name }}</p>
+
+      @if (!editingEmail()) {
+        <div class="account__email-row">
+          <p class="account__email">{{ customer.email }}</p>
+          <button class="account__edit" type="button" (click)="startEditEmail()">
+            Editar e-mail
+          </button>
+        </div>
+        @if (emailOk()) {
+          <p class="account__form-ok">{{ emailOk() }}</p>
+        }
+      } @else {
+        <form class="account__form account__form--email" (ngSubmit)="saveEmail()">
+          <label>
+            <span>Novo e-mail</span>
+            <input
+              type="email"
+              name="emailDraft"
+              [(ngModel)]="emailDraft"
+              required
+              autocomplete="email"
+            />
+          </label>
+          <label>
+            <span>Senha atual (confirmação)</span>
+            <input
+              type="password"
+              name="emailPassword"
+              [(ngModel)]="emailPassword"
+              required
+              autocomplete="current-password"
+            />
+          </label>
+          @if (emailError()) {
+            <p class="account__form-error">{{ emailError() }}</p>
+          }
+          <div class="account__form-row">
+            <button class="account__form-submit" type="submit" [disabled]="emailBusy()">
+              Salvar e-mail
+            </button>
+            <button class="account__cancel" type="button" (click)="cancelEditEmail()">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      }
+    </div>
+
+    <section class="account__settings" aria-labelledby="account-contact">
+      <h2 id="account-contact">Contato para entrega</h2>
+      <p class="account__settings-copy">
+        CPF e telefone usados no checkout. Tratados conforme a política de privacidade.
+      </p>
+      <form class="account__form" (ngSubmit)="saveProfileContact()">
+        <label>
+          <span>CPF</span>
+          <input
+            name="profileCpf"
+            [(ngModel)]="profileCpf"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="000.000.000-00"
+          />
+        </label>
+        <label>
+          <span>Telefone</span>
+          <input
+            name="profilePhone"
+            [(ngModel)]="profilePhone"
+            inputmode="tel"
+            autocomplete="tel"
+            placeholder="DDD + número"
+          />
+        </label>
+        @if (profileError()) {
+          <p class="account__form-error">{{ profileError() }}</p>
+        }
+        @if (profileOk()) {
+          <p class="account__form-ok">{{ profileOk() }}</p>
+        }
+        <button class="account__form-submit" type="submit" [disabled]="profileBusy()">
+          Salvar contato
+        </button>
+      </form>
+    </section>
+
+    <section class="account__settings" aria-labelledby="account-addresses">
+      <h2 id="account-addresses">Endereços</h2>
+      <p class="account__settings-copy">Endereços cadastrados para entrega no checkout.</p>
+
+      @if (addresses().length) {
+        <ul class="account__addr-list">
+          @for (a of addresses(); track a.id) {
+            <li class="account__addr">
+              <div>
+                @if (a.isDefault) {
+                  <span class="account__addr-badge">Padrão</span>
+                }
+                @if (a.label) {
+                  <p class="account__addr-label">{{ a.label }}</p>
+                }
+                <p>{{ formatAddress(a) }}</p>
+                <p class="account__addr-meta">{{ a.cep }} · {{ a.district }}</p>
+              </div>
+              <div class="account__addr-actions">
+                <button type="button" class="account__edit" (click)="startEditAddress(a)">
+                  Editar
+                </button>
+                <button type="button" class="account__edit" (click)="removeAddress(a.id)">
+                  Remover
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      } @else if (!showAddressForm()) {
+        <p class="account__settings-copy">Nenhum endereço cadastrado ainda.</p>
+      }
+
+      @if (addressOk() && !showAddressForm()) {
+        <p class="account__form-ok">{{ addressOk() }}</p>
+      }
+      @if (addressError() && !showAddressForm()) {
+        <p class="account__form-error">{{ addressError() }}</p>
+      }
+
+      @if (!showAddressForm()) {
+        <button class="account__form-submit" type="button" (click)="startNewAddress()">
+          Adicionar endereço
+        </button>
+      } @else {
+        <form class="account__form account__form--addr" (ngSubmit)="saveAddress()">
+          <label>
+            <span>Apelido (opcional)</span>
+            <input name="addrLabel" [(ngModel)]="addrLabel" />
+          </label>
+          <label>
+            <span>CEP</span>
+            <input name="addrCep" [(ngModel)]="addrCep" required inputmode="numeric" />
+          </label>
+          <label>
+            <span>Rua</span>
+            <input name="addrStreet" [(ngModel)]="addrStreet" required />
+          </label>
+          <div class="account__form-row-fields">
+            <label>
+              <span>Número</span>
+              <input name="addrNumber" [(ngModel)]="addrNumber" required />
+            </label>
+            <label>
+              <span>Complemento</span>
+              <input name="addrComplement" [(ngModel)]="addrComplement" />
+            </label>
+          </div>
+          <label>
+            <span>Bairro</span>
+            <input name="addrDistrict" [(ngModel)]="addrDistrict" required />
+          </label>
+          <div class="account__form-row-fields">
+            <label>
+              <span>Cidade</span>
+              <input name="addrCity" [(ngModel)]="addrCity" required />
+            </label>
+            <label>
+              <span>UF</span>
+              <input name="addrState" [(ngModel)]="addrState" required maxlength="2" />
+            </label>
+          </div>
+          <label class="account__check">
+            <input type="checkbox" name="addrDefault" [(ngModel)]="addrDefault" />
+            <span>Usar como endereço padrão</span>
+          </label>
+          @if (addressError()) {
+            <p class="account__form-error">{{ addressError() }}</p>
+          }
+          <div class="account__form-row">
+            <button class="account__form-submit" type="submit" [disabled]="addressBusy()">
+              Salvar endereço
+            </button>
+            <button class="account__cancel" type="button" (click)="cancelAddressForm()">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+
+    <div class="account__grid">
+      <section class="account__block" aria-labelledby="account-shop">
+        <h2 id="account-shop">Compras</h2>
+        <ul class="account__links">
+          <li>
+            <a [routerLink]="wishlistRoute">
+              Favoritos
+              @if (wishlist.count() > 0) {
+                <span class="account__meta">{{ wishlist.count() }}</span>
+              }
+            </a>
+          </li>
+          <li>
+            <a [routerLink]="ordersRoute">Pedidos</a>
+          </li>
+          <li>
+            <a [routerLink]="collectionRoute">Continuar explorando</a>
+          </li>
+        </ul>
+      </section>
+
+      <section class="account__block" aria-labelledby="account-help">
+        <h2 id="account-help">Ajuda</h2>
+        <ul class="account__links">
+          <li>
+            <a [href]="contactHref">Atendimento</a>
+          </li>
+          <li>
+            <a [routerLink]="aboutRoute">Sobre a marca</a>
+          </li>
+          <li>
+            <a [routerLink]="privacyRoute">Privacidade</a>
+          </li>
+          <li>
+            <a [routerLink]="termsRoute">Termos</a>
+          </li>
+          <li>
+            <a [routerLink]="cookiesRoute">Cookies</a>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <section class="account__settings" id="settings" aria-labelledby="account-settings">
+      <h2 id="account-settings">Configurações</h2>
+      <p class="account__settings-copy">Altere sua senha de acesso. As demais sessões serão encerradas.</p>
+
+      <form class="account__form" (ngSubmit)="changePassword()">
+        <label>
+          <span>Senha atual</span>
+          <input
+            type="password"
+            name="currentPassword"
+            [(ngModel)]="currentPassword"
+            required
+            autocomplete="current-password"
+          />
+        </label>
+        <label>
+          <span>Nova senha (mín. 8)</span>
+          <input
+            type="password"
+            name="newPassword"
+            [(ngModel)]="newPassword"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
+        </label>
+        <label>
+          <span>Confirmar nova senha</span>
+          <input
+            type="password"
+            name="confirmPassword"
+            [(ngModel)]="confirmPassword"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
+        </label>
+
+        @if (passwordError()) {
+          <p class="account__form-error">{{ passwordError() }}</p>
+        }
+        @if (passwordOk()) {
+          <p class="account__form-ok">{{ passwordOk() }}</p>
+        }
+
+        <button class="account__form-submit" type="submit" [disabled]="passwordBusy()">
+          Atualizar senha
+        </button>
+      </form>
+    </section>
+
+    <div class="account__foot">
+      <button class="account__logout" type="button" (click)="signOut()">Sair da conta</button>
+    </div>
+  } @else if (auth.resolved()) {
+    <div class="account__guest">
+      <p class="account__guest-title">Entre para acessar sua conta</p>
+      <p class="account__guest-copy">
+        Favoritos sincronizados, histórico de pedidos e atendimento com o seu perfil.
+      </p>
+      <div class="account__guest-actions">
+        <a class="account__cta" [routerLink]="login">Entrar</a>
+        <a class="account__cta account__cta--ghost" [routerLink]="register">Criar conta</a>
+      </div>
+    </div>
+
+    <div class="account__grid">
+      <section class="account__block" aria-labelledby="guest-shop">
+        <h2 id="guest-shop">Enquanto isso</h2>
+        <ul class="account__links">
+          <li>
+            <a [routerLink]="wishlistRoute">
+              Favoritos
+              @if (wishlist.count() > 0) {
+                <span class="account__meta">{{ wishlist.count() }}</span>
+              }
+            </a>
+          </li>
+          <li>
+            <a [routerLink]="collectionRoute">Explorar a coleção</a>
+          </li>
+        </ul>
+      </section>
+
+      <section class="account__block" aria-labelledby="guest-help">
+        <h2 id="guest-help">Ajuda</h2>
+        <ul class="account__links">
+          <li>
+            <a [href]="contactHref">Atendimento</a>
+          </li>
+          <li>
+            <a [routerLink]="aboutRoute">Sobre a marca</a>
+          </li>
+          <li>
+            <a [routerLink]="privacyRoute">Privacidade</a>
+          </li>
+          <li>
+            <a [routerLink]="termsRoute">Termos</a>
+          </li>
+        </ul>
+      </section>
+    </div>
+  }
+</section>

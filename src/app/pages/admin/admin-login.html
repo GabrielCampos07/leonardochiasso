@@ -1,0 +1,23 @@
+<section class="admin-login">
+  <h1>Entrar</h1>
+  <p>Área para editar os produtos do site.</p>
+
+  <form class="admin-login__form" (ngSubmit)="submit()">
+    <label>
+      Senha
+      <input
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        [(ngModel)]="password"
+        required
+      />
+    </label>
+
+    @if (error()) {
+      <p class="admin-login__error" role="alert">{{ error() }}</p>
+    }
+
+    <button type="submit">Entrar</button>
+  </form>
+</section>

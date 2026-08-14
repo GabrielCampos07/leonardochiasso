@@ -1,0 +1,93 @@
+@if (show(); as film) {
+  <article class="acd">
+    <section class="acd-hero">
+      <img
+        class="acd-hero__img"
+        [src]="film.poster"
+        [alt]="film.title"
+        [style.object-position]="film.posterPosition || 'center 18%'"
+      />
+      <div class="acd-hero__veil" aria-hidden="true"></div>
+      <div class="acd-hero__copy">
+        <a class="acd-hero__back" [routerLink]="back">Desfiles</a>
+        <p class="acd-hero__sub">{{ film.subtitle }}</p>
+        <h1>{{ film.title }}</h1>
+      </div>
+    </section>
+
+    @if (film.comingSoon) {
+      <section class="acd-intro acd-intro--soon lc-container">
+        <p class="acd-intro__soon">Em breve</p>
+        <p class="acd-intro__lead">
+          O desfile {{ film.title }} ainda está em produção. Volte em breve.
+        </p>
+      </section>
+    } @else {
+      <section class="acd-intro lc-container">
+        <p class="acd-intro__lead">{{ film.lead }}</p>
+        <ul class="acd-intro__details">
+          @for (line of film.details; track line) {
+            <li>{{ line }}</li>
+          }
+        </ul>
+        <div class="acd-intro__actions">
+          @if (film.videoSrc) {
+            <button class="acd-intro__cta" type="button" (click)="scrollToDesfile()">
+              Ver desfile
+            </button>
+          }
+          @if (looksHref()) {
+            <a class="acd-intro__cta acd-intro__cta--looks" [routerLink]="looksHref()">
+              Veja os looks
+            </a>
+          }
+          <a class="acd-intro__cta" [routerLink]="shopHref()">Ver coleção</a>
+        </div>
+      </section>
+
+      <section class="acd-gallery" aria-label="Fotos do desfile">
+        @for (photo of film.photos; track photo.src; let i = $index) {
+          <figure class="acd-gallery__item">
+            <img [src]="photo.src" [alt]="photo.alt" />
+          </figure>
+
+          @if (
+            film.midVideoSrc &&
+            film.midVideoAfterIndex !== undefined &&
+            i === film.midVideoAfterIndex
+          ) {
+            <div class="acd-gallery__mid-video">
+              <h2>{{ film.midVideoCaption }}</h2>
+              <video
+                class="acd-video__player"
+                [src]="film.midVideoSrc"
+                [poster]="film.poster"
+                controls
+                playsinline
+                preload="metadata"
+              >
+                Seu navegador não reproduz este vídeo.
+              </video>
+            </div>
+          }
+        }
+      </section>
+
+      @if (film.videoSrc) {
+        <section id="desfile-video" class="acd-video lc-container">
+          <h2>{{ film.videoCaption }}</h2>
+          <video
+            class="acd-video__player"
+            [src]="film.videoSrc"
+            [poster]="film.poster"
+            controls
+            playsinline
+            preload="metadata"
+          >
+            Seu navegador não reproduz este vídeo.
+          </video>
+        </section>
+      }
+    }
+  </article>
+}

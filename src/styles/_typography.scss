@@ -1,0 +1,54 @@
+@use 'tokens' as *;
+
+.lc-brand-stacked {
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 4vw, 48px);
+  letter-spacing: 0.14em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--lc-void);
+}
+
+.lc-display-hero {
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 5vw, 64px);
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--lc-void);
+}
+
+.lc-label-outline {
+  font-family: var(--lc-font-display);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--lc-void);
+}
+
+.lc-body-l {
+  font-family: var(--lc-font-body);
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--lc-void);
+}
+
+.lc-body-s {
+  font-family: var(--lc-font-body);
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--lc-void);
+}
+
+.lc-caption {
+  font-family: var(--lc-font-body);
+  font-weight: 400;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--lc-ash);
+}

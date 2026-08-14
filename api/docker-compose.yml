@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: leo-chiasso-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: leo
+      POSTGRES_PASSWORD: leo
+      POSTGRES_DB: leo_chiasso
+    ports:
+      # Host 5433 avoids clashing with a local Postgres already on 5432
+      - '5433:5432'
+    volumes:
+      - leo_chiasso_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U leo -d leo_chiasso']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  leo_chiasso_pg:

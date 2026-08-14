@@ -1,0 +1,24 @@
+<section class="grtw">
+  <nav class="grtw__crumb lc-caption" aria-label="Breadcrumb">
+    <a [routerLink]="home">Home</a>
+    <span>/</span>
+    <a [routerLink]="genderRoute()" [queryParams]="genderQueryParams()" fragment="colecoes">{{
+      genderLabel()
+    }}</a>
+    <span>/</span>
+    <span>{{ title() }}</span>
+  </nav>
+
+  <header class="grtw__hero">
+    <h1>{{ title() | uppercase }} <span>{{ products().length }}</span></h1>
+    <p class="grtw__lede">{{ lede() }}</p>
+  </header>
+
+  <div class="grtw__grid">
+    @for (p of products(); track p.id) {
+      <lc-product-card [product]="p" />
+    } @empty {
+      <p class="grtw__empty">Nenhuma peça nesta categoria por enquanto.</p>
+    }
+  </div>
+</section>

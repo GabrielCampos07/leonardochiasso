@@ -1,0 +1,186 @@
+@if (display(); as p) {
+  <section class="pdp">
+    <nav class="pdp__crumb lc-caption" aria-label="Breadcrumb">
+      <a [routerLink]="home">Home</a>
+      <span>/</span>
+      <a [routerLink]="collectionRoute()">{{ product()!.collection }}</a>
+      <span>/</span>
+      <span>{{ product()!.name }}</span>
+    </nav>
+
+    <div class="pdp__grid">
+      <div class="pdp__gallery">
+        <div
+          class="pdp__main"
+          [class.is-focus-top]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'top'"
+          [class.is-focus-center]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'center'"
+          [class.is-focus-bottom]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'bottom'"
+          [class.is-focus-waist]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'waist'"
+          (touchstart)="onTouchStart($event)"
+          (touchend)="onTouchEnd($event)"
+        >
+          <button
+            type="button"
+            class="pdp__zoom"
+            aria-label="Ampliar imagem"
+            (click)="openLightbox()"
+          >
+            <img [src]="mainImage()" [alt]="p.name" />
+          </button>
+          @if (product()!.gallery.length > 1) {
+            <button
+              class="pdp__nav pdp__nav--prev"
+              type="button"
+              aria-label="Foto anterior"
+              (click)="prevImage()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M14.5 5.5 8 12l6.5 6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="square"
+                />
+              </svg>
+            </button>
+            <button
+              class="pdp__nav pdp__nav--next"
+              type="button"
+              aria-label="Próxima foto"
+              (click)="nextImage()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M9.5 5.5 16 12l-6.5 6.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.4"
+                  stroke-linecap="square"
+                />
+              </svg>
+            </button>
+            <div class="pdp__dots" aria-hidden="true">
+              @for (img of product()!.gallery; track img; let i = $index) {
+                <span [class.is-active]="activeImage() === i"></span>
+              }
+            </div>
+          }
+        </div>
+        <div class="pdp__thumbs">
+          @for (img of product()!.gallery; track img; let i = $index) {
+            <button
+              type="button"
+              [class.is-active]="activeImage() === i"
+              (click)="selectImage(i)"
+            >
+              <img [src]="img" [alt]="p.name + ' ' + (i + 1)" />
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="pdp__buy">
+        <p class="lc-label-outline">{{ product()!.collection }}</p>
+        <h1>{{ p.name }}</h1>
+        <p class="pdp__price">{{ priceLabel() }}</p>
+
+        @if (pieces().length > 1) {
+          <div class="pdp__pieces" role="group" aria-label="Escolher peça">
+            <p class="pdp__pieces-label">Escolha a peça</p>
+            <div class="pdp__pieces-list">
+              @for (piece of pieces(); track piece.id) {
+                <button
+                  type="button"
+                  class="pdp__piece"
+                  [class.is-active]="selectedPiece()?.id === piece.id"
+                  (click)="selectPiece(piece.id)"
+                >
+                  <span class="pdp__piece-name">{{ piece.name }}</span>
+                  @if (!pricesOnRequest) {
+                    <span class="pdp__piece-price">{{ piece.priceLabel }}</span>
+                  }
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="pdp__attr">
+          <span>Cor</span>
+          <div class="pdp__color">
+            @if (swatches().length) {
+              <ul class="pdp__swatches" aria-label="Cores disponíveis">
+                @for (c of swatches(); track c.id) {
+                  <li>
+                    <span
+                      class="pdp__swatch"
+                      [style.background]="c.hex"
+                      [class.pdp__swatch--light]="isLight(c.hex)"
+                      [attr.title]="c.name"
+                      [attr.aria-label]="c.name"
+                    ></span>
+                  </li>
+                }
+              </ul>
+            }
+            <strong>{{ p.color }}</strong>
+          </div>
+        </div>
+        <div class="pdp__attr">
+          <span>Tamanho</span>
+          <strong>{{ product()!.size }}</strong>
+        </div>
+
+        @if (!pricesOnRequest) {
+          <button class="pdp__add" type="button" (click)="addToBag()">
+            {{ pieces().length > 1 ? 'ADICIONAR ESTA PEÇA À SACOLA' : 'ADICIONAR À SACOLA' }}
+          </button>
+        }
+        <button
+          class="pdp__wish"
+          type="button"
+          [attr.aria-pressed]="wishlist.has(product()!.id)"
+          (click)="toggleWish()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              [attr.fill]="wishlist.has(product()!.id) ? 'currentColor' : 'none'"
+              stroke="currentColor"
+              stroke-width="1.2"
+              d="M12 19s-6.5-4.2-8.5-8A4.5 4.5 0 0 1 12 7.2 4.5 4.5 0 0 1 20.5 11c-2 3.8-8.5 8-8.5 8z"
+            />
+          </svg>
+          {{ wishlist.has(product()!.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos' }}
+        </button>
+
+        <div class="pdp__block">
+          <h2>Descrição</h2>
+          <p>{{ product()!.description }}</p>
+        </div>
+        <div class="pdp__block">
+          <h2>Detalhes</h2>
+          <ul>
+            @for (d of product()!.details; track d) {
+              <li>{{ d }}</li>
+            }
+          </ul>
+        </div>
+        <div class="pdp__block">
+          <h2>Frete + devoluções</h2>
+          <p>{{ product()!.shipping }}</p>
+        </div>
+        <p class="pdp__fabric lc-caption">{{ p.fabric }} · {{ product()!.season }}</p>
+      </div>
+    </div>
+  </section>
+} @else {
+  <section class="pdp pdp--empty">
+    <h1>Produto não encontrado</h1>
+    <lc-button label="Voltar à coleção" [href]="collectionRoute()" />
+  </section>
+}
+
+@if (lightbox(); as lb) {
+  <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
+}

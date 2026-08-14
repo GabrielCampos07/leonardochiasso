@@ -1,0 +1,45 @@
+<section class="hero">
+  <img class="hero__img" src="assets/media/hero-runway.jpg" alt="Campanha Leonardo Chiasso" />
+  <div class="hero__content">
+    <p class="lc-label-outline hero__eyebrow">Coleção contínua</p>
+    <h1 class="hero__title">LUXO SUSTENTÁVEL</h1>
+    <p class="lc-body-s hero__sub">Arquitetura vestível em 100% hemp</p>
+    <p class="hero__tag">Hemp&amp;silk</p>
+  </div>
+</section>
+
+<div id="colecoes">
+  <lc-alta-costura-films />
+
+  @if (categoria(); as cat) {
+    <section class="landing-shop lc-container" aria-labelledby="landing-shop-title">
+      <h2 id="landing-shop-title" class="landing-shop__title">
+        <span class="landing-shop__brand">Leonardo Chiasso</span>
+        {{ genderLabel() }}
+      </h2>
+      <p class="landing-shop__lede">{{ genderLede() }}</p>
+
+      <div class="landing-shop__cols">
+        @for (col of collectionTiles(); track col.label) {
+          <a
+            class="landing-shop__col"
+            [routerLink]="col.route"
+            [queryParams]="col.queryParams"
+          >
+            {{ col.label }}
+          </a>
+        }
+      </div>
+
+      <div class="landing-shop__grid">
+        @for (p of products(); track p.id) {
+          <lc-product-card [product]="p" />
+        } @empty {
+          <p class="landing-shop__empty">Nenhuma peça nesta categoria por enquanto.</p>
+        }
+      </div>
+    </section>
+  }
+</div>
+
+<lc-newsletter />

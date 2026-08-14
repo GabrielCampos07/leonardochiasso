@@ -1,0 +1,80 @@
+<section class="admin-list">
+  <header class="admin-list__head">
+    <div>
+      <h1>Produtos</h1>
+      <p>Clique em Editar para mudar nome, texto, preço, cores ou fotos.</p>
+    </div>
+    <div class="admin-list__actions">
+      <a class="admin-list__add" [routerLink]="newPath">Adicionar produto</a>
+      <button type="button" class="admin-list__danger" (click)="resetAll()">
+        Restaurar tudo
+      </button>
+    </div>
+  </header>
+
+  @if (toast()) {
+    <p class="admin-list__toast" role="status">{{ toast() }}</p>
+  }
+
+  <div class="admin-list__filters">
+    <label>
+      Buscar pelo nome
+      <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+    </label>
+    <label>
+      Gênero
+      <select [ngModel]="category()" (ngModelChange)="category.set($event)">
+        <option value="todos">Todos</option>
+        <option value="feminino">Feminino</option>
+        <option value="masculino">Masculino</option>
+      </select>
+    </label>
+    <label>
+      Coleção
+      <select [ngModel]="collection()" (ngModelChange)="collection.set($event)">
+        <option value="todas">Todas</option>
+        @for (c of collections; track c) {
+          <option [value]="c">{{ c }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  <p class="admin-list__count">{{ filtered().length }} produto(s)</p>
+
+  <ul class="admin-list__rows">
+    @for (p of filtered(); track p.slug; let i = $index) {
+      <li class="admin-row">
+        <img [src]="p.thumb" [alt]="p.name" width="112" height="149" />
+        <div class="admin-row__info">
+          <strong>{{ p.name }}</strong>
+          <span>{{ p.collection }} · {{ p.category }}</span>
+          <span>{{ priceLabel(p) }}</span>
+        </div>
+        <div class="admin-row__actions">
+          <a class="admin-row__edit" [routerLink]="editPath(p.slug)">Editar</a>
+          <div class="admin-row__order">
+            <button
+              type="button"
+              class="admin-row__order-btn"
+              (click)="move(p.slug, -1)"
+              [disabled]="i === 0"
+            >
+              <span aria-hidden="true">↑</span> Subir
+            </button>
+            <button
+              type="button"
+              class="admin-row__order-btn"
+              (click)="move(p.slug, 1)"
+              [disabled]="i === filtered().length - 1"
+            >
+              <span aria-hidden="true">↓</span> Descer
+            </button>
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="admin-list__empty">Nenhum produto encontrado.</li>
+    }
+  </ul>
+</section>

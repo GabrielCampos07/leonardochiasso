@@ -1,0 +1,110 @@
+@if (missing()) {
+  <section class="admin-edit">
+    <h1>Joia não encontrada</h1>
+    <a [routerLink]="listPath">Voltar à lista</a>
+  </section>
+} @else if (draft(); as p) {
+  <section class="admin-edit">
+    <header class="admin-edit__head">
+      <div>
+        <a class="admin-edit__back" [routerLink]="listPath">← Voltar</a>
+        <h1>{{ isNew() ? 'Adicionar joia' : 'Editar joia' }}</h1>
+        <p>{{ isNew() ? 'Coleção Gioielli' : p.title }}</p>
+      </div>
+    </header>
+
+    @if (toast()) {
+      <p class="admin-edit__toast" role="status">
+        {{ toast() }}
+        @if (!isNew()) {
+          <a [routerLink]="siteJoias" target="_blank" rel="noopener">Ver no site</a>
+        }
+      </p>
+    }
+
+    <form class="admin-edit__form" (ngSubmit)="save()">
+      <fieldset>
+        <legend>Básico</legend>
+        <label>
+          Título
+          <input
+            type="text"
+            [ngModel]="p.title"
+            (ngModelChange)="onTitleChange($event)"
+            name="title"
+            required
+          />
+        </label>
+        @if (isNew()) {
+          <label>
+            Código (slug)
+            <input
+              type="text"
+              [ngModel]="p.slug"
+              (ngModelChange)="onSlugChange($event)"
+              name="slug"
+              placeholder="gerado-do-titulo"
+            />
+          </label>
+        }
+        <label>
+          Matéria / etiqueta
+          <input
+            type="text"
+            [ngModel]="p.medium ?? ''"
+            (ngModelChange)="patchField('medium', $event)"
+            name="medium"
+            placeholder="Miçangas · tassel · preto"
+          />
+        </label>
+        <label>
+          Preço (texto)
+          <input
+            type="text"
+            [ngModel]="p.priceLabel"
+            (ngModelChange)="patchField('priceLabel', $event)"
+            name="priceLabel"
+            placeholder="Sob consulta"
+          />
+        </label>
+        <label>
+          Descrição
+          <textarea
+            rows="5"
+            [ngModel]="p.description"
+            (ngModelChange)="patchField('description', $event)"
+            name="description"
+          ></textarea>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Mídia</legend>
+        <label>
+          Fotos (uma URL por linha, assets/…)
+          <textarea
+            rows="5"
+            [ngModel]="imagesText()"
+            (ngModelChange)="onImagesChange($event)"
+            name="images"
+            placeholder="assets/media/joias/exemplo.png"
+          ></textarea>
+        </label>
+        <label>
+          Vídeo (opcional)
+          <input
+            type="text"
+            [ngModel]="p.videoSrc ?? ''"
+            (ngModelChange)="patchField('videoSrc', $event || undefined)"
+            name="videoSrc"
+            placeholder="assets/media/joias/exemplo.mp4"
+          />
+        </label>
+      </fieldset>
+
+      <div class="admin-edit__save-row">
+        <button type="submit" class="admin-edit__save">Salvar</button>
+      </div>
+    </form>
+  </section>
+}

@@ -1,0 +1,327 @@
+.admin-edit__head {
+  margin-bottom: var(--lc-space-24);
+}
+
+.admin-edit__back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 10px;
+  font-size: 1.1rem;
+  color: var(--lc-ash);
+  text-decoration: none;
+}
+
+.admin-edit__back:hover {
+  color: var(--lc-void);
+}
+
+.admin-edit h1 {
+  margin: 0 0 4px;
+  font-family: var(--lc-font-display);
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.admin-edit__head p {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--lc-ash);
+  overflow-wrap: anywhere;
+}
+
+.admin-edit__toast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
+  background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
+  color: var(--lc-void);
+  font-size: 1.15rem;
+}
+
+.admin-edit__toast a {
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.admin-edit__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-24);
+}
+
+.admin-edit__form fieldset {
+  margin: 0;
+  padding: 0 0 var(--lc-space-24);
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--lc-ash) 40%, transparent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-edit__form legend {
+  padding: 0;
+  margin-bottom: 14px;
+  font-family: var(--lc-font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-edit__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 1.1rem;
+}
+
+.admin-edit__form input,
+.admin-edit__form select,
+.admin-edit__form textarea {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  border-radius: 0;
+  font-size: 1.1rem;
+  font-family: inherit;
+  background: var(--lc-white);
+  color: var(--lc-void);
+}
+
+.admin-edit__form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.admin-edit__note,
+.admin-edit__hint {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  color: var(--lc-ash);
+}
+
+.admin-edit__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-edit__swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 14px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  border-radius: 0;
+  background: var(--lc-white);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.admin-edit__swatch::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--sw);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 25%);
+}
+
+.admin-edit__swatch.is-on {
+  border-color: var(--lc-void);
+  background: color-mix(in srgb, var(--lc-ash) 10%, var(--lc-white));
+}
+
+.admin-edit__preview {
+  width: 140px;
+  max-width: 100%;
+  height: 180px;
+  object-fit: cover;
+  margin: 0 0 14px;
+  background: color-mix(in srgb, var(--lc-ash) 18%, var(--lc-white));
+}
+
+.admin-edit__piece {
+  padding: 14px 0;
+  border-top: 1px solid color-mix(in srgb, var(--lc-ash) 40%, transparent);
+}
+
+.admin-edit__piece:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.admin-edit__piece-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.admin-edit__piece h3 {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.admin-edit__piece-remove {
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #8b1e2d;
+  background: var(--lc-white);
+  color: #8b1e2d;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.admin-edit__add-piece {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 8px;
+  border: 1px solid var(--lc-void);
+  border-radius: 0;
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-edit__add-piece:hover {
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.admin-edit__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--lc-white) 70%, transparent);
+}
+
+.admin-edit__save,
+.admin-edit__cancel,
+.admin-edit__site {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: 0;
+  font-family: var(--lc-font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.admin-edit__save {
+  border: none;
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.admin-edit__save:hover {
+  opacity: 0.88;
+}
+
+.admin-edit__cancel {
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  background: var(--lc-white);
+  color: var(--lc-void);
+}
+
+.admin-edit__site {
+  border: 1px solid var(--lc-void);
+  color: var(--lc-void);
+  background: var(--lc-white);
+}
+
+@media (max-width: 768px) {
+  .admin-edit h1 {
+    font-size: 1.5rem;
+  }
+
+  .admin-edit__head p {
+    font-size: 1.05rem;
+  }
+
+  .admin-edit__back {
+    min-height: 48px;
+    font-size: 1.15rem;
+  }
+
+  .admin-edit__form input,
+  .admin-edit__form select,
+  .admin-edit__form textarea {
+    min-height: 52px;
+    font-size: 1.1rem;
+  }
+
+  .admin-edit__preview {
+    width: 50%;
+    max-width: 180px;
+    height: auto;
+    aspect-ratio: 3 / 4;
+  }
+
+  .admin-edit__swatch {
+    min-height: 48px;
+    font-size: 1.05rem;
+  }
+
+  .admin-edit__piece-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-edit__piece-remove {
+    width: 100%;
+    min-height: 52px;
+    font-size: 1.05rem;
+  }
+
+  .admin-edit__add-piece {
+    min-height: 56px;
+    font-size: 1rem;
+  }
+
+  .admin-edit__footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    border-top: 1px solid color-mix(in srgb, var(--lc-ash) 40%, transparent);
+    background: var(--lc-white);
+    box-shadow: 0 -8px 24px rgb(0 0 0 / 4%);
+  }
+
+  .admin-edit__save,
+  .admin-edit__cancel,
+  .admin-edit__site {
+    width: 100%;
+    min-height: 56px;
+    font-size: 1rem;
+  }
+}

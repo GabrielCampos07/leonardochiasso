@@ -1,0 +1,23 @@
+# compiled output
+/dist
+/node_modules
+/build
+
+# env
+.env
+.env.local
+!.env.example
+
+# logs / coverage
+logs
+*.log
+coverage
+.nyc_output
+
+# IDE / OS
+.idea
+.vscode
+.DS_Store
+
+# Prisma
+prisma/*.db

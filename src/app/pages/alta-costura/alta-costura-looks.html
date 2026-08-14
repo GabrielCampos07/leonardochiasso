@@ -1,0 +1,71 @@
+@if (book(); as lb) {
+  <article class="acl">
+    <header class="acl-head lc-container">
+      <p class="acl-head__count">{{ lb.looks.length }} Looks</p>
+      <h1>{{ lb.title }}</h1>
+      <p class="acl-head__mention">Todas as silhuetas da coleção.</p>
+      <a
+        class="acl-head__film"
+        [routerLink]="desfileHref()"
+        fragment="desfile-video"
+      >
+        Ver o desfile
+      </a>
+    </header>
+
+    @if (lb.looks.length === 0) {
+      <p class="acl-empty lc-container">
+        Lookbook em breve — conteúdo ainda em produção.
+      </p>
+    } @else {
+      <section class="acl-grid" aria-label="Os looks">
+        @for (look of lb.looks; track look.number) {
+          <article class="acl-look" [attr.aria-label]="look.name">
+            @if (look.productSlug; as slug) {
+              <a class="acl-look__link" [routerLink]="productHref(slug)">
+                <figure class="acl-look__media">
+                  <img [src]="look.cover" [alt]="look.name" />
+                </figure>
+              </a>
+            } @else {
+              <figure class="acl-look__media">
+                <img [src]="look.cover" [alt]="look.name" />
+              </figure>
+            }
+          </article>
+        }
+      </section>
+    }
+
+    @if (relatedCats().length) {
+      <section class="acl-related lc-container" aria-labelledby="acl-related-title">
+        <h2 id="acl-related-title" class="acl-related__title">Produtos</h2>
+        <p class="acl-related__lede">Peças da coleção {{ lb.title }}.</p>
+
+        <div class="acl-related__cats" aria-label="Categorias">
+          @for (tile of relatedCats(); track tile.label) {
+            @if (tile.route; as href) {
+              <a
+                class="acl-related__cat"
+                [routerLink]="href"
+                [queryParams]="tile.queryParams ?? null"
+              >
+                <span class="acl-related__cat-media">
+                  <img [src]="tile.image" [alt]="tile.label" />
+                </span>
+                <span class="acl-related__cat-label">{{ tile.label }}</span>
+              </a>
+            } @else {
+              <div class="acl-related__cat acl-related__cat--static">
+                <span class="acl-related__cat-media">
+                  <img [src]="tile.image" [alt]="tile.label" />
+                </span>
+                <span class="acl-related__cat-label">{{ tile.label }}</span>
+              </div>
+            }
+          }
+        </div>
+      </section>
+    }
+  </article>
+}

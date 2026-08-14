@@ -1,0 +1,148 @@
+<section class="about-hero">
+  <h1 class="about-hero__title">ABOUT</h1>
+  <nav class="about-hero__anchors" aria-label="Seções">
+    @for (a of anchors; track a.id) {
+      @if (!$first) {
+        <span class="about-hero__divider" aria-hidden="true"></span>
+      }
+      <a
+        class="about-hero__anchor"
+        [class.is-active]="activeFragment() === a.id"
+        [routerLink]="aboutRoute"
+        [fragment]="a.id"
+      >{{ a.label }}</a>
+    }
+  </nav>
+</section>
+
+<section class="quote">
+  <blockquote>“O criador que faz ruído no silêncio do luxo.”</blockquote>
+  <cite>Leonardo Chiasso</cite>
+</section>
+
+<section class="editorial" id="marca">
+  <h2>Uma marca lendária</h2>
+  <p>
+    LEONARDO vem do latim Leo (leão) + nardo (força, nobreza): sabedoria, realeza e criação — o
+    arquétipo do criador universal, como em Leonardo da Vinci.
+  </p>
+  <p>
+    CHIASSO, em italiano, é ruído, movimento, vibração; também uma cidade na fronteira entre Suíça e
+    Itália — zona de transição cultural, sofisticação e arte europeia.
+  </p>
+  <p>
+    Síntese: Leonardo Chiasso é o criador que faz ruído no silêncio do luxo. Uma força silenciosa e
+    refinada que transforma matéria em arte, e natureza em cultura.
+  </p>
+</section>
+
+<section class="creator" id="criador">
+  <div class="creator__media">
+    <img
+      src="assets/media/about-hero-manifesto.jpg"
+      alt="Leonardo Chiasso, o criador"
+    />
+    <div class="creator__caption">
+      <span>O manifesto visual</span>
+      <span>Luxury through Nature →</span>
+    </div>
+  </div>
+  <div class="creator__text">
+    <h2>Leonardo Chiasso, o criador</h2>
+    <p>
+      Arquiteto da matéria e da forma — 40 anos de experiência traduzidos em domínio técnico e
+      sensorial: da alfaiataria à arquitetura, do painel têxtil à experiência estética.
+    </p>
+    <p>
+      Pioneiro da sustentabilidade inteligente — cânhamo e seda como substância viva,
+      termo-reguladora e regenerativa. Artista-autor: não apenas um designer, mas autor de um
+      universo conceitual completo.
+    </p>
+    <p>
+      Capital simbólico internacional e repertório de inovação sustentam o discurso de luxo
+      intelectual e ético. Arquétipo: o Alquimista Contemporâneo — transforma tecidos naturais em
+      poesia de forma e propósito.
+    </p>
+  </div>
+</section>
+
+<section class="editorial" id="casa">
+  <h2>Uma casa de luxo sustentável</h2>
+  <p>
+    Essência: luxo sustentável e sensorial — o encontro entre a alta-costura e a biointeligência da
+    natureza. DNA visual: minimalismo arquitetônico + organicidade têxtil + aura etérea.
+  </p>
+  <p>
+    No Brasil, a marca dialoga com a elite cultural e intelectual — consumidores de luxo que
+    valorizam arte, origem e exclusividade. No mundo, ocupa o nicho haute-conscience luxury: França,
+    Itália, Japão, Dubai, Suíça e Califórnia.
+  </p>
+  <p>
+    Linguagem global: Luxury through Nature. Architecture through Fabric. Valores: ética, estética,
+    permanência, regeneração, saber ancestral e contemporaneidade.
+  </p>
+</section>
+
+<section class="pillars" id="pilares">
+  <div class="pillars__inner">
+    <p class="pillars__label">Pilares da marca</p>
+    <div class="pillars__grid">
+      @for (s of stats; track s.unit) {
+        <article>
+          <p class="pillars__value">{{ s.value }}</p>
+          <p class="pillars__unit">{{ s.unit }}</p>
+          <p class="pillars__note">{{ s.note }}</p>
+        </article>
+      }
+    </div>
+  </div>
+</section>
+
+<section class="tecido" id="tecido">
+  <h2>O tecido</h2>
+  <p class="tecido__intro">
+    Fibra natural extraída do caule da cannabis sativa — cânhamo industrial. Um tecido inteligente,
+    Seasonless: termodinâmico, anti-fúngico, que amacia a cada lavagem e se adequa ao corpo no
+    inverno e no verão.
+  </p>
+  <div class="tecido__row">
+    <div class="tecido__media">
+      <img
+        src="assets/brand/tecido-canhamo-roupa.gif"
+        alt="Cânhamo se transformando em roupa"
+        poster="assets/brand/tecido-canhamo-roupa-poster.png"
+      />
+      <p class="tecido__caption">Do caule à peça — cânhamo se transformando em roupa</p>
+    </div>
+    <div class="tecido__specs">
+      <lc-fabric-spec
+        name="Canvas"
+        weight="380 g/m²"
+        note="Estruturado — dispensa forro"
+      />
+      <lc-fabric-spec
+        name="Cambraia"
+        weight="185 g/m²"
+        note="Leve, com mais movimento."
+      />
+    </div>
+  </div>
+  <p class="tecido__seasonless">
+    Seasonless — regula-se com a temperatura corporal, independentemente da estação.
+  </p>
+</section>
+
+<section class="more">
+  <h2>Saiba mais sobre a casa</h2>
+  <div class="more__grid">
+    @for (link of moreLinks; track link.label) {
+      <a
+        class="more__card"
+        [routerLink]="link.route"
+        [fragment]="link.fragment || undefined"
+      >
+        {{ link.label }}&nbsp;&nbsp;→
+      </a>
+    }
+  </div>
+</section>

@@ -1,0 +1,139 @@
+.arte-d {
+  max-width: var(--lc-max);
+  margin: 0 auto;
+  padding: var(--lc-space-24) var(--lc-space-24) var(--lc-space-96);
+  animation: arte-d-in 0.75s ease both;
+}
+
+@media (min-width: 768px) {
+  .arte-d {
+    padding: var(--lc-space-40) var(--lc-space-40) var(--lc-space-144);
+  }
+}
+
+.arte-d__crumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.arte-d__grid {
+  display: grid;
+  gap: var(--lc-space-40);
+}
+
+@media (min-width: 900px) {
+  .arte-d__grid {
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: var(--lc-space-64);
+    align-items: start;
+  }
+}
+
+.arte-d__media {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: color-mix(in srgb, var(--lc-ash) 8%, var(--lc-white));
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.arte-d__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-top: 8px;
+}
+
+.arte-d__eyebrow {
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 48%, transparent);
+}
+
+.arte-d__meta h1 {
+  font-family: var(--lc-font-display);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+}
+
+.arte-d__medium {
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 55%, transparent);
+}
+
+.arte-d__slot-label {
+  display: block;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: color-mix(in srgb, var(--lc-void) 45%, transparent);
+}
+
+.arte-d__slot p {
+  font-size: 15px;
+  line-height: 1.55;
+  min-height: 1.55em;
+}
+
+.arte-d__placeholder {
+  color: color-mix(in srgb, var(--lc-void) 38%, transparent);
+  font-style: italic;
+}
+
+.arte-d__price {
+  font-family: var(--lc-font-display);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.arte-d__back {
+  align-self: flex-start;
+  margin-top: 16px;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.arte-d--empty {
+  text-align: center;
+  padding-block: var(--lc-space-96);
+}
+
+.arte-d--empty h1 {
+  font-family: var(--lc-font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 20px;
+}
+
+@keyframes arte-d-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arte-d {
+    animation: none;
+  }
+}

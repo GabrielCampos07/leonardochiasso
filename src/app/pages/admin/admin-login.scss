@@ -1,0 +1,95 @@
+.admin-login {
+  max-width: 420px;
+  margin: var(--lc-space-64) auto 0;
+  padding: 0;
+}
+
+.admin-login h1 {
+  margin: 0 0 8px;
+  font-family: var(--lc-font-display);
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.admin-login > p {
+  margin: 0 0 var(--lc-space-40);
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--lc-ash);
+}
+
+.admin-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-24);
+}
+
+.admin-login__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 1.15rem;
+}
+
+.admin-login__form input {
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  border-radius: 0;
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: inherit;
+  font-size: 1.2rem;
+}
+
+.admin-login__form input:focus {
+  outline: 1px solid var(--lc-void);
+  outline-offset: 0;
+}
+
+.admin-login__form button {
+  min-height: 52px;
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  background: var(--lc-void);
+  color: var(--lc-white);
+  font-family: var(--lc-font-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-login__form button:hover {
+  opacity: 0.88;
+}
+
+.admin-login__error {
+  margin: 0;
+  color: #8b1e2d;
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .admin-login {
+    max-width: none;
+    margin: var(--lc-space-24) 0 0;
+  }
+
+  .admin-login h1 {
+    font-size: 1.5rem;
+  }
+
+  .admin-login > p {
+    margin-bottom: var(--lc-space-24);
+    font-size: 1.1rem;
+  }
+
+  .admin-login__form input,
+  .admin-login__form button {
+    min-height: 56px;
+    font-size: 1.15rem;
+  }
+}

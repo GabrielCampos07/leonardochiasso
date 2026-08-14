@@ -1,0 +1,36 @@
+<section class="ac-films" aria-label="Desfiles">
+  @for (film of desfiles; track film.slug) {
+    <article class="ac-film" [attr.data-slug]="film.slug">
+      <div class="ac-film__stage">
+        <img
+          [src]="film.poster"
+          [alt]="film.title"
+          [style.object-position]="film.posterPosition || 'center center'"
+        />
+        <span class="ac-film__veil" aria-hidden="true"></span>
+        <div class="ac-film__copy">
+          <h2 class="ac-film__title">
+            {{ film.title }}
+            @if (film.season) {
+              <span class="ac-film__season">{{ film.season }}</span>
+            }
+          </h2>
+          <div class="ac-film__actions">
+            @if (film.comingSoon) {
+              <span class="ac-film__cta ac-film__cta--soon">Em breve</span>
+            } @else {
+              <a class="ac-film__cta" [routerLink]="film.looksHref">Lookbook</a>
+              <a
+                class="ac-film__cta ac-film__cta--desfile"
+                [routerLink]="film.href"
+                [fragment]="film.videoSrc ? 'desfile-video' : undefined"
+              >
+                Desfile
+              </a>
+            }
+          </div>
+        </div>
+      </div>
+    </article>
+  }
+</section>

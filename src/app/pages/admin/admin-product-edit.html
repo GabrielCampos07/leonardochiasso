@@ -1,0 +1,264 @@
+@if (missing()) {
+  <section class="admin-edit">
+    <h1>Produto não encontrado</h1>
+    <a [routerLink]="listPath">Voltar à lista</a>
+  </section>
+} @else if (draft(); as p) {
+  <section class="admin-edit">
+    <header class="admin-edit__head">
+      <div>
+        <a class="admin-edit__back" [routerLink]="listPath">← Voltar</a>
+        <h1>{{ isNew() ? 'Adicionar produto' : 'Editar produto' }}</h1>
+        <p>{{ isNew() ? 'Preencha os campos mínimos e salve.' : p.name }}</p>
+      </div>
+    </header>
+
+    @if (toast()) {
+      <p class="admin-edit__toast" role="status">
+        {{ toast() }}
+        @if (!isNew() && p.slug) {
+          <a [routerLink]="sitePath()" target="_blank" rel="noopener">Ver no site</a>
+        }
+      </p>
+    }
+
+    <form class="admin-edit__form" (ngSubmit)="save()">
+      <fieldset>
+        <legend>Básico</legend>
+        <label>
+          Nome
+          <input
+            type="text"
+            [ngModel]="p.name"
+            (ngModelChange)="onNameChange($event)"
+            name="name"
+            required
+          />
+        </label>
+        @if (isNew()) {
+          <label>
+            Código (slug)
+            <input
+              type="text"
+              [ngModel]="p.slug"
+              (ngModelChange)="onSlugChange($event)"
+              name="slug"
+              placeholder="gerado-do-nome"
+            />
+          </label>
+          <p class="admin-edit__hint">Gerado automaticamente a partir do nome. Pode ajustar.</p>
+        }
+        <label>
+          Gênero
+          <select
+            [ngModel]="p.category"
+            (ngModelChange)="patchField('category', $event)"
+            name="category"
+          >
+            <option value="feminino">Feminino</option>
+            <option value="masculino">Masculino</option>
+          </select>
+        </label>
+        <label>
+          Coleção
+          <select
+            [ngModel]="p.collection"
+            (ngModelChange)="onCollectionChange($event)"
+            name="collection"
+          >
+            @for (c of collections; track c) {
+              <option [value]="c">{{ c }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          Tamanho
+          <input
+            type="text"
+            [ngModel]="p.size"
+            (ngModelChange)="patchField('size', $event)"
+            name="size"
+          />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Textos</legend>
+        <label>
+          Descrição
+          <textarea
+            rows="5"
+            [ngModel]="p.description"
+            (ngModelChange)="patchField('description', $event)"
+            name="description"
+          ></textarea>
+        </label>
+        <label>
+          Detalhes (uma linha por item)
+          <textarea rows="6" [(ngModel)]="detailsText" name="details"></textarea>
+        </label>
+        <label>
+          Tecido
+          <input
+            type="text"
+            [ngModel]="p.fabric"
+            (ngModelChange)="patchField('fabric', $event)"
+            name="fabric"
+          />
+        </label>
+        <label>
+          Temporada
+          <input
+            type="text"
+            [ngModel]="p.season"
+            (ngModelChange)="patchField('season', $event)"
+            name="season"
+          />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Preço</legend>
+        @if (pricesOnRequest) {
+          <p class="admin-edit__note">
+            No site, o preço ainda aparece como “Preço sob consulta”. O valor abaixo fica
+            guardado para quando os preços voltarem a ser exibidos.
+          </p>
+        }
+        <label>
+          Valor em R$
+          <input
+            type="number"
+            min="0"
+            step="1"
+            [ngModel]="p.price"
+            (ngModelChange)="onPriceChange($event)"
+            name="price"
+          />
+        </label>
+        <p class="admin-edit__hint">Mostra como: {{ p.priceLabel }}</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cores</legend>
+        <label>
+          Texto da cor
+          <input
+            type="text"
+            [ngModel]="p.color"
+            (ngModelChange)="patchField('color', $event)"
+            name="color"
+          />
+        </label>
+        <p class="admin-edit__hint">Marque as bolinhas de cor (opcional):</p>
+        <div class="admin-edit__swatches">
+          @for (s of swatchOptions; track s.id) {
+            <button
+              type="button"
+              class="admin-edit__swatch"
+              [class.is-on]="isSwatchSelected(s.id)"
+              [style.--sw]="s.hex"
+              [attr.title]="s.name"
+              (click)="toggleSwatch(s)"
+            >
+              {{ s.name }}
+            </button>
+          }
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Fotos</legend>
+        <label>
+          Foto principal (caminho)
+          <input
+            type="text"
+            [ngModel]="p.thumb"
+            (ngModelChange)="patchField('thumb', $event)"
+            name="thumb"
+          />
+        </label>
+        @if (p.thumb) {
+          <img class="admin-edit__preview" [src]="p.thumb" [alt]="p.name" />
+        }
+        <label>
+          Galeria (um caminho por linha)
+          <textarea rows="5" [(ngModel)]="galleryText" name="gallery"></textarea>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Peças do look</legend>
+        <p class="admin-edit__hint">
+          Opcional. Use quando o look tiver mais de uma peça comprável separadamente.
+        </p>
+        @for (piece of p.pieces ?? []; track piece.id; let i = $index) {
+          <div class="admin-edit__piece">
+            <div class="admin-edit__piece-head">
+              <h3>Peça {{ i + 1 }}</h3>
+              <button
+                type="button"
+                class="admin-edit__piece-remove"
+                (click)="removePiece(i)"
+              >
+                Remover peça
+              </button>
+            </div>
+            <label>
+              Nome
+              <input
+                type="text"
+                [ngModel]="piece.name"
+                (ngModelChange)="updatePiece(i, { name: $event })"
+                [name]="'piece-name-' + i"
+              />
+            </label>
+            <label>
+              Preço R$
+              <input
+                type="number"
+                min="0"
+                [ngModel]="piece.price"
+                (ngModelChange)="updatePiece(i, { price: +$event })"
+                [name]="'piece-price-' + i"
+              />
+            </label>
+            <label>
+              Cor
+              <input
+                type="text"
+                [ngModel]="piece.color ?? ''"
+                (ngModelChange)="updatePiece(i, { color: $event })"
+                [name]="'piece-color-' + i"
+              />
+            </label>
+            <label>
+              Tecido
+              <input
+                type="text"
+                [ngModel]="piece.fabric ?? ''"
+                (ngModelChange)="updatePiece(i, { fabric: $event })"
+                [name]="'piece-fabric-' + i"
+              />
+            </label>
+          </div>
+        }
+        <button type="button" class="admin-edit__add-piece" (click)="addPiece()">
+          Adicionar peça
+        </button>
+      </fieldset>
+
+      <div class="admin-edit__footer">
+        <button type="submit" class="admin-edit__save">
+          {{ isNew() ? 'Criar produto' : 'Salvar' }}
+        </button>
+        <button type="button" class="admin-edit__cancel" (click)="cancel()">Cancelar</button>
+        @if (!isNew()) {
+          <a class="admin-edit__site" [routerLink]="sitePath()" target="_blank" rel="noopener">
+            Ver no site
+          </a>
+        }
+      </div>
+    </form>
+  </section>
+}

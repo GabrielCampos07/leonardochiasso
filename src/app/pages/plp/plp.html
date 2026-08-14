@@ -1,0 +1,127 @@
+<section class="plp">
+  <nav class="plp__crumb lc-caption" aria-label="Breadcrumb">
+    <a [routerLink]="home">Home</a>
+    <span>/</span>
+    @if (categoryFilter(); as cat) {
+      <a
+        [routerLink]="genderHubRoute()"
+        [queryParams]="genderHubQueryParams()"
+        fragment="colecoes"
+      >
+        {{ genderHubLabel() }}
+      </a>
+      <span>/</span>
+    }
+    <span>{{ collectionLabel() }}</span>
+  </nav>
+
+  <div class="plp__head">
+    <h1>{{ collectionLabel() }} <span>{{ products().length }}</span></h1>
+
+    <div class="plp__toolbar">
+      <div class="plp__sort" [class.is-open]="sortOpen()">
+        <button
+          class="plp__sort-trigger"
+          type="button"
+          [attr.aria-expanded]="sortOpen()"
+          (click)="toggleSort(); $event.stopPropagation()"
+        >
+          <span>ORDENAR POR: {{ sortLabel() | uppercase }}</span>
+          <svg class="plp__chevron" viewBox="0 0 12 8" aria-hidden="true">
+            <path d="M1 1.5 6 6.5 11 1.5" fill="none" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+        </button>
+        @if (sortOpen()) {
+          <ul class="plp__sort-menu" role="listbox">
+            @for (opt of sortOptions; track opt.key) {
+              <li>
+                <button
+                  type="button"
+                  role="option"
+                  [class.is-active]="sortKey() === opt.key"
+                  (click)="selectSort(opt.key)"
+                >
+                  {{ opt.label }}
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+      <div class="plp__grid-toggles" role="group" aria-label="Colunas da grade">
+        <button
+          type="button"
+          class="plp__grid-btn"
+          [class.is-active]="gridCols() === 2"
+          aria-label="Grade 2 colunas"
+          (click)="setGrid(2)"
+        >
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            <rect x="1" y="1" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2" />
+            <rect x="10" y="1" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2" />
+            <rect x="1" y="10" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2" />
+            <rect x="10" y="10" width="7" height="7" fill="none" stroke="currentColor" stroke-width="1.2" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="plp__grid-btn"
+          [class.is-active]="gridCols() === 4"
+          aria-label="Grade 4 colunas"
+          (click)="setGrid(4)"
+        >
+          <svg viewBox="0 0 18 18" aria-hidden="true">
+            @for (row of [0, 1, 2, 3]; track row) {
+              @for (col of [0, 1, 2, 3]; track col) {
+                <rect
+                  [attr.x]="1 + col * 4.25"
+                  [attr.y]="1 + row * 4.25"
+                  width="3.2"
+                  height="3.2"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1"
+                />
+              }
+            }
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="plp__grid" [class.plp__grid--2]="gridCols() === 2" [class.plp__grid--4]="gridCols() === 4">
+    @for (p of products(); track p.id) {
+      <lc-product-card [product]="p" />
+    } @empty {
+      <p class="plp__empty">Nenhuma peça nesta categoria por enquanto.</p>
+    }
+  </div>
+
+  @if (organicJoias().length) {
+    <section class="plp__recs" aria-labelledby="plp-recs-title">
+      <header class="plp__recs-head">
+        <h2 id="plp-recs-title">Joia - Organic Dreams</h2>
+        <a class="plp__recs-link lc-caption" [routerLink]="joiasRoute">Ver mais</a>
+      </header>
+      <div
+        class="plp__recs-grid"
+        [class.plp__recs-grid--2]="gridCols() === 2"
+        [class.plp__recs-grid--4]="gridCols() === 4"
+      >
+        @for (item of organicJoias(); track item.id) {
+          <a class="plp__rec" [routerLink]="joiasRoute">
+            <div class="plp__rec-media">
+              @if (item.image) {
+                <img [src]="item.image" [alt]="item.title" />
+              }
+            </div>
+            <p class="plp__rec-name">{{ item.title }}</p>
+            <p class="plp__rec-price">{{ priceLabel(item.priceLabel) }}</p>
+          </a>
+        }
+      </div>
+    </section>
+  }
+</section>

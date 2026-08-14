@@ -1,0 +1,21 @@
+# Leonardo Chiasso — Angular SPA on Hostinger / LiteSpeed
+# Deep links (/alta-costura, /colecao/..., etc.) must fall back to index.html.
+
+<IfModule mod_rewrite.c>
+  Options -MultiViews
+  RewriteEngine On
+  RewriteBase /
+
+  # Don't rewrite the SPA entry itself.
+  RewriteRule ^index\.html$ - [L]
+
+  # Serve real files and directories (assets, JS, CSS, media) as-is.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Client routes → Angular index (relative path works better on LiteSpeed).
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Safety net if rewrite is disabled or skipped.
+ErrorDocument 404 /index.html

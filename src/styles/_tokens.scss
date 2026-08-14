@@ -1,0 +1,23 @@
+:root {
+  --lc-white: #ffffff;
+  --lc-void: #0e0c0e;
+  --lc-ash: #a4a4a4;
+
+  --lc-space-8: 8px;
+  --lc-space-16: 16px;
+  --lc-space-24: 24px;
+  --lc-space-40: 40px;
+  --lc-space-64: 64px;
+  --lc-space-96: 96px;
+  --lc-space-144: 144px;
+
+  --lc-font-display: 'Encode Sans Expanded', 'Helvetica Neue', sans-serif;
+  --lc-font-body: 'Quicksand', 'Helvetica Neue', sans-serif;
+
+  --lc-max: 1440px;
+  --lc-header-h: 96px;
+  --lc-utility-h: 40px;
+  --lc-ease-drape: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+$bp-mobile: 768px;

@@ -1,0 +1,64 @@
+<section class="admin-list">
+  <header class="admin-list__head">
+    <div>
+      <h1>Joias · Gioielli</h1>
+      <p>Peças da coleção Gioielli — aparecem em /joias no site.</p>
+    </div>
+    <div class="admin-list__actions">
+      <a class="admin-list__add" [routerLink]="newPath">Adicionar joia</a>
+      <a class="admin-list__add" [routerLink]="siteJoias" target="_blank" rel="noopener">Ver no site</a>
+      <button type="button" class="admin-list__danger" (click)="resetAll()">
+        Restaurar tudo
+      </button>
+    </div>
+  </header>
+
+  @if (toast()) {
+    <p class="admin-list__toast" role="status">{{ toast() }}</p>
+  }
+
+  <div class="admin-list__filters">
+    <label>
+      Buscar pelo nome
+      <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+    </label>
+  </div>
+
+  <p class="admin-list__count">{{ filtered().length }} joia(s)</p>
+
+  <ul class="admin-list__rows">
+    @for (p of filtered(); track p.slug; let i = $index) {
+      <li class="admin-row">
+        <img [src]="thumb(p)" [alt]="p.title" width="112" height="149" />
+        <div class="admin-row__info">
+          <strong>{{ p.title }}</strong>
+          <span>Gioielli{{ p.medium ? ' · ' + p.medium : '' }}</span>
+          <span>{{ p.priceLabel }}</span>
+        </div>
+        <div class="admin-row__actions">
+          <a class="admin-row__edit" [routerLink]="editPath(p.slug)">Editar</a>
+          <div class="admin-row__order">
+            <button
+              type="button"
+              class="admin-row__order-btn"
+              (click)="move(p.slug, -1)"
+              [disabled]="i === 0"
+            >
+              <span aria-hidden="true">↑</span> Subir
+            </button>
+            <button
+              type="button"
+              class="admin-row__order-btn"
+              (click)="move(p.slug, 1)"
+              [disabled]="i === filtered().length - 1"
+            >
+              <span aria-hidden="true">↓</span> Descer
+            </button>
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="admin-list__empty">Nenhuma joia encontrada.</li>
+    }
+  </ul>
+</section>

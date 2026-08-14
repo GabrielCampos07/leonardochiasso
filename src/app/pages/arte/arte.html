@@ -1,0 +1,135 @@
+<section class="arte">
+  <div class="arte-intro">
+    <video
+      #intro
+      class="arte-intro__video"
+      [src]="introVideo"
+      [poster]="introPoster"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="auto"
+      (canplay)="onIntroCanPlay()"
+      aria-label="Introdução — Arte Leonardo Chiasso"
+    >
+      Seu navegador não reproduz este vídeo.
+    </video>
+    <div class="arte-intro__veil" aria-hidden="true"></div>
+    <div class="arte-intro__copy">
+      <p class="arte-intro__eyebrow">Leonardo Chiasso</p>
+      <h1 class="arte-intro__title">Arte</h1>
+      <p class="arte-intro__body">
+        Fragmento a fragmento — a beleza que habita o olhar.
+      </p>
+    </div>
+  </div>
+
+  @for (series of seriesList; track series.id) {
+    <section class="arte-series" [attr.data-series]="series.id">
+      @for (stage of series.presentations ?? []; track stage.alt) {
+        @if (!stage.videoSrc && stage.image) {
+          <div class="arte-present">
+            <button
+              type="button"
+              class="arte-present__open"
+              (click)="openImage(stage.image, stage.alt)"
+              [attr.aria-label]="'Ampliar apresentação: ' + series.title"
+            >
+              <img
+                [src]="stage.image"
+                [alt]="stage.alt"
+                [style.object-position]="stage.objectPosition ?? 'center center'"
+              />
+            </button>
+          </div>
+        }
+      }
+
+      <header class="arte-series__intro">
+        <p class="arte-series__eyebrow">{{ series.subtitle }}</p>
+        <h2 class="arte-series__title">{{ series.title }}</h2>
+        <p class="arte-series__body">{{ series.body }}</p>
+      </header>
+
+      @if (series.pieces.length) {
+        <div class="arte-list">
+          @for (piece of series.pieces; track piece.id; let i = $index) {
+            <article
+              class="arte-piece"
+              [class.arte-piece--media-left]="i % 2 === 0"
+              [class.arte-piece--media-right]="i % 2 === 1"
+            >
+              <div class="arte-piece__media">
+                <lc-art-media-carousel
+                  [image]="piece.image"
+                  [alt]="piece.title"
+                  [videoSrc]="piece.videoSrc"
+                  (openStill)="piece.image && openImage(piece.image, piece.title)"
+                />
+              </div>
+
+              <div class="arte-piece__meta">
+                <a class="arte-piece__title-link" [routerLink]="detailPath(piece)">
+                  <h3>{{ piece.title }}</h3>
+                </a>
+                @if (piece.medium) {
+                  <p class="arte-piece__medium">{{ piece.medium }}</p>
+                }
+
+                <div class="arte-piece__slot">
+                  <span class="arte-piece__slot-label">Descrição</span>
+                  @if (piece.description) {
+                    <p>{{ piece.description }}</p>
+                  } @else {
+                    <p class="arte-piece__placeholder">Texto em preparação.</p>
+                  }
+                </div>
+
+                <div class="arte-piece__slot">
+                  <span class="arte-piece__slot-label">Preço</span>
+                  <p class="arte-piece__price">{{ piece.priceLabel }}</p>
+                </div>
+
+                <a class="arte-piece__more" [routerLink]="detailPath(piece)">Ver obra</a>
+              </div>
+            </article>
+          }
+        </div>
+      }
+
+      @for (stage of series.presentations ?? []; track stage.alt + '-video') {
+        @if (stage.videoSrc) {
+          <div class="arte-present arte-present--video">
+            <div class="arte-present__video">
+              <video
+                [src]="stage.videoSrc"
+                [poster]="stage.image ?? null"
+                controls
+                playsinline
+                preload="metadata"
+                [attr.aria-label]="stage.alt"
+              >
+                Seu navegador não reproduz este vídeo.
+              </video>
+            </div>
+            @if (stage.title || stage.caption) {
+              <div class="arte-present__copy">
+                @if (stage.title) {
+                  <h3 class="arte-present__title">{{ stage.title }}</h3>
+                }
+                @if (stage.caption) {
+                  <p class="arte-present__caption">{{ stage.caption }}</p>
+                }
+              </div>
+            }
+          </div>
+        }
+      }
+    </section>
+  }
+</section>
+
+@if (lightbox(); as lb) {
+  <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
+}

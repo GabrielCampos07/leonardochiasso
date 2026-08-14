@@ -1,0 +1,55 @@
+@if (piece(); as p) {
+  <section class="arte-d">
+    <nav class="arte-d__crumb lc-caption" aria-label="Breadcrumb">
+      <a [routerLink]="home">Home</a>
+      <span>/</span>
+      <a [routerLink]="gallery">Arte</a>
+      <span>/</span>
+      <span>{{ p.title }}</span>
+    </nav>
+
+    <div class="arte-d__grid">
+      <div class="arte-d__media">
+        <lc-art-media-carousel
+          [image]="p.image"
+          [alt]="p.title"
+          [videoSrc]="p.videoSrc"
+          (openStill)="p.image && openImage(p.image, p.title)"
+        />
+      </div>
+
+      <aside class="arte-d__meta">
+        <p class="arte-d__eyebrow">Arte</p>
+        <h1>{{ p.title }}</h1>
+        @if (p.medium) {
+          <p class="arte-d__medium">{{ p.medium }}</p>
+        }
+
+        <div class="arte-d__slot">
+          <span class="arte-d__slot-label">Descrição</span>
+          @if (p.description) {
+            <p>{{ p.description }}</p>
+          } @else {
+            <p class="arte-d__placeholder">Texto em preparação.</p>
+          }
+        </div>
+
+        <div class="arte-d__slot">
+          <span class="arte-d__slot-label">Preço</span>
+          <p class="arte-d__price">{{ p.priceLabel }}</p>
+        </div>
+
+        <a class="arte-d__back" [routerLink]="backPath()">Voltar à galeria</a>
+      </aside>
+    </div>
+  </section>
+} @else {
+  <section class="arte-d arte-d--empty">
+    <h1>Obra não encontrada</h1>
+    <a [routerLink]="gallery">Voltar à galeria</a>
+  </section>
+}
+
+@if (lightbox(); as lb) {
+  <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
+}

@@ -1,0 +1,101 @@
+.lc-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  mix-blend-mode: multiply;
+}
+
+.lc-overlay--herringbone {
+  background-image: repeating-linear-gradient(
+      45deg,
+      transparent,
+      transparent 6px,
+      var(--lc-void) 6px,
+      var(--lc-void) 7px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 6px,
+      var(--lc-void) 6px,
+      var(--lc-void) 7px
+    );
+}
+
+.lc-overlay--basket {
+  background-image: linear-gradient(var(--lc-void) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lc-void) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+.lc-overlay--plain {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    var(--lc-void) 3px,
+    var(--lc-void) 4px
+  );
+}
+
+.lc-overlay--slub {
+  background-image: radial-gradient(circle at 20% 30%, var(--lc-void) 1px, transparent 1.5px),
+    radial-gradient(circle at 70% 60%, var(--lc-void) 1.5px, transparent 2px),
+    radial-gradient(circle at 40% 80%, var(--lc-ash) 1px, transparent 1.5px);
+  background-size: 48px 48px, 64px 64px, 36px 36px;
+}
+
+@keyframes lc-fabric-drift {
+  0% {
+    transform: translateY(0);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-3%);
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0.25;
+  }
+}
+
+.lc-overlay--drift {
+  animation: lc-fabric-drift 16s ease-in-out infinite;
+}
+
+@keyframes lc-drape-reveal {
+  from {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0.6;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+.lc-drape-reveal {
+  animation: lc-drape-reveal 1.2s var(--lc-ease-drape) 0.2s both;
+}
+
+@keyframes lc-wordmark-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.4em;
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.14em;
+  }
+}
+
+.lc-wordmark-stagger span {
+  display: block;
+  animation: lc-wordmark-in 0.4s ease-out both;
+}
+
+.lc-wordmark-stagger span:nth-child(2) {
+  animation-delay: 0.12s;
+}

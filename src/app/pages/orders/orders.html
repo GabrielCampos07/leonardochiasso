@@ -1,0 +1,70 @@
+<section class="orders">
+  <nav class="orders__crumb lc-caption" aria-label="Breadcrumb">
+    <a [routerLink]="home">Home</a>
+    <span>/</span>
+    <a [routerLink]="accountRoute">Conta</a>
+    <span>/</span>
+    <span>Pedidos</span>
+  </nav>
+
+  <header class="orders__head">
+    <h1>Pedidos</h1>
+  </header>
+
+  @if (!auth.user() && auth.resolved()) {
+    <div class="orders__empty">
+      <p class="orders__empty-title">Entre para ver seus pedidos</p>
+      <p class="orders__empty-copy">
+        O histórico fica vinculado à sua conta Leonardo Chiasso.
+      </p>
+      <lc-button label="Entrar" [href]="loginRoute" />
+    </div>
+  } @else if (loading()) {
+    <p class="orders__loading lc-caption">Carregando…</p>
+  } @else if (error()) {
+    <p class="orders__error">{{ error() }}</p>
+  } @else if (orders().length === 0) {
+    <div class="orders__empty">
+      <p class="orders__empty-title">Nenhum pedido ainda</p>
+      <p class="orders__empty-copy">
+        Quando você concluir uma compra, ela aparece aqui com status e peças.
+      </p>
+      <lc-button label="Explorar a coleção" [href]="collectionRoute" />
+    </div>
+  } @else {
+    <ul class="orders__list">
+      @for (order of orders(); track order.publicCode) {
+        <li class="orders__card">
+          <div class="orders__card-head">
+            <div>
+              <p class="orders__code">{{ order.publicCode }}</p>
+              <p class="orders__date lc-caption">{{ date(order.createdAt) }}</p>
+            </div>
+            <p class="orders__status">{{ statusLabel(order.status) }}</p>
+          </div>
+
+          <ul class="orders__items">
+            @for (item of order.items; track $index) {
+              <li>
+                @if (item.product.slug; as slug) {
+                  <a [routerLink]="productPath(slug)">
+                    {{ item.product.name || slug }}
+                  </a>
+                } @else {
+                  <span>{{ item.product.name || 'Peça' }}</span>
+                }
+                <span class="orders__qty">× {{ item.quantity }}</span>
+                <span class="orders__line">{{ money(item.lineTotalCents, order.currency) }}</span>
+              </li>
+            }
+          </ul>
+
+          <p class="orders__total">
+            Total
+            <strong>{{ money(order.totalCents, order.currency) }}</strong>
+          </p>
+        </li>
+      }
+    </ul>
+  }
+</section>

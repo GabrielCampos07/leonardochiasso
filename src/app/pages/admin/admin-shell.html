@@ -1,0 +1,17 @@
+<header class="admin-bar">
+  <div class="admin-bar__brand">
+    <strong>Leo Chiasso</strong>
+    <span>Área do ateliê · produtos</span>
+  </div>
+  <nav class="admin-bar__nav">
+    @if (loggedIn()) {
+      <a [routerLink]="products">Produtos</a>
+      <a [routerLink]="joias">Joias</a>
+      <a [routerLink]="home" target="_blank" rel="noopener">Abrir o site</a>
+      <button type="button" class="admin-bar__out" (click)="logout()">Sair</button>
+    }
+  </nav>
+</header>
+<main class="admin-main">
+  <router-outlet />
+</main>

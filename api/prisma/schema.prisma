@@ -1,0 +1,268 @@
+// Leo Chiasso catalog — Phase 1 (read-only public API)
+// Money: integer centavos (price_cents) + currency BRL
+// Media: metadata/URLs only — binaries live in object storage / CDN (Phase 2+)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductStatus {
+  draft
+  published
+  archived
+}
+
+enum MediaRole {
+  thumb
+  gallery
+  card
+  pdp
+  zoom
+  hero
+  og
+}
+
+model Collection {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique
+  name        String
+  description String?
+  sortOrder   Int       @default(0) @map("sort_order")
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  products ProductCollection[]
+
+  @@map("collections")
+}
+
+model Category {
+  id   String @id @default(uuid()) @db.Uuid
+  slug String @unique
+  name String
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id           String        @id @default(uuid()) @db.Uuid
+  slug         String        @unique
+  name         String
+  description  String
+  details      Json          @default("[]")
+  shippingCopy String?       @map("shipping_copy")
+  priceCents   Int           @map("price_cents")
+  currency     String        @default("BRL")
+  color        String?
+  size         String?
+  fabric       String?
+  season       String?
+  status       ProductStatus @default(draft)
+  stockQty     Int           @default(0) @map("stock_qty")
+  categoryId   String        @map("category_id") @db.Uuid
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  category    Category            @relation(fields: [categoryId], references: [id])
+  collections ProductCollection[]
+  media       ProductMedia[]
+  orderItems  OrderItem[]
+
+  @@index([status])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model ProductCollection {
+  productId    String @map("product_id") @db.Uuid
+  collectionId String @map("collection_id") @db.Uuid
+  sortOrder    Int    @default(0) @map("sort_order")
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([productId, collectionId])
+  @@map("product_collections")
+}
+
+model MediaAsset {
+  id          String    @id @default(uuid()) @db.Uuid
+  storageKey  String    @map("storage_key")
+  cdnUrl      String    @map("cdn_url")
+  mime        String?
+  bytes       Int?
+  width       Int?
+  height      Int?
+  altPt       String?   @map("alt_pt")
+  role        MediaRole @default(gallery)
+  variantOfId String?   @map("variant_of") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  variantOf MediaAsset?  @relation("MediaVariants", fields: [variantOfId], references: [id])
+  variants  MediaAsset[] @relation("MediaVariants")
+  products  ProductMedia[]
+
+  @@index([storageKey])
+  @@map("media_assets")
+}
+
+model ProductMedia {
+  productId    String  @map("product_id") @db.Uuid
+  mediaAssetId String  @map("media_asset_id") @db.Uuid
+  sortOrder    Int     @default(0) @map("sort_order")
+  isPrimary    Boolean @default(false) @map("is_primary")
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@id([productId, mediaAssetId])
+  @@map("product_media")
+}
+
+// --- Customer auth (storefront shoppers, not admin/CMS users) ---
+
+model Customer {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  name          String
+  cpf           String?   @unique
+  phone         String?
+  lgpdConsentAt DateTime? @map("lgpd_consent_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  sessions      Session[]
+  wishlistItems WishlistItem[]
+  addresses     Address[]
+  orders        Order[]
+
+  @@map("customers")
+}
+
+model Address {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  label      String?
+  cep        String
+  street     String
+  number     String
+  complement String?
+  district   String
+  city       String
+  state      String   @db.Char(2)
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@map("addresses")
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  tokenHash  String   @unique @map("token_hash")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model WishlistItem {
+  customerId  String   @map("customer_id") @db.Uuid
+  productSlug String   @map("product_slug")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, productSlug])
+  @@map("wishlist_items")
+}
+
+// --- Orders & Stripe (Phase 3) ---
+
+enum OrderStatus {
+  pending_payment
+  paid
+  fulfillment
+  shipped
+  cancelled
+  refunded
+}
+
+model Order {
+  id              String      @id @default(uuid()) @db.Uuid
+  publicCode      String      @unique @map("public_code")
+  customerId      String?     @map("customer_id") @db.Uuid
+  guestEmail      String?     @map("guest_email")
+  status          OrderStatus @default(pending_payment)
+  subtotalCents   Int         @map("subtotal_cents")
+  shippingCents   Int         @default(0) @map("shipping_cents")
+  totalCents      Int         @map("total_cents")
+  currency        String      @default("BRL")
+  buyerName       String?     @map("buyer_name")
+  buyerEmail      String?     @map("buyer_email")
+  buyerCpf        String?     @map("buyer_cpf")
+  buyerPhone      String?     @map("buyer_phone")
+  shippingAddress Json?       @map("shipping_address")
+  pspName         String?     @map("psp_name")
+  pspPaymentId    String?     @map("psp_payment_id")
+  pspCheckoutId   String?     @map("psp_checkout_id")
+  idempotencyKey  String      @unique @map("idempotency_key")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  paidAt          DateTime?   @map("paid_at")
+
+  customer Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items    OrderItem[]
+  events   PaymentEvent[]
+
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String @id @default(uuid()) @db.Uuid
+  orderId        String @map("order_id") @db.Uuid
+  productId      String @map("product_id") @db.Uuid
+  productSnapshot Json  @map("product_snapshot")
+  quantity       Int
+  unitPriceCents Int    @map("unit_price_cents")
+  lineTotalCents Int    @map("line_total_cents")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model PaymentEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  orderId    String   @map("order_id") @db.Uuid
+  psp        String
+  eventType  String   @map("event_type")
+  pspEventId String   @unique @map("psp_event_id")
+  payload    Json
+  verified   Boolean  @default(false)
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payment_events")
+}

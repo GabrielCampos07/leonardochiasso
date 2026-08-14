@@ -1,0 +1,81 @@
+<section class="joias">
+  <div class="joias-intro">
+    <video
+      #intro
+      class="joias-intro__video"
+      [src]="introVideo"
+      [poster]="introPoster"
+      autoplay
+      muted
+      loop
+      playsinline
+      preload="auto"
+      (canplay)="onCanPlay()"
+      aria-label="Introdução — Leonardo Chiasso Gioielli"
+    >
+      Seu navegador não reproduz este vídeo.
+    </video>
+    <div class="joias-intro__veil" aria-hidden="true"></div>
+    <div class="joias-intro__copy">
+      <p class="joias-intro__eyebrow">{{ brand.eyebrow }}</p>
+      <h1 class="joias-intro__title">{{ brand.title }}</h1>
+      <p class="joias-intro__body">{{ brand.lede }}</p>
+    </div>
+  </div>
+
+  <div class="joias-list">
+    @for (piece of pieces; track piece.id; let i = $index) {
+      <article
+        class="joias-piece"
+        [class.joias-piece--media-left]="i % 2 === 0"
+        [class.joias-piece--media-right]="i % 2 === 1"
+      >
+        <div class="joias-piece__media">
+          <lc-art-media-carousel
+            [image]="activeStill(piece)"
+            [alt]="piece.title"
+            [videoSrc]="piece.videoSrc"
+            (openStill)="onOpenStill(piece)"
+          />
+          @if (gallery(piece).length > 1) {
+            <ul class="joias-piece__thumbs" aria-label="Mais fotos">
+              @for (src of gallery(piece); track src; let ti = $index) {
+                <li>
+                  <button
+                    type="button"
+                    class="joias-piece__thumb"
+                    [class.is-active]="stillIndex(piece) === ti"
+                    (click)="setStill(piece.id, ti)"
+                  >
+                    <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <div class="joias-piece__meta">
+          <h2 class="joias-piece__title">{{ piece.title }}</h2>
+          @if (piece.medium) {
+            <p class="joias-piece__medium">{{ piece.medium }}</p>
+          }
+
+          <div class="joias-piece__slot">
+            <span class="joias-piece__slot-label">Descrição</span>
+            <p>{{ piece.description }}</p>
+          </div>
+
+          <div class="joias-piece__slot">
+            <span class="joias-piece__slot-label">Preço</span>
+            <p class="joias-piece__price">{{ piece.priceLabel }}</p>
+          </div>
+        </div>
+      </article>
+    }
+  </div>
+</section>
+
+@if (lightbox(); as lb) {
+  <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
+}

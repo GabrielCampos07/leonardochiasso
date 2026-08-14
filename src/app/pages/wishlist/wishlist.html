@@ -1,0 +1,71 @@
+<section class="wish">
+  <nav class="wish__crumb lc-caption" aria-label="Breadcrumb">
+    <a [routerLink]="home">Home</a>
+    <span>/</span>
+    <span>Conta</span>
+    <span>/</span>
+    <span>Favoritos</span>
+  </nav>
+
+  <header class="wish__head">
+    <h1>Favoritos</h1>
+    @if (wishlist.count() > 0) {
+      <p class="wish__count lc-caption">{{ wishlist.count() }} {{ wishlist.count() === 1 ? 'peça' : 'peças' }}</p>
+    }
+  </header>
+
+  @if (auth.user(); as customer) {
+    <p class="wish__account lc-caption">
+      <a [routerLink]="accountRoute">{{ customer.name }}</a>
+      <span aria-hidden="true">·</span>
+      <button class="wish__signout" type="button" (click)="signOut()">Sair</button>
+    </p>
+  } @else if (auth.resolved()) {
+    <p class="wish__account lc-caption">
+      <a [routerLink]="loginRoute">Entrar</a>
+      <span>para guardar seus favoritos na conta</span>
+    </p>
+  }
+
+  @if (wishlist.products().length === 0) {
+    <div class="wish__empty">
+      <p class="wish__empty-title">Sua lista de favoritos está vazia</p>
+      <p class="wish__empty-copy">
+        Guarde peças Leonardo Chiasso para revisitá-las — silhuetas em cânhamo, seleção quieta.
+      </p>
+      <lc-button label="Explorar a coleção" [href]="collectionRoute" />
+    </div>
+  } @else {
+    <ul class="wish__list">
+      @for (p of wishlist.products(); track p.id) {
+        <li class="wish__item">
+          <a class="wish__media" [routerLink]="productPath(p.slug)">
+            <img [src]="p.thumb" [alt]="p.name" />
+          </a>
+
+          <div class="wish__meta">
+            <p class="wish__collection lc-label-outline">{{ p.collection }}</p>
+            <a class="wish__name" [routerLink]="productPath(p.slug)">{{ p.name }}</a>
+            <p class="wish__detail">{{ p.color }} · {{ p.size }}</p>
+            <p class="wish__price">{{ priceLabel(p.priceLabel) }}</p>
+
+            <div class="wish__actions">
+              @if (!pricesOnRequest) {
+                <button class="wish__bag" type="button" (click)="addToBag(p.id)">
+                  Adicionar à sacola
+                </button>
+              }
+              <button class="wish__remove" type="button" (click)="remove(p.id)">
+                Remover
+              </button>
+            </div>
+          </div>
+        </li>
+      }
+    </ul>
+
+    <p class="wish__continue">
+      <a [routerLink]="collectionRoute">Continuar explorando</a>
+    </p>
+  }
+</section>
