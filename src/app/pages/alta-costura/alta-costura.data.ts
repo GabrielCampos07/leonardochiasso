@@ -13,6 +13,9 @@ export interface AltaDesfileShow {
   poster: string;
   /** CSS object-position for wide hero crop (e.g. runway stills). */
   posterPosition?: string;
+  /** Home films hub when `?categoria=masculino`. */
+  posterMasculino?: string;
+  posterMasculinoPosition?: string;
   lead: string;
   details: string[];
   photos: { src: string; alt: string }[];
@@ -37,6 +40,8 @@ export const ALTA_DESFILES: AltaDesfileShow[] = [
     poster: `${MEDIA}/brazilian-dreams-destaque.png`,
     /** Portrait runway still — brand + model/catwalk in the lower frame. */
     posterPosition: 'center 62%',
+    posterMasculino: `${MEDIA}/brazilian-dreams-destaque-masculino.png`,
+    posterMasculinoPosition: 'center 36%',
     lead: 'Brazilian Dreams — cânhamo, seda e técnicas autorais do atelier.',
     details: [
       'Coleção Brazilian Dreams',
@@ -92,6 +97,8 @@ export const ALTA_DESFILES: AltaDesfileShow[] = [
     season: '2025 2026',
     subtitle: 'Desfile',
     poster: `${MEDIA}/niponic-hero-black.png`,
+    posterMasculino: `${MEDIA}/niponic-dreams-destaque-masculino.png`,
+    posterMasculinoPosition: '42% 38%',
     lead: 'Niponic Dreams — ocasiões especiais, origami e contraste preto e branco no desfile.',
     details: [
       'Coleção Niponic Dreams',
@@ -135,6 +142,8 @@ export const ALTA_DESFILES: AltaDesfileShow[] = [
     season: '2024 2025',
     subtitle: 'Desfile',
     poster: `${MEDIA}/organic-hero.png`,
+    posterMasculino: `${MEDIA}/organic-dreams-destaque-masculino.png`,
+    posterMasculinoPosition: 'center 32%',
     lead: 'Organic Dreams em movimento — o novo luxo em 100% hemp no ritmo do desfile.',
     details: [
       'Linha Organic Dreams',

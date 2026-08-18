@@ -1,56 +1,171 @@
-.ac-soon {
-  min-height: min(70vh, 640px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.ac {
+  position: relative;
   background: var(--lc-white);
   color: var(--lc-void);
-  padding: var(--lc-space-64) var(--lc-space-24);
 }
 
-.ac-soon__inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 12px;
-  max-width: 36rem;
+.ac-intro {
+  position: relative;
+  width: 100%;
+  height: min(42vh, 400px);
+  background: #0e0c0e;
+  overflow: hidden;
+  color: var(--lc-white);
 }
 
-.ac-soon__eyebrow {
-  margin: 0;
+.ac-intro__banner {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+  background: #0e0c0e;
+}
+
+.ac-intro__veil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgb(14 12 14 / 72%) 0%,
+    rgb(14 12 14 / 22%) 45%,
+    rgb(14 12 14 / 10%) 100%
+  );
+}
+
+.ac-intro__copy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  max-width: var(--lc-max);
+  margin: 0 auto;
+  padding: 24px var(--lc-space-24) 28px;
+  pointer-events: none;
+}
+
+@media (min-width: 768px) {
+  .ac-intro__copy {
+    padding: 28px var(--lc-space-40) 32px;
+  }
+}
+
+.ac-intro__eyebrow {
+  margin: 0 0 10px;
   font-family: var(--lc-font-display);
-  font-size: 0.75rem;
+  font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--lc-ash);
+  color: color-mix(in srgb, var(--lc-white) 62%, transparent);
 }
 
-.ac-soon__title {
+.ac-intro__title {
   margin: 0;
   font-family: var(--lc-font-display);
   font-weight: 300;
-  font-size: clamp(1.75rem, 4vw, 2.75rem);
-  letter-spacing: 0.12em;
+  font-size: clamp(28px, 5vw, 48px);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  line-height: 1.15;
+  line-height: 1.02;
 }
 
-.ac-soon__subtitle {
-  margin: 4px 0 0;
-  font-family: var(--lc-font-display);
-  font-weight: 400;
-  font-size: clamp(1rem, 2vw, 1.25rem);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--lc-void) 72%, transparent);
-}
-
-.ac-soon__desc {
-  margin: 12px 0 0;
+.ac-intro__body {
+  margin: 14px 0 0;
+  max-width: 28rem;
   font-family: var(--lc-font-body);
-  font-size: 1.1rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--lc-white) 82%, transparent);
+}
+
+.ac-wearer {
+  padding-top: var(--lc-space-40);
+  padding-bottom: var(--lc-space-64);
+}
+
+.ac-wearer__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: 8px;
+  padding-bottom: 24px;
+}
+
+.ac-wearer__brand {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin: 0;
+}
+
+.ac-wearer__name {
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(16px, 1.8vw, 20px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.ac-wearer__role {
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 62%, transparent);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ac-wearer__note {
+  margin: 10px 0 0;
+  max-width: 36rem;
+  font-family: var(--lc-font-body);
+  font-size: 0.95rem;
   line-height: 1.5;
-  color: color-mix(in srgb, var(--lc-void) 65%, transparent);
-  max-width: 22rem;
+  color: color-mix(in srgb, var(--lc-void) 68%, transparent);
+}
+
+@media (min-width: 900px) {
+  .ac-wearer__role {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+  }
+}
+
+.ac-wearer__gallery {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  max-width: var(--lc-max);
+  margin: 0 auto;
+  padding-inline: var(--lc-space-24);
+}
+
+@media (min-width: 900px) {
+  .ac-wearer__gallery {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding-inline: var(--lc-space-40);
+  }
+}
+
+.ac-wearer__shot {
+  margin: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--lc-void) 4%, var(--lc-white));
+}
+
+.ac-wearer__shot img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  object-position: center 18%;
+  display: block;
 }

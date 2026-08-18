@@ -1,5 +1,5 @@
 <section class="ac-films" aria-label="Desfiles">
-  @for (film of desfiles; track film.slug) {
+  @for (film of desfiles(); track film.slug) {
     <article class="ac-film" [attr.data-slug]="film.slug">
       <div class="ac-film__stage">
         <img
@@ -19,7 +19,11 @@
             @if (film.comingSoon) {
               <span class="ac-film__cta ac-film__cta--soon">Em breve</span>
             } @else {
-              <a class="ac-film__cta" [routerLink]="film.looksHref">Lookbook</a>
+              <a
+                class="ac-film__cta"
+                [routerLink]="film.looksHref"
+                [queryParams]="looksQueryParams()"
+              >Lookbook</a>
               <a
                 class="ac-film__cta ac-film__cta--desfile"
                 [routerLink]="film.href"

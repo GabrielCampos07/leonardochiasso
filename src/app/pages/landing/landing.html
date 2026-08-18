@@ -9,7 +9,7 @@
 </section>
 
 <div id="colecoes">
-  <lc-alta-costura-films />
+  <lc-alta-costura-films [gender]="categoria()" />
 
   @if (categoria(); as cat) {
     <section class="landing-shop lc-container" aria-labelledby="landing-shop-title">

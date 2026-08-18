@@ -164,6 +164,7 @@ function shopMega(
           {
             label: 'Lookbook',
             route: ROUTES.lookbook,
+            queryParams: categoryParams,
           },
         ],
       },
@@ -204,6 +205,11 @@ export interface MobileNavGroup {
   label: string;
   open?: boolean;
   links: MobileNavLink[];
+  /** Same destination as the desktop header item, when the group title is tapped. */
+  route?: string | null;
+  queryParams?: Record<string, string>;
+  fragment?: string;
+  active?: NavActive;
 }
 
 export interface MobileNavItem {
@@ -218,6 +224,10 @@ export const MOBILE_NAV: MobileNavItem[] = [
     group: {
       label: 'FEMININO',
       open: true,
+      route: ROUTES.home,
+      queryParams: { categoria: 'feminino' },
+      fragment: 'colecoes',
+      active: 'feminino',
       links: [
         {
           label: 'Coleções',
@@ -229,6 +239,7 @@ export const MOBILE_NAV: MobileNavItem[] = [
         {
           label: 'Lookbook',
           route: ROUTES.lookbook,
+          queryParams: { categoria: 'feminino' },
           active: 'feminino',
         },
         {
@@ -254,6 +265,10 @@ export const MOBILE_NAV: MobileNavItem[] = [
     type: 'group',
     group: {
       label: 'MASCULINO',
+      route: ROUTES.home,
+      queryParams: { categoria: 'masculino' },
+      fragment: 'colecoes',
+      active: 'masculino',
       links: [
         {
           label: 'Coleções',
@@ -265,6 +280,7 @@ export const MOBILE_NAV: MobileNavItem[] = [
         {
           label: 'Lookbook',
           route: ROUTES.lookbook,
+          queryParams: { categoria: 'masculino' },
           active: 'masculino',
         },
         {

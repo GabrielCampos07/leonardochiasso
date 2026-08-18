@@ -14,11 +14,21 @@
   position: relative;
   display: block;
   width: 100%;
-  min-height: min(78vh, 760px);
-  height: min(78vh, 760px);
+  /* Landscape stills on a tall 78vh frame look stretched/cropped on phones. */
+  aspect-ratio: 4 / 5;
+  height: auto;
+  min-height: 0;
   overflow: hidden;
   background: var(--lc-void);
   color: var(--lc-white);
+}
+
+@media (min-width: 768px) {
+  .ac-film__stage {
+    aspect-ratio: auto;
+    height: min(78vh, 760px);
+    min-height: min(56vh, 640px);
+  }
 }
 
 .ac-film__stage img {
@@ -26,14 +36,17 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  max-width: none;
   object-fit: cover;
-  object-position: center center;
+  object-position: center 40%;
   display: block;
   transition: transform 0.8s ease;
 }
 
-.ac-film__stage:hover img {
-  transform: scale(1.04);
+@media (hover: hover) and (pointer: fine) {
+  .ac-film__stage:hover img {
+    transform: scale(1.04);
+  }
 }
 
 .ac-film__veil {

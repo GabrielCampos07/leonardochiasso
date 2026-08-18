@@ -1,9 +1,11 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog.service';
 import { ChromeService } from '../../core/chrome.service';
 import { Product } from '../../core/product.model';
 import {
+  GenderSlug,
   ROUTES,
   collectionPath,
   desfilePath,
@@ -11,7 +13,7 @@ import {
 } from '../../core/routes';
 import { RtwType, productMatchesRtwType, rtwLabel } from '../../core/rtw';
 import { sortByRecommendOrder } from '../../core/recommend-order';
-import { LookbookCollection, getLookbook } from './lookbook.data';
+import { LookbookCollection, LookbookLook, getLookbook } from './lookbook.data';
 
 /** Prefer these tokens when picking a category-tile thumb. */
 const TILE_THUMB_PREFER: Partial<Record<RtwType, RegExp>> = {
@@ -48,14 +50,28 @@ export class AltaCosturaLooksPage implements OnInit {
   readonly back = ROUTES.lookbook;
   readonly hub = ROUTES.lookbook;
   readonly book = signal<LookbookCollection | null>(null);
+  readonly gender = signal<GenderSlug | null>(null);
   readonly desfileHref = signal<string>(ROUTES.lookbook);
   readonly collectionProducts = signal<Product[]>([]);
+
+  readonly visibleLooks = computed((): LookbookLook[] => {
+    const book = this.book();
+    if (!book) return [];
+    const gender = this.gender();
+    if (!gender) return book.looks;
+    return book.looks.filter((look) => this.lookMatchesGender(look, gender));
+  });
+
+  readonly lookCount = computed(() => this.visibleLooks().length);
 
   /** RTW category tiles for this brand — only types that have products. */
   readonly relatedCats = computed((): RelatedCatTile[] => {
     const book = this.book();
     if (!book) return [];
-    const products = this.collectionProducts();
+    const gender = this.gender();
+    const products = gender
+      ? this.collectionProducts().filter((p) => p.category === gender)
+      : this.collectionProducts();
     const usedImages = new Set<string>();
     const tiles: RelatedCatTile[] = [];
 
@@ -90,7 +106,10 @@ export class AltaCosturaLooksPage implements OnInit {
         label: rtwLabel(tipo),
         image,
         route: collectionPath(book.collectionSlug),
-        queryParams: { tipo },
+        queryParams: {
+          tipo,
+          ...(gender ? { categoria: gender } : {}),
+        },
       });
     }
 
@@ -114,8 +133,17 @@ export class AltaCosturaLooksPage implements OnInit {
     return productPath(slug);
   }
 
+  constructor() {
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const raw = q.get('categoria');
+      const cat: GenderSlug | null =
+        raw === 'feminino' || raw === 'masculino' ? raw : null;
+      this.gender.set(cat);
+      this.chrome.setActive(cat ?? 'default');
+    });
+  }
+
   ngOnInit(): void {
-    this.chrome.setActive('default');
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
     const found = getLookbook(slug);
     if (!found) {
@@ -127,5 +155,14 @@ export class AltaCosturaLooksPage implements OnInit {
     this.catalog.getProductsByCollection(found.collectionSlug).subscribe((list) => {
       this.collectionProducts.set(list);
     });
+  }
+
+  private lookMatchesGender(look: LookbookLook, gender: GenderSlug): boolean {
+    const slug = look.productSlug;
+    if (!slug) return false;
+    const fromCollection = this.collectionProducts().find((p) => p.slug === slug);
+    const product =
+      fromCollection ?? this.catalog.products().find((p) => p.slug === slug);
+    return product?.category === gender;
   }
 }

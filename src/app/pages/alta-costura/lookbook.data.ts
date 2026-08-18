@@ -241,7 +241,15 @@ export const LOOKBOOKS: LookbookCollection[] = [
           `${LB}/organic-dreams/15-top-mosaico-textil/03.png`,
         ],
         productSlug: 'top-mosaico-textil',
-      }
+      },
+      {
+        number: 17,
+        label: '17',
+        name: 'Jaqueta jeans / camiseta / calça slean',
+        cover: 'assets/media/pdp-jaqueta-jeans-camiseta-calca-slean-01.png',
+        images: ['assets/media/pdp-jaqueta-jeans-camiseta-calca-slean-01.png'],
+        productSlug: 'jaqueta-jeans-camiseta-calca-slean',
+      },
     ],
   },
   {

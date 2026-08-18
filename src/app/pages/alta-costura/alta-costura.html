@@ -1,8 +1,39 @@
-<section class="ac-soon" aria-labelledby="ac-soon-title">
-  <div class="ac-soon__inner lc-container">
-    <p class="ac-soon__eyebrow">{{ brand.eyebrow }}</p>
-    <h1 id="ac-soon-title" class="ac-soon__title">{{ brand.title }}</h1>
-    <p class="ac-soon__subtitle">Alta Costura</p>
-    <p class="ac-soon__desc">{{ brand.lede }}</p>
+<section class="ac">
+  <div class="ac-intro">
+    <img
+      class="ac-intro__banner"
+      [src]="banner"
+      alt="Leonardo Chiasso ArtCouture"
+    />
+    <div class="ac-intro__veil" aria-hidden="true"></div>
+    <div class="ac-intro__copy">
+      <p class="ac-intro__eyebrow">{{ brand.eyebrow }}</p>
+      <h1 class="ac-intro__title">{{ brand.title }}</h1>
+      <p class="ac-intro__body">{{ brand.lede }}</p>
+    </div>
   </div>
+
+  @for (wearer of wearers; track wearer.name) {
+    <section class="ac-wearer" [attr.aria-labelledby]="wearer.id + '-name'">
+      <header class="ac-wearer__head lc-container">
+        <h2 class="ac-wearer__brand" [id]="wearer.id + '-name'">
+          <span class="ac-wearer__name">{{ wearer.name }}</span>
+          @if (wearer.role) {
+            <span class="ac-wearer__role">{{ wearer.role }}</span>
+          }
+        </h2>
+        @if (wearer.note) {
+          <p class="ac-wearer__note">{{ wearer.note }}</p>
+        }
+      </header>
+
+      <div class="ac-wearer__gallery">
+        @for (shot of wearer.shots; track shot.src) {
+          <figure class="ac-wearer__shot">
+            <img [src]="shot.src" [alt]="shot.alt" />
+          </figure>
+        }
+      </div>
+    </section>
+  }
 </section>

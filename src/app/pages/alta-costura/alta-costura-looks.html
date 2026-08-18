@@ -1,9 +1,17 @@
 @if (book(); as lb) {
   <article class="acl">
     <header class="acl-head lc-container">
-      <p class="acl-head__count">{{ lb.looks.length }} Looks</p>
+      <p class="acl-head__count">{{ lookCount() }} Looks</p>
       <h1>{{ lb.title }}</h1>
-      <p class="acl-head__mention">Todas as silhuetas da coleção.</p>
+      <p class="acl-head__mention">
+        @if (gender() === 'masculino') {
+          Looks masculinos da coleção.
+        } @else if (gender() === 'feminino') {
+          Looks femininos da coleção.
+        } @else {
+          Todas as silhuetas da coleção.
+        }
+      </p>
       <a
         class="acl-head__film"
         [routerLink]="desfileHref()"
@@ -13,13 +21,17 @@
       </a>
     </header>
 
-    @if (lb.looks.length === 0) {
+    @if (visibleLooks().length === 0) {
       <p class="acl-empty lc-container">
-        Lookbook em breve — conteúdo ainda em produção.
+        @if (gender()) {
+          Nenhum look nesta categoria por enquanto.
+        } @else {
+          Lookbook em breve — conteúdo ainda em produção.
+        }
       </p>
     } @else {
       <section class="acl-grid" aria-label="Os looks">
-        @for (look of lb.looks; track look.number) {
+        @for (look of visibleLooks(); track look.number) {
           <article class="acl-look" [attr.aria-label]="look.name">
             @if (look.productSlug; as slug) {
               <a class="acl-look__link" [routerLink]="productHref(slug)">

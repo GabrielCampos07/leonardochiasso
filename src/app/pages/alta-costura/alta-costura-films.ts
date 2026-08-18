@@ -1,6 +1,7 @@
-import { Component } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
+  GenderSlug,
   ROUTES,
   desfilePath,
   lookbookPath,
@@ -17,9 +18,24 @@ import { hasLookbook } from './lookbook.data';
   styleUrl: './alta-costura-films.scss',
 })
 export class AltaCosturaFilms {
-  readonly desfiles = ALTA_DESFILES.map((d) => ({
-    ...d,
-    looksHref: hasLookbook(d.slug) ? lookbookPath(d.slug) : ROUTES.lookbook,
-    href: desfilePath(d.slug),
-  }));
+  readonly gender = input<GenderSlug | null>(null);
+
+  readonly looksQueryParams = computed(() => {
+    const g = this.gender();
+    return g ? { categoria: g } : null;
+  });
+
+  readonly desfiles = computed(() => {
+    const masculine = this.gender() === 'masculino';
+    return ALTA_DESFILES.map((d) => ({
+      ...d,
+      poster: masculine && d.posterMasculino ? d.posterMasculino : d.poster,
+      posterPosition:
+        masculine && d.posterMasculinoPosition
+          ? d.posterMasculinoPosition
+          : d.posterPosition,
+      looksHref: hasLookbook(d.slug) ? lookbookPath(d.slug) : ROUTES.lookbook,
+      href: desfilePath(d.slug),
+    }));
+  });
 }

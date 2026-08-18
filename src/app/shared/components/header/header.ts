@@ -5,7 +5,7 @@ import { filter, map, startWith } from 'rxjs';
 import { headerBrandMark } from '../../../core/brand-lines';
 import { ChromeService } from '../../../core/chrome.service';
 import { HEADER_NAV, HeaderNavItem } from '../../../core/nav.config';
-import { ROUTES } from '../../../core/routes';
+import { ROUTES, lookbookPath } from '../../../core/routes';
 
 @Component({
   selector: 'lc-header',
@@ -36,7 +36,7 @@ import { ROUTES } from '../../../core/routes';
       </div>
 
       <nav class="header__nav" aria-label="Principal">
-        @for (item of nav; track item.key) {
+        @for (item of nav(); track item.key) {
           @if (item.route) {
             <a
               class="header__link"
@@ -201,7 +201,6 @@ import { ROUTES } from '../../../core/routes';
 export class LcHeader {
   readonly chrome = inject(ChromeService);
   private readonly router = inject(Router);
-  readonly nav = HEADER_NAV;
   readonly home = ROUTES.home;
 
   private readonly url = toSignal(
@@ -220,6 +219,22 @@ export class LcHeader {
       mega: this.chrome.mega(),
     }),
   );
+
+  /** On a collection lookbook, Feminino / Masculino stay here and filter the grid. */
+  readonly nav = computed((): HeaderNavItem[] => {
+    const path = (this.url().split('?')[0] ?? '').split('#')[0] ?? '';
+    const match = /^\/lookbook\/([^/]+)$/.exec(path);
+    const slug = match?.[1];
+    if (!slug) return HEADER_NAV;
+    return HEADER_NAV.map((item) => {
+      if (item.key !== 'feminino' && item.key !== 'masculino') return item;
+      return {
+        ...item,
+        route: lookbookPath(slug),
+        fragment: undefined,
+      };
+    });
+  });
 
   onNavEnter(item: HeaderNavItem): void {
     if (this.chrome.navCollapsed()) return;
