@@ -1,23 +1,27 @@
 /**
- * One-off: upload local `src/assets/media` images to S3/R2 and update MediaAsset.cdn_url.
+ * Upload local `src/assets/media` to R2 and rewrite Neon URLs to CDN.
  *
- * Usage (from repo root):
- *   cd api && npx tsx scripts/migrate-assets-to-s3.ts
+ *   cd api && npm run migrate:assets          # upload images + videos + DB
+ *   cd api && npm run migrate:content-urls    # DB only (after manual video upload)
  *
  * Requires STORAGE_* and CDN_BASE_URL in api/.env
+ *
+ * Manual videos on R2: upload to bucket key `video/{path}` matching local layout, e.g.
+ *   video/joias/joias-intro.mp4  →  {CDN_BASE_URL}/video/joias/joias-intro.mp4
+ * Then run migrate:content-urls.
  */
 import 'dotenv/config';
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { PrismaClient, MediaRole } from '@prisma/client';
-import {
-  PutObjectCommand,
-  S3Client,
-} from '@aws-sdk/client-s3';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
+import {
+  buildUrlMap,
+  rewriteDatabaseUrls,
+  walkMedia,
+} from './cdn-url-map';
 
 const prisma = new PrismaClient();
-const MEDIA_ROOT = path.join(process.cwd(), '..', 'src', 'assets', 'media');
 
 const VARIANTS: { role: MediaRole; max: number }[] = [
   { role: MediaRole.thumb, max: 400 },
@@ -42,15 +46,10 @@ function s3Client(): S3Client {
   });
 }
 
-async function walk(dir: string): Promise<string[]> {
-  const out: string[] = [];
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  for (const e of entries) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) out.push(...(await walk(full)));
-    else if (/\.(jpe?g|png|webp|gif)$/i.test(e.name)) out.push(full);
-  }
-  return out;
+function videoContentType(name: string): string {
+  if (/\.mp4$/i.test(name)) return 'video/mp4';
+  if (/\.mov$/i.test(name)) return 'video/quicktime';
+  return 'application/octet-stream';
 }
 
 async function uploadVariants(
@@ -82,41 +81,63 @@ async function uploadVariants(
   return pdpUrl;
 }
 
+async function uploadVideo(
+  s3: S3Client,
+  bucket: string,
+  cdnBase: string,
+  relKey: string,
+  buf: Buffer,
+): Promise<string> {
+  const key = `video/${relKey}`;
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buf,
+      ContentType: videoContentType(relKey),
+    }),
+  );
+  return `${cdnBase}/${key}`;
+}
+
 async function main(): Promise<void> {
   const bucket = process.env.STORAGE_BUCKET;
   const cdnBase = (process.env.CDN_BASE_URL ?? '').replace(/\/$/, '');
   if (!bucket || !cdnBase) throw new Error('STORAGE_BUCKET and CDN_BASE_URL required');
 
-  const s3 = s3Client();
-  const files = await walk(MEDIA_ROOT);
-  const urlMap = new Map<string, string>();
+  const skipUpload = process.argv.includes('--content-only');
+  const files = await walkMedia();
+  const urlMap = buildUrlMap(files, cdnBase);
 
-  for (const file of files) {
-    const rel = path.relative(MEDIA_ROOT, file).replace(/\\/g, '/');
-    const legacy = `assets/media/${rel}`;
-    const buf = await fs.readFile(file);
-    const cdnUrl = await uploadVariants(s3, bucket, cdnBase, rel, buf);
-    urlMap.set(legacy, cdnUrl);
-    // eslint-disable-next-line no-console
-    console.log(`Uploaded ${rel} → ${cdnUrl}`);
-  }
-
-  const assets = await prisma.mediaAsset.findMany();
-  let updated = 0;
-  for (const asset of assets) {
-    const legacy = asset.cdnUrl.replace(/^\//, '');
-    const next = urlMap.get(legacy);
-    if (next && next !== asset.cdnUrl) {
-      await prisma.mediaAsset.update({
-        where: { id: asset.id },
-        data: { cdnUrl: next, storageKey: next.replace(`${cdnBase}/`, '') },
-      });
-      updated++;
+  if (!skipUpload) {
+    const s3 = s3Client();
+    let images = 0;
+    let videos = 0;
+    for (const file of files) {
+      const buf = await fs.readFile(file.abs);
+      if (file.kind === 'image') {
+        const cdnUrl = await uploadVariants(s3, bucket, cdnBase, file.rel, buf);
+        urlMap.set(file.legacy, cdnUrl);
+        images++;
+        // eslint-disable-next-line no-console
+        console.log(`Uploaded ${file.rel} → ${cdnUrl}`);
+      } else {
+        const cdnUrl = await uploadVideo(s3, bucket, cdnBase, file.rel, buf);
+        urlMap.set(file.legacy, cdnUrl);
+        videos++;
+        // eslint-disable-next-line no-console
+        console.log(`Uploaded video ${file.rel} → ${cdnUrl}`);
+      }
     }
+    // eslint-disable-next-line no-console
+    console.log(`Upload complete: ${images} images, ${videos} videos.`);
   }
 
+  const stats = await rewriteDatabaseUrls(prisma, urlMap, cdnBase);
   // eslint-disable-next-line no-console
-  console.log(`Done. ${files.length} files uploaded, ${updated} MediaAsset rows updated.`);
+  console.log(
+    `DB updated: ${stats.mediaAssets} media_assets, ${stats.contentDocs} content_documents, ${stats.products} products.`,
+  );
 }
 
 main()

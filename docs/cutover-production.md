@@ -73,7 +73,29 @@ cd api && npm run prisma:seed
 npm run build
 ```
 
-Enviar o conteúdo de `dist/leo-chiasso/browser` para o public_html. Fotos de catálogo ainda podem ir no bundle até migrar S3.
+Enviar o conteúdo de `dist/leo-chiasso/browser` para o public_html. **Build prod não inclui fotos/vídeos** — só SVGs de UI; mídia vem do CDN (R2).
+
+### CDN — imagens e vídeos
+
+```bash
+cd api
+npm run migrate:assets        # upload imagens + vídeos locais + atualiza Neon
+npm run migrate:content-urls  # só reescreve URLs no Neon (sem upload)
+```
+
+**Vídeos grandes manualmente no R2** (ex.: `organic-dreams-desfile.MOV` fora do Git):
+
+1. Cloudflare R2 → bucket → Upload
+2. Key: `video/{caminho}` igual ao repo, ex. `video/alta-costura/organic-dreams-desfile.MOV`
+3. URL pública: `{CDN_BASE_URL}/video/alta-costura/organic-dreams-desfile.MOV`
+4. `npm run migrate:content-urls` — atualiza joias, arte, lookbooks, desfiles no Neon
+
+Convenção de keys:
+
+| Tipo | Key no bucket | Exemplo URL |
+|------|---------------|-------------|
+| Imagem | `pdp/{path}.webp` (+ thumb/card/zoom) | `…/pdp/plp-calca-thumb.webp` |
+| Vídeo | `video/{path}` (original) | `…/video/joias/joias-intro.mp4` |
 
 ## Admin
 

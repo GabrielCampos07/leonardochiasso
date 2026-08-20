@@ -97,6 +97,24 @@ Disparo manual: **Actions** → **Deploy frontend to Hostinger** → **Run workf
 
 O `.htaccess` garante deep links (`/joias`, `/colecao/...`, etc.).
 
+**Build prod (~8 MB):** fotos e vídeos **não** entram no bundle — só SVGs de UI. Mídia vem do CDN (R2) via API.
+
+### CDN (R2)
+
+```bash
+cd api
+npm run migrate:assets        # upload imagens + vídeos locais + Neon
+npm run migrate:content-urls    # só reescreve URLs no Neon (sem upload)
+```
+
+Se joias/arte/lookbooks estiverem vazios na API, rode antes `npm run prisma:seed`.
+
+**Vídeos manualmente no R2** (ex. `organic-dreams-desfile.MOV` ~2 GB):
+
+1. R2 → bucket → Upload com key `video/alta-costura/organic-dreams-desfile.MOV`
+2. URL: `{CDN_BASE_URL}/video/alta-costura/organic-dreams-desfile.MOV`
+3. `npm run migrate:content-urls`
+
 ## Estrutura (visão rápida)
 
 ```

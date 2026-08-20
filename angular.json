@@ -51,9 +51,9 @@
                 "input": "public"
               },
               {
-                "glob": "**/*",
-                "input": "src/assets",
-                "output": "assets"
+                "glob": "**/*.svg",
+                "input": "src/assets/media",
+                "output": "assets/media"
               }
             ],
             "styles": [
@@ -86,6 +86,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "public"
+                },
+                {
+                  "glob": "**/*",
+                  "input": "src/assets",
+                  "output": "assets"
+                }
+              ],
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
