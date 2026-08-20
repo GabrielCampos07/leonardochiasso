@@ -80,9 +80,11 @@ Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SER
 | `FTP_SERVER` | **FTP IP** (IP numérico) em Websites → Dashboard → **FTP Accounts**. **Não** use `ftp.leonardochiasso.com` — esse subdomínio não existe no DNS. |
 | `FTP_USERNAME` | Username na mesma tela FTP Accounts |
 | `FTP_PASSWORD` | Senha da conta FTP |
-| `FTP_REMOTE_DIR` | Pasta de upload (ex.: `/public_html` ou `/domains/leonardochiasso.com/public_html`) |
+| `FTP_REMOTE_DIR` | **não é mais usado** — o workflow envia sempre para `public_html/` |
 
-Antes do deploy, ative **SFTP/SSH** em hPanel → Websites → Dashboard → **Remote access** (porta **65002**).
+O caminho no File Manager (`/home/u…/domains/…/public_html`) **não** funciona no FTP. A conta FTP entra na home e a pasta do site é `public_html`.
+
+Se um deploy antigo “funcionou” e o `public_html` ficou vazio, os arquivos provavelmente estão **um nível acima** (ao lado de `public_html`). Procure `index.html` e `.ftp-deploy-sync-state.json` na pasta pai.
 
 O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel). Porta **65002** é SSH/SFTP — não use com a conta FTP.
 
