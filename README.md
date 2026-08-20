@@ -85,6 +85,7 @@ O FTP entra na home (`DO_NOT_UPLOAD_HERE`). O workflow envia para **`public_html
 
 O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel).
 
+
 Disparo manual: **Actions** → **Deploy frontend to Hostinger** → **Run workflow**.
 
 ### Manual
