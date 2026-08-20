@@ -1,7 +1,12 @@
-# Build Angular (production) and upload to Hostinger public_html via FTP.
+# Build Angular (production) and upload to Hostinger via SFTP (port 65002).
 #
-# Secrets live in GitHub Environment "FTP_SERVER" (Settings → Environments → FTP_SERVER):
-#   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_REMOTE_DIR
+# Secrets in GitHub Environment "FTP_SERVER" (Settings → Environments → FTP_SERVER):
+#   FTP_SERVER     — FTP IP from hPanel (numeric), NOT ftp.yourdomain.com
+#   FTP_USERNAME   — FTP username from hPanel
+#   FTP_PASSWORD   — FTP password
+#   FTP_REMOTE_DIR — e.g. /domains/leonardochiasso.com/public_html or /public_html
+#
+# Enable SFTP in hPanel: Websites → Dashboard → Advanced → Remote access (SSH/SFTP).
 name: Deploy frontend to Hostinger
 
 on:
@@ -35,12 +40,35 @@ jobs:
       - name: Copy SPA .htaccess
         run: cp public/.htaccess dist/leo-chiasso/browser/.htaccess
 
-      - name: Deploy to Hostinger (FTP)
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      - name: Verify FTP host resolves
+        env:
+          FTP_HOST: ${{ secrets.FTP_SERVER }}
+        run: |
+          set -euo pipefail
+          host="${FTP_HOST#ftp://}"
+          host="${host#ftps://}"
+          host="${host#sftp://}"
+          host="${host%%/*}"
+          host="${host%%:*}"
+          if [ -z "$host" ]; then
+            echo "::error::FTP_SERVER secret is empty."
+            exit 1
+          fi
+          if ! getent ahosts "$host" >/dev/null 2>&1; then
+            echo "::error::Cannot resolve FTP host '$host'."
+            echo "::error::Hostinger: hPanel → Websites → Dashboard → Files → FTP Accounts → copy **FTP IP** (numeric, e.g. 147.79.x.x)."
+            echo "::error::Do NOT use ftp.leonardochiasso.com — that subdomain has no DNS record."
+            exit 1
+          fi
+          echo "FTP host resolves."
+
+      - name: Deploy to Hostinger (SFTP)
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: dist/leo-chiasso/browser/
-          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/
-          dangerous-clean-slate: false
+          port: 65002
+          localDir: dist/leo-chiasso/browser/
+          remoteDir: ${{ secrets.FTP_REMOTE_DIR }}
+          deleteRemoteFiles: false

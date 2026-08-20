@@ -75,14 +75,16 @@ Push na branch `main` dispara [`.github/workflows/deploy-hostinger.yml`](./.gith
 
 Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SERVER** → Environment secrets):
 
-| Secret | Exemplo |
-|--------|---------|
-| `FTP_SERVER` | `ftp.leonardochiasso.com` |
-| `FTP_USERNAME` | usuário FTP do hPanel |
-| `FTP_PASSWORD` | senha FTP |
-| `FTP_REMOTE_DIR` | `/public_html` ou `/domains/leonardochiasso.com/public_html` |
+| Secret | Onde achar no hPanel |
+|--------|----------------------|
+| `FTP_SERVER` | **FTP IP** (IP numérico) em Websites → Dashboard → **FTP Accounts**. **Não** use `ftp.leonardochiasso.com` — esse subdomínio não existe no DNS. |
+| `FTP_USERNAME` | Username na mesma tela FTP Accounts |
+| `FTP_PASSWORD` | Senha da conta FTP |
+| `FTP_REMOTE_DIR` | Pasta de upload (ex.: `/public_html` ou `/domains/leonardochiasso.com/public_html`) |
 
-O workflow usa `environment: FTP_SERVER` — o **nome do environment** tem que bater com o YAML (não confundir com o secret `FTP_SERVER`).
+Antes do deploy, ative **SFTP/SSH** em hPanel → Websites → Dashboard → **Remote access** (porta **65002**).
+
+O workflow usa `environment: FTP_SERVER` e envia via **SFTP** (não FTP na porta 21).
 
 Disparo manual: **Actions** → **Deploy frontend to Hostinger** → **Run workflow**.
 
