@@ -54,6 +54,11 @@
                 "glob": "**/*.svg",
                 "input": "src/assets/media",
                 "output": "assets/media"
+              },
+              {
+                "glob": "**/*",
+                "input": "src/assets/brand",
+                "output": "assets/brand"
               }
             ],
             "styles": [

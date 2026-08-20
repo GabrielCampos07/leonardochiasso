@@ -81,9 +81,7 @@ Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SER
 | `FTP_USERNAME` | Username na mesma tela FTP Accounts |
 | `FTP_PASSWORD` | Senha da conta FTP |
 
-O FTP entra na **home da conta**, não no `public_html`. O workflow envia para `public_html/` (sem barra no começo).
-
-Os 57 arquivos do deploy anterior (`index.html`, `chunk-*.js`) estão **um nível acima** do `public_html` — pode apagar essa cópia na home depois que o site aparecer.
+O FTP entra na home (`DO_NOT_UPLOAD_HERE`). O workflow envia para **`public_html/`**. No log tem que aparecer `changing dir to public_html/` — se aparecer `changing dir to ./`, é o job antigo.
 
 O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel).
 
