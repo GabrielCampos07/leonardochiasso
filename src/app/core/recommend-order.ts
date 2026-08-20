@@ -22,6 +22,7 @@ const ORGANIC: string[] = [
   'jaqueta-mosaico-textil', // 14 Jaqueta Mosaico Têxtil
   'camisa-mosaico-textil-calca-pantalona', // 15 Camisa Mosaico Têxtil
   'top-mosaico-textil', // 16 Top mosaico têxtil
+  'jaqueta-trench',
   'organic-jaqueta-sfilaciatta-degrade', // extra Organic
   'organic-vestido-sfilaciatta-plumaria', // extra Organic
 ];
@@ -29,7 +30,6 @@ const ORGANIC: string[] = [
 /** Organic Dreams — masculino (fora da lista principal; fica no fim) */
 const ORGANIC_MASC: string[] = [
   'jaqueta-jeans-camiseta-calca-slean',
-  'jaqueta-trench',
 ];
 
 /** Niponic Dreams — feminino (lista pula #8) */

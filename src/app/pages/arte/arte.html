@@ -63,9 +63,10 @@
               <div class="arte-piece__media">
                 <lc-art-media-carousel
                   [image]="piece.image"
+                  [images]="piece.images ?? []"
                   [alt]="piece.title"
                   [videoSrc]="piece.videoSrc"
-                  (openStill)="piece.image && openImage(piece.image, piece.title)"
+                  (openStill)="openImage($event, piece.title)"
                 />
               </div>
 

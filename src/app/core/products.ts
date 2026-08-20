@@ -2810,7 +2810,7 @@ export const PRODUCTS: Product[] = [
       'assets/media/pdp-tunica-oriental-calca-slean-01.png',
       'assets/media/pdp-tunica-oriental-calca-slean-02.png',
     ],
-    category: 'feminino',
+    category: 'masculino',
     collection: 'Niponic Dreams',
     collectionSlug: COLLECTION_SLUGS.niponicDreams,
     pieces: [

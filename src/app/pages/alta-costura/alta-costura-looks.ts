@@ -113,18 +113,20 @@ export class AltaCosturaLooksPage implements OnInit {
       });
     }
 
-    tiles.push(
-      {
-        label: 'Joia',
-        image: JOIA_TILE_IMAGE,
-        route: null,
-      },
-      {
-        label: 'Acessório',
-        image: ACESSORIO_TILE_IMAGE,
-        route: null,
-      },
-    );
+    if (gender !== 'masculino') {
+      tiles.push(
+        {
+          label: 'Joia',
+          image: JOIA_TILE_IMAGE,
+          route: null,
+        },
+        {
+          label: 'Acessório',
+          image: ACESSORIO_TILE_IMAGE,
+          route: null,
+        },
+      );
+    }
 
     return tiles;
   });

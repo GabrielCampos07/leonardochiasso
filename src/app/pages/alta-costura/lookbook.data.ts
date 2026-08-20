@@ -156,18 +156,6 @@ export const LOOKBOOKS: LookbookCollection[] = [
         productSlug: 'calca-pantalona-degrau',
       },
       {
-        number: 10,
-        label: '10',
-        name: 'Jaqueta plumaria degradê',
-        cover: `${LB}/organic-dreams/10-jaqueta-sfilaciatta-degrade/01.png`,
-        images: [
-          `${LB}/organic-dreams/10-jaqueta-sfilaciatta-degrade/01.png`,
-          `${LB}/organic-dreams/10-jaqueta-sfilaciatta-degrade/02.png`,
-          `${LB}/organic-dreams/10-jaqueta-sfilaciatta-degrade/03.png`,
-        ],
-        productSlug: 'organic-jaqueta-sfilaciatta-degrade',
-      },
-      {
         number: 11,
         label: '11',
         name: 'Shorts Degrau',
@@ -465,7 +453,18 @@ export const LOOKBOOKS: LookbookCollection[] = [
           `${LB}/niponic-dreams/06-look-8-terno-canvas/01.png`,
         ],
         productSlug: 'look-8-terno-canvas',
-      }
+      },
+      {
+        number: 20,
+        label: '20',
+        name: 'Túnica oriental / calça slean',
+        cover: `${LB}/niponic-dreams/18-tunica-oriental-calca-slean/01.png`,
+        images: [
+          `${LB}/niponic-dreams/18-tunica-oriental-calca-slean/01.png`,
+          `${LB}/niponic-dreams/18-tunica-oriental-calca-slean/02.png`,
+        ],
+        productSlug: 'tunica-oriental',
+      },
     ],
   },
   {
@@ -665,7 +664,98 @@ export const LOOKBOOKS: LookbookCollection[] = [
           `${LB}/brazilian-dreams/17-terno-doppiopetto-canhamo/01.png`,
         ],
         productSlug: 'terno-doppiopetto-canhamo',
-      }
+      },
+      {
+        number: 18,
+        label: '18',
+        name: 'Blazer patchwork / calça',
+        cover: 'assets/media/pdp-blazer-patchwork-calca-sand-01.png',
+        images: [
+          'assets/media/pdp-blazer-patchwork-calca-sand-01.png',
+          'assets/media/pdp-blazer-patchwork-calca-sand-02.png',
+          'assets/media/pdp-blazer-patchwork-calca-sand-03.png',
+        ],
+        productSlug: 'blazer-patchwork-calca-sand',
+      },
+      {
+        number: 19,
+        label: '19',
+        name: 'Jaqueta utilitária / calça',
+        cover: 'assets/media/pdp-jaqueta-utilitaria-calca-sand-01.png',
+        images: [
+          'assets/media/pdp-jaqueta-utilitaria-calca-sand-01.png',
+          'assets/media/pdp-jaqueta-utilitaria-calca-sand-02.png',
+          'assets/media/pdp-jaqueta-utilitaria-calca-sand-03.png',
+        ],
+        productSlug: 'jaqueta-utilitaria-calca-sand',
+      },
+      {
+        number: 20,
+        label: '20',
+        name: 'Jaqueta utilitária / shorts',
+        cover: 'assets/media/pdp-jaqueta-utilitaria-shorts-sand-01.png',
+        images: [
+          'assets/media/pdp-jaqueta-utilitaria-shorts-sand-01.png',
+          'assets/media/pdp-jaqueta-utilitaria-shorts-sand-02.png',
+          'assets/media/pdp-jaqueta-utilitaria-shorts-sand-03.png',
+        ],
+        productSlug: 'jaqueta-utilitaria-shorts-sand',
+      },
+      {
+        number: 21,
+        label: '21',
+        name: 'Polo manga curta / calça',
+        cover: 'assets/media/pdp-polo-calca-offwhite-01.png',
+        images: [
+          'assets/media/pdp-polo-calca-offwhite-01.png',
+          'assets/media/pdp-polo-calca-offwhite-02.png',
+        ],
+        productSlug: 'polo-calca-offwhite',
+      },
+      {
+        number: 22,
+        label: '22',
+        name: 'Camiseta polo manga curta / calça black',
+        cover: 'assets/media/pdp-polo-calca-black-01.png',
+        images: [
+          'assets/media/pdp-polo-calca-black-01.png',
+          'assets/media/pdp-polo-calca-black-02.png',
+        ],
+        productSlug: 'polo-calca-black',
+      },
+      {
+        number: 23,
+        label: '23',
+        name: 'Camiseta polo manga longa / calça',
+        cover: 'assets/media/pdp-polo-ml-calca-offwhite-01.png',
+        images: [
+          'assets/media/pdp-polo-ml-calca-offwhite-01.png',
+          'assets/media/pdp-polo-ml-calca-offwhite-02.png',
+        ],
+        productSlug: 'polo-ml-calca-offwhite',
+      },
+      {
+        number: 24,
+        label: '24',
+        name: 'Camiseta botânica / calça',
+        cover: 'assets/media/pdp-camiseta-botanica-calca-01.png',
+        images: [
+          'assets/media/pdp-camiseta-botanica-calca-01.png',
+          'assets/media/pdp-camiseta-botanica-calca-02.png',
+        ],
+        productSlug: 'camiseta-botanica-calca',
+      },
+      {
+        number: 25,
+        label: '25',
+        name: 'Camisa botânica / shorts botânica',
+        cover: 'assets/media/pdp-camisa-botanica-shorts-01.png',
+        images: [
+          'assets/media/pdp-camisa-botanica-shorts-01.png',
+          'assets/media/pdp-camisa-botanica-organza-costas.png',
+        ],
+        productSlug: 'camisa-botanica-shorts',
+      },
     ],
   },
 ];

@@ -19,6 +19,7 @@ import {
       class="amc"
       [class.amc--carousel]="hasCarousel()"
       [class.amc--dragging]="dragging()"
+      [style.--amc-count]="slideCount()"
       role="region"
       [attr.aria-label]="alt() || 'Mídia da obra'"
       (pointerdown)="onPointerDown($event)"
@@ -32,15 +33,15 @@ import {
           [class.amc__track--dragging]="dragging()"
           [style.transform]="trackTransform()"
         >
-          @if (image()) {
-            <div class="amc__slide" data-slide="still">
+          @for (src of stills(); track src; let i = $index) {
+            <div class="amc__slide" [attr.data-slide]="'still-' + i">
               <button
                 type="button"
                 class="amc__still"
-                (click)="onStillClick($event)"
+                (click)="onStillClick($event, src)"
                 [attr.aria-label]="'Ampliar ' + (alt() || 'imagem')"
               >
-                <img [src]="image()" [alt]="alt()" draggable="false" />
+                <img [src]="src" [alt]="alt()" draggable="false" />
               </button>
             </div>
           }
@@ -63,18 +64,18 @@ import {
           <button
             type="button"
             class="amc__nav amc__nav--prev"
-            aria-label="Foto anterior"
+            aria-label="Anterior"
             [disabled]="slide() === 0"
-            (click)="goTo(0); $event.stopPropagation()"
+            (click)="goTo(slide() - 1); $event.stopPropagation()"
           >
             ‹
           </button>
           <button
             type="button"
             class="amc__nav amc__nav--next"
-            aria-label="Ver vídeo"
-            [disabled]="slide() === 1"
-            (click)="goTo(1); $event.stopPropagation()"
+            aria-label="Próxima"
+            [disabled]="slide() === lastIndex()"
+            (click)="goTo(slide() + 1); $event.stopPropagation()"
           >
             ›
           </button>
@@ -82,27 +83,31 @@ import {
       </div>
 
       @if (hasCarousel()) {
-        <div class="amc__dots" role="tablist" aria-label="Foto ou vídeo">
-          <button
-            type="button"
-            class="amc__dot"
-            role="tab"
-            [class.amc__dot--active]="slide() === 0"
-            [attr.aria-selected]="slide() === 0"
-            aria-label="Foto"
-            (click)="goTo(0)"
-          ></button>
-          <button
-            type="button"
-            class="amc__dot"
-            role="tab"
-            [class.amc__dot--active]="slide() === 1"
-            [attr.aria-selected]="slide() === 1"
-            aria-label="Vídeo"
-            (click)="goTo(1)"
-          ></button>
+        <div class="amc__dots" role="tablist" aria-label="Fotos">
+          @for (_ of stills(); track $index; let i = $index) {
+            <button
+              type="button"
+              class="amc__dot"
+              role="tab"
+              [class.amc__dot--active]="slide() === i"
+              [attr.aria-selected]="slide() === i"
+              [attr.aria-label]="'Foto ' + (i + 1)"
+              (click)="goTo(i)"
+            ></button>
+          }
+          @if (videoSrc()) {
+            <button
+              type="button"
+              class="amc__dot"
+              role="tab"
+              [class.amc__dot--active]="slide() === stills().length"
+              [attr.aria-selected]="slide() === stills().length"
+              aria-label="Vídeo"
+              (click)="goTo(stills().length)"
+            ></button>
+          }
         </div>
-        <p class="amc__hint">{{ slide() === 0 ? 'Arraste para o vídeo' : 'Arraste para a foto' }}</p>
+        <p class="amc__hint">{{ hint() }}</p>
       }
     </div>
   `,
@@ -160,7 +165,7 @@ import {
     }
 
     .amc--carousel .amc__track {
-      width: 200%;
+      width: calc(var(--amc-count, 2) * 100%);
     }
 
     .amc__track--dragging {
@@ -178,8 +183,8 @@ import {
     }
 
     .amc--carousel .amc__slide {
-      flex: 0 0 50%;
-      width: 50%;
+      flex: 0 0 calc(100% / var(--amc-count, 2));
+      width: calc(100% / var(--amc-count, 2));
     }
 
     .amc__slide--video {
@@ -281,9 +286,10 @@ import {
 })
 export class ArtMediaCarousel {
   readonly image = input<string | undefined>();
+  readonly images = input<string[]>([]);
   readonly alt = input('');
   readonly videoSrc = input<string | undefined>();
-  readonly openStill = output<void>();
+  readonly openStill = output<string>();
 
   @ViewChild('videoEl') private videoEl?: ElementRef<HTMLVideoElement>;
 
@@ -297,11 +303,34 @@ export class ArtMediaCarousel {
   private moved = false;
   private ignoreDrag = false;
 
-  readonly hasCarousel = computed(() => !!this.image() && !!this.videoSrc());
+  readonly stills = computed(() => {
+    const extras = this.images();
+    if (extras.length) return extras;
+    const one = this.image();
+    return one ? [one] : [];
+  });
+
+  readonly slideCount = computed(
+    () => this.stills().length + (this.videoSrc() ? 1 : 0),
+  );
+
+  readonly lastIndex = computed(() => Math.max(0, this.slideCount() - 1));
+
+  readonly hasCarousel = computed(() => this.slideCount() > 1);
+
+  readonly hint = computed(() => {
+    const i = this.slide();
+    const videoAt = this.stills().length;
+    if (this.videoSrc() && i === videoAt) return 'Arraste para a foto';
+    if (this.videoSrc() && i === videoAt - 1) return 'Arraste para o vídeo';
+    return 'Arraste para ver mais';
+  });
 
   readonly trackTransform = computed(() => {
-    if (!this.hasCarousel()) return 'translate3d(0, 0, 0)';
-    const base = -this.slide() * 50;
+    const n = this.slideCount();
+    if (n < 2) return 'translate3d(0, 0, 0)';
+    const step = 100 / n;
+    const base = -this.slide() * step;
     if (this.dragging()) {
       return `translate3d(calc(${base}% + ${this.dragX()}px), 0, 0)`;
     }
@@ -309,19 +338,18 @@ export class ArtMediaCarousel {
   });
 
   goTo(index: number): void {
-    const max = this.hasCarousel() ? 1 : 0;
-    const next = Math.max(0, Math.min(max, index));
-    if (next !== 1) this.pauseVideo();
+    const next = Math.max(0, Math.min(this.lastIndex(), index));
+    if (next !== this.stills().length) this.pauseVideo();
     this.slide.set(next);
   }
 
-  onStillClick(event: Event): void {
+  onStillClick(event: Event, src: string): void {
     if (this.moved) {
       event.preventDefault();
       event.stopPropagation();
       return;
     }
-    this.openStill.emit();
+    this.openStill.emit(src);
   }
 
   onPointerDown(event: PointerEvent): void {
@@ -367,13 +395,13 @@ export class ArtMediaCarousel {
     this.dragX.set(0);
     if (!this.hasCarousel()) return;
 
-    if (dx <= -40) this.goTo(1);
-    else if (dx >= 40) this.goTo(0);
+    if (dx <= -40) this.goTo(this.slide() + 1);
+    else if (dx >= 40) this.goTo(this.slide() - 1);
   }
 
   private isVideoControlsHit(event: PointerEvent): boolean {
     const video = this.videoEl?.nativeElement;
-    if (!video || this.slide() !== 1) return false;
+    if (!video || this.slide() !== this.stills().length) return false;
     if (!(event.target instanceof Node) || !video.contains(event.target)) return false;
 
     const rect = video.getBoundingClientRect();

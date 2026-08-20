@@ -46,8 +46,11 @@ export const JOIAS_PIECES: JoiaPiece[] = [
       'Brinco longo em gota com fileiras de miçangas e franja em tom sage — presença leve e vertical.',
     price: null,
     priceLabel: 'Sob consulta',
-    image: `${MEDIA}/brinco-tassel-sage-look.png`,
-    images: [`${MEDIA}/brinco-tassel-sage-look.png`],
+    image: `${MEDIA}/brinco-tassel-sage-campanha.png`,
+    images: [
+      `${MEDIA}/brinco-tassel-sage-campanha.png`,
+      `${MEDIA}/brinco-tassel-sage-look.png`,
+    ],
     medium: 'Miçangas · tassel · sage',
   },
   {

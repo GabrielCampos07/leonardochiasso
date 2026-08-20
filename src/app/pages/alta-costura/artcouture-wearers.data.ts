@@ -103,6 +103,28 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = [
     ],
   },
   {
+    id: 'sandra-costa',
+    name: 'Sandra Costa',
+    shots: [
+      {
+        src: `${MEDIA}/sandra-costa/frente.png`,
+        alt: 'Sandra Costa de frente, vestido ArtCouture creme de tule',
+      },
+      {
+        src: `${MEDIA}/sandra-costa/costas.png`,
+        alt: 'Sandra Costa de costas, vestido ArtCouture creme de tule',
+      },
+      {
+        src: `${MEDIA}/sandra-costa/tres-quartos.png`,
+        alt: 'Sandra Costa em três quartos, vestido ArtCouture creme de tule',
+      },
+      {
+        src: `${MEDIA}/sandra-costa/cortejo.png`,
+        alt: 'Sandra Costa no cortejo, vestido ArtCouture creme de tule',
+      },
+    ],
+  },
+  {
     id: 'jeanete-roizaman',
     name: 'Jeanete Roizman',
     shots: [
@@ -159,6 +181,18 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = [
     name: 'Juliana e Tatiana Erhardt',
     shots: [
       {
+        src: `${MEDIA}/dra-tatianne/ju-frente.png`,
+        alt: 'Ju Erhardt de frente, vestido ArtCouture off-white de babados',
+      },
+      {
+        src: `${MEDIA}/dra-tatianne/ju-tres-quartos.png`,
+        alt: 'Ju Erhardt em três quartos, vestido ArtCouture off-white de babados',
+      },
+      {
+        src: `${MEDIA}/dra-tatianne/ju-costas.png`,
+        alt: 'Ju Erhardt de costas, vestido ArtCouture off-white de babados',
+      },
+      {
         src: `${MEDIA}/dra-tatianne/01.png`,
         alt: 'Dra. Tatianne na porta, vestido de noiva ArtCouture',
       },
@@ -208,6 +242,10 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = [
     id: 'cristina-guardia',
     name: 'Cristina Guardia',
     shots: [
+      {
+        src: `${MEDIA}/cristina-guardia/evento.png`,
+        alt: 'Cristina Guardia no evento, vestido ArtCouture de pétalas',
+      },
       {
         src: `${MEDIA}/cristina-guardia/01.png`,
         alt: 'Cristina Guardia de frente, vestido ArtCouture de pétalas',

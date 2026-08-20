@@ -11,6 +11,8 @@ export interface ArtPiece {
   priceLabel: string;
   /** Still image */
   image?: string;
+  /** Extra stills of the same work (detail, crop). */
+  images?: string[];
   medium?: string;
   videoSrc?: string;
   videoCaption?: string;
@@ -67,6 +69,7 @@ const TEXTILE_PIECES: ArtPiece[] = [
     price: null,
     priceLabel: 'Preço sob consulta',
     image: `${MEDIA}/christo-mosaic.png`,
+    images: [`${MEDIA}/christo-mosaic.png`, `${MEDIA}/christo-mosaic-olho.png`],
     medium: 'Mosaico Têxtil',
   },
 ];
