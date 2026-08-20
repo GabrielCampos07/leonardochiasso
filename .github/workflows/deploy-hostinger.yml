@@ -3,9 +3,8 @@
 # Secrets in GitHub Environment "FTP_SERVER":
 #   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD
 #
-# FTP account must be chrooted to the site folder (hPanel "Folder to upload files").
-# Upload target is always "./" — do not use public_html or a leading slash
-# (that becomes //assets/... and the sync starts deleting the live site).
+# FTP home is the hosting account root (index.html landed next to public_html).
+# Target the site folder with a relative path — no leading slash (avoids //assets).
 name: Deploy frontend to Hostinger
 
 on:
@@ -73,7 +72,7 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./dist/leo-chiasso/browser/
-          server-dir: ./
+          server-dir: public_html/
           timeout: 120000
           log-level: verbose
           dangerous-clean-slate: false
