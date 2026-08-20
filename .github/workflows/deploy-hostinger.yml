@@ -1,6 +1,6 @@
 # Build Angular (production) and upload to Hostinger public_html via FTP.
 #
-# Secrets live in GitHub Environment "production" (Settings → Environments → production):
+# Secrets live in GitHub Environment "FTP_SERVER" (Settings → Environments → FTP_SERVER):
 #   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD, FTP_REMOTE_DIR
 name: Deploy frontend to Hostinger
 
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: FTP_SERVER
     steps:
       - name: Checkout
         uses: actions/checkout@v4
