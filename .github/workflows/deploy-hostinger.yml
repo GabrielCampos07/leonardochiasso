@@ -68,7 +68,10 @@ jobs:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          ssh_private_key: ''
           port: 65002
-          localDir: dist/leo-chiasso/browser/
-          remoteDir: ${{ secrets.FTP_REMOTE_DIR }}
-          deleteRemoteFiles: false
+          sftp_only: true
+          local_path: ./dist/leo-chiasso/browser/*
+          remote_path: ${{ secrets.FTP_REMOTE_DIR }}
+          # Keep organic-dreams-desfile.MOV (~2 GB) already on Hostinger.
+          delete_remote_files: false
