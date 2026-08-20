@@ -77,11 +77,11 @@ Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SER
 
 | Secret | Onde achar no hPanel |
 |--------|----------------------|
-| `FTP_SERVER` | **FTP IP** (IP numérico) em Websites → Dashboard → **FTP Accounts**. **Não** use `ftp.leonardochiasso.com` — esse subdomínio não existe no DNS. |
-| `FTP_USERNAME` | Username na mesma tela FTP Accounts |
-| `FTP_PASSWORD` | Senha da conta FTP |
+| `FTP_SERVER` | IP numérico do FTP (ex. `45.152.46.216`). **Não** use `ftp.leonardochiasso.com` (resolve para o site, porta 21 dá timeout). Sem `ftp://`. |
+| `FTP_USERNAME` | Conta do **domínio** (ex. `u463440555.Gabriel`), não só `u463440555` |
+| `FTP_PASSWORD` | Senha **dessa** conta |
 
-O FTP entra na home (`DO_NOT_UPLOAD_HERE`). O workflow envia para **`public_html/`**. No log tem que aparecer `changing dir to public_html/` — se aparecer `changing dir to ./`, é o job antigo.
+Essa conta já entra em `domains/leonardochiasso.com/public_html`. O workflow envia para **`./`**.
 
 O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel).
 

@@ -3,8 +3,12 @@
 # Secrets in GitHub Environment "FTP_SERVER":
 #   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD
 #
-# FTP home is the hosting account root (index.html landed next to public_html).
-# Target the site folder with a relative path — no leading slash (avoids //assets).
+# Site FTP user is already jailed to domains/leonardochiasso.com/public_html.
+# Use server-dir ./ — public_html/ would create public_html/public_html/.
+#
+# Secrets: FTP_SERVER = numeric FTP IP (e.g. 45.152.46.216), not ftp.leonardochiasso.com
+#           FTP_USERNAME = u463440555.Gabriel (site-specific account)
+#           FTP_PASSWORD = that account's password
 name: Deploy frontend to Hostinger
 
 on:
@@ -72,7 +76,7 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: ./dist/leo-chiasso/browser/
-          server-dir: public_html/
+          server-dir: ./
           timeout: 120000
           log-level: verbose
           dangerous-clean-slate: false
