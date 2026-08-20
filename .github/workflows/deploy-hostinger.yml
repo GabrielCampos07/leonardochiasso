@@ -1,14 +1,11 @@
 # Build Angular (production) and upload to Hostinger via FTP (port 21).
 #
-# Secrets in GitHub Environment "FTP_SERVER" (Settings → Environments → FTP_SERVER):
-#   FTP_SERVER     — FTP IP from hPanel (numeric), NOT ftp.yourdomain.com
-#   FTP_USERNAME   — FTP username from hPanel FTP Accounts
-#   FTP_PASSWORD   — FTP password
-#   FTP login folder is already the site root — upload to ./
-#   Do not set FTP_REMOTE_DIR to public_html (creates //paths and deletes remote folders).
+# Secrets in GitHub Environment "FTP_SERVER":
+#   FTP_SERVER, FTP_USERNAME, FTP_PASSWORD
 #
-# Use the FTP account from hPanel → Files → FTP Accounts (port 21).
-# Port 65002 is SSH/SFTP and stays closed unless Remote Access is enabled.
+# FTP account must be chrooted to the site folder (hPanel "Folder to upload files").
+# Upload target is always "./" — do not use public_html or a leading slash
+# (that becomes //assets/... and the sync starts deleting the live site).
 name: Deploy frontend to Hostinger
 
 on:
@@ -42,6 +39,11 @@ jobs:
       - name: Copy SPA .htaccess
         run: cp public/.htaccess dist/leo-chiasso/browser/.htaccess
 
+      - name: Confirm dist has index.html
+        run: |
+          test -f dist/leo-chiasso/browser/index.html
+          ls -la dist/leo-chiasso/browser | head -40
+
       - name: Verify FTP host resolves
         env:
           FTP_HOST: ${{ secrets.FTP_SERVER }}
@@ -58,7 +60,6 @@ jobs:
           fi
           if ! getent ahosts "$host" >/dev/null 2>&1; then
             echo "::error::Cannot resolve FTP host '$host'."
-            echo "::error::Hostinger: hPanel → Websites → Dashboard → Files → FTP Accounts → copy **FTP IP** (numeric)."
             exit 1
           fi
           echo "FTP host resolves."
@@ -71,9 +72,10 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftp
           port: 21
-          local-dir: dist/leo-chiasso/browser/
+          local-dir: ./dist/leo-chiasso/browser/
           server-dir: ./
           timeout: 120000
+          log-level: verbose
           dangerous-clean-slate: false
           exclude: |
             **/.git*

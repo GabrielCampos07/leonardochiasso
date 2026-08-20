@@ -81,9 +81,7 @@ Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SER
 | `FTP_USERNAME` | Username na mesma tela FTP Accounts |
 | `FTP_PASSWORD` | Senha da conta FTP |
 
-O workflow envia para `./` (raiz do login FTP = pasta do site). **Não** use `public_html` no secret — isso gerava `//assets/...` e o Action tentava apagar pastas antigas.
-
-`assets/brand` e `assets/media` no servidor **não** são apagados no deploy.
+O workflow envia para `./` (raiz da conta FTP). No hPanel → FTP Accounts, **Folder to upload files** tem que ser a pasta do site (`public_html` do domínio). Não recrie `FTP_REMOTE_DIR`.
 
 O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel).
 
