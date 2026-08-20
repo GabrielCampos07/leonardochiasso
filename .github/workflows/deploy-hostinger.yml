@@ -1,12 +1,13 @@
-# Build Angular (production) and upload to Hostinger via SFTP (port 65002).
+# Build Angular (production) and upload to Hostinger via FTP (port 21).
 #
 # Secrets in GitHub Environment "FTP_SERVER" (Settings → Environments → FTP_SERVER):
 #   FTP_SERVER     — FTP IP from hPanel (numeric), NOT ftp.yourdomain.com
-#   FTP_USERNAME   — FTP username from hPanel
+#   FTP_USERNAME   — FTP username from hPanel FTP Accounts
 #   FTP_PASSWORD   — FTP password
-#   FTP_REMOTE_DIR — e.g. /domains/leonardochiasso.com/public_html or /public_html
+#   FTP_REMOTE_DIR — e.g. public_html  (or domains/leonardochiasso.com/public_html)
 #
-# Enable SFTP in hPanel: Websites → Dashboard → Advanced → Remote access (SSH/SFTP).
+# Use the FTP account from hPanel → Files → FTP Accounts (port 21).
+# Port 65002 is SSH/SFTP and stays closed unless Remote Access is enabled.
 name: Deploy frontend to Hostinger
 
 on:
@@ -56,22 +57,25 @@ jobs:
           fi
           if ! getent ahosts "$host" >/dev/null 2>&1; then
             echo "::error::Cannot resolve FTP host '$host'."
-            echo "::error::Hostinger: hPanel → Websites → Dashboard → Files → FTP Accounts → copy **FTP IP** (numeric, e.g. 147.79.x.x)."
-            echo "::error::Do NOT use ftp.leonardochiasso.com — that subdomain has no DNS record."
+            echo "::error::Hostinger: hPanel → Websites → Dashboard → Files → FTP Accounts → copy **FTP IP** (numeric)."
             exit 1
           fi
           echo "FTP host resolves."
 
-      - name: Deploy to Hostinger (SFTP)
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
+      - name: Deploy to Hostinger (FTP)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          ssh_private_key: ''
-          port: 65002
-          sftp_only: true
-          local_path: ./dist/leo-chiasso/browser/*
-          remote_path: ${{ secrets.FTP_REMOTE_DIR }}
-          # Keep organic-dreams-desfile.MOV (~2 GB) already on Hostinger.
-          delete_remote_files: false
+          protocol: ftp
+          port: 21
+          local-dir: dist/leo-chiasso/browser/
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/
+          # Do not wipe public_html — keep organic-dreams-desfile.MOV (~2 GB).
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+            **/organic-dreams-desfile.MOV

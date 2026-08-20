@@ -84,7 +84,7 @@ Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SER
 
 Antes do deploy, ative **SFTP/SSH** em hPanel → Websites → Dashboard → **Remote access** (porta **65002**).
 
-O workflow usa `environment: FTP_SERVER` e envia via **SFTP** (não FTP na porta 21).
+O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel). Porta **65002** é SSH/SFTP — não use com a conta FTP.
 
 Disparo manual: **Actions** → **Deploy frontend to Hostinger** → **Run workflow**.
 
@@ -99,6 +99,8 @@ O `.htaccess` garante deep links (`/joias`, `/colecao/...`, etc.).
 
 **Build prod (~8 MB):** fotos e vídeos **não** entram no bundle — só SVGs de UI. Mídia vem do CDN (R2) via API.
 
+Exceção Hostinger (fora do Git, ~2 GB): `assets/media/alta-costura/organic-dreams-desfile.MOV`. O deploy **não apaga** arquivos remotos (`deleteRemoteFiles: false`) — deixe esse MOV no `public_html`. Se faltar, envie **uma vez** pelo File Manager / SFTP.
+
 ### CDN (R2)
 
 ```bash
@@ -109,11 +111,7 @@ npm run migrate:content-urls    # só reescreve URLs no Neon (sem upload)
 
 Se joias/arte/lookbooks estiverem vazios na API, rode antes `npm run prisma:seed`.
 
-**Vídeos manualmente no R2** (ex. `organic-dreams-desfile.MOV` ~2 GB):
-
-1. R2 → bucket → Upload com key `video/alta-costura/organic-dreams-desfile.MOV`
-2. URL: `{CDN_BASE_URL}/video/alta-costura/organic-dreams-desfile.MOV`
-3. `npm run migrate:content-urls`
+**Outros vídeos no R2** (não o MOV de 2 GB): key `video/{caminho}`, depois `npm run migrate:content-urls`.
 
 ## Estrutura (visão rápida)
 
@@ -150,11 +148,11 @@ Configurados no footer / atendimento:
 
 Vídeos de desfile/arte/joias entram via **Git LFS** (`*.mp4` / `*.mov`).
 
-Exceção (só máquina local / Hostinger, fora do Git por tamanho ~1,9 GB):
+Exceção (só Hostinger / máquina local, fora do Git ~2 GB):
 
-- `src/assets/media/alta-costura/organic-dreams-desfile.MOV`
+- `src/assets/media/alta-costura/organic-dreams-desfile.MOV` → `public_html/assets/media/alta-costura/organic-dreams-desfile.MOV`
 
-Mantenha esse arquivo no deploy Hostinger junto com o build.
+Não sobe no CI. Não vai para o R2. Não apague essa pasta no File Manager.
 
 ## Licença / uso
 
