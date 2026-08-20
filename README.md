@@ -80,7 +80,10 @@ Secrets no **Environment `FTP_SERVER`** (Settings → Environments → **FTP_SER
 | `FTP_SERVER` | **FTP IP** (IP numérico) em Websites → Dashboard → **FTP Accounts**. **Não** use `ftp.leonardochiasso.com` — esse subdomínio não existe no DNS. |
 | `FTP_USERNAME` | Username na mesma tela FTP Accounts |
 | `FTP_PASSWORD` | Senha da conta FTP |
-| `FTP_REMOTE_DIR` | Pasta relativa ao login FTP, ex. `public_html` |
+
+O workflow envia para `./` (raiz do login FTP = pasta do site). **Não** use `public_html` no secret — isso gerava `//assets/...` e o Action tentava apagar pastas antigas.
+
+`assets/brand` e `assets/media` no servidor **não** são apagados no deploy.
 
 O workflow usa `environment: FTP_SERVER` e envia via **FTP porta 21** (conta FTP do hPanel).
 
