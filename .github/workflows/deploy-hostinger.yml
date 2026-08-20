@@ -4,7 +4,7 @@
 #   FTP_SERVER     — FTP IP from hPanel (numeric), NOT ftp.yourdomain.com
 #   FTP_USERNAME   — FTP username from hPanel FTP Accounts
 #   FTP_PASSWORD   — FTP password
-#   FTP_REMOTE_DIR — optional; ignored. Upload always goes to public_html/
+#   FTP_REMOTE_DIR — pasta relativa ao login FTP, com barra no final (ex.: public_html/)
 #
 # Use the FTP account from hPanel → Files → FTP Accounts (port 21).
 # Port 65002 is SSH/SFTP and stays closed unless Remote Access is enabled.
@@ -71,9 +71,9 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: dist/leo-chiasso/browser/
-          # Relative to the FTP login folder. Do NOT use /home/... File Manager paths.
-          server-dir: public_html/
-          # Do not wipe public_html — keep organic-dreams-desfile.MOV (~2 GB).
+          server-dir: ${{ secrets.FTP_REMOTE_DIR }}/
+          timeout: 120000
+          # Do not wipe existing Hostinger files.
           dangerous-clean-slate: false
           exclude: |
             **/.git*
