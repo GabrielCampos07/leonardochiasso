@@ -24,7 +24,7 @@
   </div>
 
   <div class="joias-list">
-    @for (piece of pieces; track piece.id; let i = $index) {
+    @for (piece of pieces(); track piece.id; let i = $index) {
       <article
         class="joias-piece"
         [class.joias-piece--media-left]="i % 2 === 0"

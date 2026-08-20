@@ -45,6 +45,10 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
     ? (product.details as string[])
     : [];
 
+  const pieces = Array.isArray(product.pieces) ? product.pieces : [];
+  const colorVariants = Array.isArray(product.colorVariants) ? product.colorVariants : [];
+  const imageBindings = Array.isArray(product.imageBindings) ? product.imageBindings : [];
+
   return {
     id: product.id,
     slug: product.slug,
@@ -68,6 +72,11 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
       gallery.length > 0
         ? gallery
         : media.filter((m) => m.id !== thumbAsset?.id).map((m) => m.cdnUrl),
+    pieces,
+    colorVariants,
+    imageBindings,
+    artCouture: product.artCouture,
+    recommendOrder: product.recommendOrder,
     media,
   };
 }

@@ -69,6 +69,23 @@ Alterações do admin ficam no navegador (`localStorage`) até existir backend d
 
 ## Deploy Hostinger (front)
 
+### Automático (GitHub Actions)
+
+Push na branch `main` dispara [`.github/workflows/deploy-hostinger.yml`](./.github/workflows/deploy-hostinger.yml).
+
+Secrets em **Settings → Secrets → Actions**:
+
+| Secret | Exemplo |
+|--------|---------|
+| `FTP_SERVER` | `ftp.leonardochiasso.com` |
+| `FTP_USERNAME` | usuário FTP do hPanel |
+| `FTP_PASSWORD` | senha FTP |
+| `FTP_REMOTE_DIR` | `/public_html` ou `/domains/leonardochiasso.com/public_html` |
+
+Disparo manual: **Actions** → **Deploy frontend to Hostinger** → **Run workflow**.
+
+### Manual
+
 1. `npm run build -- --configuration=production`
 2. Copie `public/.htaccess` para `dist/leo-chiasso/browser/.htaccess` (SPA rewrite)
 3. Envie o conteúdo de `dist/leo-chiasso/browser/` para `public_html`

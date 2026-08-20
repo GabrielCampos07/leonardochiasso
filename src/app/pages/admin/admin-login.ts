@@ -15,6 +15,7 @@ export class AdminLoginPage {
   private readonly session = inject(AdminSessionService);
   private readonly router = inject(Router);
 
+  email = 'admin@leonardochiasso.com';
   password = '';
   readonly error = signal('');
 
@@ -24,16 +25,25 @@ export class AdminLoginPage {
       return;
     }
     if (this.session.isLoggedIn()) {
-      void this.router.navigateByUrl(ROUTES.adminProducts);
+      void this.router.navigateByUrl(ROUTES.home);
     }
   }
 
   submit(): void {
     this.error.set('');
-    if (!this.session.login(this.password)) {
-      this.error.set('Senha incorreta. Tente de novo.');
-      return;
-    }
-    void this.router.navigateByUrl(ROUTES.adminProducts);
+    const obs = this.session.login(this.email, this.password);
+    obs.subscribe((ok) => {
+      if (!ok) {
+        this.session.loginPassword(this.password).subscribe((legacy) => {
+          if (!legacy) {
+            this.error.set('Credenciais incorretas.');
+            return;
+          }
+          void this.router.navigateByUrl(ROUTES.home);
+        });
+        return;
+      }
+      void this.router.navigateByUrl(ROUTES.home);
+    });
   }
 }

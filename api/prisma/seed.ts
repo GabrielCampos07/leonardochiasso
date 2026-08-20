@@ -1673,6 +1673,31 @@ async function main() {
   console.log(
     `Seeded ${COLLECTIONS.length} collections, 2 categories, ${PRODUCTS.length} products.`,
   );
+
+  await seedAdminUser();
+  const { enrichCatalogFromFrontend, seedContentDocuments } = await import(
+    '../scripts/seed-content-enrichment'
+  );
+  await enrichCatalogFromFrontend(prisma);
+  await seedContentDocuments(prisma);
+}
+
+async function seedAdminUser(): Promise<void> {
+  const email = (process.env.ADMIN_EMAIL ?? 'admin@leonardochiasso.com').toLowerCase();
+  const password = process.env.ADMIN_PASSWORD ?? 'atelier2026';
+  const argon2 = await import('argon2');
+  const existing = await prisma.adminUser.findUnique({ where: { email } });
+  if (!existing) {
+    await prisma.adminUser.create({
+      data: {
+        email,
+        passwordHash: await argon2.hash(password),
+        role: 'owner',
+      },
+    });
+    // eslint-disable-next-line no-console
+    console.log(`Seeded admin user ${email}`);
+  }
 }
 
 main()

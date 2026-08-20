@@ -13,7 +13,7 @@
     </div>
   </div>
 
-  @for (wearer of wearers; track wearer.name) {
+  @for (wearer of wearers(); track wearer.name) {
     <section class="ac-wearer" [attr.aria-labelledby]="wearer.id + '-name'">
       <header class="ac-wearer__head lc-container">
         <h2 class="ac-wearer__brand" [id]="wearer.id + '-name'">
@@ -30,10 +30,21 @@
       <div class="ac-wearer__gallery">
         @for (shot of wearer.shots; track shot.src) {
           <figure class="ac-wearer__shot">
-            <img [src]="shot.src" [alt]="shot.alt" />
+            <button
+              type="button"
+              class="ac-wearer__open"
+              (click)="openImage(shot.src, shot.alt)"
+              [attr.aria-label]="'Ampliar: ' + shot.alt"
+            >
+              <img [src]="shot.src" [alt]="shot.alt" />
+            </button>
           </figure>
         }
       </div>
     </section>
   }
 </section>
+
+@if (lightbox(); as lb) {
+  <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
+}

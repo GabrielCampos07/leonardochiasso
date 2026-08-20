@@ -7,5 +7,5 @@ export const environment = {
   demoMode: true,
   apiBaseUrl: 'http://localhost:3000',
   /** Local admin panel password (`/admin`). Not for production security. */
-  adminPassword: 'atelier2026',
+  adminPassword: '123',
 };

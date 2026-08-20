@@ -12,6 +12,51 @@ Read-only catalog API for the Leonardo Chiasso storefront. NestJS + Prisma + Pos
 | Auth | Customer sessions (argon2id + cookie); admin still Phase 2 |
 | Media | Metadata + URLs only; binaries stay in SPA assets until S3/CDN |
 
+## Production deploy (Docker)
+
+```bash
+# Build and run (Railway / Render / Fly)
+docker build -t leo-chiasso-api .
+docker run -p 3000:3000 \
+  -e DATABASE_URL=... \
+  -e SESSION_SECRET=... \
+  -e CORS_ORIGINS=https://leonardochiasso.com \
+  -e ADMIN_EMAIL=... \
+  -e ADMIN_PASSWORD=... \
+  -e STORAGE_ENDPOINT=... \
+  -e STORAGE_BUCKET=... \
+  -e STORAGE_ACCESS_KEY=... \
+  -e STORAGE_SECRET_KEY=... \
+  -e CDN_BASE_URL=https://cdn.example.com \
+  leo-chiasso-api
+```
+
+On start the container runs `prisma migrate deploy` then `node dist/main.js`. Health: `GET /api/health`.
+
+### Migrate assets to S3/R2
+
+After bucket + CDN are configured:
+
+```bash
+npm run migrate:assets
+```
+
+Uploads variants (thumb/card/pdp/zoom) and updates `media_assets.cdn_url`.
+
+## Admin CMS endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/admin/auth/login` | `{ email, password }` → httpOnly admin cookie |
+| `POST` | `/api/admin/auth/logout` | Clears admin session |
+| `GET` | `/api/admin/auth/me` | Current admin user |
+| `PATCH` | `/api/admin/products/:slug` | `{ path, value }` JSON patch |
+| `PATCH` | `/api/admin/content/:kind/:slug` | Joias, arte, lookbooks, etc. |
+| `POST` | `/api/admin/media/presign` | Presigned upload URL |
+| `POST` | `/api/admin/media/complete` | Process variants with Sharp |
+
+Public content: `GET /api/joias`, `/api/arte`, `/api/alta-costura/wearers`, `/api/lookbooks/:slug`, `/api/desfiles/:slug`.
+
 ## Quick start
 
 ```bash

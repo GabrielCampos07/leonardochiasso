@@ -22,6 +22,11 @@ export interface ProductDto {
   collections: { slug: string; name: string }[];
   thumb: string;
   gallery: string[];
+  pieces?: unknown[];
+  colorVariants?: unknown[];
+  imageBindings?: unknown[];
+  artCouture?: boolean;
+  recommendOrder?: number;
   media: {
     id: string;
     cdnUrl: string;

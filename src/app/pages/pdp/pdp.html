@@ -12,10 +12,10 @@
       <div class="pdp__gallery">
         <div
           class="pdp__main"
-          [class.is-focus-top]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'top'"
-          [class.is-focus-center]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'center'"
-          [class.is-focus-bottom]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'bottom'"
-          [class.is-focus-waist]="!selectedPiece()?.thumb && selectedPiece()?.imageFocus === 'waist'"
+          [class.is-focus-top]="!heroFocus()?.url && heroFocus()?.imageFocus === 'top'"
+          [class.is-focus-center]="!heroFocus()?.url && heroFocus()?.imageFocus === 'center'"
+          [class.is-focus-bottom]="!heroFocus()?.url && heroFocus()?.imageFocus === 'bottom'"
+          [class.is-focus-waist]="!heroFocus()?.url && heroFocus()?.imageFocus === 'waist'"
           (touchstart)="onTouchStart($event)"
           (touchend)="onTouchEnd($event)"
         >
@@ -82,27 +82,27 @@
 
       <div class="pdp__buy">
         <p class="lc-label-outline">{{ product()!.collection }}</p>
-        <h1>{{ p.name }}</h1>
+        @if (admin.editMode()) {
+          <lc-editable-text
+            tag="h1"
+            [value]="p.name"
+            (valueChange)="patchField('name', $event)"
+          />
+        } @else {
+          <h1>{{ p.name }}</h1>
+        }
         <p class="pdp__price">{{ priceLabel() }}</p>
 
         @if (pieces().length > 1) {
           <div class="pdp__pieces" role="group" aria-label="Escolher peça">
             <p class="pdp__pieces-label">Escolha a peça</p>
-            <div class="pdp__pieces-list">
-              @for (piece of pieces(); track piece.id) {
-                <button
-                  type="button"
-                  class="pdp__piece"
-                  [class.is-active]="selectedPiece()?.id === piece.id"
-                  (click)="selectPiece(piece.id)"
-                >
-                  <span class="pdp__piece-name">{{ piece.name }}</span>
-                  @if (!pricesOnRequest) {
-                    <span class="pdp__piece-price">{{ piece.priceLabel }}</span>
-                  }
-                </button>
-              }
-            </div>
+            <lc-editable-pieces
+              [pieces]="pieces()"
+              [activePieceId]="selectedPiece()?.id ?? null"
+              [pricesOnRequest]="pricesOnRequest"
+              (selectPiece)="selectPiece($event)"
+              (renamePiece)="renamePiece($event.pieceId, $event.name)"
+            />
           </div>
         }
 
@@ -110,19 +110,12 @@
           <span>Cor</span>
           <div class="pdp__color">
             @if (swatches().length) {
-              <ul class="pdp__swatches" aria-label="Cores disponíveis">
-                @for (c of swatches(); track c.id) {
-                  <li>
-                    <span
-                      class="pdp__swatch"
-                      [style.background]="c.hex"
-                      [class.pdp__swatch--light]="isLight(c.hex)"
-                      [attr.title]="c.name"
-                      [attr.aria-label]="c.name"
-                    ></span>
-                  </li>
-                }
-              </ul>
+              <lc-editable-colors
+                [colors]="swatches()"
+                [activeColorId]="selectedColorId()"
+                (selectColor)="selectColor($event)"
+                (renameColor)="renameColor($event.colorId, $event.name)"
+              />
             }
             <strong>{{ p.color }}</strong>
           </div>
@@ -131,28 +124,6 @@
           <span>Tamanho</span>
           <strong>{{ product()!.size }}</strong>
         </div>
-
-        @if (!pricesOnRequest) {
-          <button class="pdp__add" type="button" (click)="addToBag()">
-            {{ pieces().length > 1 ? 'ADICIONAR ESTA PEÇA À SACOLA' : 'ADICIONAR À SACOLA' }}
-          </button>
-        }
-        <button
-          class="pdp__wish"
-          type="button"
-          [attr.aria-pressed]="wishlist.has(product()!.id)"
-          (click)="toggleWish()"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              [attr.fill]="wishlist.has(product()!.id) ? 'currentColor' : 'none'"
-              stroke="currentColor"
-              stroke-width="1.2"
-              d="M12 19s-6.5-4.2-8.5-8A4.5 4.5 0 0 1 12 7.2 4.5 4.5 0 0 1 20.5 11c-2 3.8-8.5 8-8.5 8z"
-            />
-          </svg>
-          {{ wishlist.has(product()!.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos' }}
-        </button>
 
         <div class="pdp__block">
           <h2>Descrição</h2>
@@ -184,3 +155,11 @@
 @if (lightbox(); as lb) {
   <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
 }
+
+<lc-image-binding-picker
+  [open]="bindingPickerOpen()"
+  title="Vincular foto à peça/cor selecionada"
+  [gallery]="product()?.gallery ?? []"
+  (pick)="bindGalleryIndex($event)"
+  (closed)="closeBindingPicker()"
+/>

@@ -6,7 +6,7 @@ import { LcHeader } from '../shared/components/header/header';
 import { LcFooter } from '../shared/components/footer/footer';
 import { LcMegaMenu } from '../shared/components/mega-menu/mega-menu';
 import { LcMenuSheet } from '../shared/components/menu-sheet/menu-sheet';
-import { LcCartDrawer } from '../shared/components/cart-drawer/cart-drawer';
+import { LcEditToolbar } from '../shared/components/edit/edit-toolbar';
 
 @Component({
   selector: 'lc-shell',
@@ -18,7 +18,7 @@ import { LcCartDrawer } from '../shared/components/cart-drawer/cart-drawer';
     LcFooter,
     LcMegaMenu,
     LcMenuSheet,
-    LcCartDrawer,
+    LcEditToolbar,
   ],
   template: `
     <div class="shell" [class.shell--nav-collapsed]="chrome.navCollapsed()">
@@ -32,7 +32,7 @@ import { LcCartDrawer } from '../shared/components/cart-drawer/cart-drawer';
       </main>
       <lc-footer />
       <lc-menu-sheet />
-      <lc-cart-drawer />
+      <lc-edit-toolbar />
     </div>
   `,
   styles: `

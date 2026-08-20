@@ -1,0 +1,5 @@
+# TLS automático (Let's Encrypt) — exige DNS A de api.leonardochiasso.com → IPv4 do Hetzner
+api.leonardochiasso.com {
+	encode gzip
+	reverse_proxy api:3000
+}

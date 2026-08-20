@@ -2,26 +2,25 @@
   position: relative;
   background: var(--lc-white);
   color: var(--lc-void);
+  overflow: clip;
 }
 
 .ac-intro {
   position: relative;
   width: 100%;
-  min-height: min(92vh, 920px);
-  height: min(92vh, 920px);
   background: #c4bfb6;
   overflow: hidden;
   color: var(--lc-white);
 }
 
+/* Mobile: frame intrínseco (1024×665) — banner inteiro, sem crop em portrait. */
 .ac-intro__banner {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
+  aspect-ratio: 1024 / 665;
   object-fit: cover;
   object-position: center center;
-  display: block;
 }
 
 .ac-intro__veil {
@@ -34,6 +33,23 @@
     rgb(14 12 14 / 22%) 45%,
     rgb(14 12 14 / 10%) 100%
   );
+}
+
+@media (min-width: 768px) {
+  .ac-intro {
+    min-height: min(92vh, 920px);
+    height: min(92vh, 920px);
+  }
+
+  .ac-intro__banner {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    object-fit: cover;
+    object-position: center center;
+  }
 }
 
 .ac-intro__copy {
@@ -162,10 +178,27 @@
   background: color-mix(in srgb, var(--lc-void) 4%, var(--lc-white));
 }
 
+.ac-wearer__open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ac-wearer__open:active img {
+  opacity: 0.92;
+}
+
 .ac-wearer__shot img {
   width: 100%;
   aspect-ratio: 3 / 4;
   object-fit: cover;
   object-position: center 18%;
   display: block;
+  transition: opacity 0.15s ease;
 }

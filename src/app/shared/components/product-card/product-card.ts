@@ -9,7 +9,6 @@ import {
 } from '../../../core/product.model';
 import { productPath } from '../../../core/routes';
 import { displayPriceLabel } from '../../../core/pricing';
-import { WishlistService } from '../../../core/wishlist.service';
 
 @Component({
   selector: 'lc-product-card',
@@ -33,22 +32,6 @@ import { WishlistService } from '../../../core/wishlist.service';
           <a [routerLink]="linkFor(product)" class="card__link">
             <img [src]="displayThumb()" [alt]="displayName()" />
           </a>
-          <button
-            class="card__wish"
-            type="button"
-            [attr.aria-label]="wishlist.has(product.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'"
-            [attr.aria-pressed]="wishlist.has(product.id)"
-            (click)="onToggleWish($event)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                [attr.fill]="wishlist.has(product.id) ? 'currentColor' : 'none'"
-                stroke="currentColor"
-                stroke-width="1.2"
-                d="M12 19s-6.5-4.2-8.5-8A4.5 4.5 0 0 1 12 7.2 4.5 4.5 0 0 1 20.5 11c-2 3.8-8.5 8-8.5 8z"
-              />
-            </svg>
-          </button>
         </div>
 
         @if (hasPieces()) {
@@ -232,8 +215,6 @@ export class LcProductCard implements OnChanges {
   @Input() product: Product | null = null;
   @Input() placeholder = false;
 
-  readonly wishlist = inject(WishlistService);
-
   readonly selectedPieceId = signal<string | null>(null);
 
   ngOnChanges(): void {
@@ -292,12 +273,5 @@ export class LcProductCard implements OnChanges {
     event.preventDefault();
     event.stopPropagation();
     this.selectedPieceId.set(pieceId);
-  }
-
-  onToggleWish(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!this.product) return;
-    this.wishlist.toggle(this.product.id);
   }
 }

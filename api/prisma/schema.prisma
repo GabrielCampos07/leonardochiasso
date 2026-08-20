@@ -68,6 +68,11 @@ model Product {
   status       ProductStatus @default(draft)
   stockQty     Int           @default(0) @map("stock_qty")
   categoryId   String        @map("category_id") @db.Uuid
+  pieces           Json          @default("[]")
+  colorVariants    Json          @default("[]") @map("color_variants")
+  imageBindings    Json          @default("[]") @map("image_bindings")
+  artCouture       Boolean       @default(false) @map("art_couture")
+  recommendOrder   Int           @default(9990) @map("recommend_order")
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
@@ -265,4 +270,54 @@ model PaymentEvent {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payment_events")
+}
+
+// --- Admin CMS ---
+
+enum AdminRole {
+  owner
+  editor
+  viewer
+}
+
+model AdminUser {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  role         AdminRole @default(editor)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  sessions AdminSession[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id          String   @id @default(uuid()) @db.Uuid
+  adminUserId String   @map("admin_user_id") @db.Uuid
+  tokenHash   String   @unique @map("token_hash")
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+/** Editorial content (joias, arte, lookbooks, desfiles, wearers). */
+model ContentDocument {
+  id        String   @id @default(uuid()) @db.Uuid
+  kind      String
+  slug      String
+  data      Json     @default("{}")
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([kind, slug])
+  @@index([kind])
+  @@map("content_documents")
 }

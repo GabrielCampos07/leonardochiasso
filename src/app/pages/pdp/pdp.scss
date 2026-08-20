@@ -295,6 +295,19 @@
   list-style: none;
 }
 
+.pdp__swatch-btn {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.pdp__swatch-btn.is-active {
+  box-shadow: 0 0 0 1px var(--lc-void);
+}
+
 .pdp__swatch {
   display: block;
   width: 14px;

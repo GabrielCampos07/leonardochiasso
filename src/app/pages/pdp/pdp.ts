@@ -1,44 +1,53 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog.service';
+import { ContentAdminService } from '../../core/content-admin.service';
+import { AdminSessionService } from '../../core/admin-session.service';
 import {
   Product,
   ProductColor,
   ProductPiece,
   colorSwatches,
   productWithPiece,
+  resolveProductHeroImage,
 } from '../../core/product.model';
-import { CartService } from '../../core/cart.service';
 import { ChromeService } from '../../core/chrome.service';
-import { WishlistService } from '../../core/wishlist.service';
-import { LcButton } from '../../shared/components/button/button';
 import { ImageLightbox } from '../../shared/components/image-lightbox/image-lightbox';
+import { LcEditableText } from '../../shared/components/edit/editable-text';
+import { LcEditablePieces } from '../../shared/components/edit/editable-pieces';
+import { LcEditableColors } from '../../shared/components/edit/editable-colors';
+import { LcImageBindingPicker } from '../../shared/components/edit/image-binding-picker';
 import {
   COLLECTION_SLUGS,
   ROUTES,
   collectionPath,
 } from '../../core/routes';
 import { PRICES_ON_REQUEST, displayPriceLabel } from '../../core/pricing';
+import { LcButton } from '../../shared/components/button/button';
 
 @Component({
   selector: 'lc-pdp-page',
   standalone: true,
-  imports: [RouterLink, LcButton, ImageLightbox],
+  imports: [RouterLink, LcButton, ImageLightbox, LcEditableText, LcEditablePieces, LcEditableColors, LcImageBindingPicker],
   templateUrl: './pdp.html',
   styleUrl: './pdp.scss',
 })
 export class PdpPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
-  private readonly cart = inject(CartService);
   private readonly chrome = inject(ChromeService);
   private readonly catalog = inject(CatalogService);
-  readonly wishlist = inject(WishlistService);
+  private readonly contentAdmin = inject(ContentAdminService);
+  readonly admin = inject(AdminSessionService);
 
   readonly home = ROUTES.home;
   readonly product = signal<Product | null>(null);
   readonly activeImage = signal(0);
   readonly selectedPieceId = signal<string | null>(null);
+  readonly selectedColorId = signal<string | null>(null);
   readonly lightbox = signal<{ src: string; alt: string } | null>(null);
+  readonly manualGallery = signal(false);
+  readonly bindingPickerOpen = signal(false);
+  readonly bindingTarget = signal<{ pieceId?: string; colorId?: string } | null>(null);
 
   private touchStartX = 0;
   private swiped = false;
@@ -68,16 +77,17 @@ export class PdpPage implements OnInit {
     return colorSwatches(p.colors, p.color);
   });
 
+  readonly heroFocus = computed(() => {
+    const p = this.product();
+    if (!p || this.manualGallery()) return null;
+    return resolveProductHeroImage(p, this.selectedPieceId(), this.selectedColorId());
+  });
+
   readonly mainImage = computed(() => {
     const gallery = this.product()?.gallery ?? [];
-    const piece = this.selectedPiece();
-    const fromGallery = gallery[this.activeImage()] ?? '';
-    // Piece thumb in gallery → gallery drives the main image (browseable detail shots)
-    if (piece?.thumb && gallery.includes(piece.thumb)) {
-      return fromGallery || piece.thumb;
-    }
-    if (piece?.thumb) return piece.thumb;
-    return fromGallery;
+    const hero = this.heroFocus();
+    if (hero?.url && !this.manualGallery()) return hero.url;
+    return gallery[this.activeImage()] ?? gallery[0] ?? '';
   });
 
   readonly collectionRoute = computed(() => {
@@ -92,24 +102,42 @@ export class PdpPage implements OnInit {
     this.catalog.getProductBySlug(slug).subscribe((p) => {
       this.product.set(p ?? null);
       this.activeImage.set(0);
+      this.manualGallery.set(false);
       this.selectedPieceId.set(p?.pieces?.[0]?.id ?? null);
-      this.syncImageToPiece(p?.pieces?.[0] ?? null);
+      this.selectedColorId.set(null);
+      this.syncImageFromSelection();
     });
   }
 
   selectPiece(pieceId: string): void {
     this.selectedPieceId.set(pieceId);
-    const piece = this.pieces().find((p) => p.id === pieceId) ?? null;
-    this.syncImageToPiece(piece);
+    this.manualGallery.set(false);
+    this.syncImageFromSelection();
+    if (this.admin.editMode()) {
+      this.bindingTarget.set({ pieceId });
+      this.bindingPickerOpen.set(true);
+    }
+  }
+
+  selectColor(colorId: string): void {
+    this.selectedColorId.set(this.selectedColorId() === colorId ? null : colorId);
+    this.manualGallery.set(false);
+    this.syncImageFromSelection();
+    if (this.admin.editMode()) {
+      this.bindingTarget.set({ colorId });
+      this.bindingPickerOpen.set(true);
+    }
   }
 
   selectImage(index: number): void {
+    this.manualGallery.set(true);
     this.activeImage.set(index);
   }
 
   prevImage(): void {
     const gallery = this.product()?.gallery ?? [];
     if (gallery.length < 2) return;
+    this.manualGallery.set(true);
     const i = this.activeImage();
     this.activeImage.set((i - 1 + gallery.length) % gallery.length);
   }
@@ -117,6 +145,7 @@ export class PdpPage implements OnInit {
   nextImage(): void {
     const gallery = this.product()?.gallery ?? [];
     if (gallery.length < 2) return;
+    this.manualGallery.set(true);
     const i = this.activeImage();
     this.activeImage.set((i + 1) % gallery.length);
   }
@@ -150,17 +179,61 @@ export class PdpPage implements OnInit {
     this.lightbox.set(null);
   }
 
-  addToBag(): void {
+  patchField(path: string, value: string): void {
     const p = this.product();
     if (!p) return;
-    const piece = this.selectedPiece();
-    this.cart.add(p.id, 1, piece?.id);
+    this.contentAdmin.patchProductField(p.slug, path, value).subscribe((next) => {
+      if (next) this.product.set(next);
+    });
   }
 
-  toggleWish(): void {
+  renamePiece(pieceId: string, name: string): void {
+    const p = this.product();
+    if (!p?.pieces) return;
+    const idx = p.pieces.findIndex((x) => x.id === pieceId);
+    if (idx < 0) return;
+    this.patchField(`pieces.${idx}.name`, name);
+  }
+
+  renameColor(colorId: string, name: string): void {
     const p = this.product();
     if (!p) return;
-    this.wishlist.toggle(p.id);
+    const colors = p.colors ?? [];
+    const idx = colors.findIndex((c) => c.id === colorId);
+    if (idx < 0) return;
+    this.patchField(`colors.${idx}.name`, name);
+  }
+
+  bindGalleryIndex(index: number): void {
+    const p = this.product();
+    const target = this.bindingTarget();
+    if (!p || !target) return;
+    const bindings = [...(p.imageBindings ?? [])];
+    const existing = bindings.findIndex(
+      (b) =>
+        (target.pieceId ? b.pieceId === target.pieceId : !b.pieceId) &&
+        (target.colorId ? b.colorId === target.colorId : !b.colorId),
+    );
+    const entry = {
+      pieceId: target.pieceId,
+      colorId: target.colorId,
+      galleryIndex: index,
+    };
+    if (existing >= 0) bindings[existing] = { ...bindings[existing], ...entry };
+    else bindings.push(entry);
+    this.contentAdmin.patchProductField(p.slug, 'imageBindings', bindings).subscribe((next) => {
+      if (next) {
+        this.product.set(next);
+        this.syncImageFromSelection();
+      }
+    });
+    this.bindingPickerOpen.set(false);
+    this.bindingTarget.set(null);
+  }
+
+  closeBindingPicker(): void {
+    this.bindingPickerOpen.set(false);
+    this.bindingTarget.set(null);
   }
 
   isLight(hex: string): boolean {
@@ -172,10 +245,16 @@ export class PdpPage implements OnInit {
     return (r * 299 + g * 587 + b * 114) / 1000 > 188;
   }
 
-  private syncImageToPiece(piece: ProductPiece | null): void {
-    if (!piece?.thumb) return;
-    const gallery = this.product()?.gallery ?? [];
-    const idx = gallery.indexOf(piece.thumb);
-    if (idx >= 0) this.activeImage.set(idx);
+  private syncImageFromSelection(): void {
+    const p = this.product();
+    if (!p) return;
+    const hero = resolveProductHeroImage(
+      p,
+      this.selectedPieceId(),
+      this.selectedColorId(),
+    );
+    if (hero.galleryIndex != null && hero.galleryIndex >= 0) {
+      this.activeImage.set(hero.galleryIndex);
+    }
   }
 }

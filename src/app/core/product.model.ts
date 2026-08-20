@@ -144,7 +144,26 @@ export interface ProductPiece {
   colors?: ProductColor[];
   /** Solo thumb when available; otherwise look thumb + imageFocus crop */
   thumb?: string;
+  heroGalleryIndex?: number;
+  heroMediaUrl?: string;
   imageFocus?: PieceImageFocus;
+}
+
+/** Per-color hero image binding (PDP swatch click). */
+export interface ColorVariant {
+  colorId: string;
+  name: string;
+  hex?: string;
+  heroGalleryIndex?: number;
+  heroMediaUrl?: string;
+}
+
+/** Maps piece and/or color to a gallery image. */
+export interface ProductImageBinding {
+  pieceId?: string;
+  colorId?: string;
+  galleryIndex?: number;
+  mediaUrl?: string;
 }
 
 export interface Product {
@@ -177,6 +196,9 @@ export interface Product {
    * Look `price` remains the full-look reference; each piece has its own price.
    */
   pieces?: ProductPiece[];
+  /** Explicit color → image bindings (optional; falls back to swatches). */
+  colorVariants?: ColorVariant[];
+  imageBindings?: ProductImageBinding[];
   /** Future dedicated ArtCouture section — atelier mosaic / couture line. */
   artCouture?: boolean;
 }
@@ -212,4 +234,62 @@ export function productWithPiece(product: Product, pieceId?: string | null): Pro
 
 export function formatPriceLabel(reais: number): string {
   return reais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Resolve hero image URL/index when user picks a piece and/or color on PDP. */
+export function resolveProductHeroImage(
+  product: Product,
+  pieceId?: string | null,
+  colorId?: string | null,
+): { url?: string; galleryIndex?: number; imageFocus?: PieceImageFocus } {
+  const gallery = product.gallery ?? [];
+  const bindings = product.imageBindings ?? [];
+
+  const exact = bindings.find(
+    (b) =>
+      (b.pieceId ?? null) === (pieceId ?? null) &&
+      (b.colorId ?? null) === (colorId ?? null) &&
+      (b.mediaUrl != null || b.galleryIndex != null),
+  );
+  if (exact?.mediaUrl) return { url: exact.mediaUrl };
+  if (exact?.galleryIndex != null && exact.galleryIndex >= 0) {
+    return { url: gallery[exact.galleryIndex], galleryIndex: exact.galleryIndex };
+  }
+
+  if (colorId) {
+    const variant = product.colorVariants?.find((c) => c.colorId === colorId);
+    if (variant?.heroMediaUrl) return { url: variant.heroMediaUrl };
+    if (variant?.heroGalleryIndex != null && variant.heroGalleryIndex >= 0) {
+      return {
+        url: gallery[variant.heroGalleryIndex],
+        galleryIndex: variant.heroGalleryIndex,
+      };
+    }
+    const colorBinding = bindings.find((b) => b.colorId === colorId && !b.pieceId);
+    if (colorBinding?.mediaUrl) return { url: colorBinding.mediaUrl };
+    if (colorBinding?.galleryIndex != null && colorBinding.galleryIndex >= 0) {
+      return {
+        url: gallery[colorBinding.galleryIndex],
+        galleryIndex: colorBinding.galleryIndex,
+      };
+    }
+  }
+
+  const piece = product.pieces?.find((p) => p.id === pieceId);
+  if (piece?.heroMediaUrl) return { url: piece.heroMediaUrl, imageFocus: piece.imageFocus };
+  if (piece?.heroGalleryIndex != null && piece.heroGalleryIndex >= 0) {
+    return {
+      url: gallery[piece.heroGalleryIndex],
+      galleryIndex: piece.heroGalleryIndex,
+      imageFocus: piece.imageFocus,
+    };
+  }
+  if (piece?.thumb) {
+    const idx = gallery.indexOf(piece.thumb);
+    if (idx >= 0) return { url: piece.thumb, galleryIndex: idx, imageFocus: piece.imageFocus };
+    return { url: piece.thumb, imageFocus: piece.imageFocus };
+  }
+  if (piece?.imageFocus) return { imageFocus: piece.imageFocus };
+
+  return { url: gallery[0], galleryIndex: 0 };
 }

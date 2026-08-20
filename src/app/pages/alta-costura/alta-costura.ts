@@ -1,21 +1,34 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { BRAND_LINES } from '../../core/brand-lines';
 import { ChromeService } from '../../core/chrome.service';
-import { ARTCOUTURE_WEARERS } from './artcouture-wearers.data';
+import { ImageLightbox } from '../../shared/components/image-lightbox/image-lightbox';
+import { ContentService } from '../../core/content.service';
 
 @Component({
   selector: 'lc-alta-costura-page',
   standalone: true,
+  imports: [ImageLightbox],
   templateUrl: './alta-costura.html',
   styleUrl: './alta-costura.scss',
 })
 export class AltaCosturaPage implements OnInit {
   private readonly chrome = inject(ChromeService);
+  private readonly content = inject(ContentService);
   readonly brand = BRAND_LINES.artCouture;
   readonly banner = 'assets/media/alta-costura/artcouture/banner.png';
-  readonly wearers = ARTCOUTURE_WEARERS;
+  readonly wearers = this.content.wearers;
+  readonly lightbox = signal<{ src: string; alt: string } | null>(null);
 
   ngOnInit(): void {
     this.chrome.setActive('default');
+    this.content.loadWearers().subscribe();
+  }
+
+  openImage(src: string, alt: string): void {
+    this.lightbox.set({ src, alt });
+  }
+
+  closeLightbox(): void {
+    this.lightbox.set(null);
   }
 }

@@ -27,6 +27,10 @@ export interface ApiProductDto {
   collections?: { slug: string; name: string }[];
   thumb: string;
   gallery: string[];
+  pieces?: Product['pieces'];
+  colorVariants?: Product['colorVariants'];
+  imageBindings?: Product['imageBindings'];
+  artCouture?: boolean;
 }
 
 export interface ApiCollectionDto {
@@ -43,7 +47,7 @@ function formatPriceLabel(reais: number): string {
   return reais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-/** Map API product → storefront Product (price in whole BRL for cart parity). */
+/** Map API product → storefront Product (price in whole BRL). */
 export function mapApiProduct(dto: ApiProductDto): Product {
   const price = Math.round(dto.priceCents / 100);
   const local = PRODUCTS.find((p) => p.slug === dto.slug || p.id === dto.slug);
@@ -67,8 +71,10 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     collection: (dto.collection || dto.collections?.[0]?.name || 'Organic Dreams') as Collection,
     collectionSlug: (dto.collections?.[0]?.slug ??
       collectionNameToSlug(dto.collection || 'Organic Dreams')) as CollectionSlug,
-    ...(local?.pieces?.length ? { pieces: local.pieces } : {}),
-    ...(local?.artCouture ? { artCouture: true } : {}),
+    pieces: (dto.pieces as Product['pieces']) ?? local?.pieces,
+    colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
+    imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,
+    artCouture: dto.artCouture ?? local?.artCouture,
   };
 }
 

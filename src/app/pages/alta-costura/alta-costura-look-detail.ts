@@ -6,6 +6,7 @@ import {
   lookbookPath,
   productPath,
 } from '../../core/routes';
+import { ContentService } from '../../core/content.service';
 import {
   LookbookCollection,
   LookbookLook,
@@ -23,6 +24,7 @@ export class AltaCosturaLookPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly chrome = inject(ChromeService);
+  private readonly content = inject(ContentService);
 
   readonly book = signal<LookbookCollection | null>(null);
   readonly look = signal<LookbookLook | null>(null);
@@ -37,28 +39,34 @@ export class AltaCosturaLookPage implements OnInit {
     this.route.paramMap.subscribe((params) => {
       const slug = params.get('slug') ?? '';
       const num = Number(params.get('lookNumber') ?? '');
-      const found = getLookbook(slug);
-      if (!found || !Number.isFinite(num)) {
+      if (!Number.isFinite(num)) {
         void this.router.navigateByUrl(lookbookPath(slug || 'niponic-dreams'));
         return;
       }
-      const look = found.looks.find((l) => l.number === num);
-      if (!look) {
-        void this.router.navigateByUrl(lookbookPath(found.slug));
-        return;
-      }
+      this.content.getLookbook(slug).subscribe((book) => {
+        const found = book ?? getLookbook(slug);
+        if (!found) {
+          void this.router.navigateByUrl(lookbookPath(slug || 'niponic-dreams'));
+          return;
+        }
+        const look = found.looks.find((l) => l.number === num);
+        if (!look) {
+          void this.router.navigateByUrl(lookbookPath(found.slug));
+          return;
+        }
 
-      this.book.set(found);
-      this.look.set(look);
-      this.looksHref.set(lookbookPath(found.slug));
-      this.activeImage.set(0);
-      this.productHref.set(look.productSlug ? productPath(look.productSlug) : null);
+        this.book.set(found);
+        this.look.set(look);
+        this.looksHref.set(lookbookPath(found.slug));
+        this.activeImage.set(0);
+        this.productHref.set(look.productSlug ? productPath(look.productSlug) : null);
 
-      const idx = found.looks.findIndex((l) => l.number === num);
-      const prev = found.looks[idx - 1];
-      const next = found.looks[idx + 1];
-      this.prevHref.set(prev ? lookPath(found.slug, prev.number) : null);
-      this.nextHref.set(next ? lookPath(found.slug, next.number) : null);
+        const idx = found.looks.findIndex((l) => l.number === num);
+        const prev = found.looks[idx - 1];
+        const next = found.looks[idx + 1];
+        this.prevHref.set(prev ? lookPath(found.slug, prev.number) : null);
+        this.nextHref.set(next ? lookPath(found.slug, next.number) : null);
+      });
     });
   }
 

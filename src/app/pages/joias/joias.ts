@@ -8,7 +8,7 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { AdminJoiasCatalogService } from '../../core/admin-joias-catalog.service';
+import { ContentService } from '../../core/content.service';
 import { BRAND_LINES } from '../../core/brand-lines';
 import { ChromeService } from '../../core/chrome.service';
 import {
@@ -29,12 +29,12 @@ import { ImageLightbox } from '../../shared/components/image-lightbox/image-ligh
 })
 export class JoiasPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly chrome = inject(ChromeService);
-  private readonly joiasCatalog = inject(AdminJoiasCatalogService);
+  private readonly content = inject(ContentService);
 
   readonly brand = BRAND_LINES.gioielli;
   readonly introVideo = JOIAS_INTRO_VIDEO;
   readonly introPoster = JOIAS_INTRO_POSTER;
-  readonly pieces = this.joiasCatalog.list();
+  readonly pieces = this.content.joias;
   readonly lightbox = signal<{ src: string; alt: string } | null>(null);
   /** Per-piece still index for multi-image groups. */
   private readonly stillById = signal<Record<string, number>>({});
@@ -45,6 +45,7 @@ export class JoiasPage implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     this.chrome.setActive('joias');
+    this.content.loadJoias().subscribe();
   }
 
   ngAfterViewInit(): void {

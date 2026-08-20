@@ -316,14 +316,6 @@ export const MOBILE_NAV: MobileNavItem[] = [
     type: 'link',
     link: { label: 'ABOUT', route: ROUTES.about, active: 'about' },
   },
-  {
-    type: 'link',
-    link: { label: 'FAVORITOS', route: ROUTES.wishlist },
-  },
-  {
-    type: 'link',
-    link: { label: 'CONTA', route: ROUTES.account },
-  },
 ];
 
 /** Footer columns */
@@ -355,7 +347,6 @@ export const FOOTER_LINKS = {
       external: true,
     },
     { label: 'Guia de tamanhos', route: null },
-    { label: 'Favoritos', route: ROUTES.wishlist },
     { label: 'Atelier', ...aboutLink(ABOUT_FRAGMENTS.criador) },
   ] as NavLink[],
   colecoes: [

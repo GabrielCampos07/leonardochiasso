@@ -1,11 +1,8 @@
 export const environment = {
   production: true,
-  /**
-   * Client preview on Hostinger — no API.
-   * Catalog, auth, account, wishlist and checkout use localStorage / in-memory data.
-   */
-  demoMode: true,
-  apiBaseUrl: '',
-  /** Boutique admin (`/admin`) — localStorage catalog; change after launch. */
-  adminPassword: 'atelier2026',
+  /** Production storefront — catalog and admin via Nest API + S3 CDN. */
+  demoMode: false,
+  apiBaseUrl: 'https://api.leonardochiasso.com',
+  /** Removed from bundle — admin auth is server-side only. */
+  adminPassword: '',
 };

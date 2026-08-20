@@ -25,7 +25,7 @@
     </div>
   </div>
 
-  @for (series of seriesList; track series.id) {
+  @for (series of seriesList(); track series.id) {
     <section class="arte-series" [attr.data-series]="series.id">
       @for (stage of series.presentations ?? []; track stage.alt) {
         @if (!stage.videoSrc && stage.image) {

@@ -9,10 +9,10 @@ import {
   signal,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { ContentService } from '../../core/content.service';
 import {
   ART_INTRO_POSTER,
   ART_INTRO_VIDEO,
-  ART_SERIES,
   ArtPiece,
 } from '../../core/arte.data';
 import { ChromeService } from '../../core/chrome.service';
@@ -29,8 +29,9 @@ import { ImageLightbox } from '../../shared/components/image-lightbox/image-ligh
 })
 export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
   private readonly chrome = inject(ChromeService);
+  private readonly content = inject(ContentService);
 
-  readonly seriesList = ART_SERIES;
+  readonly seriesList = this.content.arteSeries;
   readonly introVideo = ART_INTRO_VIDEO;
   readonly introPoster = ART_INTRO_POSTER;
   readonly lightbox = signal<{ src: string; alt: string } | null>(null);
@@ -40,6 +41,7 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnInit(): void {
     this.chrome.setActive('arte');
+    this.content.loadArte().subscribe();
   }
 
   ngAfterViewInit(): void {
