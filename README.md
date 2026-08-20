@@ -73,7 +73,7 @@ Alterações do admin ficam no navegador (`localStorage`) até existir backend d
 
 Push na branch `main` dispara [`.github/workflows/deploy-hostinger.yml`](./.github/workflows/deploy-hostinger.yml).
 
-Secrets em **Settings → Secrets → Actions**:
+Secrets no **Environment `production`** (Settings → Environments → **production** → Environment secrets):
 
 | Secret | Exemplo |
 |--------|---------|
@@ -81,6 +81,8 @@ Secrets em **Settings → Secrets → Actions**:
 | `FTP_USERNAME` | usuário FTP do hPanel |
 | `FTP_PASSWORD` | senha FTP |
 | `FTP_REMOTE_DIR` | `/public_html` ou `/domains/leonardochiasso.com/public_html` |
+
+O workflow usa `environment: production` — secrets só em **Repository secrets** não são lidos.
 
 Disparo manual: **Actions** → **Deploy frontend to Hostinger** → **Run workflow**.
 
