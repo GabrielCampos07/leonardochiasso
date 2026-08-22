@@ -7,6 +7,7 @@ import { JOIAS_PIECES, JoiaPiece } from './joias.data';
 import { ARTCOUTURE_WEARERS, ArtCoutureWearer } from '../pages/alta-costura/artcouture-wearers.data';
 import { LOOKBOOKS, LookbookCollection } from '../pages/alta-costura/lookbook.data';
 import { ALTA_DESFILES, AltaDesfileShow } from '../pages/alta-costura/alta-costura.data';
+import { withCdnUrls } from './media-url';
 
 @Injectable({ providedIn: 'root' })
 export class ContentService {
@@ -35,7 +36,7 @@ export class ContentService {
     return this.http
       .get<Array<ArtCoutureWearer & { id?: string }>>(`${this.baseUrl}/api/alta-costura/wearers`)
       .pipe(
-        map((rows) => (rows?.length ? rows : ARTCOUTURE_WEARERS)),
+        map((rows) => withCdnUrls(rows?.length ? rows : ARTCOUTURE_WEARERS)),
         tap((list) => this.wearers.set(list)),
         catchError(() => {
           this.wearers.set(ARTCOUTURE_WEARERS);
@@ -49,6 +50,7 @@ export class ContentService {
       return of(LOOKBOOKS.find((l) => l.slug === slug));
     }
     return this.http.get<LookbookCollection>(`${this.baseUrl}/api/lookbooks/${slug}`).pipe(
+      map((doc) => (doc ? withCdnUrls(doc) : undefined)),
       catchError(() => of(LOOKBOOKS.find((l) => l.slug === slug))),
     );
   }
@@ -58,6 +60,7 @@ export class ContentService {
       return of(ALTA_DESFILES.find((d) => d.slug === slug));
     }
     return this.http.get<AltaDesfileShow>(`${this.baseUrl}/api/desfiles/${slug}`).pipe(
+      map((doc) => (doc ? withCdnUrls(doc) : undefined)),
       catchError(() => of(ALTA_DESFILES.find((d) => d.slug === slug))),
     );
   }
@@ -81,7 +84,7 @@ export class ContentService {
       return of(fallback);
     }
     return this.http.get<T[]>(`${this.baseUrl}${path}`).pipe(
-      map((rows) => (rows?.length ? rows : fallback)),
+      map((rows) => withCdnUrls(rows?.length ? rows : fallback)),
       tap((list) => target.set(list)),
       catchError(() => {
         target.set(fallback);

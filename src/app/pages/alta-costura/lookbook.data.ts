@@ -1,3 +1,4 @@
+import { withCdnUrls } from '../../core/media-url';
 import { COLLECTION_SLUGS, CollectionSlug } from '../../core/routes';
 
 const LB = 'assets/media/lookbook';
@@ -22,7 +23,7 @@ export interface LookbookCollection {
 }
 
 /** Studio product looks only — never desfile / runway stills. */
-export const LOOKBOOKS: LookbookCollection[] = [
+export const LOOKBOOKS: LookbookCollection[] = withCdnUrls([
   {
     slug: 'organic-dreams',
     collectionSlug: COLLECTION_SLUGS.organicDreams,
@@ -758,7 +759,7 @@ export const LOOKBOOKS: LookbookCollection[] = [
       },
     ],
   },
-];
+]);
 
 export function getLookbook(slug: string): LookbookCollection | undefined {
   return LOOKBOOKS.find((b) => b.slug === slug);

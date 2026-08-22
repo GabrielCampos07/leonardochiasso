@@ -1,5 +1,7 @@
 /** Editorial art gallery — separate from fashion catalog. */
 
+import { withCdnUrls } from './media-url';
+
 export interface ArtPiece {
   id: string;
   slug: string;
@@ -21,8 +23,8 @@ export interface ArtPiece {
 const MEDIA = 'assets/media/arts';
 
 /** Page hero — full-bleed intro film (like Joias). */
-export const ART_INTRO_VIDEO = `${MEDIA}/arte-intro.mp4`;
-export const ART_INTRO_POSTER = `${MEDIA}/arte-intro-poster.jpeg`;
+export const ART_INTRO_VIDEO = withCdnUrls(`${MEDIA}/arte-intro.mp4`);
+export const ART_INTRO_POSTER = withCdnUrls(`${MEDIA}/arte-intro-poster.jpeg`);
 
 /** Full-bleed presentation (image and/or video highlight). */
 export interface ArtPresentation {
@@ -124,7 +126,7 @@ const PAPER_PIECES: ArtPiece[] = [
  * 1. Mosaico Têxtil — presentation + product(s)
  * 2. Mosaic Paper — presentations + products
  */
-export const ART_SERIES: ArtSeries[] = [
+export const ART_SERIES: ArtSeries[] = withCdnUrls([
   {
     id: 'textile',
     title: 'Mosaico Têxtil',
@@ -156,7 +158,7 @@ export const ART_SERIES: ArtSeries[] = [
     ],
     pieces: PAPER_PIECES,
   },
-];
+]);
 
 /** Flat list for detail routes / lookups. */
 export const ART_PIECES: ArtPiece[] = ART_SERIES.flatMap((s) => s.pieces);

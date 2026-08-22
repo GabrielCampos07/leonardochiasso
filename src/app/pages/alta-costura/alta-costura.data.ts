@@ -1,3 +1,4 @@
+import { withCdnUrls } from '../../core/media-url';
 import { COLLECTION_SLUGS, CollectionSlug } from '../../core/routes';
 
 const MEDIA = 'assets/media/alta-costura';
@@ -30,7 +31,7 @@ export interface AltaDesfileShow {
   comingSoon?: boolean;
 }
 
-export const ALTA_DESFILES: AltaDesfileShow[] = [
+export const ALTA_DESFILES: AltaDesfileShow[] = withCdnUrls([
 {
     slug: 'brazilian-dreams',
     collectionSlug: COLLECTION_SLUGS.brazilianDreams,
@@ -195,7 +196,7 @@ export const ALTA_DESFILES: AltaDesfileShow[] = [
     videoSrc: `${MEDIA}/organic-dreams-desfile.MOV`,
     videoCaption: 'Organic Dreams — desfile completo',
   },
-];
+]);
 
 export function getAltaDesfile(slug: string): AltaDesfileShow | undefined {
   return ALTA_DESFILES.find((d) => d.slug === slug);

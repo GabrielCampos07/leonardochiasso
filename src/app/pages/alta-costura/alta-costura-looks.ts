@@ -14,6 +14,7 @@ import {
 import { RtwType, productMatchesRtwType, rtwLabel } from '../../core/rtw';
 import { sortByRecommendOrder } from '../../core/recommend-order';
 import { LookbookCollection, LookbookLook, getLookbook } from './lookbook.data';
+import { resolveMediaUrl } from '../../core/media-url';
 
 /** Prefer these tokens when picking a category-tile thumb. */
 const TILE_THUMB_PREFER: Partial<Record<RtwType, RegExp>> = {
@@ -24,8 +25,8 @@ const TILE_THUMB_PREFER: Partial<Record<RtwType, RegExp>> = {
 };
 
 const RTW_ORDER: RtwType[] = ['vestidos', 'calcas', 'casacos', 'camisas'];
-const JOIA_TILE_IMAGE = 'assets/media/joias/brinco-tassel-preto.png';
-const ACESSORIO_TILE_IMAGE = 'assets/media/pdp-echarpe-degrade-01.png';
+const JOIA_TILE_IMAGE = resolveMediaUrl('assets/media/joias/brinco-tassel-preto.png');
+const ACESSORIO_TILE_IMAGE = resolveMediaUrl('assets/media/pdp-echarpe-degrade-01.png');
 
 interface RelatedCatTile {
   label: string;

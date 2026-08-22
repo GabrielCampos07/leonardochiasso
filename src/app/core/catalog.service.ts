@@ -7,6 +7,7 @@ import { CollectionSlug } from './routes';
 import { environment } from '../../environments/environment';
 import { sortByRecommendOrder } from './recommend-order';
 import { AdminCatalogService } from './admin-catalog.service';
+import { withCdnUrls } from './media-url';
 
 /** API catalog DTO (subset used by the storefront). */
 export interface ApiProductDto {
@@ -51,7 +52,7 @@ function formatPriceLabel(reais: number): string {
 export function mapApiProduct(dto: ApiProductDto): Product {
   const price = Math.round(dto.priceCents / 100);
   const local = PRODUCTS.find((p) => p.slug === dto.slug || p.id === dto.slug);
-  return {
+  return withCdnUrls({
     id: dto.slug,
     slug: dto.slug,
     name: dto.name,
@@ -75,7 +76,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
     imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,
     artCouture: dto.artCouture ?? local?.artCouture,
-  };
+  });
 }
 
 @Injectable({ providedIn: 'root' })

@@ -13,6 +13,7 @@ import { Product } from '../../core/product.model';
 import { GenderSlug, collectionPath } from '../../core/routes';
 import { sortByRecommendOrder } from '../../core/recommend-order';
 import { AltaCosturaFilms } from '../alta-costura/alta-costura-films';
+import { resolveMediaUrl } from '../../core/media-url';
 
 @Component({
   selector: 'lc-landing-page',
@@ -26,6 +27,7 @@ export class LandingPage implements OnInit {
   private readonly catalog = inject(CatalogService);
   private readonly route = inject(ActivatedRoute);
 
+  readonly heroImg = resolveMediaUrl('assets/media/hero-runway.jpg');
   readonly categoria = signal<GenderSlug | null>(null);
   readonly rawProducts = signal<Product[]>([]);
 

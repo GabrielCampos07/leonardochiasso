@@ -6,6 +6,7 @@ import { LcFabricSpec } from '../../shared/components/fabric-spec/fabric-spec';
 import { ChromeService } from '../../core/chrome.service';
 import { ABOUT_ANCHORS, ABOUT_MORE_LINKS } from '../../core/nav.config';
 import { ROUTES } from '../../core/routes';
+import { resolveMediaUrl } from '../../core/media-url';
 
 @Component({
   selector: 'lc-about-page',
@@ -22,6 +23,7 @@ export class AboutPage implements OnInit {
   readonly aboutRoute = ROUTES.about;
   readonly anchors = ABOUT_ANCHORS;
   readonly moreLinks = ABOUT_MORE_LINKS;
+  readonly heroImg = resolveMediaUrl('assets/media/about-hero-manifesto.jpg');
 
   readonly activeFragment = signal<string>(this.anchors[0].id);
 

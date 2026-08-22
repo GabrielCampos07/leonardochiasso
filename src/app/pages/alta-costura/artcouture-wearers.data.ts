@@ -1,3 +1,5 @@
+import { withCdnUrls } from '../../core/media-url';
+
 const MEDIA = 'assets/media/alta-costura/artcouture';
 
 export interface ArtCoutureShot {
@@ -15,7 +17,7 @@ export interface ArtCoutureWearer {
   shots: ArtCoutureShot[];
 }
 
-export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = [
+export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = withCdnUrls([
   {
     id: 'sandra-chiasso',
     name: 'Sandra Chiasso',
@@ -346,4 +348,4 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = [
       },
     ],
   },
-];
+]);

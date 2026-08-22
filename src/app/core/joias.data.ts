@@ -1,11 +1,12 @@
 /** Jewelry editorial — Coleção Gioielli. */
 
+import { withCdnUrls } from './media-url';
 import { COLLECTION_SLUGS, CollectionSlug } from './routes';
 
 const MEDIA = 'assets/media/joias';
 
-export const JOIAS_INTRO_VIDEO = `${MEDIA}/joias-intro.mp4`;
-export const JOIAS_INTRO_POSTER = `${MEDIA}/joias-intro-poster.jpeg`;
+export const JOIAS_INTRO_VIDEO = withCdnUrls(`${MEDIA}/joias-intro.mp4`);
+export const JOIAS_INTRO_POSTER = withCdnUrls(`${MEDIA}/joias-intro-poster.jpeg`);
 
 export interface JoiaPiece {
   id: string;
@@ -24,7 +25,7 @@ export interface JoiaPiece {
   collectionSlug?: CollectionSlug;
 }
 
-export const JOIAS_PIECES: JoiaPiece[] = [
+export const JOIAS_PIECES: JoiaPiece[] = withCdnUrls([
   {
     id: 'colar-dentes-perola-barroca',
     slug: 'colar-dentes-perola-barroca',
@@ -104,7 +105,7 @@ export const JOIAS_PIECES: JoiaPiece[] = [
     images: [`${MEDIA}/brinco-perolas-tassel-look.png`],
     medium: 'Pérola · miçangas · tassel',
   },
-];
+]);
 
 export function joiaGallery(piece: JoiaPiece): string[] {
   if (piece.images?.length) return piece.images;
