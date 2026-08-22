@@ -70,14 +70,15 @@ export class AdminAuthService {
 
   async ensureSeedAdmin(email: string, password: string, role: AdminRole = AdminRole.owner): Promise<void> {
     const normalized = email.trim().toLowerCase();
-    const existing = await this.prisma.adminUser.findUnique({ where: { email: normalized } });
-    if (existing) return;
-    await this.prisma.adminUser.create({
-      data: {
+    const passwordHash = await argon2.hash(password);
+    await this.prisma.adminUser.upsert({
+      where: { email: normalized },
+      create: {
         email: normalized,
-        passwordHash: await argon2.hash(password),
+        passwordHash,
         role,
       },
+      update: { passwordHash },
     });
   }
 

@@ -5,7 +5,8 @@ export function adminSessionCookieOptions(isProduction: boolean) {
   return {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'lax' as const,
+    // Cross-site SPA (leonardochiasso.com) → API (api.leonardochiasso.com) needs None in prod.
+    sameSite: (isProduction ? 'none' : 'lax') as 'none' | 'lax',
     path: '/',
     maxAge: ADMIN_SESSION_TTL_MS,
   };

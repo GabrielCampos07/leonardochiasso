@@ -4,8 +4,18 @@ import { Prisma, PrismaClient } from '@prisma/client';
 
 export const MEDIA_ROOT = path.join(process.cwd(), '..', 'src', 'assets', 'media');
 
+/** Stay on Hostinger (gitignored ~2 GB). Do not upload to R2 or rewrite to CDN. */
+export const HOSTINGER_ONLY_ASSETS = [
+  'assets/media/alta-costura/organic-dreams-desfile.MOV',
+] as const;
+
 const IMAGE_RE = /\.(jpe?g|png|webp|gif)$/i;
 const VIDEO_RE = /\.(mp4|mov)$/i;
+
+export function isHostingerOnlyAsset(legacy: string): boolean {
+  const normalized = legacy.replace(/^\//, '');
+  return HOSTINGER_ONLY_ASSETS.some((p) => p.toLowerCase() === normalized.toLowerCase());
+}
 
 export type MediaKind = 'image' | 'video';
 
@@ -30,7 +40,9 @@ export async function walkMedia(root = MEDIA_ROOT): Promise<MediaFile[]> {
       const kind = IMAGE_RE.test(e.name) ? 'image' : VIDEO_RE.test(e.name) ? 'video' : null;
       if (!kind) continue;
       const rel = path.relative(root, full).replace(/\\/g, '/');
-      out.push({ abs: full, rel, legacy: `assets/media/${rel}`, kind });
+      const legacy = `assets/media/${rel}`;
+      if (isHostingerOnlyAsset(legacy)) continue;
+      out.push({ abs: full, rel, legacy, kind });
     }
   }
 
@@ -41,6 +53,7 @@ export async function walkMedia(root = MEDIA_ROOT): Promise<MediaFile[]> {
 /** Expected public CDN URL for a legacy SPA asset path (no upload). */
 export function legacyToCdnUrl(legacy: string, cdnBase: string): string | undefined {
   const normalized = legacy.replace(/^\//, '');
+  if (isHostingerOnlyAsset(normalized)) return undefined;
   if (!normalized.startsWith('assets/media/')) return undefined;
   const rel = normalized.slice('assets/media/'.length);
   if (VIDEO_RE.test(rel)) return `${cdnBase}/video/${rel}`;
@@ -62,6 +75,7 @@ export function buildUrlMap(files: MediaFile[], cdnBase: string): Map<string, st
 
 function resolveUrl(value: string, urlMap: Map<string, string>, cdnBase: string): string {
   const normalized = value.replace(/^\//, '');
+  if (isHostingerOnlyAsset(normalized)) return normalized;
   return urlMap.get(normalized) ?? legacyToCdnUrl(normalized, cdnBase) ?? value;
 }
 
@@ -102,6 +116,7 @@ export async function rewriteDatabaseUrls(
   const assets = await prisma.mediaAsset.findMany();
   for (const asset of assets) {
     const legacy = asset.cdnUrl.replace(/^\//, '');
+    if (isHostingerOnlyAsset(legacy)) continue;
     const next =
       urlMap.get(legacy) ??
       (legacy.startsWith('assets/media/') ? legacyToCdnUrl(legacy, cdnBase) : undefined);

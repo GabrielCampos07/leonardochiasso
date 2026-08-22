@@ -1,5 +1,4 @@
 import { Component, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
 import { ChromeService } from '../../../core/chrome.service';
 import { AdminSessionService } from '../../../core/admin-session.service';
 import { ROUTES } from '../../../core/routes';
@@ -7,7 +6,7 @@ import { ROUTES } from '../../../core/routes';
 @Component({
   selector: 'lc-utility',
   standalone: true,
-  imports: [RouterLink],
+  imports: [],
   template: `
     <div class="utility" [class.utility--collapsed]="chrome.navCollapsed()">
       <div class="utility__inner">
@@ -29,51 +28,6 @@ import { ROUTES } from '../../../core/routes';
             <span class="utility__sep" aria-hidden="true"></span>
             <span class="utility__phone">(62) 99999-0000</span>
           </a>
-        </div>
-
-        <div class="utility__actions">
-          <button class="utility__icon utility__desktop-only" type="button" aria-label="Localização">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              aria-hidden="true"
-            >
-              <path d="M12 21s6-5.2 6-11a6 6 0 1 0-12 0c0 5.8 6 11 6 11z" />
-              <circle cx="12" cy="10" r="2" />
-            </svg>
-          </button>
-          <button class="utility__icon" type="button" aria-label="Buscar">
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              aria-hidden="true"
-            >
-              <circle cx="11" cy="11" r="6" />
-              <path d="M16.5 16.5 20 20" />
-            </svg>
-          </button>
-          @if (admin.isEnabled()) {
-            @if (admin.isLoggedIn()) {
-              <button
-                class="utility__admin utility__admin--on"
-                type="button"
-                (click)="admin.toggleEditMode()"
-              >
-                {{ admin.editMode() ? 'Visualizar' : 'Editar' }}
-              </button>
-              <button class="utility__admin" type="button" (click)="admin.logout()">Sair</button>
-            } @else {
-              <a class="utility__admin" [routerLink]="adminRoute">Ateliê</a>
-            }
-          }
         </div>
       </div>
     </div>

@@ -75,6 +75,8 @@ npm run build
 
 Enviar o conteúdo de `dist/leo-chiasso/browser` para o public_html. **Build prod não inclui fotos/vídeos** — só SVGs de UI; mídia vem do CDN (R2).
 
+**Exceção:** `organic-dreams-desfile.MOV` (~2 GB) permanece em `public_html/assets/media/alta-costura/` na Hostinger (fora do Git). O SFTP não apaga arquivos existentes.
+
 ### CDN — imagens e vídeos
 
 ```bash
@@ -83,12 +85,7 @@ npm run migrate:assets        # upload imagens + vídeos locais + atualiza Neon
 npm run migrate:content-urls  # só reescreve URLs no Neon (sem upload)
 ```
 
-**Vídeos grandes manualmente no R2** (ex.: `organic-dreams-desfile.MOV` fora do Git):
-
-1. Cloudflare R2 → bucket → Upload
-2. Key: `video/{caminho}` igual ao repo, ex. `video/alta-costura/organic-dreams-desfile.MOV`
-3. URL pública: `{CDN_BASE_URL}/video/alta-costura/organic-dreams-desfile.MOV`
-4. `npm run migrate:content-urls` — atualiza joias, arte, lookbooks, desfiles no Neon
+O MOV de 2 GB **não** é reescrito para CDN. Outros vídeos: key `video/{caminho}` no R2, depois `migrate:content-urls`.
 
 Convenção de keys:
 

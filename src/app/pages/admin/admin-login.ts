@@ -26,24 +26,39 @@ export class AdminLoginPage {
     }
     if (this.session.isLoggedIn()) {
       void this.router.navigateByUrl(ROUTES.home);
+      return;
     }
+    // Cookie may still be valid — check once on /admin only (not on public pages).
+    this.session.ensureSession().subscribe((ok) => {
+      if (ok) void this.router.navigateByUrl(ROUTES.home);
+    });
   }
 
   submit(): void {
     this.error.set('');
-    const obs = this.session.login(this.email, this.password);
-    obs.subscribe((ok) => {
-      if (!ok) {
-        this.session.loginPassword(this.password).subscribe((legacy) => {
-          if (!legacy) {
-            this.error.set('Credenciais incorretas.');
-            return;
-          }
-          void this.router.navigateByUrl(ROUTES.home);
-        });
-        return;
-      }
-      void this.router.navigateByUrl(ROUTES.home);
+    this.session.login(this.email, this.password).subscribe({
+      next: (ok) => {
+        if (!ok) {
+          this.error.set('Credenciais incorretas.');
+          return;
+        }
+        void this.router.navigateByUrl(ROUTES.home);
+      },
+      error: (err: unknown) => {
+        const http = err as { status?: number; error?: { message?: string | string[] } };
+        if (http?.status === 401) {
+          this.error.set('Credenciais incorretas.');
+          return;
+        }
+        if (http?.status === 0) {
+          this.error.set('API indisponível. Confira se o Nest está rodando em localhost:3000.');
+          return;
+        }
+        const msg = http?.error?.message;
+        this.error.set(
+          Array.isArray(msg) ? msg.join(' ') : typeof msg === 'string' ? msg : 'Falha no login.',
+        );
+      },
     });
   }
 }

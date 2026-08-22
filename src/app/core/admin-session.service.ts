@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, catchError, map, of, tap } from 'rxjs';
+import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 const LOCAL_SESSION_KEY = 'lc-admin-session';
@@ -28,11 +28,7 @@ export class AdminSessionService {
     () => Boolean(this.apiBase) || Boolean(environment.adminPassword?.trim()),
   );
 
-  constructor() {
-    if (this.apiBase) {
-      this.refreshMe().subscribe();
-    }
-  }
+  private meRequested = false;
 
   toggleEditMode(): void {
     const next = !this.editModeOn();
@@ -47,7 +43,10 @@ export class AdminSessionService {
   login(email: string, password: string): Observable<boolean> {
     if (this.apiBase) {
       return this.http
-        .post<AdminUser>(`${this.apiBase}/api/admin/auth/login`, { email, password }, {
+        .post<AdminUser>(`${this.apiBase}/api/admin/auth/login`, {
+          email: email.trim(),
+          password,
+        }, {
           withCredentials: true,
         })
         .pipe(
@@ -58,7 +57,7 @@ export class AdminSessionService {
             sessionStorage.setItem(EDIT_MODE_KEY, '1');
           }),
           map(() => true),
-          catchError(() => of(false)),
+          catchError((err: unknown) => throwError(() => err)),
         );
     }
 
@@ -88,8 +87,13 @@ export class AdminSessionService {
     this.clearSession();
   }
 
+  /**
+   * Hydrate session from cookie — only call from admin routes/login.
+   * Do not probe on public pages (would 401 every visitor).
+   */
   refreshMe(): Observable<AdminUser | null> {
     if (!this.apiBase) return of(null);
+    this.meRequested = true;
     return this.http
       .get<AdminUser>(`${this.apiBase}/api/admin/auth/me`, { withCredentials: true })
       .pipe(
@@ -101,12 +105,21 @@ export class AdminSessionService {
       );
   }
 
+  /** One-shot session check for guards / admin login. */
+  ensureSession(): Observable<boolean> {
+    if (!this.apiBase) return of(this.isLoggedIn());
+    if (this.user()) return of(true);
+    if (this.meRequested && !this.user()) return of(false);
+    return this.refreshMe().pipe(map((u) => u !== null));
+  }
+
   private clearSession(): void {
     sessionStorage.removeItem(LOCAL_SESSION_KEY);
     sessionStorage.setItem(EDIT_MODE_KEY, '0');
     this.user.set(null);
     this.localUnlocked.set(false);
     this.editModeOn.set(false);
+    this.meRequested = false;
   }
 
   private readLocalSession(): boolean {

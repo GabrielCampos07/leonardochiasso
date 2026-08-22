@@ -24,6 +24,7 @@
     "prisma:seed": "prisma db seed",
     "migrate:assets": "tsx scripts/migrate-assets-to-s3.ts",
     "migrate:content-urls": "tsx scripts/migrate-content-urls.ts",
+    "admin:sync-password": "tsx scripts/sync-admin-password.ts",
     "prisma:studio": "prisma studio",
     "prisma:validate": "prisma validate"
   },

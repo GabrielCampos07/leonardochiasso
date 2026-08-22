@@ -52,7 +52,13 @@ export class AuthService {
   readonly resolved = signal(false);
 
   constructor() {
-    this.me().subscribe();
+    // Do not probe /api/auth/me on every page load — commerce is optional and
+    // anonymous visitors would get a noisy 401. Guards/pages call me() when needed.
+    if (this.demo) {
+      this.me().subscribe();
+    } else {
+      this.resolved.set(true);
+    }
   }
 
   register(payload: RegisterPayload): Observable<CustomerAccount> {

@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+import { map } from 'rxjs';
 import { AdminSessionService } from './admin-session.service';
 import { ROUTES } from './routes';
 
@@ -12,5 +13,8 @@ export const adminAuthGuard: CanActivateFn = () => {
     return router.createUrlTree([ROUTES.home]);
   }
   if (session.isLoggedIn()) return true;
-  return router.createUrlTree([ROUTES.admin]);
+
+  return session.ensureSession().pipe(
+    map((ok) => (ok ? true : router.createUrlTree([ROUTES.admin]))),
+  );
 };

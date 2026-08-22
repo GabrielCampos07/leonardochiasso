@@ -1686,18 +1686,21 @@ async function seedAdminUser(): Promise<void> {
   const email = (process.env.ADMIN_EMAIL ?? 'admin@leonardochiasso.com').toLowerCase();
   const password = process.env.ADMIN_PASSWORD ?? 'atelier2026';
   const argon2 = await import('argon2');
-  const existing = await prisma.adminUser.findUnique({ where: { email } });
-  if (!existing) {
-    await prisma.adminUser.create({
-      data: {
-        email,
-        passwordHash: await argon2.hash(password),
-        role: 'owner',
-      },
-    });
-    // eslint-disable-next-line no-console
-    console.log(`Seeded admin user ${email}`);
-  }
+  const passwordHash = await argon2.hash(password);
+  await prisma.adminUser.upsert({
+    where: { email },
+    create: {
+      email,
+      passwordHash,
+      role: 'owner',
+    },
+    update: {
+      // Keep DB hash in sync when ADMIN_PASSWORD changes in .env
+      passwordHash,
+    },
+  });
+  // eslint-disable-next-line no-console
+  console.log(`Seeded/updated admin user ${email}`);
 }
 
 main()
