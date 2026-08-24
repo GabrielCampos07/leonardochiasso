@@ -230,10 +230,55 @@
   border-color: var(--lc-void);
 }
 
+.joias-piece__edit-media {
+  position: relative;
+  width: 100%;
+  max-width: min(100%, 440px);
+}
+
 .joias-piece__edit-hero {
   display: block;
   width: 100%;
-  max-width: min(100%, 440px);
+}
+
+.joias-piece__edit-hero.is-busy {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.joias-piece__media-skeleton {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: 3 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--lc-ash) 22%, var(--lc-white)) 0%,
+    color-mix(in srgb, var(--lc-ash) 8%, var(--lc-white)) 45%,
+    color-mix(in srgb, var(--lc-ash) 22%, var(--lc-white)) 90%
+  );
+  background-size: 200% 100%;
+  animation: joias-media-shimmer 1.35s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.joias-piece__media-skeleton-label {
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 50%, transparent);
+}
+
+@keyframes joias-media-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 .joias-piece__edit-hero ::ng-deep img {
@@ -307,13 +352,13 @@
 }
 
 @media (min-width: 900px) {
-  .joias-piece__edit-hero {
+  .joias-piece__edit-media {
     max-width: min(100%, 580px);
   }
 }
 
 @media (min-width: 1200px) {
-  .joias-piece__edit-hero {
+  .joias-piece__edit-media {
     max-width: min(100%, 640px);
   }
 }

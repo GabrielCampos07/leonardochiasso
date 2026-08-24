@@ -33,22 +33,35 @@
       >
         <div class="joias-piece__media">
           @if (admin.editMode()) {
-            @if (activeStill(piece); as still) {
-              <lc-editable-image
-                class="joias-piece__edit-hero"
-                [src]="still"
-                [alt]="piece.title"
-                (pick)="onPickImage(piece, stillIndex(piece), $event)"
-              />
-            } @else {
-              <button
-                type="button"
-                class="joias-piece__add-photo"
-                (click)="startPickImage(piece, 0)"
-              >
-                Adicionar foto
-              </button>
-            }
+            <div class="joias-piece__edit-media">
+              @if (activeStill(piece); as still) {
+                <lc-editable-image
+                  class="joias-piece__edit-hero"
+                  [class.is-busy]="isImageUploading(piece)"
+                  [src]="still"
+                  [alt]="piece.title"
+                  (pick)="onPickImage(piece, stillIndex(piece), $event)"
+                />
+              } @else {
+                <button
+                  type="button"
+                  class="joias-piece__add-photo"
+                  [disabled]="isImageUploading(piece)"
+                  (click)="startPickImage(piece, 0)"
+                >
+                  Adicionar foto
+                </button>
+              }
+              @if (isImageUploading(piece)) {
+                <div
+                  class="joias-piece__media-skeleton"
+                  aria-busy="true"
+                  aria-label="Enviando imagem"
+                >
+                  <span class="joias-piece__media-skeleton-label">Enviando…</span>
+                </div>
+              }
+            </div>
             @if (gallery(piece).length > 1) {
               <ul class="joias-piece__thumbs" aria-label="Mais fotos — selecione para trocar">
                 @for (src of gallery(piece); track $index; let ti = $index) {

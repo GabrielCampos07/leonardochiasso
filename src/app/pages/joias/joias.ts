@@ -45,6 +45,8 @@ export class JoiasPage implements OnInit, AfterViewInit, OnDestroy {
   readonly pieces = this.content.joias;
   readonly lightbox = signal<{ src: string; alt: string } | null>(null);
   readonly saving = signal(false);
+  /** Piece id while upload + PATCH is in flight. */
+  readonly imageUploadingId = signal<string | null>(null);
   /** Per-piece still index for multi-image groups. */
   private readonly stillById = signal<Record<string, number>>({});
   private pickTarget: { slug: string; index: number } | null = null;
@@ -120,12 +122,16 @@ export class JoiasPage implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
+  isImageUploading(piece: JoiaPiece): boolean {
+    return this.imageUploadingId() === piece.id;
+  }
+
   /** From `lc-editable-image` — File is already chosen. */
   onPickImage(piece: JoiaPiece, index: number, file: File): void {
-    this.saving.set(true);
+    this.imageUploadingId.set(piece.id);
     this.contentAdmin.uploadImage$(file, piece.title).subscribe({
       next: ({ cdnUrl }) => this.persistImageSwap(piece, index, cdnUrl),
-      error: () => this.saving.set(false),
+      error: () => this.imageUploadingId.set(null),
     });
   }
 
@@ -151,34 +157,17 @@ export class JoiasPage implements OnInit, AfterViewInit, OnDestroy {
   private persistImageSwap(piece: JoiaPiece, index: number, cdnUrl: string): void {
     const slug = piece.slug || piece.id;
     const hasImages = Boolean(piece.images?.length);
+    const path = hasImages ? `images.${index}` : 'image';
 
-    if (hasImages) {
-      this.contentAdmin.patchContentField(CONTENT_KIND, slug, `images.${index}`, cdnUrl).subscribe({
-        next: () => {
-          this.applyLocalPatch(slug, `images.${index}`, cdnUrl);
-          if (index === 0) {
-            this.contentAdmin.patchContentField(CONTENT_KIND, slug, 'image', cdnUrl).subscribe({
-              next: () => {
-                this.applyLocalPatch(slug, 'image', cdnUrl);
-                this.saving.set(false);
-              },
-              error: () => this.saving.set(false),
-            });
-          } else {
-            this.saving.set(false);
-          }
-        },
-        error: () => this.saving.set(false),
-      });
-      return;
-    }
-
-    this.contentAdmin.patchContentField(CONTENT_KIND, slug, 'image', cdnUrl).subscribe({
+    this.contentAdmin.patchContentField(CONTENT_KIND, slug, path, cdnUrl).subscribe({
       next: () => {
-        this.applyLocalPatch(slug, 'image', cdnUrl);
-        this.saving.set(false);
+        this.applyLocalPatch(slug, path, cdnUrl);
+        if (hasImages && index === 0) {
+          this.applyLocalPatch(slug, 'image', cdnUrl);
+        }
+        this.imageUploadingId.set(null);
       },
-      error: () => this.saving.set(false),
+      error: () => this.imageUploadingId.set(null),
     });
   }
 
