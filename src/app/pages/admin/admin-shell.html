@@ -6,8 +6,9 @@
   <nav class="admin-bar__nav">
     @if (loggedIn()) {
       <a [routerLink]="products">Produtos</a>
+      <a [routerLink]="collections">Coleções</a>
       <a [routerLink]="joias">Joias</a>
-      <a [routerLink]="home" target="_blank" rel="noopener">Abrir o site</a>
+      <a [routerLink]="home">Abrir o site</a>
       <button type="button" class="admin-bar__out" (click)="logout()">Sair</button>
     }
   </nav>

@@ -23,6 +23,7 @@ export interface ApiProductDto {
   size: string | null;
   fabric: string | null;
   season: string | null;
+  status?: string;
   category: string;
   collection: string;
   collections?: { slug: string; name: string }[];
@@ -32,6 +33,8 @@ export interface ApiProductDto {
   colorVariants?: Product['colorVariants'];
   imageBindings?: Product['imageBindings'];
   artCouture?: boolean;
+  recommendOrder?: number;
+  media?: Product['media'];
 }
 
 export interface ApiCollectionDto {
@@ -76,6 +79,8 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
     imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,
     artCouture: dto.artCouture ?? local?.artCouture,
+    media: dto.media,
+    status: dto.status,
   });
 }
 

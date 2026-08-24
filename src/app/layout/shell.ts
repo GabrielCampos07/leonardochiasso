@@ -1,6 +1,9 @@
 import { Component, HostListener, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { filter, map, startWith } from 'rxjs';
 import { ChromeService } from '../core/chrome.service';
+import { genderFromUrl } from '../core/routes';
 import { LcUtility } from '../shared/components/utility/utility';
 import { LcHeader } from '../shared/components/header/header';
 import { LcFooter } from '../shared/components/footer/footer';
@@ -52,7 +55,22 @@ import { LcEditToolbar } from '../shared/components/edit/edit-toolbar';
   `,
 })
 export class LcShell {
+  private readonly router = inject(Router);
   readonly chrome = inject(ChromeService);
+
+  constructor() {
+    this.router.events
+      .pipe(
+        takeUntilDestroyed(),
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        map(() => this.router.url),
+        startWith(this.router.url),
+      )
+      .subscribe((url) => {
+        const gender = genderFromUrl(url);
+        if (gender) this.chrome.setActive(gender);
+      });
+  }
 
   @HostListener('window:scroll')
   onScroll(): void {

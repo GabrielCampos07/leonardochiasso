@@ -54,7 +54,11 @@ function setNested(obj: Record<string, unknown>, path: string, value: unknown): 
   let cur: Record<string, unknown> = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     const key = parts[i]!;
-    if (cur[key] == null || typeof cur[key] !== 'object') cur[key] = {};
+    const seg = cur[key];
+    if (seg == null || typeof seg !== 'object') {
+      const nextKey = parts[i + 1]!;
+      cur[key] = /^\d+$/.test(nextKey) ? [] : {};
+    }
     cur = cur[key] as Record<string, unknown>;
   }
   cur[parts[parts.length - 1]!] = value;

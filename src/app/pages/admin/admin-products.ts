@@ -1,20 +1,29 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { AdminCatalogService } from '../../core/admin-catalog.service';
+import {
+  AdminCatalogService,
+  adminHttpErrorMessage,
+  slugFromCollection,
+} from '../../core/admin-catalog.service';
 import { CatalogService } from '../../core/catalog.service';
-import { COLLECTIONS, Product } from '../../core/product.model';
-import { adminNewProductPath, adminProductPath } from '../../core/routes';
+import { COLLECTIONS, Collection, Product } from '../../core/product.model';
+import {
+  ADMIN_PRODUCT_COLLECTION_QUERY,
+  adminNewProductPath,
+  adminProductPath,
+} from '../../core/routes';
 import { displayPriceLabel } from '../../core/pricing';
 
 @Component({
   selector: 'lc-admin-products',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, DragDropModule],
   templateUrl: './admin-products.html',
   styleUrl: './admin-products.scss',
 })
-export class AdminProductsPage {
+export class AdminProductsPage implements OnInit {
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly catalog = inject(CatalogService);
 
@@ -22,10 +31,13 @@ export class AdminProductsPage {
   readonly category = signal<'todos' | 'feminino' | 'masculino'>('todos');
   readonly collection = signal<'todas' | string>('todas');
   readonly toast = signal('');
+  readonly loading = signal(true);
+  readonly savingOrder = signal(false);
+  readonly useApi = this.adminCatalog.useApi;
   readonly collections = COLLECTIONS;
   readonly newPath = adminNewProductPath();
 
-  readonly products = signal<Product[]>(this.adminCatalog.list());
+  readonly products = signal<Product[]>([]);
 
   readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -39,8 +51,20 @@ export class AdminProductsPage {
     });
   });
 
+  ngOnInit(): void {
+    this.refresh();
+  }
+
   editPath(slug: string): string {
     return adminProductPath(slug);
+  }
+
+  /** When a collection filter is active, pass `?colecao=` into the new-product form. */
+  newQueryParams(): Record<string, string> | null {
+    const col = this.collection();
+    if (col === 'todas') return null;
+    const slug = slugFromCollection(col as Collection);
+    return { [ADMIN_PRODUCT_COLLECTION_QUERY]: slug };
   }
 
   priceLabel(p: Product): string {
@@ -48,22 +72,43 @@ export class AdminProductsPage {
   }
 
   refresh(): void {
-    this.products.set(this.adminCatalog.list());
-    this.catalog.refreshLocalCatalog();
+    this.loading.set(true);
+    this.adminCatalog.list$().subscribe({
+      next: (list) => {
+        this.products.set(list);
+        this.loading.set(false);
+        if (!this.useApi) this.catalog.refreshLocalCatalog();
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.flash(adminHttpErrorMessage(err, 'Não foi possível carregar os produtos.'));
+      },
+    });
+  }
+
+  drop(event: CdkDragDrop<Product[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    const visible = [...this.filtered()];
+    moveItemInArray(visible, event.previousIndex, event.currentIndex);
+    this.applyVisibleOrder(visible.map((p) => p.slug));
   }
 
   move(slug: string, direction: -1 | 1): void {
-    const ok = this.adminCatalog.moveInList(
-      slug,
-      direction,
-      this.filtered().map((p) => p.slug),
-    );
-    if (!ok) return;
-    this.refresh();
-    this.flash('Ordem atualizada.');
+    const vis = this.filtered().map((p) => p.slug);
+    const vi = vis.indexOf(slug);
+    const vj = vi + direction;
+    if (vi < 0 || vj < 0 || vj >= vis.length) return;
+    const nextVis = [...vis];
+    nextVis[vi] = vis[vj]!;
+    nextVis[vj] = slug;
+    this.applyVisibleOrder(nextVis);
   }
 
   resetAll(): void {
+    if (this.useApi) {
+      this.flash('Com a API ativa, a ordem fica no banco — use arrastar ou ↑↓.');
+      return;
+    }
     const ok = window.confirm(
       'Tem certeza? Isso apaga todas as alterações feitas aqui e volta ao catálogo original.',
     );
@@ -71,6 +116,41 @@ export class AdminProductsPage {
     this.adminCatalog.resetAll();
     this.refresh();
     this.flash('Catálogo restaurado.');
+  }
+
+  /** Map filtered order back onto the full product list. */
+  private applyVisibleOrder(visibleSlugs: string[]): void {
+    const fullSlugs = this.products().map((p) => p.slug);
+    const visibleSet = new Set(visibleSlugs);
+    const nextFull: string[] = [];
+    let vi = 0;
+    for (const slug of fullSlugs) {
+      if (visibleSet.has(slug)) nextFull.push(visibleSlugs[vi++]!);
+      else nextFull.push(slug);
+    }
+
+    const bySlug = new Map(this.products().map((p) => [p.slug, p]));
+    this.products.set(nextFull.map((s) => bySlug.get(s)!).filter(Boolean));
+    this.adminCatalog.setOrder(nextFull);
+
+    if (!this.useApi) {
+      this.catalog.refreshLocalCatalog();
+      this.flash('Ordem atualizada.');
+      return;
+    }
+
+    this.savingOrder.set(true);
+    this.adminCatalog.reorderViaApi(nextFull).subscribe({
+      next: () => {
+        this.savingOrder.set(false);
+        this.flash('Ordem atualizada.');
+      },
+      error: (err) => {
+        this.savingOrder.set(false);
+        this.refresh();
+        this.flash(adminHttpErrorMessage(err, 'Não foi possível salvar a ordem.'));
+      },
+    });
   }
 
   private flash(msg: string): void {

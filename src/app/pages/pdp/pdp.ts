@@ -1,11 +1,14 @@
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog.service';
 import { ContentAdminService } from '../../core/content-admin.service';
+import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminSessionService } from '../../core/admin-session.service';
 import {
   Product,
   ProductColor,
+  ProductMedia,
   ProductPiece,
   colorSwatches,
   productWithPiece,
@@ -28,7 +31,16 @@ import { LcButton } from '../../shared/components/button/button';
 @Component({
   selector: 'lc-pdp-page',
   standalone: true,
-  imports: [RouterLink, LcButton, ImageLightbox, LcEditableText, LcEditablePieces, LcEditableColors, LcImageBindingPicker],
+  imports: [
+    RouterLink,
+    LcButton,
+    ImageLightbox,
+    LcEditableText,
+    LcEditablePieces,
+    LcEditableColors,
+    LcImageBindingPicker,
+    DragDropModule,
+  ],
   templateUrl: './pdp.html',
   styleUrl: './pdp.scss',
 })
@@ -37,10 +49,13 @@ export class PdpPage implements OnInit {
   private readonly chrome = inject(ChromeService);
   private readonly catalog = inject(CatalogService);
   private readonly contentAdmin = inject(ContentAdminService);
+  private readonly adminCatalog = inject(AdminCatalogService);
   readonly admin = inject(AdminSessionService);
 
   readonly home = ROUTES.home;
   readonly product = signal<Product | null>(null);
+  /** Page-local: true until getProductBySlug emits. */
+  readonly loading = signal(true);
   readonly activeImage = signal(0);
   readonly selectedPieceId = signal<string | null>(null);
   readonly selectedColorId = signal<string | null>(null);
@@ -48,6 +63,7 @@ export class PdpPage implements OnInit {
   readonly manualGallery = signal(false);
   readonly bindingPickerOpen = signal(false);
   readonly bindingTarget = signal<{ pieceId?: string; colorId?: string } | null>(null);
+  readonly uploading = signal(false);
 
   private touchStartX = 0;
   private swiped = false;
@@ -96,9 +112,14 @@ export class PdpPage implements OnInit {
     return collectionPath(slug);
   });
 
+  /** Media items with ids for gallery DnD (falls back to gallery URLs). */
+  readonly galleryMedia = computed((): ProductMedia[] =>
+    this.adminCatalog.mediaOf(this.product()),
+  );
+
   ngOnInit(): void {
-    this.chrome.setActive('feminino');
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
+    this.loading.set(true);
     this.catalog.getProductBySlug(slug).subscribe((p) => {
       this.product.set(p ?? null);
       this.activeImage.set(0);
@@ -106,6 +127,10 @@ export class PdpPage implements OnInit {
       this.selectedPieceId.set(p?.pieces?.[0]?.id ?? null);
       this.selectedColorId.set(null);
       this.syncImageFromSelection();
+      this.loading.set(false);
+      if (p?.category === 'masculino' || p?.category === 'feminino') {
+        this.chrome.setActive(p.category);
+      }
     });
   }
 
@@ -179,11 +204,11 @@ export class PdpPage implements OnInit {
     this.lightbox.set(null);
   }
 
-  patchField(path: string, value: string): void {
+  patchField(path: string, value: string | string[]): void {
     const p = this.product();
     if (!p) return;
     this.contentAdmin.patchProductField(p.slug, path, value).subscribe((next) => {
-      if (next) this.product.set(next);
+      if (next) this.applyProduct(next);
     });
   }
 
@@ -202,6 +227,14 @@ export class PdpPage implements OnInit {
     const idx = colors.findIndex((c) => c.id === colorId);
     if (idx < 0) return;
     this.patchField(`colors.${idx}.name`, name);
+  }
+
+  renameDetail(index: number, text: string): void {
+    const p = this.product();
+    if (!p?.details?.length || index < 0 || index >= p.details.length) return;
+    const details = [...p.details];
+    details[index] = text;
+    this.patchField('details', details);
   }
 
   bindGalleryIndex(index: number): void {
@@ -223,7 +256,7 @@ export class PdpPage implements OnInit {
     else bindings.push(entry);
     this.contentAdmin.patchProductField(p.slug, 'imageBindings', bindings).subscribe((next) => {
       if (next) {
-        this.product.set(next);
+        this.applyProduct(next);
         this.syncImageFromSelection();
       }
     });
@@ -236,6 +269,72 @@ export class PdpPage implements OnInit {
     this.bindingTarget.set(null);
   }
 
+  onGalleryFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (!files.length) return;
+
+    const p = this.product();
+    if (!p) return;
+
+    if (!this.adminCatalog.useApi) {
+      const urls = files.map((f) => URL.createObjectURL(f));
+      const gallery = [...(p.gallery ?? []), ...urls];
+      const next: Product = {
+        ...p,
+        thumb: p.thumb || urls[0] || '',
+        gallery,
+      };
+      this.adminCatalog.save(next);
+      this.applyProduct(next);
+      this.manualGallery.set(true);
+      this.activeImage.set(Math.max(0, gallery.length - files.length));
+      return;
+    }
+
+    this.uploading.set(true);
+    this.adminCatalog.uploadAndAttach$(p.slug, files).subscribe({
+      next: (updated) => {
+        this.uploading.set(false);
+        this.applyProduct(updated);
+        this.manualGallery.set(true);
+        const start = Math.max(0, (updated.gallery?.length ?? 1) - files.length);
+        this.activeImage.set(start);
+      },
+      error: () => this.uploading.set(false),
+    });
+  }
+
+  dropGallery(event: CdkDragDrop<ProductMedia[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    const p = this.product();
+    if (!p) return;
+
+    const items = [...this.galleryMedia()];
+    moveItemInArray(items, event.previousIndex, event.currentIndex);
+    const urls = items.map((m) => m.cdnUrl);
+    const next: Product = {
+      ...p,
+      media: items.map((m, i) => ({ ...m, sortOrder: i })),
+      gallery: urls,
+      thumb: urls[0] ?? p.thumb,
+    };
+    this.applyProduct(next);
+    this.manualGallery.set(true);
+    this.activeImage.set(event.currentIndex);
+
+    if (!this.adminCatalog.useApi || items.some((m) => m.id.startsWith('local-'))) {
+      this.adminCatalog.save(next);
+      return;
+    }
+
+    this.adminCatalog.reorderMediaViaApi(p.slug, items.map((m) => m.id)).subscribe({
+      next: (updated) => this.applyProduct(updated),
+      error: () => this.applyProduct(p),
+    });
+  }
+
   isLight(hex: string): boolean {
     const h = hex.replace('#', '');
     if (h.length !== 6) return false;
@@ -243,6 +342,13 @@ export class PdpPage implements OnInit {
     const g = parseInt(h.slice(2, 4), 16);
     const b = parseInt(h.slice(4, 6), 16);
     return (r * 299 + g * 587 + b * 114) / 1000 > 188;
+  }
+
+  private applyProduct(next: Product): void {
+    this.product.set(next);
+    this.catalog.products.update((list) =>
+      list.map((x) => (x.slug === next.slug ? next : x)),
+    );
   }
 
   private syncImageFromSelection(): void {

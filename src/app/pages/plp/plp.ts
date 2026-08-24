@@ -51,6 +51,9 @@ export class PlpPage implements OnInit {
 
   readonly collectionSlug = signal<CollectionSlug>(COLLECTION_SLUGS.organicDreams);
   readonly rawProducts = signal<Product[]>([]);
+  /** Page-local: true until this PLP's collection Observable emits. */
+  readonly loading = signal(true);
+  readonly skeletonSlots = [1, 2, 3, 4, 5, 6, 7, 8];
   readonly sortKey = signal<SortKey>('recomendados');
   readonly sortOpen = signal(false);
   readonly gridCols = signal<2 | 4>(2);
@@ -144,10 +147,14 @@ export class PlpPage implements OnInit {
                 : 'default';
           this.chrome.setActive(nav);
 
+          this.loading.set(true);
           return this.catalog.getProductsByCollection(slug);
         }),
       )
-      .subscribe((list) => this.rawProducts.set(list));
+      .subscribe((list) => {
+        this.rawProducts.set(list);
+        this.loading.set(false);
+      });
   }
 
   ngOnInit(): void {

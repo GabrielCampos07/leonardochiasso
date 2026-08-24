@@ -19,7 +19,7 @@ export class CatalogService {
     const products = await this.prisma.product.findMany({
       where: { status: ProductStatus.published },
       include: publishedProductInclude,
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ recommendOrder: 'asc' }, { createdAt: 'asc' }],
     });
     return products.map(mapProduct);
   }

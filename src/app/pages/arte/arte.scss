@@ -117,6 +117,28 @@
   display: block;
 }
 
+.arte-present__edit {
+  display: block;
+  width: 100%;
+  height: min(72vh, 700px);
+}
+
+.arte-present ::ng-deep .arte-present__edit.lc-editable-image,
+.arte-present ::ng-deep lc-editable-image.arte-present__edit .lc-editable-image,
+.arte-present ::ng-deep lc-editable-image.arte-present__edit {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.arte-present ::ng-deep lc-editable-image.arte-present__edit img {
+  width: 100%;
+  height: min(72vh, 700px);
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+}
+
 .arte-present--video {
   display: grid;
   grid-template-columns: 1fr;
@@ -410,4 +432,169 @@
 
 .arte-piece__more:hover {
   opacity: 0.55;
+}
+
+.arte-piece__thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.arte-piece__thumb {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  width: 52px;
+  height: 68px;
+  overflow: hidden;
+}
+
+.arte-piece__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.arte-piece__thumb.is-active {
+  border-color: var(--lc-void);
+}
+
+.arte-piece__edit-hint {
+  margin: 8px 0 0;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 45%, transparent);
+  text-align: center;
+}
+
+.arte-piece__edit-hero {
+  display: block;
+  width: 100%;
+  max-width: min(100%, 440px);
+}
+
+@media (min-width: 900px) {
+  .arte-piece__edit-hero {
+    max-width: min(100%, 580px);
+  }
+}
+
+@media (min-width: 1200px) {
+  .arte-piece__edit-hero {
+    max-width: min(100%, 640px);
+  }
+}
+
+.arte-piece__edit-hero ::ng-deep .lc-editable-image,
+.arte-piece__edit-hero ::ng-deep img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
+}
+
+.arte-series__intro lc-editable-text {
+  display: block;
+}
+
+.arte-series__intro ::ng-deep lc-editable-text.arte-series__eyebrow .lc-editable,
+.arte-series__intro ::ng-deep lc-editable-text.arte-series__eyebrow p {
+  margin: 0 0 12px;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 48%, transparent);
+}
+
+.arte-series__intro ::ng-deep lc-editable-text.arte-series__title .lc-editable,
+.arte-series__intro ::ng-deep lc-editable-text.arte-series__title p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(28px, 4.5vw, 48px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.08;
+}
+
+.arte-series__intro ::ng-deep lc-editable-text.arte-series__body .lc-editable,
+.arte-series__intro ::ng-deep lc-editable-text.arte-series__body p {
+  margin: 20px 0 0;
+  max-width: 38rem;
+  font-family: var(--lc-font-body);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--lc-void) 78%, transparent);
+}
+
+.arte-piece__meta lc-editable-text {
+  display: block;
+}
+
+.arte-piece__meta ::ng-deep lc-editable-text.arte-piece__title .lc-editable,
+.arte-piece__meta ::ng-deep lc-editable-text.arte-piece__title p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+}
+
+.arte-piece__meta ::ng-deep lc-editable-text.arte-piece__medium .lc-editable,
+.arte-piece__meta ::ng-deep lc-editable-text.arte-piece__medium p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 55%, transparent);
+}
+
+.arte-piece__meta ::ng-deep lc-editable-text.arte-piece__price .lc-editable,
+.arte-piece__meta ::ng-deep lc-editable-text.arte-piece__price p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.arte-piece__slot ::ng-deep lc-editable-text .lc-editable,
+.arte-piece__slot ::ng-deep lc-editable-text p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.arte-present__copy ::ng-deep lc-editable-text.arte-present__title .lc-editable,
+.arte-present__copy ::ng-deep lc-editable-text.arte-present__title p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-weight: 300;
+  font-size: clamp(18px, 2.6vw, 28px);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.15;
+  color: var(--lc-white);
+}
+
+.arte-present__copy ::ng-deep lc-editable-text.arte-present__caption .lc-editable,
+.arte-present__copy ::ng-deep lc-editable-text.arte-present__caption p {
+  margin: 0;
+  max-width: 28rem;
+  font-family: var(--lc-font-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--lc-white) 78%, transparent);
 }

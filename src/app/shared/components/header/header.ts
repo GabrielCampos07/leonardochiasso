@@ -1,16 +1,16 @@
 import { Component, computed, inject } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { headerBrandMark } from '../../../core/brand-lines';
 import { ChromeService } from '../../../core/chrome.service';
 import { HEADER_NAV, HeaderNavItem } from '../../../core/nav.config';
-import { ROUTES, lookbookPath } from '../../../core/routes';
+import { ROUTES, genderFromUrl, lookbookPath } from '../../../core/routes';
 
 @Component({
   selector: 'lc-header',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink],
   template: `
     <header
       class="header"
@@ -43,13 +43,7 @@ import { ROUTES, lookbookPath } from '../../../core/routes';
               [routerLink]="item.route"
               [queryParams]="item.queryParams ?? null"
               [fragment]="item.fragment ?? undefined"
-              routerLinkActive="is-active"
-              [routerLinkActiveOptions]="
-                item.queryParams
-                  ? { paths: 'exact', queryParams: 'exact', fragment: 'ignored', matrixParams: 'ignored' }
-                  : { exact: item.route === home }
-              "
-              [class.is-active]="chrome.navActive() === item.active"
+              [class.is-active]="isNavActive(item)"
               (click)="onNavClick(item)"
               (mouseenter)="onNavEnter(item)"
             >
@@ -246,5 +240,14 @@ export class LcHeader {
     if (item.active) this.chrome.setActive(item.active);
     if (item.key === 'about' || item.queryParams?.['categoria']) this.chrome.closeMega();
     if (!item.route) this.chrome.openMega(item.mega);
+  }
+
+  /** URL wins for Feminino/Masculino — avoids stale chrome (e.g. PDP forcing feminino). */
+  isNavActive(item: HeaderNavItem): boolean {
+    if (item.key === 'feminino' || item.key === 'masculino') {
+      const fromUrl = genderFromUrl(this.url());
+      if (fromUrl) return item.active === fromUrl;
+    }
+    return this.chrome.navActive() === item.active;
   }
 }

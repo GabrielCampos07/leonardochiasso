@@ -29,52 +29,129 @@
         class="joias-piece"
         [class.joias-piece--media-left]="i % 2 === 0"
         [class.joias-piece--media-right]="i % 2 === 1"
+        [class.joias-piece--editing]="admin.editMode()"
       >
         <div class="joias-piece__media">
-          <lc-art-media-carousel
-            [image]="activeStill(piece)"
-            [alt]="piece.title"
-            [videoSrc]="piece.videoSrc"
-            (openStill)="onOpenStill(piece)"
-          />
-          @if (gallery(piece).length > 1) {
-            <ul class="joias-piece__thumbs" aria-label="Mais fotos">
-              @for (src of gallery(piece); track src; let ti = $index) {
-                <li>
-                  <button
-                    type="button"
-                    class="joias-piece__thumb"
-                    [class.is-active]="stillIndex(piece) === ti"
-                    (click)="setStill(piece.id, ti)"
-                  >
-                    <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
-                  </button>
-                </li>
-              }
-            </ul>
+          @if (admin.editMode()) {
+            @if (activeStill(piece); as still) {
+              <lc-editable-image
+                class="joias-piece__edit-hero"
+                [src]="still"
+                [alt]="piece.title"
+                (pick)="onPickImage(piece, stillIndex(piece), $event)"
+              />
+            } @else {
+              <button
+                type="button"
+                class="joias-piece__add-photo"
+                (click)="startPickImage(piece, 0)"
+              >
+                Adicionar foto
+              </button>
+            }
+            @if (gallery(piece).length > 1) {
+              <ul class="joias-piece__thumbs" aria-label="Mais fotos — selecione para trocar">
+                @for (src of gallery(piece); track $index; let ti = $index) {
+                  <li>
+                    <button
+                      type="button"
+                      class="joias-piece__thumb"
+                      [class.is-active]="stillIndex(piece) === ti"
+                      (click)="setStill(piece.id, ti)"
+                    >
+                      <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
+                    </button>
+                  </li>
+                }
+              </ul>
+              <p class="joias-piece__edit-hint">Selecione a miniatura e use «Trocar imagem»</p>
+            }
+          } @else {
+            <lc-art-media-carousel
+              [image]="activeStill(piece)"
+              [alt]="piece.title"
+              [videoSrc]="piece.videoSrc"
+              (openStill)="onOpenStill(piece)"
+            />
+            @if (gallery(piece).length > 1) {
+              <ul class="joias-piece__thumbs" aria-label="Mais fotos">
+                @for (src of gallery(piece); track src; let ti = $index) {
+                  <li>
+                    <button
+                      type="button"
+                      class="joias-piece__thumb"
+                      [class.is-active]="stillIndex(piece) === ti"
+                      (click)="setStill(piece.id, ti)"
+                    >
+                      <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
           }
         </div>
 
         <div class="joias-piece__meta">
-          <h2 class="joias-piece__title">{{ piece.title }}</h2>
-          @if (piece.medium) {
-            <p class="joias-piece__medium">{{ piece.medium }}</p>
+          @if (admin.editMode()) {
+            <lc-editable-text
+              class="joias-piece__title"
+              [value]="piece.title"
+              (valueChange)="patchField(piece, 'title', $event)"
+            />
+          } @else {
+            <h2 class="joias-piece__title">{{ piece.title }}</h2>
+          }
+
+          @if (admin.editMode() || piece.medium) {
+            @if (admin.editMode()) {
+              <lc-editable-text
+                class="joias-piece__medium"
+                [value]="piece.medium ?? ''"
+                (valueChange)="patchField(piece, 'medium', $event)"
+              />
+            } @else {
+              <p class="joias-piece__medium">{{ piece.medium }}</p>
+            }
           }
 
           <div class="joias-piece__slot">
             <span class="joias-piece__slot-label">Descrição</span>
-            <p>{{ piece.description }}</p>
+            @if (admin.editMode()) {
+              <lc-editable-text
+                [value]="piece.description"
+                (valueChange)="patchField(piece, 'description', $event)"
+              />
+            } @else {
+              <p>{{ piece.description }}</p>
+            }
           </div>
 
           <div class="joias-piece__slot">
             <span class="joias-piece__slot-label">Preço</span>
-            <p class="joias-piece__price">{{ piece.priceLabel }}</p>
+            @if (admin.editMode()) {
+              <lc-editable-text
+                class="joias-piece__price"
+                [value]="piece.priceLabel"
+                (valueChange)="patchField(piece, 'priceLabel', $event)"
+              />
+            } @else {
+              <p class="joias-piece__price">{{ piece.priceLabel }}</p>
+            }
           </div>
         </div>
       </article>
     }
   </div>
 </section>
+
+<input
+  #fileInput
+  type="file"
+  accept="image/*"
+  hidden
+  (change)="onFilePicked($event)"
+/>
 
 @if (lightbox(); as lb) {
   <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />

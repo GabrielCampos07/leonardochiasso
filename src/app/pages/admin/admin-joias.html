@@ -28,8 +28,8 @@
 
   <ul class="admin-list__rows">
     @for (p of filtered(); track p.slug; let i = $index) {
-      <li class="admin-row">
-        <img [src]="thumb(p)" [alt]="p.title" width="112" height="149" />
+      <li class="admin-row admin-row--no-handle">
+        <img [src]="thumb(p)" [alt]="p.title" width="160" height="213" />
         <div class="admin-row__info">
           <strong>{{ p.title }}</strong>
           <span>Gioielli{{ p.medium ? ' · ' + p.medium : '' }}</span>

@@ -25,12 +25,12 @@ export class AdminLoginPage {
       return;
     }
     if (this.session.isLoggedIn()) {
-      void this.router.navigateByUrl(ROUTES.home);
+      void this.router.navigateByUrl(ROUTES.adminProducts);
       return;
     }
     // Cookie may still be valid — check once on /admin only (not on public pages).
     this.session.ensureSession().subscribe((ok) => {
-      if (ok) void this.router.navigateByUrl(ROUTES.home);
+      if (ok) void this.router.navigateByUrl(ROUTES.adminProducts);
     });
   }
 
@@ -42,7 +42,7 @@ export class AdminLoginPage {
           this.error.set('Credenciais incorretas.');
           return;
         }
-        void this.router.navigateByUrl(ROUTES.home);
+        void this.router.navigateByUrl(ROUTES.adminProducts);
       },
       error: (err: unknown) => {
         const http = err as { status?: number; error?: { message?: string | string[] } };

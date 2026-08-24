@@ -1,11 +1,7 @@
 import { Body, Controller, Get, Header, Param, Patch, UseGuards } from '@nestjs/common';
 import { AdminGuard } from '../admin/admin.guard';
 import { ContentService } from './content.service';
-
-class PatchContentDto {
-  path!: string;
-  value!: unknown;
-}
+import { PatchContentDto } from './dto/patch-content.dto';
 
 @Controller('api')
 export class ContentController {

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -69,7 +70,10 @@ export class MediaService {
     return { uploadUrl, storageKey: key, local: false };
   }
 
-  async complete(storageKey: string, altPt?: string) {
+  async complete(storageKey: string, altPt?: string, bufferBase64?: string) {
+    if (bufferBase64) {
+      await this.writeOriginalLocal(storageKey, Buffer.from(bufferBase64, 'base64'));
+    }
     const original = await this.readOriginal(storageKey);
     const variants: { role: MediaRole; url: string; key: string }[] = [];
 
@@ -98,15 +102,28 @@ export class MediaService {
     return { asset, variants };
   }
 
+  private async writeOriginalLocal(storageKey: string, body: Buffer): Promise<void> {
+    const local = path.join(this.localMediaRoot, path.basename(storageKey));
+    await fs.mkdir(path.dirname(local), { recursive: true });
+    await fs.writeFile(local, body);
+  }
+
   private async readOriginal(storageKey: string): Promise<Buffer> {
     if (this.s3) {
-      // For presigned flow, object should already be in bucket — fetch via GetObject would be needed.
-      // Dev fallback: read from local path if key maps to migrated file.
+      try {
+        const res = await this.s3.send(
+          new GetObjectCommand({ Bucket: this.bucket, Key: storageKey }),
+        );
+        const bytes = await res.Body?.transformToByteArray();
+        if (bytes?.length) return Buffer.from(bytes);
+      } catch {
+        /* fall through to local */
+      }
       const local = path.join(this.localMediaRoot, path.basename(storageKey));
       try {
         return await fs.readFile(local);
       } catch {
-        throw new Error('Original not found locally; implement S3 GetObject for production complete flow');
+        throw new Error(`Original not found for key: ${storageKey}`);
       }
     }
     const local = path.join(this.localMediaRoot, path.basename(storageKey));

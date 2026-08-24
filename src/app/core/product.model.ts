@@ -166,6 +166,16 @@ export interface ProductImageBinding {
   mediaUrl?: string;
 }
 
+/** Attached media from Admin / catalog API (for gallery DnD). */
+export interface ProductMedia {
+  id: string;
+  cdnUrl: string;
+  role: string;
+  altPt: string | null;
+  sortOrder: number;
+  isPrimary: boolean;
+}
+
 export interface Product {
   id: string;
   slug: string;
@@ -201,6 +211,10 @@ export interface Product {
   imageBindings?: ProductImageBinding[];
   /** Future dedicated ArtCouture section — atelier mosaic / couture line. */
   artCouture?: boolean;
+  /** Admin / API media links (ids needed for reorder). */
+  media?: ProductMedia[];
+  /** Product status from API (draft | published | …). */
+  status?: string;
 }
 
 export interface CartItem {

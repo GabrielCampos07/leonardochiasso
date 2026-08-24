@@ -197,6 +197,18 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./pages/admin/admin-joia-edit').then((m) => m.AdminJoiaEditPage),
       },
+      {
+        path: 'colecoes',
+        canActivate: [adminAuthGuard],
+        loadComponent: () =>
+          import('./pages/admin/admin-collections').then((m) => m.AdminCollectionsPage),
+      },
+      {
+        path: 'colecoes/:slug',
+        canActivate: [adminAuthGuard],
+        loadComponent: () =>
+          import('./pages/admin/admin-collection-edit').then((m) => m.AdminCollectionEditPage),
+      },
     ],
   },
   { path: '**', redirectTo: PATH.home },

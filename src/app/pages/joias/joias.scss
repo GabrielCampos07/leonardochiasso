@@ -229,3 +229,91 @@
 .joias-piece__thumb.is-active {
   border-color: var(--lc-void);
 }
+
+.joias-piece__edit-hero {
+  display: block;
+  width: 100%;
+  max-width: min(100%, 440px);
+}
+
+.joias-piece__edit-hero ::ng-deep img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
+}
+
+.joias-piece__edit-hint {
+  margin: 10px 0 0;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 45%, transparent);
+  text-align: center;
+}
+
+.joias-piece__add-photo {
+  font: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1.5rem 1.25rem;
+  border: 1px dashed color-mix(in srgb, var(--lc-void) 35%, transparent);
+  background: transparent;
+  cursor: pointer;
+  min-height: 200px;
+  width: min(100%, 280px);
+}
+
+.joias-piece__meta lc-editable-text {
+  display: block;
+}
+
+.joias-piece__meta ::ng-deep lc-editable-text.joias-piece__title .lc-editable,
+.joias-piece__meta ::ng-deep lc-editable-text.joias-piece__title p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: clamp(1.5rem, 3vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+}
+
+.joias-piece__meta ::ng-deep lc-editable-text.joias-piece__medium .lc-editable,
+.joias-piece__meta ::ng-deep lc-editable-text.joias-piece__medium p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 55%, transparent);
+}
+
+.joias-piece__meta ::ng-deep lc-editable-text.joias-piece__price .lc-editable,
+.joias-piece__meta ::ng-deep lc-editable-text.joias-piece__price p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.joias-piece__slot ::ng-deep lc-editable-text .lc-editable,
+.joias-piece__slot ::ng-deep lc-editable-text p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+@media (min-width: 900px) {
+  .joias-piece__edit-hero {
+    max-width: min(100%, 580px);
+  }
+}
+
+@media (min-width: 1200px) {
+  .joias-piece__edit-hero {
+    max-width: min(100%, 640px);
+  }
+}

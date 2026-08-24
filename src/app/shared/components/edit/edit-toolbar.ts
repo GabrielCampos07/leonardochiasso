@@ -1,15 +1,41 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { resolveAdminCollectionContextFromUrl } from '../../../core/admin-collection-context';
 import { AdminSessionService } from '../../../core/admin-session.service';
+import {
+  ADMIN_PRODUCT_COLLECTION_QUERY,
+  adminNewProductPath,
+} from '../../../core/routes';
 
 @Component({
   selector: 'lc-edit-toolbar',
   standalone: true,
+  imports: [RouterLink],
   template: `
-    @if (admin.editMode()) {
+    @if (admin.isLoggedIn()) {
       <div class="edit-bar" role="status" aria-live="polite">
-        <span class="edit-bar__label">Modo edição</span>
-        <span class="edit-bar__hint">Clique nos campos destacados para editar · fotos por peça/cor no PDP</span>
-        <button type="button" class="edit-bar__btn" (click)="admin.toggleEditMode()">Visualizar</button>
+        @if (admin.editMode()) {
+          <span class="edit-bar__label">Modo edição</span>
+          <span class="edit-bar__hint"
+            >Clique nos campos destacados · troque fotos nos ícones</span
+          >
+          <a
+            class="edit-bar__btn edit-bar__link"
+            [routerLink]="newProductPath"
+            [queryParams]="addProductQueryParams()"
+          >
+            Adicionar produto
+          </a>
+          <button type="button" class="edit-bar__btn" (click)="admin.toggleEditMode()">
+            Visualizar
+          </button>
+        } @else {
+          <span class="edit-bar__label">Ateliê</span>
+          <span class="edit-bar__hint">Sessão admin ativa neste navegador</span>
+          <button type="button" class="edit-bar__btn edit-bar__btn--primary" (click)="admin.toggleEditMode()">
+            Editar
+          </button>
+        }
       </div>
     }
   `,
@@ -57,8 +83,36 @@ import { AdminSessionService } from '../../../core/admin-session.service';
     .edit-bar__btn:hover {
       background: color-mix(in srgb, var(--lc-white) 12%, transparent);
     }
+    .edit-bar__btn--primary {
+      background: var(--lc-white);
+      color: var(--lc-void);
+      border-color: var(--lc-white);
+    }
+    .edit-bar__btn--primary:hover {
+      background: color-mix(in srgb, var(--lc-white) 88%, transparent);
+    }
+    .edit-bar__link {
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
   `,
 })
-export class LcEditToolbar {
+export class LcEditToolbar implements OnInit {
+  private readonly router = inject(Router);
   readonly admin = inject(AdminSessionService);
+  readonly newProductPath = adminNewProductPath();
+
+  ngOnInit(): void {
+    this.admin.hydrateStorefrontSession().subscribe();
+  }
+
+  /**
+   * On `/colecao/:slug` (or `?colecao=` / `?collection=`), pass the slug so the
+   * create form pre-fills. Elsewhere the form requires an explicit pick.
+   */
+  addProductQueryParams(): Record<string, string> | null {
+    const ctx = resolveAdminCollectionContextFromUrl(this.router.url);
+    return ctx.slug ? { [ADMIN_PRODUCT_COLLECTION_QUERY]: ctx.slug } : null;
+  }
 }

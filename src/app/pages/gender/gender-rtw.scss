@@ -49,6 +49,36 @@
   margin: 0;
 }
 
+.grtw__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 4px;
+  margin: 0 0 var(--lc-space-40);
+}
+
+.grtw__chip {
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lc-ash);
+  cursor: pointer;
+}
+
+.grtw__chip:hover {
+  color: var(--lc-void);
+}
+
+.grtw__chip.is-active {
+  color: var(--lc-void);
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 1px;
+}
+
 .grtw__grid {
   display: grid;
   gap: 24px 12px;

@@ -33,8 +33,10 @@
 
 .arte-d__media {
   display: flex;
+  flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  gap: 12px;
   background: color-mix(in srgb, var(--lc-ash) 8%, var(--lc-white));
   padding: 24px 16px;
   box-sizing: border-box;
@@ -107,6 +109,102 @@
   text-transform: uppercase;
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+.arte-d__edit-hero {
+  display: block;
+  width: 100%;
+  max-width: min(100%, 440px);
+}
+
+.arte-d__edit-hero ::ng-deep .lc-editable-image,
+.arte-d__edit-hero ::ng-deep img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: contain;
+  background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
+}
+
+.arte-d__thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.arte-d__thumb {
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  width: 52px;
+  height: 68px;
+  overflow: hidden;
+}
+
+.arte-d__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.arte-d__thumb.is-active {
+  border-color: var(--lc-void);
+}
+
+.arte-d__edit-hint {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 45%, transparent);
+  text-align: center;
+}
+
+.arte-d__meta lc-editable-text {
+  display: block;
+}
+
+.arte-d__meta ::ng-deep lc-editable-text.arte-d__title .lc-editable,
+.arte-d__meta ::ng-deep lc-editable-text.arte-d__title h1 {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.05;
+}
+
+.arte-d__meta ::ng-deep lc-editable-text.arte-d__medium .lc-editable,
+.arte-d__meta ::ng-deep lc-editable-text.arte-d__medium p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 55%, transparent);
+}
+
+.arte-d__meta ::ng-deep lc-editable-text.arte-d__price .lc-editable,
+.arte-d__meta ::ng-deep lc-editable-text.arte-d__price p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+}
+
+.arte-d__slot ::ng-deep lc-editable-text .lc-editable,
+.arte-d__slot ::ng-deep lc-editable-text p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 .arte-d--empty {

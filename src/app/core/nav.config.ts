@@ -108,31 +108,21 @@ export interface MegaMenuConfig {
   columns: MegaColumn[];
 }
 
-/** RTW links — Feminino defaults Organic; Masculino defaults Niponic. */
+/** RTW links — gender hub `/feminino|masculino/:tipo` (all collections). */
 function rtwLink(
   tipo: RtwType,
-  opts?: {
-    category?: 'feminino' | 'masculino';
-    collection?: CollectionSlug;
+  opts: {
+    category: 'feminino' | 'masculino';
     stub?: boolean;
   },
 ): NavLink {
-  const label = rtwLabel(tipo, opts?.category);
-  if (opts?.stub) {
+  const label = rtwLabel(tipo, opts.category);
+  if (opts.stub) {
     return { label, route: null };
   }
-  const collection =
-    opts?.collection ??
-    (opts?.category === 'masculino'
-      ? COLLECTION_SLUGS.niponicDreams
-      : COLLECTION_SLUGS.organicDreams);
   return {
     label,
-    route: collectionPath(collection),
-    queryParams: {
-      tipo,
-      ...(opts?.category ? { categoria: opts.category } : {}),
-    },
+    route: genderRtwPath(opts.category, tipo),
   };
 }
 
@@ -146,7 +136,7 @@ const FEMININO_RTW_LINKS: NavLink[] = [
 const MASCULINO_RTW_LINKS: NavLink[] = [
   rtwLink('calcas', { category: 'masculino' }),
   rtwLink('casacos', { category: 'masculino' }),
-  rtwLink('camisas', { stub: true }),
+  rtwLink('camisas', { category: 'masculino', stub: true }),
 ];
 
 function shopMega(

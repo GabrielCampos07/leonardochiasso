@@ -2,13 +2,27 @@
   <header class="admin-list__head">
     <div>
       <h1>Produtos</h1>
-      <p>Clique em Editar para mudar nome, texto, preço, cores ou fotos.</p>
+      <p>
+        @if (useApi) {
+          Arraste para reordenar · ↑↓ também funciona. Clique em Editar para mudar textos, preço ou fotos.
+        } @else {
+          Clique em Editar para mudar nome, texto, preço, cores ou fotos.
+        }
+      </p>
     </div>
     <div class="admin-list__actions">
-      <a class="admin-list__add" [routerLink]="newPath">Adicionar produto</a>
-      <button type="button" class="admin-list__danger" (click)="resetAll()">
-        Restaurar tudo
-      </button>
+      <a
+        class="admin-list__add"
+        [routerLink]="newPath"
+        [queryParams]="newQueryParams()"
+      >
+        Adicionar produto
+      </a>
+      @if (!useApi) {
+        <button type="button" class="admin-list__danger" (click)="resetAll()">
+          Restaurar tudo
+        </button>
+      }
     </div>
   </header>
 
@@ -40,12 +54,29 @@
     </label>
   </div>
 
-  <p class="admin-list__count">{{ filtered().length }} produto(s)</p>
+  <p class="admin-list__count">
+    @if (loading()) {
+      Carregando…
+    } @else {
+      {{ filtered().length }} produto(s)
+      @if (savingOrder()) {
+        · salvando ordem…
+      }
+    }
+  </p>
 
-  <ul class="admin-list__rows">
+  <ul
+    class="admin-list__rows"
+    cdkDropList
+    [cdkDropListData]="filtered()"
+    (cdkDropListDropped)="drop($event)"
+  >
     @for (p of filtered(); track p.slug; let i = $index) {
-      <li class="admin-row">
-        <img [src]="p.thumb" [alt]="p.name" width="112" height="149" />
+      <li class="admin-row" cdkDrag [cdkDragDisabled]="savingOrder()">
+        <button type="button" class="admin-row__handle" cdkDragHandle aria-label="Arrastar para reordenar">
+          ⋮⋮
+        </button>
+        <img [src]="p.thumb" [alt]="p.name" width="160" height="213" />
         <div class="admin-row__info">
           <strong>{{ p.name }}</strong>
           <span>{{ p.collection }} · {{ p.category }}</span>
@@ -58,7 +89,7 @@
               type="button"
               class="admin-row__order-btn"
               (click)="move(p.slug, -1)"
-              [disabled]="i === 0"
+              [disabled]="i === 0 || savingOrder()"
             >
               <span aria-hidden="true">↑</span> Subir
             </button>
@@ -66,7 +97,7 @@
               type="button"
               class="admin-row__order-btn"
               (click)="move(p.slug, 1)"
-              [disabled]="i === filtered().length - 1"
+              [disabled]="i === filtered().length - 1 || savingOrder()"
             >
               <span aria-hidden="true">↓</span> Descer
             </button>
@@ -74,7 +105,9 @@
         </div>
       </li>
     } @empty {
-      <li class="admin-list__empty">Nenhum produto encontrado.</li>
+      @if (!loading()) {
+        <li class="admin-list__empty">Nenhum produto encontrado.</li>
+      }
     }
   </ul>
 </section>

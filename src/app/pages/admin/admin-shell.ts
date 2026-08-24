@@ -16,6 +16,7 @@ export class AdminShell {
 
   readonly home = ROUTES.home;
   readonly products = ROUTES.adminProducts;
+  readonly collections = ROUTES.adminCollections;
   readonly joias = ROUTES.adminJoias;
   readonly loggedIn = this.session.isLoggedIn;
 

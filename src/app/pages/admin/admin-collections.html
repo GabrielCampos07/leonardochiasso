@@ -1,0 +1,47 @@
+<section class="admin-list">
+  <header class="admin-list__head">
+    <div>
+      <h1>Coleções</h1>
+      <p>Crie coleções, publique e organize os produtos dentro de cada uma.</p>
+    </div>
+    <div class="admin-list__actions">
+      <a class="admin-list__add" [routerLink]="newPath">Nova coleção</a>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="admin-list__toast" role="alert">{{ error() }}</p>
+  }
+
+  <div class="admin-list__filters">
+    <label>
+      Buscar
+      <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+    </label>
+  </div>
+
+  @if (loading()) {
+    <p class="admin-list__count">Carregando…</p>
+  } @else {
+    <p class="admin-list__count">{{ filtered().length }} coleção(ões)</p>
+
+    <ul class="admin-list__rows">
+      @for (c of filtered(); track c.slug) {
+        <li class="admin-row admin-row--text">
+          <div class="admin-row__info">
+            <strong>{{ c.name }}</strong>
+            <span>{{ c.slug }} · {{ publishedLabel(c) }}</span>
+            @if (c.description) {
+              <span>{{ c.description }}</span>
+            }
+          </div>
+          <div class="admin-row__actions">
+            <a class="admin-row__edit" [routerLink]="editPath(c.slug)">Abrir</a>
+          </div>
+        </li>
+      } @empty {
+        <li class="admin-list__empty">Nenhuma coleção encontrada.</li>
+      }
+    </ul>
+  }
+</section>

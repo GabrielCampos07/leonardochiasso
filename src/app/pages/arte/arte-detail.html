@@ -1,35 +1,86 @@
-@if (piece(); as p) {
+@if (ctx(); as c) {
   <section class="arte-d">
     <nav class="arte-d__crumb lc-caption" aria-label="Breadcrumb">
       <a [routerLink]="home">Home</a>
       <span>/</span>
       <a [routerLink]="gallery">Arte</a>
       <span>/</span>
-      <span>{{ p.title }}</span>
+      <span>{{ c.piece.title }}</span>
     </nav>
 
     <div class="arte-d__grid">
       <div class="arte-d__media">
-        <lc-art-media-carousel
-          [image]="p.image"
-          [images]="p.images ?? []"
-          [alt]="p.title"
-          [videoSrc]="p.videoSrc"
-          (openStill)="openImage($event, p.title)"
-        />
+        @if (admin.editMode()) {
+          @if (activeStill(c.piece); as still) {
+            <lc-editable-image
+              class="arte-d__edit-hero"
+              [src]="still"
+              [alt]="c.piece.title"
+              (pick)="onPickImage($event)"
+            />
+          }
+          @if (stills(c.piece).length > 1) {
+            <ul class="arte-d__thumbs" aria-label="Mais fotos — selecione para trocar">
+              @for (src of stills(c.piece); track $index; let ti = $index) {
+                <li>
+                  <button
+                    type="button"
+                    class="arte-d__thumb"
+                    [class.is-active]="stillIndex(c.piece) === ti"
+                    (click)="setStill(c.piece.id, ti)"
+                  >
+                    <img [src]="src" [alt]="c.piece.title + ' — foto ' + (ti + 1)" />
+                  </button>
+                </li>
+              }
+            </ul>
+            <p class="arte-d__edit-hint">Selecione a miniatura e use «Trocar»</p>
+          }
+        } @else {
+          <lc-art-media-carousel
+            [image]="c.piece.image"
+            [images]="c.piece.images ?? []"
+            [alt]="c.piece.title"
+            [videoSrc]="c.piece.videoSrc"
+            (openStill)="openImage($event, c.piece.title)"
+          />
+        }
       </div>
 
       <aside class="arte-d__meta">
         <p class="arte-d__eyebrow">Arte</p>
-        <h1>{{ p.title }}</h1>
-        @if (p.medium) {
-          <p class="arte-d__medium">{{ p.medium }}</p>
+        @if (admin.editMode()) {
+          <lc-editable-text
+            class="arte-d__title"
+            tag="h1"
+            [value]="c.piece.title"
+            (valueChange)="patchField('title', $event)"
+          />
+        } @else {
+          <h1>{{ c.piece.title }}</h1>
+        }
+
+        @if (admin.editMode() || c.piece.medium) {
+          @if (admin.editMode()) {
+            <lc-editable-text
+              class="arte-d__medium"
+              [value]="c.piece.medium ?? ''"
+              (valueChange)="patchField('medium', $event)"
+            />
+          } @else {
+            <p class="arte-d__medium">{{ c.piece.medium }}</p>
+          }
         }
 
         <div class="arte-d__slot">
           <span class="arte-d__slot-label">Descrição</span>
-          @if (p.description) {
-            <p>{{ p.description }}</p>
+          @if (admin.editMode()) {
+            <lc-editable-text
+              [value]="c.piece.description || ''"
+              (valueChange)="patchField('description', $event)"
+            />
+          } @else if (c.piece.description) {
+            <p>{{ c.piece.description }}</p>
           } @else {
             <p class="arte-d__placeholder">Texto em preparação.</p>
           }
@@ -37,7 +88,15 @@
 
         <div class="arte-d__slot">
           <span class="arte-d__slot-label">Preço</span>
-          <p class="arte-d__price">{{ p.priceLabel }}</p>
+          @if (admin.editMode()) {
+            <lc-editable-text
+              class="arte-d__price"
+              [value]="c.piece.priceLabel"
+              (valueChange)="patchField('priceLabel', $event)"
+            />
+          } @else {
+            <p class="arte-d__price">{{ c.piece.priceLabel }}</p>
+          }
         </div>
 
         <a class="arte-d__back" [routerLink]="backPath()">Voltar à galeria</a>

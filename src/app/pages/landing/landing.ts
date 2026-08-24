@@ -30,6 +30,9 @@ export class LandingPage implements OnInit {
   readonly heroImg = resolveMediaUrl('assets/media/hero-runway.jpg');
   readonly categoria = signal<GenderSlug | null>(null);
   readonly rawProducts = signal<Product[]>([]);
+  /** Page-local: true until this view's category Observable emits. */
+  readonly loading = signal(false);
+  readonly skeletonSlots = [1, 2, 3, 4, 5, 6, 7, 8];
 
   readonly brandLine = computed(() => brandLineForGender(this.categoria()));
 
@@ -60,14 +63,19 @@ export class LandingPage implements OnInit {
           this.categoria.set(cat);
           this.chrome.setActive(cat ?? 'default');
           if (cat) {
+            this.loading.set(true);
             queueMicrotask(() => this.scrollToColecoes());
             return this.catalog.getProductsByCategory(cat);
           }
+          this.loading.set(false);
           this.rawProducts.set([]);
           return of([] as Product[]);
         }),
       )
-      .subscribe((list) => this.rawProducts.set(list));
+      .subscribe((list) => {
+        this.rawProducts.set(list);
+        this.loading.set(false);
+      });
   }
 
   ngOnInit(): void {

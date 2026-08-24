@@ -9,13 +9,22 @@ import {
 } from '../../../core/product.model';
 import { productPath } from '../../../core/routes';
 import { displayPriceLabel } from '../../../core/pricing';
+import { AdminSessionService } from '../../../core/admin-session.service';
 
 @Component({
   selector: 'lc-product-card',
   standalone: true,
   imports: [RouterLink],
   template: `
-    @if (placeholder) {
+    @if (loading) {
+      <article class="card card--skeleton" aria-hidden="true">
+        <div class="card__media card__shimmer"></div>
+        <div class="card__info">
+          <div class="card__skel-line card__shimmer"></div>
+          <div class="card__skel-line card__skel-line--sm card__shimmer"></div>
+        </div>
+      </article>
+    } @else if (placeholder) {
       <article class="card card--placeholder">
         <div class="card__media"></div>
         <p class="card__name">Em breve</p>
@@ -32,6 +41,15 @@ import { displayPriceLabel } from '../../../core/pricing';
           <a [routerLink]="linkFor(product)" class="card__link">
             <img [src]="displayThumb()" [alt]="displayName()" />
           </a>
+          @if (admin.editMode()) {
+            <a
+              class="card__edit"
+              [routerLink]="linkFor(product)"
+              (click)="$event.stopPropagation()"
+            >
+              Editar
+            </a>
+          }
         </div>
 
         @if (hasPieces()) {
@@ -86,6 +104,37 @@ import { displayPriceLabel } from '../../../core/pricing';
       overflow: hidden;
       margin-bottom: 12px;
     }
+    .card--skeleton {
+      pointer-events: none;
+    }
+    .card__shimmer {
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--lc-ash) 22%, var(--lc-white)) 0%,
+        color-mix(in srgb, var(--lc-ash) 8%, var(--lc-white)) 45%,
+        color-mix(in srgb, var(--lc-ash) 22%, var(--lc-white)) 90%
+      );
+      background-size: 200% 100%;
+      animation: lc-card-shimmer 1.35s ease-in-out infinite;
+    }
+    .card__skel-line {
+      height: 14px;
+      width: 72%;
+      margin-bottom: 8px;
+    }
+    .card__skel-line--sm {
+      height: 11px;
+      width: 40%;
+      margin-bottom: 0;
+    }
+    @keyframes lc-card-shimmer {
+      0% {
+        background-position: 100% 0;
+      }
+      100% {
+        background-position: -100% 0;
+      }
+    }
     .card__link {
       display: block;
       width: 100%;
@@ -120,6 +169,29 @@ import { displayPriceLabel } from '../../../core/pricing';
       object-position: center 48%;
       transform: scale(2.05);
       transform-origin: center 48%;
+    }
+    .card__edit {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 0 12px;
+      font-family: var(--lc-font-display);
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--lc-void);
+      background: color-mix(in srgb, var(--lc-white) 88%, transparent);
+      backdrop-filter: blur(4px);
+      border: 1px solid color-mix(in srgb, var(--lc-void) 18%, transparent);
+      transition: opacity 0.2s ease;
+    }
+    .card__edit:hover {
+      opacity: 0.8;
     }
     .card__wish {
       position: absolute;
@@ -212,8 +284,12 @@ import { displayPriceLabel } from '../../../core/pricing';
   `,
 })
 export class LcProductCard implements OnChanges {
+  readonly admin = inject(AdminSessionService);
+
   @Input() product: Product | null = null;
   @Input() placeholder = false;
+  /** Shimmer placeholder while catalog data is in flight. */
+  @Input() loading = false;
 
   readonly selectedPieceId = signal<string | null>(null);
 

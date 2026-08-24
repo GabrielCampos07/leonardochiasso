@@ -27,29 +27,56 @@
 
   @for (series of seriesList(); track series.id) {
     <section class="arte-series" [attr.data-series]="series.id">
-      @for (stage of series.presentations ?? []; track stage.alt) {
+      @for (stage of series.presentations ?? []; track $index; let si = $index) {
         @if (!stage.videoSrc && stage.image) {
           <div class="arte-present">
-            <button
-              type="button"
-              class="arte-present__open"
-              (click)="openImage(stage.image, stage.alt)"
-              [attr.aria-label]="'Ampliar apresentação: ' + series.title"
-            >
-              <img
+            @if (admin.editMode()) {
+              <lc-editable-image
+                class="arte-present__edit"
                 [src]="stage.image"
                 [alt]="stage.alt"
-                [style.object-position]="stage.objectPosition ?? 'center center'"
+                (pick)="onPickPresentationImage(series, si, $event)"
               />
-            </button>
+            } @else {
+              <button
+                type="button"
+                class="arte-present__open"
+                (click)="openImage(stage.image, stage.alt)"
+                [attr.aria-label]="'Ampliar apresentação: ' + series.title"
+              >
+                <img
+                  [src]="stage.image"
+                  [alt]="stage.alt"
+                  [style.object-position]="stage.objectPosition ?? 'center center'"
+                />
+              </button>
+            }
           </div>
         }
       }
 
       <header class="arte-series__intro">
-        <p class="arte-series__eyebrow">{{ series.subtitle }}</p>
-        <h2 class="arte-series__title">{{ series.title }}</h2>
-        <p class="arte-series__body">{{ series.body }}</p>
+        @if (admin.editMode()) {
+          <lc-editable-text
+            class="arte-series__eyebrow"
+            [value]="series.subtitle"
+            (valueChange)="patchSeries(series, 'subtitle', $event)"
+          />
+          <lc-editable-text
+            class="arte-series__title"
+            [value]="series.title"
+            (valueChange)="patchSeries(series, 'title', $event)"
+          />
+          <lc-editable-text
+            class="arte-series__body"
+            [value]="series.body"
+            (valueChange)="patchSeries(series, 'body', $event)"
+          />
+        } @else {
+          <p class="arte-series__eyebrow">{{ series.subtitle }}</p>
+          <h2 class="arte-series__title">{{ series.title }}</h2>
+          <p class="arte-series__body">{{ series.body }}</p>
+        }
       </header>
 
       @if (series.pieces.length) {
@@ -59,28 +86,79 @@
               class="arte-piece"
               [class.arte-piece--media-left]="i % 2 === 0"
               [class.arte-piece--media-right]="i % 2 === 1"
+              [class.arte-piece--editing]="admin.editMode()"
             >
               <div class="arte-piece__media">
-                <lc-art-media-carousel
-                  [image]="piece.image"
-                  [images]="piece.images ?? []"
-                  [alt]="piece.title"
-                  [videoSrc]="piece.videoSrc"
-                  (openStill)="openImage($event, piece.title)"
-                />
+                @if (admin.editMode()) {
+                  @if (activeStill(piece); as still) {
+                    <lc-editable-image
+                      class="arte-piece__edit-hero"
+                      [src]="still"
+                      [alt]="piece.title"
+                      (pick)="onPickPieceImage(series, i, stillIndex(piece), $event)"
+                    />
+                  }
+                  @if (stills(piece).length > 1) {
+                    <ul class="arte-piece__thumbs" aria-label="Mais fotos — selecione para trocar">
+                      @for (src of stills(piece); track $index; let ti = $index) {
+                        <li>
+                          <button
+                            type="button"
+                            class="arte-piece__thumb"
+                            [class.is-active]="stillIndex(piece) === ti"
+                            (click)="setStill(piece.id, ti)"
+                          >
+                            <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                    <p class="arte-piece__edit-hint">Selecione a miniatura e use «Trocar»</p>
+                  }
+                } @else {
+                  <lc-art-media-carousel
+                    [image]="piece.image"
+                    [images]="piece.images ?? []"
+                    [alt]="piece.title"
+                    [videoSrc]="piece.videoSrc"
+                    (openStill)="openImage($event, piece.title)"
+                  />
+                }
               </div>
 
               <div class="arte-piece__meta">
-                <a class="arte-piece__title-link" [routerLink]="detailPath(piece)">
-                  <h3>{{ piece.title }}</h3>
-                </a>
-                @if (piece.medium) {
-                  <p class="arte-piece__medium">{{ piece.medium }}</p>
+                @if (admin.editMode()) {
+                  <lc-editable-text
+                    class="arte-piece__title"
+                    [value]="piece.title"
+                    (valueChange)="patchPiece(series, i, 'title', $event)"
+                  />
+                } @else {
+                  <a class="arte-piece__title-link" [routerLink]="detailPath(piece)">
+                    <h3>{{ piece.title }}</h3>
+                  </a>
+                }
+
+                @if (admin.editMode() || piece.medium) {
+                  @if (admin.editMode()) {
+                    <lc-editable-text
+                      class="arte-piece__medium"
+                      [value]="piece.medium ?? ''"
+                      (valueChange)="patchPiece(series, i, 'medium', $event)"
+                    />
+                  } @else {
+                    <p class="arte-piece__medium">{{ piece.medium }}</p>
+                  }
                 }
 
                 <div class="arte-piece__slot">
                   <span class="arte-piece__slot-label">Descrição</span>
-                  @if (piece.description) {
+                  @if (admin.editMode()) {
+                    <lc-editable-text
+                      [value]="piece.description || ''"
+                      (valueChange)="patchPiece(series, i, 'description', $event)"
+                    />
+                  } @else if (piece.description) {
                     <p>{{ piece.description }}</p>
                   } @else {
                     <p class="arte-piece__placeholder">Texto em preparação.</p>
@@ -89,7 +167,15 @@
 
                 <div class="arte-piece__slot">
                   <span class="arte-piece__slot-label">Preço</span>
-                  <p class="arte-piece__price">{{ piece.priceLabel }}</p>
+                  @if (admin.editMode()) {
+                    <lc-editable-text
+                      class="arte-piece__price"
+                      [value]="piece.priceLabel"
+                      (valueChange)="patchPiece(series, i, 'priceLabel', $event)"
+                    />
+                  } @else {
+                    <p class="arte-piece__price">{{ piece.priceLabel }}</p>
+                  }
                 </div>
 
                 <a class="arte-piece__more" [routerLink]="detailPath(piece)">Ver obra</a>
@@ -99,7 +185,7 @@
         </div>
       }
 
-      @for (stage of series.presentations ?? []; track stage.alt + '-video') {
+      @for (stage of series.presentations ?? []; track $index; let si = $index) {
         @if (stage.videoSrc) {
           <div class="arte-present arte-present--video">
             <div class="arte-present__video">
@@ -114,13 +200,26 @@
                 Seu navegador não reproduz este vídeo.
               </video>
             </div>
-            @if (stage.title || stage.caption) {
+            @if (admin.editMode() || stage.title || stage.caption) {
               <div class="arte-present__copy">
-                @if (stage.title) {
-                  <h3 class="arte-present__title">{{ stage.title }}</h3>
-                }
-                @if (stage.caption) {
-                  <p class="arte-present__caption">{{ stage.caption }}</p>
+                @if (admin.editMode()) {
+                  <lc-editable-text
+                    class="arte-present__title"
+                    [value]="stage.title ?? ''"
+                    (valueChange)="patchSeries(series, 'presentations.' + si + '.title', $event)"
+                  />
+                  <lc-editable-text
+                    class="arte-present__caption"
+                    [value]="stage.caption ?? ''"
+                    (valueChange)="patchSeries(series, 'presentations.' + si + '.caption', $event)"
+                  />
+                } @else {
+                  @if (stage.title) {
+                    <h3 class="arte-present__title">{{ stage.title }}</h3>
+                  }
+                  @if (stage.caption) {
+                    <p class="arte-present__caption">{{ stage.caption }}</p>
+                  }
                 }
               </div>
             }

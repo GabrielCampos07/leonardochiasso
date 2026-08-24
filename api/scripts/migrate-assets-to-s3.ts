@@ -109,11 +109,16 @@ async function main(): Promise<void> {
   const files = await walkMedia();
   const urlMap = buildUrlMap(files, cdnBase);
 
+  const videosOnly = process.argv.includes('--videos-only');
+  const imagesOnly = process.argv.includes('--images-only');
+
   if (!skipUpload) {
     const s3 = s3Client();
     let images = 0;
     let videos = 0;
     for (const file of files) {
+      if (videosOnly && file.kind !== 'video') continue;
+      if (imagesOnly && file.kind !== 'image') continue;
       const buf = await fs.readFile(file.abs);
       if (file.kind === 'image') {
         const cdnUrl = await uploadVariants(s3, bucket, cdnBase, file.rel, buf);

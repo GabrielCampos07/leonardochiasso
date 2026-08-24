@@ -31,11 +31,17 @@
         }
       </div>
 
-      <div class="landing-shop__grid">
-        @for (p of products(); track p.id) {
-          <lc-product-card [product]="p" />
-        } @empty {
-          <p class="landing-shop__empty">Nenhuma peça nesta categoria por enquanto.</p>
+      <div class="landing-shop__grid" [attr.aria-busy]="loading()">
+        @if (loading()) {
+          @for (slot of skeletonSlots; track slot) {
+            <lc-product-card [loading]="true" />
+          }
+        } @else {
+          @for (p of products(); track p.id) {
+            <lc-product-card [product]="p" />
+          } @empty {
+            <p class="landing-shop__empty">Nenhuma peça nesta categoria por enquanto.</p>
+          }
         }
       </div>
     </section>

@@ -7,8 +7,8 @@ import { Product } from '../../core/product.model';
 import {
   GenderSlug,
   ROUTES,
-  collectionPath,
   desfilePath,
+  genderRtwPath,
   productPath,
 } from '../../core/routes';
 import { RtwType, productMatchesRtwType, rtwLabel } from '../../core/rtw';
@@ -32,7 +32,6 @@ interface RelatedCatTile {
   label: string;
   image: string;
   route: string | null;
-  queryParams?: Record<string, string>;
 }
 
 @Component({
@@ -106,11 +105,7 @@ export class AltaCosturaLooksPage implements OnInit {
       tiles.push({
         label: rtwLabel(tipo),
         image,
-        route: collectionPath(book.collectionSlug),
-        queryParams: {
-          tipo,
-          ...(gender ? { categoria: gender } : {}),
-        },
+        route: gender ? genderRtwPath(gender, tipo) : null,
       });
     }
 

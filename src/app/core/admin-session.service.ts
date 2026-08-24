@@ -28,8 +28,6 @@ export class AdminSessionService {
     () => Boolean(this.apiBase) || Boolean(environment.adminPassword?.trim()),
   );
 
-  private meRequested = false;
-
   toggleEditMode(): void {
     const next = !this.editModeOn();
     this.editModeOn.set(next);
@@ -93,7 +91,6 @@ export class AdminSessionService {
    */
   refreshMe(): Observable<AdminUser | null> {
     if (!this.apiBase) return of(null);
-    this.meRequested = true;
     return this.http
       .get<AdminUser>(`${this.apiBase}/api/admin/auth/me`, { withCredentials: true })
       .pipe(
@@ -105,11 +102,23 @@ export class AdminSessionService {
       );
   }
 
-  /** One-shot session check for guards / admin login. */
+  /**
+   * Restore admin + edit bar after refresh / new tab on the storefront.
+   * Only hits `/me` when this browser already opted into edit mode (sessionStorage),
+   * so regular visitors never get a 401 probe.
+   */
+  hydrateStorefrontSession(): Observable<boolean> {
+    if (!this.apiBase) return of(this.isLoggedIn());
+    if (this.user()) return of(true);
+    if (!this.readEditMode() && !this.readLocalSession()) return of(false);
+    return this.refreshMe().pipe(map((u) => u !== null));
+  }
+
+  /** Session check for guards / admin login — always re-probes /me when user is unknown. */
   ensureSession(): Observable<boolean> {
     if (!this.apiBase) return of(this.isLoggedIn());
     if (this.user()) return of(true);
-    if (this.meRequested && !this.user()) return of(false);
+    // Do not cache failures: a prior 401 on /admin must not block post-login navigation.
     return this.refreshMe().pipe(map((u) => u !== null));
   }
 
@@ -119,7 +128,6 @@ export class AdminSessionService {
     this.user.set(null);
     this.localUnlocked.set(false);
     this.editModeOn.set(false);
-    this.meRequested = false;
   }
 
   private readLocalSession(): boolean {

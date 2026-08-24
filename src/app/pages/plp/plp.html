@@ -16,7 +16,12 @@
   </nav>
 
   <div class="plp__head">
-    <h1>{{ collectionLabel() }} <span>{{ products().length }}</span></h1>
+    <h1>
+      {{ collectionLabel() }}
+      @if (!loading()) {
+        <span>{{ products().length }}</span>
+      }
+    </h1>
 
     <div class="plp__toolbar">
       <div class="plp__sort" [class.is-open]="sortOpen()">
@@ -91,11 +96,22 @@
     </div>
   </div>
 
-  <div class="plp__grid" [class.plp__grid--2]="gridCols() === 2" [class.plp__grid--4]="gridCols() === 4">
-    @for (p of products(); track p.id) {
-      <lc-product-card [product]="p" />
-    } @empty {
-      <p class="plp__empty">Nenhuma peça nesta categoria por enquanto.</p>
+  <div
+    class="plp__grid"
+    [class.plp__grid--2]="gridCols() === 2"
+    [class.plp__grid--4]="gridCols() === 4"
+    [attr.aria-busy]="loading()"
+  >
+    @if (loading()) {
+      @for (slot of skeletonSlots; track slot) {
+        <lc-product-card [loading]="true" />
+      }
+    } @else {
+      @for (p of products(); track p.id) {
+        <lc-product-card [product]="p" />
+      } @empty {
+        <p class="plp__empty">Nenhuma peça nesta categoria por enquanto.</p>
+      }
     }
   </div>
 

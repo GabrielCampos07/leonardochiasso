@@ -23,6 +23,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
     "migrate:assets": "tsx scripts/migrate-assets-to-s3.ts",
+    "migrate:assets:videos": "tsx scripts/migrate-assets-to-s3.ts --videos-only",
     "migrate:content-urls": "tsx scripts/migrate-content-urls.ts",
     "admin:sync-password": "tsx scripts/sync-admin-password.ts",
     "prisma:studio": "prisma studio",

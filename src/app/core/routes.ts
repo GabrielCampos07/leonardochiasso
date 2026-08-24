@@ -43,6 +43,22 @@ export const PATH = {
 
 export type GenderSlug = 'feminino' | 'masculino';
 
+/** Resolve gender hub from a router URL (path + query). */
+export function genderFromUrl(url: string): GenderSlug | null {
+  const path = (url.split('?')[0] ?? '').split('#')[0] ?? '';
+  if (path.startsWith('/masculino')) return 'masculino';
+  if (path.startsWith('/feminino')) return 'feminino';
+  try {
+    const q = url.includes('?') ? url.slice(url.indexOf('?')) : '';
+    const params = new URLSearchParams(q.startsWith('?') ? q.slice(1) : q);
+    const c = params.get('categoria');
+    if (c === 'masculino' || c === 'feminino') return c;
+  } catch {
+    /* ignore malformed URLs */
+  }
+  return null;
+}
+
 /**
  * When false, Alta Costura stays out of public nav (routes remain).
  * Currently public as “Em breve” ArtCouture landing.
@@ -73,6 +89,7 @@ export const ROUTES = {
   admin: `/${PATH.admin}`,
   adminProducts: `/${PATH.admin}/produtos`,
   adminJoias: `/${PATH.admin}/joias`,
+  adminCollections: `/${PATH.admin}/colecoes`,
 } as const;
 
 export function adminProductPath(slug: string): string {
@@ -83,15 +100,29 @@ export function adminJoiaPath(slug: string): string {
   return `${ROUTES.adminJoias}/${slug}`;
 }
 
+export function adminCollectionPath(slug: string): string {
+  return `${ROUTES.adminCollections}/${slug}`;
+}
+
 export const ADMIN_NEW_PRODUCT_SLUG = 'novo';
 export const ADMIN_NEW_JOIA_SLUG = 'nova';
+export const ADMIN_NEW_COLLECTION_SLUG = 'nova';
 
-export function adminNewProductPath(): string {
-  return adminProductPath(ADMIN_NEW_PRODUCT_SLUG);
+/** Query param on `/admin/produtos/novo` to pre-fill collection (Phase 4b → products form). */
+export const ADMIN_PRODUCT_COLLECTION_QUERY = 'colecao';
+
+export function adminNewProductPath(collectionSlug?: string): string {
+  const base = adminProductPath(ADMIN_NEW_PRODUCT_SLUG);
+  if (!collectionSlug) return base;
+  return `${base}?${ADMIN_PRODUCT_COLLECTION_QUERY}=${encodeURIComponent(collectionSlug)}`;
 }
 
 export function adminNewJoiaPath(): string {
   return adminJoiaPath(ADMIN_NEW_JOIA_SLUG);
+}
+
+export function adminNewCollectionPath(): string {
+  return adminCollectionPath(ADMIN_NEW_COLLECTION_SLUG);
 }
 
 /** Known collection slugs (URL-safe) */

@@ -62,15 +62,29 @@
         <label>
           Coleção
           <select
-            [ngModel]="p.collection"
-            (ngModelChange)="onCollectionChange($event)"
+            [ngModel]="p.collectionSlug || ''"
+            (ngModelChange)="onCollectionSlugChange($event)"
             name="collection"
+            [required]="isNew() && collectionRequired()"
           >
-            @for (c of collections; track c) {
-              <option [value]="c">{{ c }}</option>
+            @if (isNew() && collectionRequired()) {
+              <option value="" disabled>Selecione a coleção</option>
+            }
+            @for (opt of collectionOptions; track opt.slug) {
+              <option [value]="opt.slug">{{ opt.label }}</option>
+            }
+            @if (extraCollectionOption(); as extra) {
+              <option [value]="extra.slug">{{ extra.label }}</option>
             }
           </select>
         </label>
+        @if (isNew() && collectionFromContext()) {
+          <p class="admin-edit__hint">
+            Pré-preenchida pelo contexto da coleção. Pode confirmar ou alterar.
+          </p>
+        } @else if (isNew() && collectionRequired()) {
+          <p class="admin-edit__hint">Obrigatório — escolha em qual coleção o produto entra.</p>
+        }
         <label>
           Tamanho
           <input
@@ -169,22 +183,52 @@
 
       <fieldset>
         <legend>Fotos</legend>
-        <label>
-          Foto principal (caminho)
+        @if (useApi && isNew()) {
+          <p class="admin-edit__note">Salve o produto primeiro; depois envie as fotos aqui.</p>
+        }
+        <label class="admin-edit__file">
+          Enviar fotos
           <input
-            type="text"
-            [ngModel]="p.thumb"
-            (ngModelChange)="patchField('thumb', $event)"
-            name="thumb"
+            type="file"
+            accept="image/*"
+            multiple
+            (change)="onFilesSelected($event)"
+            [disabled]="uploading() || (useApi && isNew())"
           />
         </label>
-        @if (p.thumb) {
+        @if (uploading()) {
+          <p class="admin-edit__hint">Enviando…</p>
+        }
+
+        @if (galleryItems().length) {
+          <ul
+            class="admin-edit__gallery"
+            cdkDropList
+            [cdkDropListData]="galleryItems()"
+            (cdkDropListDropped)="dropGallery($event)"
+          >
+            @for (item of galleryItems(); track item.id; let i = $index) {
+              <li class="admin-edit__gallery-item" cdkDrag>
+                <button
+                  type="button"
+                  class="admin-edit__gallery-handle"
+                  cdkDragHandle
+                  aria-label="Arrastar foto"
+                >
+                  ⋮⋮
+                </button>
+                <img [src]="item.cdnUrl" [alt]="item.altPt || p.name" />
+                <div class="admin-edit__gallery-meta">
+                  <span>{{ i === 0 ? 'Principal' : 'Galeria' }}</span>
+                  <button type="button" (click)="removeGalleryItem(i)">Remover</button>
+                </div>
+              </li>
+            }
+          </ul>
+          <p class="admin-edit__hint">Arraste para reordenar. A primeira vira a foto principal.</p>
+        } @else if (p.thumb) {
           <img class="admin-edit__preview" [src]="p.thumb" [alt]="p.name" />
         }
-        <label>
-          Galeria (um caminho por linha)
-          <textarea rows="5" [(ngModel)]="galleryText" name="gallery"></textarea>
-        </label>
       </fieldset>
 
       <fieldset>
@@ -249,8 +293,8 @@
       </fieldset>
 
       <div class="admin-edit__footer">
-        <button type="submit" class="admin-edit__save">
-          {{ isNew() ? 'Criar produto' : 'Salvar' }}
+        <button type="submit" class="admin-edit__save" [disabled]="saving()">
+          {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
         </button>
         <button type="button" class="admin-edit__cancel" (click)="cancel()">Cancelar</button>
         @if (!isNew()) {

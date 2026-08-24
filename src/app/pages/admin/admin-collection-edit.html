@@ -1,0 +1,127 @@
+@if (missing()) {
+  <section class="admin-edit">
+    <h1>Coleção não encontrada</h1>
+    <a [routerLink]="listPath">Voltar à lista</a>
+  </section>
+} @else if (loading()) {
+  <section class="admin-edit">
+    <p>Carregando…</p>
+  </section>
+} @else {
+  <section class="admin-edit">
+    <header class="admin-edit__head">
+      <div>
+        <a class="admin-edit__back" [routerLink]="listPath">← Voltar</a>
+        <h1>{{ isNew() ? 'Nova coleção' : 'Editar coleção' }}</h1>
+        <p>{{ isNew() ? 'Defina slug, nome e publicação.' : slug() }}</p>
+      </div>
+    </header>
+
+    @if (toast()) {
+      <p class="admin-edit__toast" role="status">{{ toast() }}</p>
+    }
+    @if (error()) {
+      <p class="admin-edit__toast" role="alert">{{ error() }}</p>
+    }
+
+    <form class="admin-edit__form" (ngSubmit)="saveMeta()">
+      <fieldset>
+        <legend>Básico</legend>
+        <label>
+          Nome
+          <input
+            type="text"
+            [ngModel]="name"
+            (ngModelChange)="onNameChange($event)"
+            name="name"
+            required
+          />
+        </label>
+        @if (isNew()) {
+          <label>
+            Slug
+            <input
+              type="text"
+              [ngModel]="slug()"
+              (ngModelChange)="onSlugChange($event)"
+              name="slug"
+              placeholder="organic-dreams"
+              required
+            />
+          </label>
+        }
+        <label>
+          Descrição
+          <textarea
+            rows="4"
+            [(ngModel)]="description"
+            name="description"
+          ></textarea>
+        </label>
+        <label class="admin-edit__check">
+          <input type="checkbox" [(ngModel)]="published" name="published" />
+          Publicada no site
+        </label>
+      </fieldset>
+
+      <div class="admin-edit__actions">
+        <button type="submit" class="admin-edit__save" [disabled]="saving()">
+          {{ saving() ? 'Salvando…' : isNew() ? 'Criar coleção' : 'Salvar' }}
+        </button>
+      </div>
+    </form>
+
+    @if (!isNew()) {
+      <section class="admin-col-products">
+        <header class="admin-col-products__head">
+          <div>
+            <h2>Produtos</h2>
+            <p>Arraste para reordenar. A ordem é salva automaticamente.</p>
+          </div>
+          <a
+            class="admin-list__add"
+            [routerLink]="newProductPath"
+            [queryParams]="collectionQuery()"
+          >
+            Adicionar produto
+          </a>
+        </header>
+
+        @if (savingOrder()) {
+          <p class="admin-list__count">Salvando ordem…</p>
+        }
+
+        <ul
+          class="admin-list__rows admin-col-products__list"
+          cdkDropList
+          (cdkDropListDropped)="onDrop($event)"
+        >
+          @for (p of products(); track p.slug) {
+            <li class="admin-row admin-col-products__row" cdkDrag>
+              <span class="admin-col-products__handle" cdkDragHandle aria-hidden="true">⋮⋮</span>
+              @if (p.thumb) {
+                <img [src]="p.thumb" [alt]="p.name" width="72" height="96" />
+              }
+              <div class="admin-row__info">
+                <strong>{{ p.name }}</strong>
+                <span>{{ p.slug }} · {{ p.category }}</span>
+              </div>
+              <div class="admin-row__actions">
+                <a class="admin-row__edit" [routerLink]="productEditPath(p.slug)">Editar</a>
+                <button
+                  type="button"
+                  class="admin-row__order-btn"
+                  (click)="removeProduct(p.slug)"
+                >
+                  Remover
+                </button>
+              </div>
+            </li>
+          } @empty {
+            <li class="admin-list__empty">Nenhum produto nesta coleção.</li>
+          }
+        </ul>
+      </section>
+    }
+  </section>
+}

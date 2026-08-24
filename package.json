@@ -24,6 +24,7 @@
   },
   "private": true,
   "dependencies": {
+    "@angular/cdk": "^20.2.14",
     "@angular/common": "^20.3.0",
     "@angular/compiler": "^20.3.0",
     "@angular/core": "^20.3.0",
@@ -47,5 +48,5 @@
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.9.2"
   },
-  "description": "Leonardo Chiasso \u2014 luxury sustainable fashion site"
+  "description": "Leonardo Chiasso — luxury sustainable fashion site"
 }

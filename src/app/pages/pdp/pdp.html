@@ -1,4 +1,28 @@
-@if (display(); as p) {
+@if (loading()) {
+  <section class="pdp pdp--skeleton" aria-busy="true" aria-label="Carregando produto">
+    <div class="pdp__crumb pdp__skel-crumb">
+      <span class="pdp__shimmer pdp__skel-crumb-line"></span>
+    </div>
+    <div class="pdp__grid">
+      <div class="pdp__gallery">
+        <div class="pdp__main pdp__shimmer"></div>
+        <div class="pdp__thumbs pdp__skel-thumbs">
+          @for (slot of [1, 2, 3, 4]; track slot) {
+            <span class="pdp__shimmer pdp__skel-thumb"></span>
+          }
+        </div>
+      </div>
+      <div class="pdp__buy">
+        <span class="pdp__shimmer pdp__skel-label"></span>
+        <span class="pdp__shimmer pdp__skel-title"></span>
+        <span class="pdp__shimmer pdp__skel-price"></span>
+        <span class="pdp__shimmer pdp__skel-attr"></span>
+        <span class="pdp__shimmer pdp__skel-attr"></span>
+        <span class="pdp__shimmer pdp__skel-block"></span>
+      </div>
+    </div>
+  </section>
+} @else if (display(); as p) {
   <section class="pdp">
     <nav class="pdp__crumb lc-caption" aria-label="Breadcrumb">
       <a [routerLink]="home">Home</a>
@@ -67,15 +91,53 @@
             </div>
           }
         </div>
-        <div class="pdp__thumbs">
-          @for (img of product()!.gallery; track img; let i = $index) {
-            <button
-              type="button"
-              [class.is-active]="activeImage() === i"
-              (click)="selectImage(i)"
-            >
-              <img [src]="img" [alt]="p.name + ' ' + (i + 1)" />
-            </button>
+        <div
+          class="pdp__thumbs-row"
+          [class.pdp__thumbs-row--edit]="admin.editMode()"
+        >
+          <div
+            class="pdp__thumbs"
+            cdkDropList
+            cdkDropListOrientation="horizontal"
+            [cdkDropListData]="galleryMedia()"
+            [cdkDropListDisabled]="!admin.editMode()"
+            (cdkDropListDropped)="dropGallery($event)"
+          >
+            @for (item of galleryMedia(); track item.id; let i = $index) {
+              <div
+                class="pdp__thumb"
+                cdkDrag
+                [cdkDragDisabled]="!admin.editMode()"
+                [class.is-active]="activeImage() === i"
+              >
+                @if (admin.editMode()) {
+                  <button
+                    type="button"
+                    class="pdp__thumb-handle"
+                    cdkDragHandle
+                    aria-label="Arrastar foto"
+                  >
+                    ⋮⋮
+                  </button>
+                }
+                <button type="button" class="pdp__thumb-btn" (click)="selectImage(i)">
+                  <img [src]="item.cdnUrl" [alt]="p.name + ' ' + (i + 1)" />
+                </button>
+              </div>
+            }
+          </div>
+          @if (admin.editMode()) {
+            <label class="pdp__upload" [class.is-busy]="uploading()">
+              <span>{{ uploading() ? '…' : '+' }}</span>
+              <span class="pdp__upload-label">Foto</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                [disabled]="uploading()"
+                (change)="onGalleryFiles($event)"
+              />
+            </label>
           }
         </div>
       </div>
@@ -127,13 +189,21 @@
 
         <div class="pdp__block">
           <h2>Descrição</h2>
-          <p>{{ product()!.description }}</p>
+          <lc-editable-text
+            [value]="product()!.description"
+            (valueChange)="patchField('description', $event)"
+          />
         </div>
         <div class="pdp__block">
           <h2>Detalhes</h2>
           <ul>
-            @for (d of product()!.details; track d) {
-              <li>{{ d }}</li>
+            @for (d of product()!.details; track $index; let i = $index) {
+              <li>
+                <lc-editable-text
+                  [value]="d"
+                  (valueChange)="renameDetail(i, $event)"
+                />
+              </li>
             }
           </ul>
         </div>

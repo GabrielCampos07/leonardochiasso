@@ -57,11 +57,7 @@
         <div class="acl-related__cats" aria-label="Categorias">
           @for (tile of relatedCats(); track tile.label) {
             @if (tile.route; as href) {
-              <a
-                class="acl-related__cat"
-                [routerLink]="href"
-                [queryParams]="tile.queryParams ?? null"
-              >
+              <a class="acl-related__cat" [routerLink]="href">
                 <span class="acl-related__cat-media">
                   <img [src]="tile.image" [alt]="tile.label" />
                 </span>
