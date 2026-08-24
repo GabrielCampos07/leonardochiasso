@@ -15,6 +15,8 @@ import {
   legalPath,
 } from '../../core/routes';
 import { WishlistService } from '../../core/wishlist.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 
 @Component({
   selector: 'lc-account-page',
@@ -29,6 +31,8 @@ export class AccountPage implements OnInit {
   private readonly accountApi = inject(AccountApiService);
   private readonly chrome = inject(ChromeService);
   private readonly router = inject(Router);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly home = ROUTES.home;
   readonly login = ROUTES.login;
@@ -211,17 +215,27 @@ export class AccountPage implements OnInit {
     });
   }
 
-  removeAddress(id: string): void {
+  async removeAddress(id: string): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Remover endereço',
+      message: 'Remover este endereço? Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+
     this.addressError.set('');
     this.accountApi.deleteAddress(id).subscribe({
       next: () => {
         this.addressOk.set('Endereço removido.');
+        this.toast.success('Endereço removido.');
         this.reloadAddresses();
       },
       error: (err: unknown) => {
         this.addressError.set(
           authErrorMessage(err, 'Não foi possível remover o endereço.'),
         );
+        this.toast.error(authErrorMessage(err, 'Não foi possível remover o endereço.'));
       },
     });
   }

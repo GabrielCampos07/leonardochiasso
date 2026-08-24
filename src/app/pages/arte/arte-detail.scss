@@ -125,6 +125,22 @@
   background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
 }
 
+.arte-d__thumb-wrap {
+  position: relative;
+}
+
+.arte-d__thumb-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px dashed color-mix(in srgb, var(--lc-void) 35%, transparent);
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
 .arte-d__thumbs {
   display: flex;
   flex-wrap: wrap;

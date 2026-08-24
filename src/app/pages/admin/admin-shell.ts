@@ -2,11 +2,13 @@ import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { ROUTES } from '../../core/routes';
+import { LcConfirmDialog } from '../../shared/components/feedback/confirm-dialog';
+import { LcToastHost } from '../../shared/components/feedback/toast-host';
 
 @Component({
   selector: 'lc-admin-shell',
   standalone: true,
-  imports: [RouterOutlet, RouterLink],
+  imports: [RouterOutlet, RouterLink, LcToastHost, LcConfirmDialog],
   templateUrl: './admin-shell.html',
   styleUrl: './admin-shell.scss',
 })

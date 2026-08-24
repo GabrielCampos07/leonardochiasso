@@ -434,6 +434,22 @@
   opacity: 0.55;
 }
 
+.arte-piece__thumb-wrap {
+  position: relative;
+}
+
+.arte-piece__thumb-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px dashed color-mix(in srgb, var(--lc-void) 35%, transparent);
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
 .arte-piece__thumbs {
   display: flex;
   flex-wrap: wrap;

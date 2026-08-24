@@ -62,33 +62,58 @@
                 </div>
               }
             </div>
-            @if (gallery(piece).length > 1) {
-              <ul class="joias-piece__thumbs" aria-label="Mais fotos — selecione para trocar">
-                @for (src of gallery(piece); track $index; let ti = $index) {
-                  <li>
-                    <button
-                      type="button"
-                      class="joias-piece__thumb"
-                      [class.is-active]="stillIndex(piece) === ti"
-                      (click)="setStill(piece.id, ti)"
-                    >
-                      <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
-                    </button>
-                  </li>
-                }
-              </ul>
-              <p class="joias-piece__edit-hint">Selecione a miniatura e use «Trocar imagem»</p>
+            @if (gallery(piece).length) {
+              <div class="joias-piece__thumbs-row">
+                <ul
+                  class="joias-piece__thumbs"
+                  aria-label="Fotos — arraste para reordenar"
+                  cdkDropList
+                  cdkDropListOrientation="horizontal"
+                  [cdkDropListData]="gallery(piece)"
+                  [cdkDropListDisabled]="isImageUploading(piece)"
+                  (cdkDropListDropped)="dropGallery(piece, $event)"
+                >
+                  @for (src of gallery(piece); track src + '-' + ti; let ti = $index) {
+                    <li class="joias-piece__thumb-wrap" cdkDrag [cdkDragDisabled]="isImageUploading(piece)">
+                      <button
+                        type="button"
+                        class="joias-piece__thumb"
+                        [class.is-active]="stillIndex(piece) === ti"
+                        (click)="setStill(piece.id, ti)"
+                      >
+                        <img [src]="src" [alt]="piece.title + ' — foto ' + (ti + 1)" />
+                      </button>
+                      <lc-trash-button
+                        ariaLabel="Remover foto"
+                        [disabled]="isImageUploading(piece)"
+                        (pressed)="removeImage(piece, ti)"
+                      />
+                    </li>
+                  }
+                </ul>
+                <button
+                  type="button"
+                  class="joias-piece__thumb-add"
+                  aria-label="Adicionar foto"
+                  [disabled]="isImageUploading(piece)"
+                  (click)="startAppendImage(piece)"
+                >
+                  +
+                </button>
+              </div>
+              <p class="joias-piece__edit-hint">Arraste as miniaturas para reordenar · «Trocar» ou lixeira para editar</p>
             }
           } @else {
             <lc-art-media-carousel
               [image]="activeStill(piece)"
+              [images]="gallery(piece)"
               [alt]="piece.title"
               [videoSrc]="piece.videoSrc"
               (openStill)="onOpenStill(piece)"
             />
             @if (gallery(piece).length > 1) {
               <ul class="joias-piece__thumbs" aria-label="Mais fotos">
-                @for (src of gallery(piece); track src; let ti = $index) {
+                @for (src of gallery(piece); track ti; let ti = $index) {
                   <li>
                     <button
                       type="button"

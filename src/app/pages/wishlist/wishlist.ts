@@ -6,6 +6,8 @@ import { ChromeService } from '../../core/chrome.service';
 import { COLLECTION_SLUGS, ROUTES, collectionPath, productPath } from '../../core/routes';
 import { PRICES_ON_REQUEST, displayPriceLabel } from '../../core/pricing';
 import { WishlistService } from '../../core/wishlist.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 import { LcButton } from '../../shared/components/button/button';
 
 @Component({
@@ -21,6 +23,8 @@ export class WishlistPage implements OnInit {
   private readonly cart = inject(CartService);
   private readonly chrome = inject(ChromeService);
   private readonly router = inject(Router);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly home = ROUTES.home;
   readonly loginRoute = ROUTES.login;
@@ -40,8 +44,16 @@ export class WishlistPage implements OnInit {
     });
   }
 
-  remove(productId: string): void {
+  async remove(productId: string): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Remover dos favoritos',
+      message: 'Remover esta peça da lista de favoritos?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
     this.wishlist.remove(productId);
+    this.toast.success('Removido dos favoritos.');
   }
 
   addToBag(productId: string): void {

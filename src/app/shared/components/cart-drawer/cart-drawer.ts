@@ -2,6 +2,8 @@ import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../core/auth.service';
 import { CartService } from '../../../core/cart.service';
+import { ConfirmService } from '../../../core/feedback/confirm.service';
+import { ToastService } from '../../../core/feedback/toast.service';
 import { displayPriceLabel } from '../../../core/pricing';
 import { ROUTES } from '../../../core/routes';
 
@@ -33,7 +35,7 @@ import { ROUTES } from '../../../core/routes';
                     <div class="cart__qty">
                       <button
                         type="button"
-                        (click)="cart.setQuantity(line.productId, line.quantity - 1, line.pieceId)"
+                        (click)="changeQuantity(line.productId, line.quantity - 1, line.pieceId)"
                       >
                         −
                       </button>
@@ -47,7 +49,7 @@ import { ROUTES } from '../../../core/routes';
                       <button
                         class="cart__remove"
                         type="button"
-                        (click)="cart.remove(line.productId, line.pieceId)"
+                        (click)="removeLine(line.productId, line.pieceId)"
                       >
                         Remover
                       </button>
@@ -208,9 +210,31 @@ export class LcCartDrawer {
   readonly cart = inject(CartService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   priceLabel(label: string): string {
     return displayPriceLabel(label);
+  }
+
+  async changeQuantity(productId: string, quantity: number, pieceId?: string): Promise<void> {
+    if (quantity < 1) {
+      await this.removeLine(productId, pieceId);
+      return;
+    }
+    this.cart.setQuantity(productId, quantity, pieceId);
+  }
+
+  async removeLine(productId: string, pieceId?: string): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Remover da sacola',
+      message: 'Remover este item da sacola?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+    this.cart.remove(productId, pieceId);
+    this.toast.success('Item removido da sacola.');
   }
 
   goCheckout(): void {

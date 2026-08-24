@@ -199,6 +199,43 @@
   letter-spacing: 0.12em;
 }
 
+.joias-piece__thumb-wrap {
+  position: relative;
+  cursor: grab;
+}
+
+.joias-piece__thumb-wrap:active {
+  cursor: grabbing;
+}
+
+.joias-piece__thumb-wrap.cdk-drag-preview {
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.joias-piece__thumb-wrap.cdk-drag-placeholder {
+  opacity: 0.35;
+}
+
+.joias-piece__thumbs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.joias-piece__thumb-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1px dashed color-mix(in srgb, var(--lc-void) 35%, transparent);
+  background: transparent;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
 .joias-piece__thumbs {
   display: flex;
   flex-wrap: wrap;
@@ -208,6 +245,10 @@
   padding: 0;
 }
 
+.joias-piece__thumbs-row .joias-piece__thumbs {
+  margin: 0;
+}
+
 .joias-piece__thumb {
   display: block;
   width: 56px;
@@ -215,7 +256,7 @@
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--lc-void) 18%, transparent);
   background: transparent;
-  cursor: pointer;
+  cursor: inherit;
   overflow: hidden;
 }
 

@@ -3,8 +3,10 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog.service';
 import { ContentAdminService } from '../../core/content-admin.service';
-import { AdminCatalogService } from '../../core/admin-catalog.service';
+import { AdminCatalogService, adminHttpErrorMessage } from '../../core/admin-catalog.service';
 import { AdminSessionService } from '../../core/admin-session.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 import {
   Product,
   ProductColor,
@@ -26,7 +28,9 @@ import {
   collectionPath,
 } from '../../core/routes';
 import { PRICES_ON_REQUEST, displayPriceLabel } from '../../core/pricing';
+import { WishlistService } from '../../core/wishlist.service';
 import { LcButton } from '../../shared/components/button/button';
+import { LcTrashButton } from '../../shared/components/feedback/trash-button';
 
 @Component({
   selector: 'lc-pdp-page',
@@ -39,6 +43,7 @@ import { LcButton } from '../../shared/components/button/button';
     LcEditablePieces,
     LcEditableColors,
     LcImageBindingPicker,
+    LcTrashButton,
     DragDropModule,
   ],
   templateUrl: './pdp.html',
@@ -50,7 +55,10 @@ export class PdpPage implements OnInit {
   private readonly catalog = inject(CatalogService);
   private readonly contentAdmin = inject(ContentAdminService);
   private readonly adminCatalog = inject(AdminCatalogService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
   readonly admin = inject(AdminSessionService);
+  readonly wishlist = inject(WishlistService);
 
   readonly home = ROUTES.home;
   readonly product = signal<Product | null>(null);
@@ -100,10 +108,10 @@ export class PdpPage implements OnInit {
   });
 
   readonly mainImage = computed(() => {
-    const gallery = this.product()?.gallery ?? [];
+    const urls = this.galleryUrls();
     const hero = this.heroFocus();
     if (hero?.url && !this.manualGallery()) return hero.url;
-    return gallery[this.activeImage()] ?? gallery[0] ?? '';
+    return urls[this.activeImage()] ?? urls[0] ?? '';
   });
 
   readonly collectionRoute = computed(() => {
@@ -115,6 +123,11 @@ export class PdpPage implements OnInit {
   /** Media items with ids for gallery DnD (falls back to gallery URLs). */
   readonly galleryMedia = computed((): ProductMedia[] =>
     this.adminCatalog.mediaOf(this.product()),
+  );
+
+  /** Canonical ordered URLs — always aligned with thumb indices. */
+  readonly galleryUrls = computed((): string[] =>
+    this.galleryMedia().map((m) => m.cdnUrl),
   );
 
   ngOnInit(): void {
@@ -160,19 +173,19 @@ export class PdpPage implements OnInit {
   }
 
   prevImage(): void {
-    const gallery = this.product()?.gallery ?? [];
-    if (gallery.length < 2) return;
+    const urls = this.galleryUrls();
+    if (urls.length < 2) return;
     this.manualGallery.set(true);
     const i = this.activeImage();
-    this.activeImage.set((i - 1 + gallery.length) % gallery.length);
+    this.activeImage.set((i - 1 + urls.length) % urls.length);
   }
 
   nextImage(): void {
-    const gallery = this.product()?.gallery ?? [];
-    if (gallery.length < 2) return;
+    const urls = this.galleryUrls();
+    if (urls.length < 2) return;
     this.manualGallery.set(true);
     const i = this.activeImage();
-    this.activeImage.set((i + 1) % gallery.length);
+    this.activeImage.set((i + 1) % urls.length);
   }
 
   onTouchStart(event: TouchEvent): void {
@@ -202,6 +215,27 @@ export class PdpPage implements OnInit {
 
   closeLightbox(): void {
     this.lightbox.set(null);
+  }
+
+  async toggleWish(): Promise<void> {
+    const p = this.product();
+    if (!p) return;
+
+    if (this.wishlist.has(p.id)) {
+      const ok = await this.confirm.confirm({
+        title: 'Remover dos favoritos',
+        message: 'Remover esta peça da lista de favoritos?',
+        confirmLabel: 'Remover',
+        destructive: true,
+      });
+      if (!ok) return;
+      this.wishlist.remove(p.id);
+      this.toast.success('Removido dos favoritos.');
+      return;
+    }
+
+    this.wishlist.add(p.id);
+    this.toast.success('Adicionado aos favoritos.');
   }
 
   patchField(path: string, value: string | string[]): void {
@@ -301,8 +335,12 @@ export class PdpPage implements OnInit {
         this.manualGallery.set(true);
         const start = Math.max(0, (updated.gallery?.length ?? 1) - files.length);
         this.activeImage.set(start);
+        this.toast.success('Fotos adicionadas.');
       },
-      error: () => this.uploading.set(false),
+      error: (err: unknown) => {
+        this.uploading.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Falha no upload.'));
+      },
     });
   }
 
@@ -330,8 +368,14 @@ export class PdpPage implements OnInit {
     }
 
     this.adminCatalog.reorderMediaViaApi(p.slug, items.map((m) => m.id)).subscribe({
-      next: (updated) => this.applyProduct(updated),
-      error: () => this.applyProduct(p),
+      next: (updated) => {
+        this.applyProduct(updated);
+        this.toast.success('Ordem das fotos atualizada.');
+      },
+      error: (err: unknown) => {
+        this.applyProduct(p);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível reordenar.'));
+      },
     });
   }
 
@@ -351,6 +395,54 @@ export class PdpPage implements OnInit {
     );
   }
 
+  async removeGalleryImage(index: number): Promise<void> {
+    const p = this.product();
+    const items = this.galleryMedia();
+    const target = items[index];
+    if (!p || !target) return;
+
+    const ok = await this.confirm.confirm({
+      title: 'Remover foto',
+      message: 'Remover esta foto? Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    if (!this.adminCatalog.useApi || target.id.startsWith('local-')) {
+      const nextItems = items.filter((_, i) => i !== index);
+      const urls = nextItems.map((m) => m.cdnUrl);
+      const next: Product = {
+        ...p,
+        media: nextItems.map((m, i) => ({ ...m, sortOrder: i, isPrimary: i === 0 })),
+        gallery: urls,
+        thumb: urls[0] ?? '',
+      };
+      this.adminCatalog.save(next);
+      this.applyProduct(next);
+      this.manualGallery.set(true);
+      this.activeImage.set(Math.min(index, Math.max(0, urls.length - 1)));
+      this.toast.success('Foto removida.');
+      return;
+    }
+
+    this.uploading.set(true);
+    this.adminCatalog.detachMediaViaApi(p.slug, target.id).subscribe({
+      next: (updated) => {
+        this.uploading.set(false);
+        this.applyProduct(updated);
+        this.manualGallery.set(true);
+        const len = updated.media?.length ?? updated.gallery?.length ?? 0;
+        this.activeImage.set(Math.min(index, Math.max(0, len - 1)));
+        this.toast.success('Foto removida.');
+      },
+      error: (err: unknown) => {
+        this.uploading.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível remover a foto.'));
+      },
+    });
+  }
+
   private syncImageFromSelection(): void {
     const p = this.product();
     if (!p) return;
@@ -359,7 +451,23 @@ export class PdpPage implements OnInit {
       this.selectedPieceId(),
       this.selectedColorId(),
     );
+    if (hero.url) {
+      const urls = this.galleryUrls();
+      const idx = urls.indexOf(hero.url);
+      if (idx >= 0) {
+        this.activeImage.set(idx);
+        return;
+      }
+    }
     if (hero.galleryIndex != null && hero.galleryIndex >= 0) {
+      const url = (p.gallery ?? [])[hero.galleryIndex];
+      if (url) {
+        const idx = this.galleryUrls().indexOf(url);
+        if (idx >= 0) {
+          this.activeImage.set(idx);
+          return;
+        }
+      }
       this.activeImage.set(hero.galleryIndex);
     }
   }

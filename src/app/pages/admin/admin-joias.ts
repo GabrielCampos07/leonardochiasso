@@ -4,6 +4,8 @@ import { RouterLink } from '@angular/router';
 import { AdminJoiasCatalogService } from '../../core/admin-joias-catalog.service';
 import { JoiaPiece } from '../../core/joias.data';
 import { adminJoiaPath, adminNewJoiaPath, ROUTES } from '../../core/routes';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 
 @Component({
   selector: 'lc-admin-joias',
@@ -14,9 +16,10 @@ import { adminJoiaPath, adminNewJoiaPath, ROUTES } from '../../core/routes';
 })
 export class AdminJoiasPage {
   private readonly catalog = inject(AdminJoiasCatalogService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly query = signal('');
-  readonly toast = signal('');
   readonly newPath = adminNewJoiaPath();
   readonly siteJoias = ROUTES.joias;
   readonly pieces = signal<JoiaPiece[]>(this.catalog.list());
@@ -56,10 +59,13 @@ export class AdminJoiasPage {
     this.flash('Ordem atualizada.');
   }
 
-  resetAll(): void {
-    const ok = window.confirm(
-      'Tem certeza? Isso apaga alterações locais das joias e volta ao catálogo original.',
-    );
+  async resetAll(): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Restaurar joias',
+      message: 'Tem certeza? Isso apaga alterações locais das joias e volta ao catálogo original.',
+      confirmLabel: 'Restaurar',
+      destructive: true,
+    });
     if (!ok) return;
     this.catalog.resetAll();
     this.refresh();
@@ -67,7 +73,6 @@ export class AdminJoiasPage {
   }
 
   private flash(msg: string): void {
-    this.toast.set(msg);
-    window.setTimeout(() => this.toast.set(''), 3200);
+    this.toast.success(msg);
   }
 }

@@ -9,6 +9,7 @@ import {
   ROUTES,
   adminJoiaPath,
 } from '../../core/routes';
+import { ToastService } from '../../core/feedback/toast.service';
 
 function blankJoia(): JoiaPiece {
   return {
@@ -35,10 +36,10 @@ export class AdminJoiaEditPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly catalog = inject(AdminJoiasCatalogService);
+  private readonly toast = inject(ToastService);
 
   readonly listPath = ROUTES.adminJoias;
   readonly siteJoias = ROUTES.joias;
-  readonly toast = signal('');
   readonly missing = signal(false);
   readonly isNew = signal(false);
   readonly draft = signal<JoiaPiece | null>(null);
@@ -106,7 +107,7 @@ export class AdminJoiaEditPage implements OnInit {
     const cur = this.draft();
     if (!cur) return;
     if (!cur.title.trim()) {
-      this.flash('Informe o título.');
+      this.flash('Informe o título.', 'info');
       return;
     }
     let slug = cur.slug.trim() || slugifyName(cur.title);
@@ -146,8 +147,8 @@ export class AdminJoiaEditPage implements OnInit {
     this.flash('Joia salva.');
   }
 
-  private flash(msg: string): void {
-    this.toast.set(msg);
-    window.setTimeout(() => this.toast.set(''), 3200);
+  private flash(msg: string, kind: 'success' | 'info' = 'success'): void {
+    if (kind === 'info') this.toast.info(msg);
+    else this.toast.success(msg);
   }
 }

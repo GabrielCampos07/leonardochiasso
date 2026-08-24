@@ -17,9 +17,6 @@
       </div>
     </header>
 
-    @if (toast()) {
-      <p class="admin-edit__toast" role="status">{{ toast() }}</p>
-    }
     @if (error()) {
       <p class="admin-edit__toast" role="alert">{{ error() }}</p>
     }

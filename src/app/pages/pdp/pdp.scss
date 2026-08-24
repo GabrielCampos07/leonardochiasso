@@ -259,25 +259,16 @@
   cursor: pointer;
 }
 
-.pdp__thumb-handle {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  z-index: 2;
-  width: 28px;
-  min-height: 28px;
-  padding: 0;
-  border: 0;
-  background: color-mix(in srgb, var(--lc-white) 88%, transparent);
-  color: var(--lc-ash);
-  letter-spacing: -0.12em;
+.pdp__thumbs-row--edit .pdp__thumb {
   cursor: grab;
-  font-size: 12px;
-  line-height: 1;
 }
 
-.pdp__thumb-handle:active {
+.pdp__thumbs-row--edit .pdp__thumb:active {
   cursor: grabbing;
+}
+
+.pdp__thumbs-row--edit .pdp__thumb-btn {
+  cursor: inherit;
 }
 
 .pdp__thumbs img,

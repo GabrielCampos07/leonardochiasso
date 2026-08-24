@@ -10,6 +10,9 @@ import { LcFooter } from '../shared/components/footer/footer';
 import { LcMegaMenu } from '../shared/components/mega-menu/mega-menu';
 import { LcMenuSheet } from '../shared/components/menu-sheet/menu-sheet';
 import { LcEditToolbar } from '../shared/components/edit/edit-toolbar';
+import { LcCartDrawer } from '../shared/components/cart-drawer/cart-drawer';
+import { LcToastHost } from '../shared/components/feedback/toast-host';
+import { LcConfirmDialog } from '../shared/components/feedback/confirm-dialog';
 
 @Component({
   selector: 'lc-shell',
@@ -22,6 +25,9 @@ import { LcEditToolbar } from '../shared/components/edit/edit-toolbar';
     LcMegaMenu,
     LcMenuSheet,
     LcEditToolbar,
+    LcCartDrawer,
+    LcToastHost,
+    LcConfirmDialog,
   ],
   template: `
     <div class="shell" [class.shell--nav-collapsed]="chrome.navCollapsed()">
@@ -36,6 +42,9 @@ import { LcEditToolbar } from '../shared/components/edit/edit-toolbar';
       <lc-footer />
       <lc-menu-sheet />
       <lc-edit-toolbar />
+      <lc-cart-drawer />
+      <lc-toast-host />
+      <lc-confirm-dialog />
     </div>
   `,
   styles: `

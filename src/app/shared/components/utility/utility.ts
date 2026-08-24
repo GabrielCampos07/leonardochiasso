@@ -1,12 +1,13 @@
 import { Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ChromeService } from '../../../core/chrome.service';
-import { AdminSessionService } from '../../../core/admin-session.service';
 import { ROUTES } from '../../../core/routes';
+import { WishlistService } from '../../../core/wishlist.service';
 
 @Component({
   selector: 'lc-utility',
   standalone: true,
-  imports: [],
+  imports: [RouterLink],
   template: `
     <div class="utility" [class.utility--collapsed]="chrome.navCollapsed()">
       <div class="utility__inner">
@@ -27,6 +28,31 @@ import { ROUTES } from '../../../core/routes';
             <span class="utility__contact-label">ATENDIMENTO PERSONALIZADO</span>
             <span class="utility__sep" aria-hidden="true"></span>
             <span class="utility__phone">(62) 99999-0000</span>
+          </a>
+        </div>
+
+        <div class="utility__actions">
+          <a
+            class="utility__icon utility__wish"
+            [routerLink]="wishlistRoute"
+            aria-label="Favoritos"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 19s-6.5-4.2-8.5-8A4.5 4.5 0 0 1 12 7.2 4.5 4.5 0 0 1 20.5 11c-2 3.8-8.5 8-8.5 8z"
+              />
+            </svg>
+            @if (wishlist.count() > 0) {
+              <span class="utility__badge">{{ wishlist.count() }}</span>
+            }
           </a>
         </div>
       </div>
@@ -118,68 +144,64 @@ import { ROUTES } from '../../../core/routes';
     .utility__sep {
       display: none;
       width: 1px;
-      height: 12px;
-      background: var(--lc-ash);
+      height: 10px;
+      background: color-mix(in srgb, var(--lc-ash) 70%, transparent);
       flex-shrink: 0;
     }
-    .utility__phone {
-      display: none;
-    }
-    @media (min-width: 700px) {
-      .utility__sep,
-      .utility__phone {
+    @media (min-width: 520px) {
+      .utility__sep {
         display: block;
+      }
+    }
+    .utility__phone {
+      flex-shrink: 0;
+    }
+    @media (max-width: 359px) {
+      .utility__phone {
+        display: none;
       }
     }
     .utility__actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 4px;
       flex-shrink: 0;
     }
-    @media (min-width: 480px) {
-      .utility__actions {
-        gap: 18px;
-      }
-    }
     .utility__icon {
-      width: 24px;
-      height: 24px;
+      position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      width: 28px;
+      height: 28px;
       color: var(--lc-void);
-      flex-shrink: 0;
     }
-    .utility__desktop-only {
-      display: none;
+    .utility__icon:hover {
+      opacity: 0.7;
     }
-    @media (min-width: 900px) {
-      .utility__desktop-only {
-        display: inline-flex;
-      }
+    .utility__icon svg {
+      width: 24px;
+      height: 24px;
     }
-    .utility__admin {
+    .utility__badge {
+      position: absolute;
+      top: -2px;
+      right: -4px;
+      min-width: 14px;
+      height: 14px;
+      padding: 0 3px;
+      border-radius: 999px;
+      background: var(--lc-void);
+      color: var(--lc-white);
       font-family: var(--lc-font-display);
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--lc-void);
-      padding: 4px 0;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-    }
-    .utility__admin--on {
-      font-weight: 500;
-    }
-    .utility__admin:hover {
-      opacity: 0.65;
+      font-size: 9px;
+      line-height: 14px;
+      text-align: center;
     }
   `,
 })
 export class LcUtility {
   readonly chrome = inject(ChromeService);
-  readonly admin = inject(AdminSessionService);
-  readonly adminRoute = ROUTES.admin;
+  readonly wishlist = inject(WishlistService);
+  readonly wishlistRoute = ROUTES.wishlist;
 }

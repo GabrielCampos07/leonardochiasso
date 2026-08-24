@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { Router, Routes } from '@angular/router';
 import { PATH } from './core/routes';
+import { customerAuthGuard } from './core/customer-auth.guard';
 import { adminAuthGuard } from './core/admin-auth.guard';
 import { LcShell } from './layout/shell';
 
@@ -151,15 +152,47 @@ export const routes: Routes = [
         path: `${PATH.product}/:slug`,
         loadComponent: () => import('./pages/pdp/pdp').then((m) => m.PdpPage),
       },
-      // Commerce routes removed — vitrine editorial only (no cart/checkout/account).
-      { path: PATH.account, redirectTo: PATH.home },
-      { path: PATH.wishlist, redirectTo: PATH.home },
-      { path: PATH.orders, redirectTo: PATH.home },
-      { path: PATH.login, redirectTo: PATH.home },
-      { path: PATH.register, redirectTo: PATH.home },
-      { path: `${PATH.checkout}/sucesso`, redirectTo: PATH.home },
-      { path: `${PATH.checkout}/cancelado`, redirectTo: PATH.home },
-      { path: PATH.checkout, redirectTo: PATH.home },
+      {
+        path: PATH.account,
+        loadComponent: () =>
+          import('./pages/account/account').then((m) => m.AccountPage),
+      },
+      {
+        path: PATH.wishlist,
+        loadComponent: () =>
+          import('./pages/wishlist/wishlist').then((m) => m.WishlistPage),
+      },
+      {
+        path: PATH.orders,
+        loadComponent: () =>
+          import('./pages/orders/orders').then((m) => m.OrdersPage),
+      },
+      {
+        path: PATH.login,
+        loadComponent: () => import('./pages/login/login').then((m) => m.LoginPage),
+      },
+      {
+        path: PATH.register,
+        loadComponent: () =>
+          import('./pages/register/register').then((m) => m.RegisterPage),
+      },
+      {
+        path: `${PATH.checkout}/sucesso`,
+        loadComponent: () =>
+          import('./pages/checkout/checkout-result').then((m) => m.CheckoutSuccessPage),
+      },
+      {
+        path: `${PATH.checkout}/cancelado`,
+        loadComponent: () =>
+          import('./pages/checkout/checkout-result').then((m) => m.CheckoutCancelPage),
+      },
+      {
+        path: PATH.checkout,
+        pathMatch: 'full',
+        canActivate: [customerAuthGuard],
+        loadComponent: () =>
+          import('./pages/checkout/checkout').then((m) => m.CheckoutPage),
+      },
     ],
   },
   {

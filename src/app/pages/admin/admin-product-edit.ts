@@ -35,6 +35,8 @@ import {
   ROUTES,
   productPath,
 } from '../../core/routes';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 
 const DEFAULT_SHIPPING =
   'Frete e prazo calculados no checkout. Arrependimento em até 7 dias corridos após o recebimento, conforme o CDC. Troca por outro motivo em até 14 dias, para peças sem uso e com etiqueta.';
@@ -87,6 +89,8 @@ export class AdminProductEditPage implements OnInit {
   private readonly router = inject(Router);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly catalog = inject(CatalogService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly listPath = ROUTES.adminProducts;
   readonly collectionOptions = (
@@ -98,7 +102,6 @@ export class AdminProductEditPage implements OnInit {
 
   readonly draft = signal<Product | null>(null);
   readonly galleryItems = signal<ProductMedia[]>([]);
-  readonly toast = signal('');
   readonly missing = signal(false);
   readonly isNew = signal(false);
   /** New product opened from a collection-scoped URL / `?colecao=` / `?collection=`. */
@@ -133,7 +136,7 @@ export class AdminProductEditPage implements OnInit {
       },
       error: (err) => {
         this.missing.set(true);
-        this.toast.set(adminHttpErrorMessage(err, 'Produto não encontrado.'));
+        this.toast.error(adminHttpErrorMessage(err, 'Produto não encontrado.'));
       },
     });
   }
@@ -254,8 +257,13 @@ export class AdminProductEditPage implements OnInit {
     this.draft.set({ ...p, pieces: [...(p.pieces ?? []), piece] });
   }
 
-  removePiece(index: number): void {
-    const ok = window.confirm('Remover esta peça do look?');
+  async removePiece(index: number): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Remover peça',
+      message: 'Remover esta peça do look?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
     if (!ok) return;
     const p = this.draft();
     if (!p?.pieces) return;
@@ -281,12 +289,12 @@ export class AdminProductEditPage implements OnInit {
       this.galleryItems.set(
         this.adminCatalog.mediaOf({ ...p, thumb, gallery }),
       );
-      this.toast.set('Fotos adicionadas localmente (demo).');
+      this.toast.info('Fotos adicionadas localmente (demo).');
       return;
     }
 
     if (this.isNew() || !p.slug) {
-      this.toast.set('Salve o produto antes de enviar fotos.');
+      this.toast.info('Salve o produto antes de enviar fotos.');
       return;
     }
 
@@ -295,11 +303,11 @@ export class AdminProductEditPage implements OnInit {
       next: (updated) => {
         this.uploading.set(false);
         this.loadDraft(structuredClone(updated));
-        this.toast.set('Fotos enviadas.');
+        this.toast.success('Fotos enviadas.');
       },
       error: (err) => {
         this.uploading.set(false);
-        this.toast.set(adminHttpErrorMessage(err, 'Falha no upload.'));
+        this.toast.error(adminHttpErrorMessage(err, 'Falha no upload.'));
       },
     });
   }
@@ -322,27 +330,33 @@ export class AdminProductEditPage implements OnInit {
     });
 
     if (!this.useApi || this.isNew() || items.some((m) => m.id.startsWith('local-'))) {
-      this.toast.set('Ordem da galeria atualizada.');
+      this.toast.success('Ordem da galeria atualizada.');
       return;
     }
 
     this.adminCatalog.reorderMediaViaApi(p.slug, items.map((m) => m.id)).subscribe({
       next: (updated) => {
         this.loadDraft(structuredClone(updated));
-        this.toast.set('Ordem das fotos salva.');
+        this.toast.success('Ordem das fotos salva.');
       },
       error: (err) => {
-        this.toast.set(adminHttpErrorMessage(err, 'Não foi possível reordenar as fotos.'));
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível reordenar as fotos.'));
         this.refreshFromApi(p.slug);
       },
     });
   }
 
-  removeGalleryItem(index: number): void {
+  async removeGalleryItem(index: number): Promise<void> {
     const items = [...this.galleryItems()];
     const target = items[index];
     if (!target) return;
-    const ok = window.confirm('Remover esta foto?');
+
+    const ok = await this.confirm.confirm({
+      title: 'Remover foto',
+      message: 'Remover esta foto?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
     if (!ok) return;
 
     const p = this.draft();
@@ -364,10 +378,10 @@ export class AdminProductEditPage implements OnInit {
     this.adminCatalog.detachMediaViaApi(p.slug, target.id).subscribe({
       next: (updated) => {
         this.loadDraft(structuredClone(updated));
-        this.toast.set('Foto removida.');
+        this.toast.success('Foto removida.');
       },
       error: (err) => {
-        this.toast.set(adminHttpErrorMessage(err, 'Não foi possível remover a foto.'));
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível remover a foto.'));
       },
     });
   }
@@ -376,11 +390,11 @@ export class AdminProductEditPage implements OnInit {
     const p = this.draft();
     if (!p) return;
     if (!p.name.trim()) {
-      this.toast.set('Informe o nome do produto.');
+      this.toast.info('Informe o nome do produto.');
       return;
     }
     if (this.isNew() ? !this.hasCollectionSelected() : !p.collectionSlug) {
-      this.toast.set(
+      this.toast.info(
         this.isNew() ? 'Selecione a coleção do produto.' : 'Selecione uma coleção.',
       );
       return;
@@ -430,18 +444,18 @@ export class AdminProductEditPage implements OnInit {
           this.isNew.set(false);
           this.slugLocked = true;
           this.loadDraft(structuredClone(saved));
-          this.toast.set('Produto criado.');
+          this.toast.success('Produto criado.');
           void this.router.navigateByUrl(`${ROUTES.adminProducts}/${saved.slug}`, {
             replaceUrl: true,
           });
           return;
         }
         this.loadDraft(structuredClone(saved));
-        this.toast.set('Salvo.');
+        this.toast.success('Salvo.');
       },
       error: (err) => {
         this.saving.set(false);
-        this.toast.set(adminHttpErrorMessage(err));
+        this.toast.error(adminHttpErrorMessage(err));
       },
     });
   }

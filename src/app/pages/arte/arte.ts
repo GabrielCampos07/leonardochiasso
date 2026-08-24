@@ -24,6 +24,15 @@ import { ArtMediaCarousel } from '../../shared/components/art-media-carousel/art
 import { ImageLightbox } from '../../shared/components/image-lightbox/image-lightbox';
 import { LcEditableImage } from '../../shared/components/edit/editable-image';
 import { LcEditableText } from '../../shared/components/edit/editable-text';
+import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
+import {
+  patchContentGalleryImage,
+  removeContentGalleryImage,
+  ContentGalleryPatch,
+} from '../../core/content-gallery.util';
+import { LcTrashButton } from '../../shared/components/feedback/trash-button';
 
 /** ContentDocument kind seeded in `seed-content-enrichment.ts`. */
 const CONTENT_KIND = 'arte-series';
@@ -31,7 +40,7 @@ const CONTENT_KIND = 'arte-series';
 @Component({
   selector: 'lc-arte-page',
   standalone: true,
-  imports: [RouterLink, ImageLightbox, ArtMediaCarousel, LcEditableText, LcEditableImage],
+  imports: [RouterLink, ImageLightbox, ArtMediaCarousel, LcEditableText, LcEditableImage, LcTrashButton],
   templateUrl: './arte.html',
   styleUrl: './arte.scss',
 })
@@ -39,6 +48,8 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
   private readonly chrome = inject(ChromeService);
   private readonly content = inject(ContentService);
   private readonly contentAdmin = inject(ContentAdminService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
   readonly admin = inject(AdminSessionService);
 
   readonly seriesList = this.content.arteSeries;
@@ -46,10 +57,13 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
   readonly introPoster = ART_INTRO_POSTER;
   readonly lightbox = signal<{ src: string; alt: string } | null>(null);
   readonly saving = signal(false);
+  readonly imageUploadingId = signal<string | null>(null);
   /** Active still index per piece id (multi-image works). */
   private readonly stillById = signal<Record<string, number>>({});
+  private pickTarget: { seriesId: string; pieceIndex: number; imageIndex: number } | null = null;
 
   @ViewChild('intro') private introRef?: ElementRef<HTMLVideoElement>;
+  @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
   private playAttempted = false;
 
   ngOnInit(): void {
@@ -101,6 +115,73 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
     this.stillById.update((m) => ({ ...m, [id]: index }));
   }
 
+  isImageUploading(piece: ArtPiece): boolean {
+    return this.imageUploadingId() === piece.id;
+  }
+
+  startAppendPieceImage(series: ArtSeries, pieceIndex: number): void {
+    const piece = series.pieces[pieceIndex];
+    if (!piece) return;
+    this.pickTarget = {
+      seriesId: series.id,
+      pieceIndex,
+      imageIndex: this.stills(piece).length,
+    };
+    this.fileInput?.nativeElement.click();
+  }
+
+  onFilePicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    const target = this.pickTarget;
+    this.pickTarget = null;
+    if (!file || !target) return;
+
+    const series = this.seriesList().find((s) => s.id === target.seriesId);
+    if (!series) return;
+    this.onPickPieceImage(series, target.pieceIndex, target.imageIndex, file);
+  }
+
+  async removePieceImage(series: ArtSeries, pieceIndex: number, index: number): Promise<void> {
+    const piece = series.pieces[pieceIndex];
+    if (!piece) return;
+
+    const ok = await this.confirm.confirm({
+      title: 'Remover foto',
+      message: 'Remover esta foto? Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const slug = this.seriesSlug(series);
+    const base = `pieces.${pieceIndex}`;
+    const state = {
+      gallery: this.stills(piece),
+      hasImagesArray: Boolean(piece.images?.length),
+    };
+    const patch = removeContentGalleryImage(state, index, {
+      imagesPath: `${base}.images`,
+      imagePath: `${base}.image`,
+    });
+    if (!patch) return;
+
+    this.imageUploadingId.set(piece.id);
+    this.contentAdmin.patchContentField(CONTENT_KIND, slug, patch.path, patch.value).subscribe({
+      next: () => {
+        this.applyGalleryPatch(slug, patch);
+        this.clampStillIndex(piece.id, Math.max(0, state.gallery.length - 2));
+        this.imageUploadingId.set(null);
+        this.toast.success('Foto removida.');
+      },
+      error: (err: unknown) => {
+        this.imageUploadingId.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível remover a foto.'));
+      },
+    });
+  }
+
   openImage(src: string, alt: string): void {
     if (this.admin.editMode()) return;
     this.lightbox.set({ src, alt });
@@ -117,8 +198,12 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
       next: () => {
         this.applyLocalPatch(slug, path, value);
         this.saving.set(false);
+        this.toast.success('Alteração salva.');
       },
-      error: () => this.saving.set(false),
+      error: (err: unknown) => {
+        this.saving.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar.'));
+      },
     });
   }
 
@@ -135,11 +220,18 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
           next: () => {
             this.applyLocalPatch(this.seriesSlug(series), path, cdnUrl);
             this.saving.set(false);
+            this.toast.success('Imagem atualizada.');
           },
-          error: () => this.saving.set(false),
+          error: (err: unknown) => {
+            this.saving.set(false);
+            this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar a imagem.'));
+          },
         });
       },
-      error: () => this.saving.set(false),
+      error: (err: unknown) => {
+        this.saving.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Falha no envio da foto.'));
+      },
     });
   }
 
@@ -147,10 +239,13 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
     const piece = series.pieces[pieceIndex];
     if (!piece) return;
 
-    this.saving.set(true);
+    this.imageUploadingId.set(piece.id);
     this.contentAdmin.uploadImage$(file, piece.title).subscribe({
       next: ({ cdnUrl }) => this.persistPieceImage(series, pieceIndex, imageIndex, cdnUrl),
-      error: () => this.saving.set(false),
+      error: (err: unknown) => {
+        this.imageUploadingId.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Falha no envio da foto.'));
+      },
     });
   }
 
@@ -162,39 +257,46 @@ export class ArtePage implements OnInit, AfterViewInit, OnDestroy {
   ): void {
     const slug = this.seriesSlug(series);
     const piece = series.pieces[pieceIndex];
-    const hasImages = Boolean(piece?.images?.length);
+    if (!piece) return;
 
-    if (hasImages) {
-      const imgPath = `pieces.${pieceIndex}.images.${imageIndex}`;
-      this.contentAdmin.patchContentField(CONTENT_KIND, slug, imgPath, cdnUrl).subscribe({
-        next: () => {
-          this.applyLocalPatch(slug, imgPath, cdnUrl);
-          if (imageIndex === 0) {
-            const coverPath = `pieces.${pieceIndex}.image`;
-            this.contentAdmin.patchContentField(CONTENT_KIND, slug, coverPath, cdnUrl).subscribe({
-              next: () => {
-                this.applyLocalPatch(slug, coverPath, cdnUrl);
-                this.saving.set(false);
-              },
-              error: () => this.saving.set(false),
-            });
-          } else {
-            this.saving.set(false);
-          }
-        },
-        error: () => this.saving.set(false),
-      });
-      return;
-    }
-
-    const coverPath = `pieces.${pieceIndex}.image`;
-    this.contentAdmin.patchContentField(CONTENT_KIND, slug, coverPath, cdnUrl).subscribe({
-      next: () => {
-        this.applyLocalPatch(slug, coverPath, cdnUrl);
-        this.saving.set(false);
-      },
-      error: () => this.saving.set(false),
+    const base = `pieces.${pieceIndex}`;
+    const state = {
+      gallery: this.stills(piece),
+      hasImagesArray: Boolean(piece.images?.length),
+    };
+    const patch = patchContentGalleryImage(state, imageIndex, cdnUrl, {
+      imagesPath: `${base}.images`,
+      imagePath: `${base}.image`,
     });
+
+    this.contentAdmin.patchContentField(CONTENT_KIND, slug, patch.path, patch.value).subscribe({
+      next: () => {
+        this.applyGalleryPatch(slug, patch);
+        if (imageIndex >= state.gallery.length) {
+          this.setStill(piece.id, imageIndex);
+        }
+        this.imageUploadingId.set(null);
+        this.toast.success('Foto atualizada.');
+      },
+      error: (err: unknown) => {
+        this.imageUploadingId.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar a foto.'));
+      },
+    });
+  }
+
+  private applyGalleryPatch(slug: string, patch: ContentGalleryPatch): void {
+    this.applyLocalPatch(slug, patch.path, patch.value);
+    for (const extra of patch.localSync ?? []) {
+      this.applyLocalPatch(slug, extra.path, extra.value);
+    }
+  }
+
+  private clampStillIndex(pieceId: string, maxIndex: number): void {
+    const current = this.stillById()[pieceId] ?? 0;
+    if (current > maxIndex) {
+      this.setStill(pieceId, maxIndex);
+    }
   }
 
   private applyLocalPatch(seriesSlug: string, path: string, value: unknown): void {

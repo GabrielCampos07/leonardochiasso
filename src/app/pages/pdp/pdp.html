@@ -51,7 +51,7 @@
           >
             <img [src]="mainImage()" [alt]="p.name" />
           </button>
-          @if (product()!.gallery.length > 1) {
+          @if (galleryUrls().length > 1) {
             <button
               class="pdp__nav pdp__nav--prev"
               type="button"
@@ -85,7 +85,7 @@
               </svg>
             </button>
             <div class="pdp__dots" aria-hidden="true">
-              @for (img of product()!.gallery; track img; let i = $index) {
+              @for (url of galleryUrls(); track i; let i = $index) {
                 <span [class.is-active]="activeImage() === i"></span>
               }
             </div>
@@ -111,14 +111,11 @@
                 [class.is-active]="activeImage() === i"
               >
                 @if (admin.editMode()) {
-                  <button
-                    type="button"
-                    class="pdp__thumb-handle"
-                    cdkDragHandle
-                    aria-label="Arrastar foto"
-                  >
-                    ⋮⋮
-                  </button>
+                  <lc-trash-button
+                    ariaLabel="Remover foto"
+                    [disabled]="uploading()"
+                    (pressed)="removeGalleryImage(i)"
+                  />
                 }
                 <button type="button" class="pdp__thumb-btn" (click)="selectImage(i)">
                   <img [src]="item.cdnUrl" [alt]="p.name + ' ' + (i + 1)" />
@@ -187,6 +184,23 @@
           <strong>{{ product()!.size }}</strong>
         </div>
 
+        <button
+          class="pdp__wish"
+          type="button"
+          [attr.aria-pressed]="wishlist.has(product()!.id)"
+          (click)="toggleWish()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              [attr.fill]="wishlist.has(product()!.id) ? 'currentColor' : 'none'"
+              stroke="currentColor"
+              stroke-width="1.2"
+              d="M12 19s-6.5-4.2-8.5-8A4.5 4.5 0 0 1 12 7.2 4.5 4.5 0 0 1 20.5 11c-2 3.8-8.5 8-8.5 8z"
+            />
+          </svg>
+          {{ wishlist.has(product()!.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos' }}
+        </button>
+
         <div class="pdp__block">
           <h2>Descrição</h2>
           <lc-editable-text
@@ -229,7 +243,7 @@
 <lc-image-binding-picker
   [open]="bindingPickerOpen()"
   title="Vincular foto à peça/cor selecionada"
-  [gallery]="product()?.gallery ?? []"
+  [gallery]="galleryUrls()"
   (pick)="bindGalleryIndex($event)"
   (closed)="closeBindingPicker()"
 />

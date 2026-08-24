@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { ArtPiece, ArtSeries } from '../../core/arte.data';
@@ -10,6 +10,15 @@ import { ArtMediaCarousel } from '../../shared/components/art-media-carousel/art
 import { ImageLightbox } from '../../shared/components/image-lightbox/image-lightbox';
 import { LcEditableImage } from '../../shared/components/edit/editable-image';
 import { LcEditableText } from '../../shared/components/edit/editable-text';
+import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
+import {
+  ContentGalleryPatch,
+  patchContentGalleryImage,
+  removeContentGalleryImage,
+} from '../../core/content-gallery.util';
+import { LcTrashButton } from '../../shared/components/feedback/trash-button';
 
 const CONTENT_KIND = 'arte-series';
 
@@ -22,7 +31,7 @@ interface ArteDetailCtx {
 @Component({
   selector: 'lc-arte-detail-page',
   standalone: true,
-  imports: [RouterLink, ImageLightbox, ArtMediaCarousel, LcEditableText, LcEditableImage],
+  imports: [RouterLink, ImageLightbox, ArtMediaCarousel, LcEditableText, LcEditableImage, LcTrashButton],
   templateUrl: './arte-detail.html',
   styleUrl: './arte-detail.scss',
 })
@@ -31,14 +40,20 @@ export class ArteDetailPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly content = inject(ContentService);
   private readonly contentAdmin = inject(ContentAdminService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
   readonly admin = inject(AdminSessionService);
 
   readonly home = ROUTES.home;
   readonly gallery = ROUTES.arte;
   readonly lightbox = signal<{ src: string; alt: string } | null>(null);
   readonly saving = signal(false);
+  readonly imageUploadingId = signal<string | null>(null);
   private readonly stillById = signal<Record<string, number>>({});
   private readonly slug = signal('');
+  private pickAppend = false;
+
+  @ViewChild('fileInput') private fileInput?: ElementRef<HTMLInputElement>;
 
   readonly ctx = computed((): ArteDetailCtx | null => {
     const slug = this.slug();
@@ -83,6 +98,55 @@ export class ArteDetailPage implements OnInit {
     this.stillById.update((m) => ({ ...m, [id]: index }));
   }
 
+  isImageUploading(piece: ArtPiece): boolean {
+    return this.imageUploadingId() === piece.id;
+  }
+
+  startAppendImage(): void {
+    this.pickAppend = true;
+    this.fileInput?.nativeElement.click();
+  }
+
+  async removeImage(index: number): Promise<void> {
+    const ctx = this.ctx();
+    if (!ctx) return;
+
+    const ok = await this.confirm.confirm({
+      title: 'Remover foto',
+      message: 'Remover esta foto? Esta ação não pode ser desfeita.',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const { series, piece, pieceIndex } = ctx;
+    const slug = series.id;
+    const base = `pieces.${pieceIndex}`;
+    const state = {
+      gallery: this.stills(piece),
+      hasImagesArray: Boolean(piece.images?.length),
+    };
+    const patch = removeContentGalleryImage(state, index, {
+      imagesPath: `${base}.images`,
+      imagePath: `${base}.image`,
+    });
+    if (!patch) return;
+
+    this.imageUploadingId.set(piece.id);
+    this.contentAdmin.patchContentField(CONTENT_KIND, slug, patch.path, patch.value).subscribe({
+      next: () => {
+        this.applyGalleryPatch(slug, patch);
+        this.clampStillIndex(piece.id, Math.max(0, state.gallery.length - 2));
+        this.imageUploadingId.set(null);
+        this.toast.success('Foto removida.');
+      },
+      error: (err: unknown) => {
+        this.imageUploadingId.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível remover a foto.'));
+      },
+    });
+  }
+
   openImage(src: string, alt: string): void {
     if (this.admin.editMode()) return;
     this.lightbox.set({ src, alt });
@@ -102,58 +166,83 @@ export class ArteDetailPage implements OnInit {
       next: () => {
         this.applyLocalPatch(seriesSlug, path, value);
         this.saving.set(false);
+        this.toast.success('Alteração salva.');
       },
-      error: () => this.saving.set(false),
+      error: (err: unknown) => {
+        this.saving.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar.'));
+      },
     });
   }
 
   onPickImage(file: File): void {
     const ctx = this.ctx();
     if (!ctx) return;
-    const imageIndex = this.stillIndex(ctx.piece);
-    this.saving.set(true);
+    const imageIndex = this.pickAppend
+      ? this.stills(ctx.piece).length
+      : this.stillIndex(ctx.piece);
+    this.pickAppend = false;
+    this.imageUploadingId.set(ctx.piece.id);
     this.contentAdmin.uploadImage$(file, ctx.piece.title).subscribe({
       next: ({ cdnUrl }) => this.persistImage(ctx, imageIndex, cdnUrl),
-      error: () => this.saving.set(false),
+      error: (err: unknown) => {
+        this.imageUploadingId.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Falha no envio da foto.'));
+      },
     });
+  }
+
+  onFilePicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) {
+      this.pickAppend = false;
+      return;
+    }
+    this.onPickImage(file);
   }
 
   private persistImage(ctx: ArteDetailCtx, imageIndex: number, cdnUrl: string): void {
     const seriesSlug = ctx.series.id;
-    const { pieceIndex, piece } = ctx;
-    const hasImages = Boolean(piece.images?.length);
-
-    if (hasImages) {
-      const imgPath = `pieces.${pieceIndex}.images.${imageIndex}`;
-      this.contentAdmin.patchContentField(CONTENT_KIND, seriesSlug, imgPath, cdnUrl).subscribe({
-        next: () => {
-          this.applyLocalPatch(seriesSlug, imgPath, cdnUrl);
-          if (imageIndex === 0) {
-            const coverPath = `pieces.${pieceIndex}.image`;
-            this.contentAdmin.patchContentField(CONTENT_KIND, seriesSlug, coverPath, cdnUrl).subscribe({
-              next: () => {
-                this.applyLocalPatch(seriesSlug, coverPath, cdnUrl);
-                this.saving.set(false);
-              },
-              error: () => this.saving.set(false),
-            });
-          } else {
-            this.saving.set(false);
-          }
-        },
-        error: () => this.saving.set(false),
-      });
-      return;
-    }
-
-    const coverPath = `pieces.${pieceIndex}.image`;
-    this.contentAdmin.patchContentField(CONTENT_KIND, seriesSlug, coverPath, cdnUrl).subscribe({
-      next: () => {
-        this.applyLocalPatch(seriesSlug, coverPath, cdnUrl);
-        this.saving.set(false);
-      },
-      error: () => this.saving.set(false),
+    const base = `pieces.${ctx.pieceIndex}`;
+    const state = {
+      gallery: this.stills(ctx.piece),
+      hasImagesArray: Boolean(ctx.piece.images?.length),
+    };
+    const patch = patchContentGalleryImage(state, imageIndex, cdnUrl, {
+      imagesPath: `${base}.images`,
+      imagePath: `${base}.image`,
     });
+
+    this.contentAdmin.patchContentField(CONTENT_KIND, seriesSlug, patch.path, patch.value).subscribe({
+      next: () => {
+        this.applyGalleryPatch(seriesSlug, patch);
+        if (imageIndex >= state.gallery.length) {
+          this.setStill(ctx.piece.id, imageIndex);
+        }
+        this.imageUploadingId.set(null);
+        this.toast.success('Foto atualizada.');
+      },
+      error: (err: unknown) => {
+        this.imageUploadingId.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar a foto.'));
+      },
+    });
+  }
+
+  private applyGalleryPatch(slug: string, patch: ContentGalleryPatch): void {
+    this.applyLocalPatch(slug, patch.path, patch.value);
+    for (const extra of patch.localSync ?? []) {
+      this.applyLocalPatch(slug, extra.path, extra.value);
+    }
+  }
+
+  private clampStillIndex(pieceId: string, maxIndex: number): void {
+    const current = this.stillById()[pieceId] ?? 0;
+    if (current > maxIndex) {
+      this.setStill(pieceId, maxIndex);
+    }
   }
 
   private applyLocalPatch(seriesSlug: string, path: string, value: unknown): void {

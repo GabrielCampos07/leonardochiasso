@@ -15,6 +15,8 @@ import {
   adminProductPath,
 } from '../../core/routes';
 import { displayPriceLabel } from '../../core/pricing';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 
 @Component({
   selector: 'lc-admin-products',
@@ -26,11 +28,12 @@ import { displayPriceLabel } from '../../core/pricing';
 export class AdminProductsPage implements OnInit {
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly catalog = inject(CatalogService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly query = signal('');
   readonly category = signal<'todos' | 'feminino' | 'masculino'>('todos');
   readonly collection = signal<'todas' | string>('todas');
-  readonly toast = signal('');
   readonly loading = signal(true);
   readonly savingOrder = signal(false);
   readonly useApi = this.adminCatalog.useApi;
@@ -81,7 +84,7 @@ export class AdminProductsPage implements OnInit {
       },
       error: (err) => {
         this.loading.set(false);
-        this.flash(adminHttpErrorMessage(err, 'Não foi possível carregar os produtos.'));
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível carregar os produtos.'));
       },
     });
   }
@@ -104,14 +107,17 @@ export class AdminProductsPage implements OnInit {
     this.applyVisibleOrder(nextVis);
   }
 
-  resetAll(): void {
+  async resetAll(): Promise<void> {
     if (this.useApi) {
-      this.flash('Com a API ativa, a ordem fica no banco — use arrastar ou ↑↓.');
+      this.toast.info('Com a API ativa, a ordem fica no banco — use arrastar ou ↑↓.');
       return;
     }
-    const ok = window.confirm(
-      'Tem certeza? Isso apaga todas as alterações feitas aqui e volta ao catálogo original.',
-    );
+    const ok = await this.confirm.confirm({
+      title: 'Restaurar catálogo',
+      message: 'Tem certeza? Isso apaga todas as alterações feitas aqui e volta ao catálogo original.',
+      confirmLabel: 'Restaurar',
+      destructive: true,
+    });
     if (!ok) return;
     this.adminCatalog.resetAll();
     this.refresh();
@@ -148,13 +154,12 @@ export class AdminProductsPage implements OnInit {
       error: (err) => {
         this.savingOrder.set(false);
         this.refresh();
-        this.flash(adminHttpErrorMessage(err, 'Não foi possível salvar a ordem.'));
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar a ordem.'));
       },
     });
   }
 
   private flash(msg: string): void {
-    this.toast.set(msg);
-    window.setTimeout(() => this.toast.set(''), 3200);
+    this.toast.success(msg);
   }
 }

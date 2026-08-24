@@ -10,6 +10,8 @@ import {
 import { productPath } from '../../../core/routes';
 import { displayPriceLabel } from '../../../core/pricing';
 import { AdminSessionService } from '../../../core/admin-session.service';
+import { ConfirmService } from '../../../core/feedback/confirm.service';
+import { WishlistService } from '../../../core/wishlist.service';
 
 @Component({
   selector: 'lc-product-card',
@@ -41,6 +43,22 @@ import { AdminSessionService } from '../../../core/admin-session.service';
           <a [routerLink]="linkFor(product)" class="card__link">
             <img [src]="displayThumb()" [alt]="displayName()" />
           </a>
+          <button
+            class="card__wish"
+            type="button"
+            [attr.aria-label]="wishlist.has(product.id) ? 'Remover dos favoritos' : 'Adicionar aos favoritos'"
+            [attr.aria-pressed]="wishlist.has(product.id)"
+            (click)="onToggleWish($event)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                [attr.fill]="wishlist.has(product.id) ? 'currentColor' : 'none'"
+                stroke="currentColor"
+                stroke-width="1.2"
+                d="M12 19s-6.5-4.2-8.5-8A4.5 4.5 0 0 1 12 7.2 4.5 4.5 0 0 1 20.5 11c-2 3.8-8.5 8-8.5 8z"
+              />
+            </svg>
+          </button>
           @if (admin.editMode()) {
             <a
               class="card__edit"
@@ -285,6 +303,8 @@ import { AdminSessionService } from '../../../core/admin-session.service';
 })
 export class LcProductCard implements OnChanges {
   readonly admin = inject(AdminSessionService);
+  readonly wishlist = inject(WishlistService);
+  private readonly confirm = inject(ConfirmService);
 
   @Input() product: Product | null = null;
   @Input() placeholder = false;
@@ -349,5 +369,25 @@ export class LcProductCard implements OnChanges {
     event.preventDefault();
     event.stopPropagation();
     this.selectedPieceId.set(pieceId);
+  }
+
+  async onToggleWish(event: Event): Promise<void> {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!this.product) return;
+
+    if (this.wishlist.has(this.product.id)) {
+      const ok = await this.confirm.confirm({
+        title: 'Remover dos favoritos',
+        message: 'Remover esta peça da lista de favoritos?',
+        confirmLabel: 'Remover',
+        destructive: true,
+      });
+      if (!ok) return;
+      this.wishlist.remove(this.product.id);
+      return;
+    }
+
+    this.wishlist.add(this.product.id);
   }
 }

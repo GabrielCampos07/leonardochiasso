@@ -19,10 +19,10 @@
               (pick)="onPickImage($event)"
             />
           }
-          @if (stills(c.piece).length > 1) {
-            <ul class="arte-d__thumbs" aria-label="Mais fotos — selecione para trocar">
-              @for (src of stills(c.piece); track $index; let ti = $index) {
-                <li>
+          @if (stills(c.piece).length) {
+            <ul class="arte-d__thumbs" aria-label="Fotos — selecione para trocar">
+              @for (src of stills(c.piece); track ti; let ti = $index) {
+                <li class="arte-d__thumb-wrap">
                   <button
                     type="button"
                     class="arte-d__thumb"
@@ -31,15 +31,31 @@
                   >
                     <img [src]="src" [alt]="c.piece.title + ' — foto ' + (ti + 1)" />
                   </button>
+                  <lc-trash-button
+                    ariaLabel="Remover foto"
+                    [disabled]="isImageUploading(c.piece)"
+                    (pressed)="removeImage(ti)"
+                  />
                 </li>
               }
+              <li>
+                <button
+                  type="button"
+                  class="arte-d__thumb-add"
+                  aria-label="Adicionar foto"
+                  [disabled]="isImageUploading(c.piece)"
+                  (click)="startAppendImage()"
+                >
+                  +
+                </button>
+              </li>
             </ul>
-            <p class="arte-d__edit-hint">Selecione a miniatura e use «Trocar»</p>
+            <p class="arte-d__edit-hint">Selecione a miniatura, use «Trocar» ou remova com a lixeira</p>
           }
         } @else {
           <lc-art-media-carousel
-            [image]="c.piece.image"
-            [images]="c.piece.images ?? []"
+            [image]="activeStill(c.piece)"
+            [images]="stills(c.piece)"
             [alt]="c.piece.title"
             [videoSrc]="c.piece.videoSrc"
             (openStill)="openImage($event, c.piece.title)"
@@ -113,3 +129,11 @@
 @if (lightbox(); as lb) {
   <lc-image-lightbox [src]="lb.src" [alt]="lb.alt" (closed)="closeLightbox()" />
 }
+
+<input
+  #fileInput
+  type="file"
+  accept="image/*"
+  hidden
+  (change)="onFilePicked($event)"
+/>

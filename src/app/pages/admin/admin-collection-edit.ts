@@ -16,6 +16,8 @@ import {
   adminCollectionPath,
   adminProductPath,
 } from '../../core/routes';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 
 function slugify(value: string): string {
   return value
@@ -39,6 +41,8 @@ export class AdminCollectionEditPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(AdminCollectionsApiService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly listPath = ROUTES.adminCollections;
   readonly newProductPath = adminProductPath(ADMIN_NEW_PRODUCT_SLUG);
@@ -46,7 +50,6 @@ export class AdminCollectionEditPage implements OnInit {
   readonly missing = signal(false);
   readonly loading = signal(true);
   readonly saving = signal(false);
-  readonly toast = signal('');
   readonly error = signal('');
 
   readonly slug = signal('');
@@ -63,7 +66,6 @@ export class AdminCollectionEditPage implements OnInit {
     this.route.paramMap.subscribe((params) => {
       const param = params.get('slug') ?? '';
       this.slugLocked = false;
-      this.toast.set('');
       this.error.set('');
       if (param === ADMIN_NEW_COLLECTION_SLUG) {
         this.isNew.set(true);
@@ -166,8 +168,13 @@ export class AdminCollectionEditPage implements OnInit {
     this.persistOrder();
   }
 
-  removeProduct(productSlug: string): void {
-    const ok = window.confirm('Remover este produto da coleção? (o produto não é apagado)');
+  async removeProduct(productSlug: string): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Remover da coleção',
+      message: 'Remover este produto da coleção? (o produto não é apagado)',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
     if (!ok) return;
     this.products.set(this.products().filter((p) => p.slug !== productSlug));
     this.persistOrder();
@@ -238,8 +245,7 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   private flash(msg: string): void {
-    this.toast.set(msg);
-    window.setTimeout(() => this.toast.set(''), 3200);
+    this.toast.success(msg);
   }
 
   private formatError(

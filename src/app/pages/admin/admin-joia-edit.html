@@ -13,15 +13,6 @@
       </div>
     </header>
 
-    @if (toast()) {
-      <p class="admin-edit__toast" role="status">
-        {{ toast() }}
-        @if (!isNew()) {
-          <a [routerLink]="siteJoias" target="_blank" rel="noopener">Ver no site</a>
-        }
-      </p>
-    }
-
     <form class="admin-edit__form" (ngSubmit)="save()">
       <fieldset>
         <legend>Básico</legend>

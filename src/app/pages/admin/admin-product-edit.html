@@ -13,15 +13,6 @@
       </div>
     </header>
 
-    @if (toast()) {
-      <p class="admin-edit__toast" role="status">
-        {{ toast() }}
-        @if (!isNew() && p.slug) {
-          <a [routerLink]="sitePath()" target="_blank" rel="noopener">Ver no site</a>
-        }
-      </p>
-    }
-
     <form class="admin-edit__form" (ngSubmit)="save()">
       <fieldset>
         <legend>Básico</legend>
@@ -209,18 +200,16 @@
           >
             @for (item of galleryItems(); track item.id; let i = $index) {
               <li class="admin-edit__gallery-item" cdkDrag>
-                <button
-                  type="button"
-                  class="admin-edit__gallery-handle"
-                  cdkDragHandle
-                  aria-label="Arrastar foto"
-                >
-                  ⋮⋮
-                </button>
                 <img [src]="item.cdnUrl" [alt]="item.altPt || p.name" />
                 <div class="admin-edit__gallery-meta">
                   <span>{{ i === 0 ? 'Principal' : 'Galeria' }}</span>
-                  <button type="button" (click)="removeGalleryItem(i)">Remover</button>
+                  <button
+                    type="button"
+                    (pointerdown)="$event.stopPropagation()"
+                    (click)="removeGalleryItem(i); $event.stopPropagation()"
+                  >
+                    Remover
+                  </button>
                 </div>
               </li>
             }
