@@ -1,0 +1,81 @@
+# Pull latest main on Hetzner and rebuild API + Caddy (Docker Compose).
+#
+# One-time server setup:
+#   1. git clone <repo> /opt/leo-chiasso  (private repo → deploy key on server)
+#   2. cp api/.env.production.example api/.env && edit secrets (never commit .env)
+#   3. cd api && docker compose -f docker-compose.prod.yml up -d --build
+#
+# GitHub Environment "HETZNER_API" secrets:
+#   SSH_HOST, SSH_USER, SSH_PRIVATE_KEY, DEPLOY_PATH (/opt/leo-chiasso)
+#
+# Optional: API_HEALTH_URL (default https://api.leonardochiasso.com/api/health)
+name: Deploy API to Hetzner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**'
+      - '.github/workflows/deploy-api-hetzner.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api-hetzner
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: HETZNER_API
+    steps:
+      - name: Verify SSH secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY DEPLOY_PATH; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing secret $name in environment HETZNER_API."
+              exit 1
+            fi
+          done
+          echo "SSH secrets present."
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            git fetch origin main
+            git reset --hard origin/main
+            cd api
+            docker compose -f docker-compose.prod.yml up -d --build
+            docker compose -f docker-compose.prod.yml ps
+
+      - name: Health check
+        run: |
+          set -euo pipefail
+          HEALTH_URL="${{ secrets.API_HEALTH_URL }}"
+          if [ -z "$HEALTH_URL" ]; then
+            HEALTH_URL="https://api.leonardochiasso.com/api/health"
+          fi
+          echo "Waiting for ${HEALTH_URL} ..."
+          for attempt in $(seq 1 12); do
+            if curl -sf "$HEALTH_URL"; then
+              echo ""
+              echo "API healthy after attempt ${attempt}."
+              exit 0
+            fi
+            echo "Attempt ${attempt}/12 — not ready yet."
+            sleep 10
+          done
+          echo "::error::Health check failed: ${HEALTH_URL}"
+          exit 1

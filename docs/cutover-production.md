@@ -61,6 +61,23 @@ curl -sS https://api.leonardochiasso.com/api/health
 
 Esperado: `{"ok":true,...}`.
 
+### 5. Deploy automático (GitHub Actions)
+
+Workflow: [`.github/workflows/deploy-api-hetzner.yml`](../.github/workflows/deploy-api-hetzner.yml).
+
+**No servidor (uma vez):**
+
+```bash
+git clone git@github.com:GabrielCampos07/leonardochiasso.git /opt/leo-chiasso
+# Deploy key read-only no GitHub (Settings → Deploy keys) com a pubkey do servidor
+```
+
+**No GitHub (Environment `HETZNER_API`):** `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `DEPLOY_PATH` (`/opt/leo-chiasso`).
+
+Push em `main` que altere `api/**` → SSH no Hetzner → `git pull` → `docker compose up -d --build` → health check.
+
+Ver README secção **Deploy API (Hetzner)** para chaves SSH (Actions vs deploy key).
+
 Seed (uma vez, se o Neon ainda estiver vazio) — na sua máquina com o mesmo `DATABASE_URL`:
 
 ```bash

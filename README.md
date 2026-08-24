@@ -113,6 +113,60 @@ Se joias/arte/lookbooks estiverem vazios na API, rode antes `npm run prisma:seed
 
 **Outros vídeos no R2** (não o MOV de 2 GB): key `video/{caminho}`, depois `npm run migrate:content-urls`.
 
+## Deploy API (Hetzner)
+
+### Automático (GitHub Actions)
+
+Push na `main` com mudanças em `api/**` dispara [`.github/workflows/deploy-api-hetzner.yml`](./.github/workflows/deploy-api-hetzner.yml).
+
+Disparo manual: **Actions** → **Deploy API to Hetzner** → **Run workflow**.
+
+#### Setup único no servidor (Hetzner)
+
+```bash
+# Chave de deploy (GitHub → Settings → Deploy keys → read-only)
+ssh-keygen -t ed25519 -C "hetzner-leo-chiasso" -f ~/.ssh/leo-chiasso-deploy -N ""
+cat ~/.ssh/leo-chiasso-deploy.pub   # adicionar no GitHub
+
+ssh root@188.245.217.205
+git clone git@github.com:GabrielCampos07/leonardochiasso.git /opt/leo-chiasso
+cd /opt/leo-chiasso/api
+cp .env.production.example .env && nano .env
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Detalhes de DNS, firewall e `.env`: [`docs/cutover-production.md`](./docs/cutover-production.md).
+
+#### Secrets no GitHub
+
+Environment **`HETZNER_API`** (Settings → Environments → **HETZNER_API** → Environment secrets):
+
+| Secret | Valor |
+|--------|--------|
+| `SSH_HOST` | IP do Hetzner (ex. `188.245.217.205`) |
+| `SSH_USER` | `root` (ou usuário com Docker) |
+| `SSH_PRIVATE_KEY` | chave **privada** usada pelo Actions para SSH (par da chave em `authorized_keys` no servidor) |
+| `DEPLOY_PATH` | `/opt/leo-chiasso` (pasta do clone) |
+| `API_HEALTH_URL` | opcional — default `https://api.leonardochiasso.com/api/health` |
+
+**Importante:** a chave em `SSH_PRIVATE_KEY` (GitHub) é a que o **Actions** usa para entrar no servidor. A chave de **deploy key** (no servidor, para `git pull`) é outra — read-only no repositório.
+
+No Hetzner, autorize a chave pública do Actions:
+
+```bash
+echo "CHAVE_PUBLICA_DO_ACTIONS" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+### Manual
+
+```bash
+ssh root@188.245.217.205
+cd /opt/leo-chiasso && git pull origin main
+cd api && docker compose -f docker-compose.prod.yml up -d --build
+curl -sS https://api.leonardochiasso.com/api/health
+```
+
 ## Estrutura (visão rápida)
 
 ```
