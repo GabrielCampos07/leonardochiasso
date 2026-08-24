@@ -152,16 +152,33 @@
         }
         <p class="pdp__price">{{ priceLabel() }}</p>
 
-        @if (pieces().length > 1) {
-          <div class="pdp__pieces" role="group" aria-label="Escolher peça">
-            <p class="pdp__pieces-label">Escolha a peça</p>
-            <lc-editable-pieces
-              [pieces]="pieces()"
-              [activePieceId]="selectedPiece()?.id ?? null"
-              [pricesOnRequest]="pricesOnRequest"
-              (selectPiece)="selectPiece($event)"
-              (renamePiece)="renamePiece($event.pieceId, $event.name)"
-            />
+        @if (admin.editMode() || pieces().length > 1) {
+          <div class="pdp__pieces" role="group" aria-label="Peças do look">
+            <div class="pdp__pieces-head">
+              <p class="pdp__pieces-label">
+                {{ admin.editMode() ? 'Peças do look' : 'Escolha a peça' }}
+              </p>
+              @if (admin.editMode()) {
+                <button
+                  type="button"
+                  class="pdp__pieces-manage"
+                  (click)="openPiecesManager()"
+                >
+                  Gerenciar peças
+                </button>
+              }
+            </div>
+            @if (pieces().length) {
+              <lc-editable-pieces
+                [pieces]="pieces()"
+                [activePieceId]="selectedPiece()?.id ?? null"
+                [pricesOnRequest]="pricesOnRequest"
+                (selectPiece)="selectPiece($event)"
+                (renamePiece)="renamePiece($event.pieceId, $event.name)"
+              />
+            } @else if (admin.editMode()) {
+              <p class="pdp__pieces-empty">Nenhuma peça neste look ainda.</p>
+            }
           </div>
         }
 
@@ -177,6 +194,15 @@
               />
             }
             <strong>{{ p.color }}</strong>
+            @if (admin.editMode() && selectedColorId()) {
+              <button
+                type="button"
+                class="pdp__bind-color"
+                (click)="openColorBinding(selectedColorId()!)"
+              >
+                Vincular foto à cor
+              </button>
+            }
           </div>
         </div>
         <div class="pdp__attr">
@@ -242,8 +268,16 @@
 
 <lc-image-binding-picker
   [open]="bindingPickerOpen()"
-  title="Vincular foto à peça/cor selecionada"
+  title="Gerenciar peças"
   [gallery]="galleryUrls()"
+  [pieces]="pieces()"
+  [activePieceId]="selectedPiece()?.id ?? null"
+  [managePieces]="!bindingTarget()?.colorId"
+  [colorLabel]="bindingColorLabel()"
   (pick)="bindGalleryIndex($event)"
   (closed)="closeBindingPicker()"
+  (addPiece)="addPiece()"
+  (removePiece)="removePiece($event)"
+  (renamePiece)="renamePiece($event.pieceId, $event.name)"
+  (selectPiece)="onManagerSelectPiece($event)"
 />

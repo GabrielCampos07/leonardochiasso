@@ -3,7 +3,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { CatalogService } from '../../core/catalog.service';
 import { ContentAdminService } from '../../core/content-admin.service';
-import { AdminCatalogService, adminHttpErrorMessage } from '../../core/admin-catalog.service';
+import { AdminCatalogService, adminHttpErrorMessage, syncPiecePrice } from '../../core/admin-catalog.service';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
@@ -13,6 +13,7 @@ import {
   ProductMedia,
   ProductPiece,
   colorSwatches,
+  formatPriceLabel,
   productWithPiece,
   resolveProductHeroImage,
 } from '../../core/product.model';
@@ -151,20 +152,109 @@ export class PdpPage implements OnInit {
     this.selectedPieceId.set(pieceId);
     this.manualGallery.set(false);
     this.syncImageFromSelection();
-    if (this.admin.editMode()) {
-      this.bindingTarget.set({ pieceId });
-      this.bindingPickerOpen.set(true);
-    }
   }
 
   selectColor(colorId: string): void {
     this.selectedColorId.set(this.selectedColorId() === colorId ? null : colorId);
     this.manualGallery.set(false);
     this.syncImageFromSelection();
-    if (this.admin.editMode()) {
-      this.bindingTarget.set({ colorId });
-      this.bindingPickerOpen.set(true);
+  }
+
+  openPiecesManager(pieceId?: string): void {
+    if (pieceId) this.selectedPieceId.set(pieceId);
+    else if (!this.selectedPieceId() && this.pieces()[0]) {
+      this.selectedPieceId.set(this.pieces()[0]!.id);
     }
+    this.bindingTarget.set({
+      pieceId: pieceId ?? this.selectedPieceId() ?? undefined,
+    });
+    this.bindingPickerOpen.set(true);
+  }
+
+  openColorBinding(colorId: string): void {
+    this.selectedColorId.set(colorId);
+    this.bindingTarget.set({ colorId });
+    this.bindingPickerOpen.set(true);
+  }
+
+  onManagerSelectPiece(pieceId: string): void {
+    this.selectPiece(pieceId);
+    this.bindingTarget.set({ pieceId });
+  }
+
+  addPiece(): void {
+    const p = this.product();
+    if (!p) return;
+    const n = (p.pieces?.length ?? 0) + 1;
+    const id = `peca-${n}-${Date.now().toString(36)}`;
+    const piece = syncPiecePrice(
+      {
+        id,
+        name: `Peça ${n}`,
+        price: 0,
+        priceLabel: formatPriceLabel(0),
+      },
+      0,
+    );
+    const pieces = [...(p.pieces ?? []), piece];
+    this.contentAdmin.patchProductField(p.slug, 'pieces', pieces).subscribe({
+      next: (next) => {
+        if (next) {
+          this.applyProduct(next);
+          this.selectedPieceId.set(piece.id);
+          this.bindingTarget.set({ pieceId: piece.id });
+          this.toast.success('Peça adicionada.');
+        }
+      },
+      error: (err: unknown) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível adicionar a peça.'));
+      },
+    });
+  }
+
+  async removePiece(pieceId: string): Promise<void> {
+    const p = this.product();
+    if (!p?.pieces?.length) return;
+
+    const ok = await this.confirm.confirm({
+      title: 'Remover peça',
+      message: 'Remover esta peça do look?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const pieces = p.pieces.filter((x) => x.id !== pieceId);
+    const bindings = (p.imageBindings ?? []).filter((b) => b.pieceId !== pieceId);
+
+    this.contentAdmin.patchProductField(p.slug, 'pieces', pieces).subscribe({
+      next: (next) => {
+        if (!next) return;
+        const apply = (product: Product) => {
+          this.applyProduct(product);
+          const still = product.pieces?.some((x) => x.id === this.selectedPieceId());
+          if (!still) {
+            this.selectedPieceId.set(product.pieces?.[0]?.id ?? null);
+          }
+          this.bindingTarget.set({
+            pieceId: this.selectedPieceId() ?? undefined,
+          });
+          this.toast.success('Peça removida.');
+        };
+
+        if (bindings.length !== (p.imageBindings ?? []).length) {
+          this.contentAdmin.patchProductField(p.slug, 'imageBindings', bindings).subscribe({
+            next: (withBindings) => apply(withBindings ?? next),
+            error: () => apply(next),
+          });
+          return;
+        }
+        apply(next);
+      },
+      error: (err: unknown) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível remover a peça.'));
+      },
+    });
   }
 
   selectImage(index: number): void {
@@ -251,7 +341,19 @@ export class PdpPage implements OnInit {
     if (!p?.pieces) return;
     const idx = p.pieces.findIndex((x) => x.id === pieceId);
     if (idx < 0) return;
-    this.patchField(`pieces.${idx}.name`, name);
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === p.pieces[idx]!.name) return;
+    this.contentAdmin.patchProductField(p.slug, `pieces.${idx}.name`, trimmed).subscribe({
+      next: (next) => {
+        if (next) {
+          this.applyProduct(next);
+          this.toast.success('Peça atualizada.');
+        }
+      },
+      error: (err: unknown) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível renomear a peça.'));
+      },
+    });
   }
 
   renameColor(colorId: string, name: string): void {
@@ -275,6 +377,12 @@ export class PdpPage implements OnInit {
     const p = this.product();
     const target = this.bindingTarget();
     if (!p || !target) return;
+    if (this.bindingManagesPieces() && !target.pieceId) {
+      this.toast.info('Selecione uma peça antes de vincular a foto.');
+      return;
+    }
+    if (!target.pieceId && !target.colorId) return;
+
     const bindings = [...(p.imageBindings ?? [])];
     const existing = bindings.findIndex(
       (b) =>
@@ -288,14 +396,33 @@ export class PdpPage implements OnInit {
     };
     if (existing >= 0) bindings[existing] = { ...bindings[existing], ...entry };
     else bindings.push(entry);
-    this.contentAdmin.patchProductField(p.slug, 'imageBindings', bindings).subscribe((next) => {
-      if (next) {
-        this.applyProduct(next);
-        this.syncImageFromSelection();
-      }
+    this.contentAdmin.patchProductField(p.slug, 'imageBindings', bindings).subscribe({
+      next: (next) => {
+        if (next) {
+          this.applyProduct(next);
+          this.syncImageFromSelection();
+          this.toast.success('Foto vinculada.');
+        }
+      },
+      error: (err: unknown) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível vincular a foto.'));
+      },
     });
-    this.bindingPickerOpen.set(false);
-    this.bindingTarget.set(null);
+    if (!this.bindingManagesPieces()) {
+      this.bindingPickerOpen.set(false);
+      this.bindingTarget.set(null);
+    }
+  }
+
+  /** Piece manager modal (vs color-only photo bind). */
+  bindingManagesPieces(): boolean {
+    return Boolean(this.bindingPickerOpen() && !this.bindingTarget()?.colorId);
+  }
+
+  bindingColorLabel(): string | null {
+    const id = this.bindingTarget()?.colorId;
+    if (!id) return null;
+    return this.swatches().find((c) => c.id === id)?.name ?? null;
   }
 
   closeBindingPicker(): void {
