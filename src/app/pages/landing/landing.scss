@@ -24,22 +24,42 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 24px var(--lc-space-24);
+  padding: clamp(56px, 14vh, 88px) var(--lc-space-24) var(--lc-space-24);
   color: var(--lc-void);
-  background: rgb(255 255 255 / 22%);
+  background: none;
+
+  .hero__eyebrow,
+  .hero__title,
+  .hero__sub,
+  .hero__tag {
+    text-shadow:
+      0 0 18px rgb(255 255 255 / 95%),
+      0 0 36px rgb(255 255 255 / 85%),
+      0 0 56px rgb(255 255 255 / 65%),
+      0 1px 1px rgb(255 255 255 / 90%);
+  }
 }
 
 @media (min-width: 600px) {
   .hero__content {
-    padding: var(--lc-space-40);
-    background: rgb(255 255 255 / 28%);
+    padding: clamp(72px, 16vh, 112px) var(--lc-space-40) var(--lc-space-40);
+
+    .hero__eyebrow,
+    .hero__title,
+    .hero__sub,
+    .hero__tag {
+      text-shadow:
+        0 0 22px rgb(255 255 255 / 96%),
+        0 0 44px rgb(255 255 255 / 88%),
+        0 0 72px rgb(255 255 255 / 72%),
+        0 1px 2px rgb(255 255 255 / 92%);
+    }
   }
 }
 
 @media (min-width: 900px) {
   .hero__content {
-    padding: var(--lc-space-40);
-    background: rgb(255 255 255 / 22%);
+    padding: clamp(88px, 18vh, 128px) var(--lc-space-40) var(--lc-space-40);
   }
 }
 

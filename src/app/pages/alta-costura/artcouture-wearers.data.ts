@@ -98,6 +98,12 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = withCdnUrls([
         src: `${MEDIA}/sandra-machado-leis/familia.png`,
         alt: 'Sandra Machado Leis com a família nas bodas de ouro, vestido ArtCouture',
       },
+    ],
+  },
+  {
+    id: 'sandra-machado-leis-ombre',
+    name: 'Sandra Machado Leis',
+    shots: [
       {
         src: `${MEDIA}/sandra-machado-leis/ombro.png`,
         alt: 'Sandra Machado Leis, vestido ArtCouture ombré coral de um ombro só',
@@ -191,6 +197,10 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = withCdnUrls([
         alt: 'Ju Erhardt em três quartos, vestido ArtCouture off-white de babados',
       },
       {
+        src: `${MEDIA}/dra-tatianne/ju-cerimonia.png`,
+        alt: 'Ju Erhardt na cerimônia na igreja, vestido ArtCouture off-white de babados',
+      },
+      {
         src: `${MEDIA}/dra-tatianne/ju-costas.png`,
         alt: 'Ju Erhardt de costas, vestido ArtCouture off-white de babados',
       },
@@ -274,7 +284,7 @@ export const ARTCOUTURE_WEARERS: ArtCoutureWearer[] = withCdnUrls([
     shots: [
       {
         src: `${MEDIA}/isabella-marar-santoyo/01.png`,
-        alt: 'Isabella Marar Santoyo no corredor, vestido de noiva ArtCouture',
+        alt: 'Isabella Marar Santoyo de costas no altar, véu de noiva ArtCouture na cerimônia',
       },
       {
         src: `${MEDIA}/isabella-marar-santoyo/02.png`,
