@@ -48,7 +48,20 @@ cp .env.production.example .env
 nano .env      # Neon, R2, SESSION_SECRET, ADMIN_PASSWORD
 ```
 
-Campos principais: `DATABASE_URL`, `NODE_ENV=production`, `CORS_ORIGINS`, `SESSION_SECRET`, `ADMIN_*`, `CDN_BASE_URL`, `STORAGE_*`.
+Campos principais: `DATABASE_URL`, `DIRECT_URL`, `NODE_ENV=production`, `CORS_ORIGINS`, `SESSION_SECRET`, `ADMIN_*`, `CDN_BASE_URL`, `STORAGE_*`.
+
+**Neon + Prisma** — use o host **pooler** (`-pooler` no hostname) na API e o host **direct** (sem `-pooler`) em `DIRECT_URL` (migrations). Parâmetros obrigatórios no pooler:
+
+```text
+?sslmode=require&pgbouncer=true&connect_timeout=15&pool_timeout=30
+```
+
+Não use `channel_binding=require`. Para corrigir um `.env` existente no servidor:
+
+```bash
+cd api && python3 scripts/patch-neon-env.py
+docker compose -f docker-compose.prod.yml up -d --build
+```
 
 ### 4. Subir API + Caddy
 
