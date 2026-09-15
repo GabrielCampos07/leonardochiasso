@@ -193,7 +193,7 @@ export const ALTA_DESFILES: AltaDesfileShow[] = withCdnUrls([
     midVideoSrc: `${MEDIA}/organic-dreams-desfile-solo.mp4`,
     midVideoCaption: 'Organic Dreams — solo',
     midVideoAfterIndex: 3,
-    videoSrc: `${MEDIA}/organic-dreams-desfile.MOV`,
+    videoSrc: `${MEDIA}/organic-dreams-desfile.mp4`,
     videoCaption: 'Organic Dreams — desfile completo',
   },
 ]);

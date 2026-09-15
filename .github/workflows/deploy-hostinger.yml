@@ -85,4 +85,3 @@ jobs:
             **/.git*/**
             **/node_modules/**
             **/assets/media/**
-            **/organic-dreams-desfile.MOV

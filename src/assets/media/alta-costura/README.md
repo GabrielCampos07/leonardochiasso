@@ -8,6 +8,6 @@ Hero (mesma foto da listagem) + texto + galeria + vídeo embutido.
 
 | Slug | Poster | Vídeo |
 |------|--------|-------|
-| `brazilian-dreams` | `assets/media/photo-feminina.jpg` | `brazilian-dreams-desfile.MOV` |
-| `organic-dreams` | `organic-hero.png` (foto duplicada / duo) | `organic-dreams-desfile.MOV` |
+| `brazilian-dreams` | `brazilian-dreams-destaque.png` | `brazilian-dreams-desfile.mp4` |
+| `organic-dreams` | `organic-hero.png` | `organic-dreams-desfile.mp4` |
 | `niponic-dreams` | `niponic-hero-black.png` | `niponic-dreams-desfile.mp4` |

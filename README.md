@@ -60,6 +60,13 @@ Documentação dos endpoints: [`api/README.md`](./api/README.md).
 
 ### Admin (ateliê)
 
+**Guia para quem edita o site (linguagem simples):** [`docs/guia-area-do-atelie.md`](./docs/guia-area-do-atelie.md)
+
+Em produção: acesse **https://leonardochiasso.com/admin** com e-mail e senha de ateliê.  
+Painel para produtos e coleções; no site use a barra **Modo edição** para textos e fotos (joias e arte: editar nas páginas `/joias` e `/arte`).
+
+Desenvolvimento local:
+
 1. Defina senha em `src/environments/environment*.ts` (`adminPassword`)
 2. Acesse `/admin`
 3. **Produtos** — moda RTW  
@@ -99,8 +106,6 @@ O `.htaccess` garante deep links (`/joias`, `/colecao/...`, etc.).
 
 **Build prod (~8 MB):** fotos e vídeos **não** entram no bundle — só SVGs de UI. Mídia vem do CDN (R2) via API.
 
-Exceção Hostinger (fora do Git, ~2 GB): `assets/media/alta-costura/organic-dreams-desfile.MOV`. O deploy **não apaga** arquivos remotos (`deleteRemoteFiles: false`) — deixe esse MOV no `public_html`. Se faltar, envie **uma vez** pelo File Manager / SFTP.
-
 ### CDN (R2)
 
 ```bash
@@ -111,7 +116,7 @@ npm run migrate:content-urls    # só reescreve URLs no Neon (sem upload)
 
 Se joias/arte/lookbooks estiverem vazios na API, rode antes `npm run prisma:seed`.
 
-**Outros vídeos no R2** (não o MOV de 2 GB): key `video/{caminho}`, depois `npm run migrate:content-urls`.
+Vídeos no R2: key `video/{caminho}`, depois `npm run migrate:content-urls`.
 
 ## Deploy API (Hetzner)
 
@@ -200,13 +205,12 @@ Configurados no footer / atendimento:
 
 ## Assets de mídia grandes
 
-Vídeos de desfile/arte/joias entram via **Git LFS** (`*.mp4` / `*.mov`).
+Vídeos de desfile/arte/joias entram via **Git LFS** (`*.mp4` / `*.mov`) ou ficam só no **CDN (R2)**.
 
-Exceção (só Hostinger / máquina local, fora do Git ~2 GB):
+Masters locais (fora do Git):
 
-- `src/assets/media/alta-costura/organic-dreams-desfile.MOV` → `public_html/assets/media/alta-costura/organic-dreams-desfile.MOV`
-
-Não sobe no CI. Não vai para o R2. Não apague essa pasta no File Manager.
+- `src/assets/media/alta-costura/organic-dreams-desfile.MOV` (HEVC master)
+- `src/assets/media/alta-costura/organic-dreams-desfile.mp4` (H.264 para o site → R2 `video/alta-costura/…`)
 
 ## Licença / uso
 

@@ -62,5 +62,7 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 
-# Oversized local media (Hostinger / local only — exceeds GitHub LFS free tier)
+# Oversized local media (local encode / masters — serve from R2 CDN)
 src/assets/media/alta-costura/organic-dreams-desfile.MOV
+src/assets/media/alta-costura/organic-dreams-desfile.mp4
+.tmp-media/
