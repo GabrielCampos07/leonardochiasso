@@ -3,6 +3,7 @@ import {
   CAMERA_POLAR_MAX,
   CAMERA_POLAR_MIN,
   computeEyeLevelFit,
+  clampOrbitSpherical,
   computeVitrineFit,
   easeInOutCubic,
   isCompactAtelierViewport,
@@ -43,6 +44,15 @@ describe('camera lock', () => {
     expect(CAMERA_POLAR_MAX).toBeCloseTo(Math.PI / 2 - (10 * Math.PI) / 180, 5);
     expect(CAMERA_POLAR_MIN).toBeLessThan(CAMERA_POLAR_MAX);
   });
+
+  it('clamps a hard sideways drag back into the lock every frame', () => {
+    const locked = clampOrbitSpherical(1.2, 0.1);
+    expect(locked.theta).toBeCloseTo(CAMERA_AZIMUTH_LIMIT, 5);
+    expect(locked.phi).toBe(CAMERA_POLAR_MIN);
+    const other = clampOrbitSpherical(-2, 2);
+    expect(other.theta).toBeCloseTo(-CAMERA_AZIMUTH_LIMIT, 5);
+    expect(other.phi).toBe(CAMERA_POLAR_MAX);
+  });
 });
 
 describe('computeEyeLevelFit', () => {
@@ -54,6 +64,13 @@ describe('computeEyeLevelFit', () => {
     expect(rack.distance).toBeLessThan(all.distance);
     expect(rack.position.z).toBeGreaterThan(rack.target.z);
     expect(rack.position.y).toBeGreaterThan(-0.45);
+  });
+
+  it('frames a compact 400px viewport closer so the rack fills the canvas', () => {
+    const desktop = computeEyeLevelFit(box, 16 / 9, 38, 'rack', false);
+    const compact = computeEyeLevelFit(box, 400 / 720, 38, 'rack', true);
+    expect(compact.distance).toBeLessThan(desktop.distance);
+    expect(compact.distance).toBeLessThan(2.8);
   });
 
   it('fits a tall 3-row rack without the old 4.6 distance cap', () => {
@@ -71,14 +88,16 @@ describe('computeEyeLevelFit', () => {
 });
 
 describe('computeVitrineFit', () => {
-  it('looks down from about 30–40° at the case', () => {
+  it('looks down from about 18–26° and stays closer than the old 34° framing', () => {
     const box = { minX: -0.8, maxX: 0.8, minY: -0.6, maxY: 0.7, minZ: -0.25, maxZ: 0.25 };
     const pose = computeVitrineFit(box, 16 / 9, 38);
     const dy = pose.position.y - pose.target.y;
     const dz = pose.position.z - pose.target.z;
     const elev = Math.atan2(dy, dz) * (180 / Math.PI);
-    expect(elev).toBeGreaterThan(28);
-    expect(elev).toBeLessThan(42);
+    expect(elev).toBeGreaterThan(18);
+    expect(elev).toBeLessThan(26);
+    expect(pose.distance).toBeLessThan(2.8);
+    expect(pose.position.y).toBeLessThan(pose.target.y + 1.2);
   });
 });
 

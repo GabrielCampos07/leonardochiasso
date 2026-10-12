@@ -7,9 +7,19 @@
   color: var(--lc-void);
 }
 
+:host:focus,
+:host:focus-visible {
+  outline: none;
+}
+
 .product-edit-modal {
   padding: var(--lc-space-24);
   padding-bottom: max(56px, env(safe-area-inset-bottom, 0px));
+}
+
+.product-edit-modal:focus,
+.product-edit-modal:focus-visible {
+  outline: none;
 }
 
 .admin-edit__form {

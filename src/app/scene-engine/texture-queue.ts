@@ -1,4 +1,4 @@
-export const TEXTURE_LOAD_CONCURRENCY = 3;
+export const TEXTURE_LOAD_CONCURRENCY = 5;
 
 export interface TextureJob {
   id: string;
@@ -66,4 +66,15 @@ export function texturePriority(rackId: string, focusedId: string, rackIndex: nu
   if (rackId === focusedId) return 0;
   const distance = focusedIndex < 0 ? rackIndex : Math.abs(rackIndex - focusedIndex);
   return 1 + distance;
+}
+
+/** Visible (focused) hangers first, then nearby racks, left-to-right within a unit. */
+export function hangerPhotoPriority(
+  rackId: string,
+  focusedId: string,
+  rackIndex: number,
+  focusedIndex: number,
+  hangerIndex: number,
+): number {
+  return texturePriority(rackId, focusedId, rackIndex, focusedIndex) * 100 + hangerIndex;
 }

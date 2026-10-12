@@ -1,6 +1,7 @@
 import { apiProductToSceneInput } from './from-catalog';
 import { toSceneHanger } from './mapping';
-import { clampTooltip, mergeProductPhotos, primaryImageUrl } from './photo-url';
+import { clampTooltip, hangerTextureUrls, mergeProductPhotos, primaryImageUrl, thumbImageUrl } from './photo-url';
+import { textureCacheUrl } from './texture-loader';
 
 /** Shape taken from live `GET https://api.leonardochiasso.com/api/products` (2026-10-12). */
 const PROD_BATEAU = {
@@ -128,6 +129,26 @@ describe('primaryImageUrl (prod catalog shape)', () => {
       'organic-dreams',
     );
     expect(hanger.imageUrl).toBe(PROD_THUMB);
+    expect(hanger.thumbUrl).toBe(PROD_THUMB);
+  });
+});
+
+describe('hangerTextureUrls', () => {
+  it('falls back to the pdp thumb and still busts the poisoned cache with tex=1', () => {
+    const urls = hangerTextureUrls({
+      imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp',
+      thumbUrl: 'https://cdn.example/pdp/plp-bateau-thumb.webp',
+    });
+    expect(urls).toEqual([
+      'https://cdn.example/pdp/pdp-bateau-01.webp',
+      'https://cdn.example/pdp/plp-bateau-thumb.webp',
+    ]);
+    expect(textureCacheUrl(urls[1]!)).toBe('https://cdn.example/pdp/plp-bateau-thumb.webp?tex=1');
+  });
+
+  it('does not duplicate when the primary already is the thumb', () => {
+    expect(thumbImageUrl(PROD_BATEAU)).toBe(PROD_THUMB);
+    expect(hangerTextureUrls({ imageUrl: PROD_THUMB, thumbUrl: PROD_THUMB })).toEqual([PROD_THUMB]);
   });
 });
 

@@ -7,6 +7,8 @@ export const TEXTURE_CACHE_VALUE = '1';
 export const SHARED_TEXTURE_FLAG = 'shared';
 export const TEXTURE_BITMAP_MAX_W = 512;
 export const TEXTURE_BITMAP_MAX_H = 640;
+/** ImageBitmap ignores `texture.flipY`; flip here so hangers and trays stay upright. */
+export const TEXTURE_BITMAP_ORIENTATION = 'flipY' as const;
 export const LABEL_DEFAULT_WIDTH = 768;
 export const LABEL_DEFAULT_HEIGHT = 120;
 export const FALLBACK_WIDTH = 128;
@@ -142,10 +144,11 @@ export function makeSoldOutTexture(): CanvasTexture {
   return makeCanvasTexture(soldOutCanvas, true);
 }
 
-function textureFromImage(image: TexImageSource): Texture {
+function textureFromImage(image: TexImageSource, flipY: boolean): Texture {
   const texture = new Texture(image);
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = 2;
+  texture.flipY = flipY;
   texture.needsUpdate = true;
   return texture;
 }
@@ -156,12 +159,12 @@ async function loadTextureBitmap(url: string): Promise<Texture | null> {
   if (!res.ok) return null;
   const blob = await res.blob();
   const bitmap = await createImageBitmap(blob, {
-    imageOrientation: 'from-image',
+    imageOrientation: TEXTURE_BITMAP_ORIENTATION,
     resizeWidth: TEXTURE_BITMAP_MAX_W,
     resizeHeight: TEXTURE_BITMAP_MAX_H,
     resizeQuality: 'medium',
   });
-  const texture = textureFromImage(bitmap);
+  const texture = textureFromImage(bitmap, false);
   texture.userData['bitmap'] = bitmap;
   return texture;
 }
@@ -170,7 +173,7 @@ function loadTextureImage(url: string): Promise<Texture | null> {
   return new Promise((resolve) => {
     const image = new Image();
     applyCorsBeforeSrc(image);
-    image.onload = () => resolve(textureFromImage(image));
+    image.onload = () => resolve(textureFromImage(image, true));
     image.onerror = () => resolve(null);
     image.src = textureCacheUrl(url);
   });
@@ -193,4 +196,14 @@ export async function loadTextureSafe(url: string): Promise<Texture | null> {
       return null;
     }
   }
+}
+
+/** Try each URL (already distinct) through the CORS `tex=1` loader. */
+export async function loadTextureCandidates(urls: readonly string[]): Promise<Texture | null> {
+  for (const url of urls) {
+    if (!url) continue;
+    const texture = await loadTextureSafe(url);
+    if (texture) return texture;
+  }
+  return null;
 }
