@@ -12,7 +12,7 @@ import { photoPlaneSize } from './camera-guide';
 import { disposeObject3D } from './dispose';
 import { HANGER_USER_DATA } from './garment-hanger';
 import { hangerOpacity, isSoldOut, type SceneHanger, type SceneRack } from './types';
-import { makeFallbackTexture, makeLabelTexture, makeSoldOutTexture } from './texture-loader';
+import { makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
 import { FLOOR_Y } from './collection-rack';
 import { VITRINE_SHELF_LIMIT, VITRINE_TRAYS_PER_SHELF } from './mapping';
 
@@ -107,7 +107,7 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
   const plate = new Mesh(
     new PlaneGeometry(1, 1),
     new MeshStandardMaterial({
-      map: makeLabelTexture(unit.name, { width: 1408, height: 224, fill: '#2a221c', size: 64 }),
+      map: makeLabelTexture(unit.name, { width: 768, height: 120, fill: '#2a221c', size: 40 }),
       roughness: 0.55,
     }),
   );
@@ -194,7 +194,7 @@ export function createJewelryTray(data: SceneHanger): Group {
     new PlaneGeometry(1, 1),
     new MeshStandardMaterial({
       color: 0xffffff,
-      map: makeFallbackTexture('#d8cfc4', data.name),
+      map: makePlaceholderTexture('#d8cfc4'),
       roughness: 0.55,
       transparent: true,
       opacity,

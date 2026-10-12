@@ -21,6 +21,7 @@ import { ApiProductDto, mapApiProduct } from '../../../core/catalog.service';
 import { ContentService } from '../../../core/content.service';
 import { JoiaPiece } from '../../../core/joias.data';
 import { Product } from '../../../core/product.model';
+import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
 import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-engine/camera-guide';
@@ -92,6 +93,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly content = inject(ContentService);
   private readonly joiasAdmin = inject(AdminJoiasCatalogService);
   private readonly viewMode = inject(AdminViewModeService);
+  private readonly boot = inject(Admin3dBootService);
 
   readonly loading = signal(true);
   readonly firstFrame = signal(false);
@@ -149,12 +151,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     if (!canvas) {
       this.webglUnavailable.set(true);
       this.loading.set(false);
+      this.boot.markFirstFrame();
       return;
     }
     this.engine = createSceneEngine(canvas, { reducedMotion: this.reducedMotion });
     if (!this.engine) {
       this.webglUnavailable.set(true);
       this.loading.set(false);
+      this.boot.markFirstFrame();
       return;
     }
     this.engine.onClick((slug) => this.openEditor(slug));
@@ -320,6 +324,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
         this.error.set(
           adminHttpErrorMessage(err, 'Não foi possível carregar o ateliê 3D. Verifique a API.'),
         );
+        this.boot.markFirstFrame();
       },
     });
   }
@@ -418,6 +423,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private markFirstFrame(): void {
+    this.boot.markFirstFrame();
     this.firstFrame.set(true);
     if (this.reducedMotion) {
       this.bootFading.set(false);

@@ -98,7 +98,7 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   const plateLabel = new Mesh(
     new PlaneGeometry(1, 1),
     new MeshStandardMaterial({
-      map: makeLabelTexture(rack.name, { width: 1408, height: 224, fill: '#1c1814', size: 72 }),
+      map: makeLabelTexture(rack.name, { width: 768, height: 120, fill: '#1c1814', size: 48 }),
       roughness: 0.55,
     }),
   );

@@ -4,6 +4,13 @@ import { CanvasTexture, SRGBColorSpace, Texture } from 'three';
 export const TEXTURE_CROSS_ORIGIN = 'anonymous';
 export const TEXTURE_CACHE_PARAM = 'tex';
 export const TEXTURE_CACHE_VALUE = '1';
+export const SHARED_TEXTURE_FLAG = 'shared';
+export const TEXTURE_BITMAP_MAX_W = 512;
+export const TEXTURE_BITMAP_MAX_H = 640;
+export const LABEL_DEFAULT_WIDTH = 768;
+export const LABEL_DEFAULT_HEIGHT = 120;
+export const FALLBACK_WIDTH = 128;
+export const FALLBACK_HEIGHT = 160;
 
 /**
  * Distinct URL for WebGL textures so Chrome does not reuse the non-CORS
@@ -25,40 +32,72 @@ export function applyCorsBeforeSrc(image: { crossOrigin: string | null }): void 
   image.crossOrigin = TEXTURE_CROSS_ORIGIN;
 }
 
-function makeCanvasTexture(canvas: HTMLCanvasElement): CanvasTexture {
+export function isSharedTexture(texture: Texture | null | undefined): boolean {
+  return Boolean(texture?.userData?.[SHARED_TEXTURE_FLAG]);
+}
+
+const canvasCache = new Map<string, HTMLCanvasElement>();
+let placeholderCanvas: HTMLCanvasElement | null = null;
+let soldOutCanvas: HTMLCanvasElement | null = null;
+
+function makeCanvasTexture(canvas: HTMLCanvasElement, shared = false): CanvasTexture {
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.needsUpdate = true;
+  if (shared) texture.userData[SHARED_TEXTURE_FLAG] = true;
   return texture;
+}
+
+function cachedCanvas(key: string, width: number, height: number, paint: (ctx: CanvasRenderingContext2D) => void): HTMLCanvasElement {
+  const hit = canvasCache.get(key);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) paint(ctx);
+  canvasCache.set(key, canvas);
+  return canvas;
+}
+
+/** Tiny shared plane used until the real photo streams in. */
+export function makePlaceholderTexture(hex = '#c8c2b8'): CanvasTexture {
+  if (!placeholderCanvas) {
+    placeholderCanvas = document.createElement('canvas');
+    placeholderCanvas.width = 32;
+    placeholderCanvas.height = 40;
+    const ctx = placeholderCanvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = hex;
+      ctx.fillRect(0, 0, 32, 40);
+    }
+  }
+  return makeCanvasTexture(placeholderCanvas, true);
 }
 
 /** Gray garment plane when the CDN image is missing or blocked. Shows name + initial. */
 export function makeFallbackTexture(hex = '#c8c2b8', name = ''): CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 320;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
+  const trimmed = name.trim();
+  const canvas = cachedCanvas(`fallback|${hex}|${trimmed}`, FALLBACK_WIDTH, FALLBACK_HEIGHT, (ctx) => {
     ctx.fillStyle = hex;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, FALLBACK_WIDTH, FALLBACK_HEIGHT);
     ctx.fillStyle = '#9a948c';
-    ctx.fillRect(18, 18, canvas.width - 36, canvas.height - 36);
+    ctx.fillRect(10, 10, FALLBACK_WIDTH - 20, FALLBACK_HEIGHT - 20);
 
-    const trimmed = name.trim();
     const initial = (trimmed[0] ?? '·').toUpperCase();
     ctx.fillStyle = '#4f4b45';
-    ctx.font = '600 128px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
+    ctx.font = '600 64px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(initial, canvas.width / 2, canvas.height / 2 - 18);
+    ctx.fillText(initial, FALLBACK_WIDTH / 2, FALLBACK_HEIGHT / 2 - 10);
 
     if (trimmed) {
       ctx.fillStyle = '#2f2c28';
-      ctx.font = '600 22px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
+      ctx.font = '600 14px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
       const label = trimmed.length > 22 ? `${trimmed.slice(0, 21)}…` : trimmed;
-      ctx.fillText(label.toUpperCase(), canvas.width / 2, canvas.height - 46, canvas.width - 40);
+      ctx.fillText(label.toUpperCase(), FALLBACK_WIDTH / 2, FALLBACK_HEIGHT - 22, FALLBACK_WIDTH - 16);
     }
-  }
+  });
   return makeCanvasTexture(canvas);
 }
 
@@ -66,58 +105,92 @@ export function makeLabelTexture(
   text: string,
   opts: { width?: number; height?: number; fill?: string; color?: string; size?: number } = {},
 ): CanvasTexture {
-  const width = opts.width ?? 1024;
-  const height = opts.height ?? 192;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = opts.fill ?? '#0e0c0e';
+  const width = opts.width ?? LABEL_DEFAULT_WIDTH;
+  const height = opts.height ?? LABEL_DEFAULT_HEIGHT;
+  const fill = opts.fill ?? '#0e0c0e';
+  const color = opts.color ?? '#ffffff';
+  const size = opts.size ?? 40;
+  const label = text.length > 28 ? `${text.slice(0, 27)}…` : text;
+  const canvas = cachedCanvas(`label|${width}|${height}|${fill}|${color}|${size}|${label}`, width, height, (ctx) => {
+    ctx.fillStyle = fill;
     ctx.fillRect(0, 0, width, height);
-    ctx.fillStyle = opts.color ?? '#ffffff';
-    ctx.font = `600 ${opts.size ?? 56}px "Encode Sans Expanded", "Helvetica Neue", sans-serif`;
+    ctx.fillStyle = color;
+    ctx.font = `600 ${size}px "Encode Sans Expanded", "Helvetica Neue", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const label = text.length > 28 ? `${text.slice(0, 27)}…` : text;
     ctx.fillText(label.toUpperCase(), width / 2, height / 2, width - 48);
-  }
+  });
   return makeCanvasTexture(canvas);
 }
 
 export function makeSoldOutTexture(): CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 80;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = '#8B1E2D';
-    ctx.fillRect(0, 0, 256, 80);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '700 36px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('ESGOTADO', 128, 42, 230);
+  if (!soldOutCanvas) {
+    soldOutCanvas = document.createElement('canvas');
+    soldOutCanvas.width = 128;
+    soldOutCanvas.height = 40;
+    const ctx = soldOutCanvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#8B1E2D';
+      ctx.fillRect(0, 0, 128, 40);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 18px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('ESGOTADO', 64, 21, 118);
+    }
   }
-  return makeCanvasTexture(canvas);
+  return makeCanvasTexture(soldOutCanvas, true);
 }
 
-/**
- * Load a WebGL texture with CORS anonymous set *before* `src`.
- * Resolves `null` on any failure (CDN without ACAO, 404, decode error).
- */
-export function loadTextureSafe(url: string): Promise<Texture | null> {
+function textureFromImage(image: TexImageSource): Texture {
+  const texture = new Texture(image);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 2;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+async function loadTextureBitmap(url: string): Promise<Texture | null> {
+  const src = textureCacheUrl(url);
+  const res = await fetch(src, { mode: 'cors', credentials: 'omit' });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob, {
+    imageOrientation: 'from-image',
+    resizeWidth: TEXTURE_BITMAP_MAX_W,
+    resizeHeight: TEXTURE_BITMAP_MAX_H,
+    resizeQuality: 'medium',
+  });
+  const texture = textureFromImage(bitmap);
+  texture.userData['bitmap'] = bitmap;
+  return texture;
+}
+
+function loadTextureImage(url: string): Promise<Texture | null> {
   return new Promise((resolve) => {
     const image = new Image();
     applyCorsBeforeSrc(image);
-    image.onload = () => {
-      const texture = new Texture(image);
-      texture.colorSpace = SRGBColorSpace;
-      texture.anisotropy = 4;
-      texture.needsUpdate = true;
-      resolve(texture);
-    };
+    image.onload = () => resolve(textureFromImage(image));
     image.onerror = () => resolve(null);
     image.src = textureCacheUrl(url);
   });
+}
+
+/**
+ * Load a WebGL texture with CORS. Prefers off-thread `createImageBitmap` decode
+ * and downscales to a 3D-thumb size. Resolves `null` on any failure.
+ */
+export async function loadTextureSafe(url: string): Promise<Texture | null> {
+  try {
+    if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
+      return await loadTextureBitmap(url);
+    }
+    return await loadTextureImage(url);
+  } catch {
+    try {
+      return await loadTextureImage(url);
+    } catch {
+      return null;
+    }
+  }
 }

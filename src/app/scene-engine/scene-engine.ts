@@ -53,7 +53,8 @@ import {
 } from './jewelry-vitrine';
 import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
-import { loadTextureSafe, makeFallbackTexture } from './texture-loader';
+import { isSharedTexture, loadTextureSafe, makeFallbackTexture } from './texture-loader';
+import { TextureLoadQueue, texturePriority } from './texture-queue';
 import { replaceHanger } from './mapping';
 import type { SceneHanger, SceneLayout } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
@@ -109,6 +110,10 @@ export class SceneEngine {
   private onFocusCb: FocusChangeHandler | null = null;
   private onFirstFrameCb: FirstFrameHandler | null = null;
   private firstFrameSent = false;
+  private readonly texQueue = new TextureLoadQueue();
+  private readonly loadedPhotos = new Set<string>();
+  private shadowsArmed = false;
+  private keyLight: DirectionalLight | null = null;
   private hasLayout = false;
   private resizeObserver: ResizeObserver | null = null;
   private tween: {
@@ -166,7 +171,7 @@ export class SceneEngine {
     this.renderer = new WebGLRenderer({ canvas, antialias: !this.reducedMotion, alpha: false });
     this.renderer.setPixelRatio(this.reducedMotion ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setClearColor(CLEAR, 1);
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = PCFShadowMap;
 
     this.controls = new OrbitControls(this.camera, canvas);
@@ -186,8 +191,9 @@ export class SceneEngine {
 
     const key = new DirectionalLight(0xffe2c4, 1.35);
     key.position.set(3.1, 6.2, 4.4);
-    key.castShadow = true;
-    key.shadow.mapSize.set(1024, 1024);
+    key.castShadow = false;
+    key.shadow.mapSize.set(512, 512);
+    this.keyLight = key;
     key.shadow.camera.near = 1;
     key.shadow.camera.far = 36;
     key.shadow.camera.left = -16;
@@ -281,17 +287,17 @@ export class SceneEngine {
       const group = rack.kind === 'vitrine' ? createJewelryVitrine(rack, x) : createCollectionRack(rack, x);
       this.racksRoot.add(group);
       cursor += width + gap;
-      for (const hanger of rack.hangers) {
-        void this.loadHangerTexture(hanger.slug, hanger.imageUrl, hanger.name);
-      }
     }
 
     this.hasLayout = true;
     this.firstFrameSent = false;
+    this.loadedPhotos.clear();
+    this.texQueue.clear();
     const first = layout.racks[0]?.id;
     if (first) this.focusRack(first, true);
     else this.focusOverview(true);
     this.requestRender();
+    this.enqueueHangerTextures();
   }
 
   focusRack(id: string, immediate = this.reducedMotion): void {
@@ -307,6 +313,7 @@ export class SceneEngine {
     this.applyOrbitLimits(mode);
     this.moveCamera(this.poseFor(group as Group, mode), immediate);
     this.onFocusCb?.(id);
+    if (this.hasLayout) this.enqueueHangerTextures();
   }
 
   focusOverview(immediate = this.reducedMotion): void {
@@ -324,7 +331,12 @@ export class SceneEngine {
     if (next.kind === 'jewelry') applyTrayData(group, next);
     else applyHangerData(group, next);
     if (prev?.imageUrl !== next.imageUrl) {
-      void this.loadHangerTexture(next.slug, next.imageUrl, next.name);
+      this.loadedPhotos.delete(next.slug);
+      this.texQueue.enqueue({
+        id: next.slug,
+        priority: 0,
+        run: () => this.loadHangerTexture(next.slug, next.imageUrl, next.name),
+      });
     }
     if (prev && prev.rackId !== next.rackId) {
       this.moveHanger(group, next);
@@ -367,6 +379,9 @@ export class SceneEngine {
     this.onHoverCb = null;
     this.onFocusCb = null;
     this.onFirstFrameCb = null;
+    this.texQueue.dispose();
+    this.loadedPhotos.clear();
+    this.keyLight = null;
   }
 
   private applyOrbitLimits(mode: CameraFocusMode): void {
@@ -455,6 +470,7 @@ export class SceneEngine {
       if (this.hasLayout && !this.firstFrameSent) {
         this.firstFrameSent = true;
         this.onFirstFrameCb?.();
+        this.armShadows();
       }
       if (animating || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
         if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
@@ -546,7 +562,31 @@ export class SceneEngine {
     if (garment) applyPhotoAspect(garment, frame, texture);
   }
 
+  private enqueueHangerTextures(): void {
+    const focused = this.focusedId;
+    const focusedIndex = this.layout.racks.findIndex((r) => r.id === focused);
+    this.layout.racks.forEach((rack, rackIndex) => {
+      const priority = texturePriority(rack.id, focused, rackIndex, focusedIndex);
+      for (const hanger of rack.hangers) {
+        this.texQueue.enqueue({
+          id: hanger.slug,
+          priority,
+          run: () => this.loadHangerTexture(hanger.slug, hanger.imageUrl, hanger.name),
+        });
+      }
+    });
+  }
+
+  private armShadows(): void {
+    if (this.shadowsArmed || this.disposed) return;
+    this.shadowsArmed = true;
+    this.renderer.shadowMap.enabled = true;
+    if (this.keyLight) this.keyLight.castShadow = true;
+    this.requestRender();
+  }
+
   private async loadHangerTexture(slug: string, url: string | null, name?: string): Promise<void> {
+    if (this.disposed || this.loadedPhotos.has(slug)) return;
     const label = name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
@@ -559,11 +599,12 @@ export class SceneEngine {
       liveGarment.material.map = texture;
       liveGarment.material.needsUpdate = true;
       this.applyPiecePhoto(live, texture);
-      if (previous && previous !== texture) previous.dispose();
+      if (previous && previous !== texture && !isSharedTexture(previous)) previous.dispose();
       this.requestRender();
     };
     if (!url) {
       apply(makeFallbackTexture('#c8c2b8', label));
+      this.loadedPhotos.add(slug);
       return;
     }
     const texture = await loadTextureSafe(url);
@@ -572,6 +613,7 @@ export class SceneEngine {
       return;
     }
     apply(texture ?? makeFallbackTexture('#c8c2b8', label));
+    this.loadedPhotos.add(slug);
   }
 
   private handlePointer(event: PointerEvent, isClick: boolean): void {

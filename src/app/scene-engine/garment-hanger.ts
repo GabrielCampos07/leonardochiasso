@@ -11,7 +11,7 @@ import {
 import { photoPlaneSize } from './camera-guide';
 import type { SceneHanger } from './types';
 import { hangerOpacity, isSoldOut } from './types';
-import { makeFallbackTexture, makeLabelTexture, makeSoldOutTexture } from './texture-loader';
+import { makeFallbackTexture, makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
 export const PHOTO_MAX_W = 0.48;
@@ -19,7 +19,7 @@ export const PHOTO_MAX_H = 0.64;
 export const HANGER_LIFT = 0.055;
 
 function hangerLabelMap(name: string) {
-  return makeLabelTexture(name, { width: 1024, height: 160, fill: '#2a241c', size: 48 });
+  return makeLabelTexture(name, { width: 512, height: 80, fill: '#2a241c', size: 32 });
 }
 
 export function applyPhotoAspect(garment: Mesh, frame: Mesh | undefined, texture: Texture): void {
@@ -40,7 +40,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
     roughness: 0.28,
   });
   const opacity = hangerOpacity(data.status);
-  const fallback = makeFallbackTexture('#c8c2b8', data.name);
+  const fallback = makePlaceholderTexture('#c8c2b8');
   const photo = photoPlaneSize(3, 4, PHOTO_MAX_W, PHOTO_MAX_H);
 
   const hook = new Mesh(new TorusGeometry(0.05, 0.007, 8, 18, Math.PI * 1.3), metal);
