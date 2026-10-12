@@ -55,11 +55,37 @@
   scrollbar-width: thin;
 }
 
+.admin-3d__lines {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.admin-3d__line {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 28%, transparent);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.admin-3d__line + .admin-3d__line {
+  border-left: none;
+}
+
+.admin-3d__line.is-on {
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
 .admin-3d__arrow,
 .admin-3d__rack {
   flex: 0 0 auto;
-  min-height: 44px;
-  min-width: 44px;
+  min-height: 48px;
+  min-width: 48px;
   padding: 0 14px;
   border: 1px solid color-mix(in srgb, var(--lc-void) 28%, transparent);
   background: var(--lc-white);
@@ -205,22 +231,12 @@
 .admin-3d__hover {
   position: fixed;
   z-index: 6;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   pointer-events: none;
-  min-width: 140px;
-}
-
-.admin-3d__hover strong {
+  min-width: 0;
+  max-width: min(320px, calc(100vw - 16px));
   font-family: var(--lc-font-display);
   font-weight: 500;
-  letter-spacing: 0.04em;
-}
-
-.admin-3d__hover span {
-  font-size: 0.8rem;
-  color: color-mix(in srgb, var(--lc-void) 72%, transparent);
+  letter-spacing: 0.02em;
 }
 
 .admin-3d__panel {
@@ -274,7 +290,28 @@
 
 @media (max-width: 768px) {
   .admin-3d {
-    min-height: min(64vh, 640px);
+    min-height: min(58vh, 560px);
+  }
+
+  .admin-3d__racks {
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .admin-3d__rack:not(.is-on) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .admin-3d__rack.is-on {
+    position: relative;
+    max-width: min(220px, 52vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .admin-3d__chrome {

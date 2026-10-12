@@ -217,7 +217,7 @@ export const routes: Routes = [
         path: '3d',
         canActivate: [adminAuthGuard],
         loadComponent: () =>
-          import('./pages/admin/admin-3d/admin-3d-page').then((m) => m.Admin3dPage),
+          import('./pages/admin/admin-3d/admin-3d-gate').then((m) => m.Admin3dGate),
       },
       {
         path: 'produtos/:slug',

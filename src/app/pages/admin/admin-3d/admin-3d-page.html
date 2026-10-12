@@ -11,12 +11,34 @@
 
   @if (!webglUnavailable() && !empty() && !error() && !loading() && firstFrame()) {
     <nav class="admin-3d__guide" aria-label="Navegação das araras">
+      <div class="admin-3d__lines" role="radiogroup" aria-label="Tipo de peça">
+        <button
+          type="button"
+          class="admin-3d__line"
+          role="radio"
+          [attr.aria-checked]="line() === 'roupas'"
+          [class.is-on]="line() === 'roupas'"
+          (click)="setLine('roupas')"
+        >
+          Roupas
+        </button>
+        <button
+          type="button"
+          class="admin-3d__line"
+          role="radio"
+          [attr.aria-checked]="line() === 'joias'"
+          [class.is-on]="line() === 'joias'"
+          (click)="setLine('joias')"
+        >
+          Joias
+        </button>
+      </div>
       <button
         type="button"
         class="admin-3d__arrow"
         [disabled]="atFirst()"
         (click)="stepRack(-1)"
-        aria-label="Arara anterior"
+        aria-label="Anterior"
       >
         ←
       </button>
@@ -47,7 +69,7 @@
         class="admin-3d__arrow"
         [disabled]="atLast()"
         (click)="stepRack(1)"
-        aria-label="Próxima arara"
+        aria-label="Próxima"
       >
         →
       </button>
@@ -75,8 +97,7 @@
       [style.left.px]="tip.x"
       [style.top.px]="tip.y"
     >
-      <strong>{{ tip.name }}</strong>
-      <span>{{ tip.stock }}</span>
+      {{ tip.text }}
     </p>
   }
 
@@ -113,13 +134,15 @@
   } @else if (empty() && !loading()) {
     <div class="admin-3d__panel" role="status">
       <p>
-        @if (allowMock) {
+        @if (line() === 'joias') {
+          Nenhuma joia para a vitrine.
+        } @else if (allowMock) {
           Nenhuma peça para pendurar. Cadastre produtos ou carregue os exemplos.
         } @else {
           Nenhuma peça para pendurar. Cadastre produtos no admin.
         }
       </p>
-      @if (allowMock) {
+      @if (allowMock && line() !== 'joias') {
         <div class="admin-3d__actions">
           <button type="button" (click)="useMock()">Usar dados de exemplo</button>
         </div>

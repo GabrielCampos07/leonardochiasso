@@ -1,0 +1,43 @@
+<div class="product-edit-modal">
+  <header class="product-edit-modal__head">
+    <div>
+      <p class="product-edit-modal__kicker">Ateliê · 3D · Joias</p>
+      <h2 [id]="titleId">{{ title }}</h2>
+    </div>
+    <button type="button" class="product-edit-modal__close" (click)="close()">Fechar</button>
+  </header>
+
+  @if (loading()) {
+    <p class="product-edit-modal__status">Carregando peça…</p>
+  } @else if (missing()) {
+    <p class="product-edit-modal__status">Joia não encontrada.</p>
+  } @else if (piece(); as p) {
+    <form class="admin-edit__form" (ngSubmit)="save()">
+      <label>
+        Título
+        <input type="text" [ngModel]="p.title" (ngModelChange)="patch('title', $event)" name="title" required />
+      </label>
+      <label>
+        Preço (texto)
+        <input
+          type="text"
+          [ngModel]="p.priceLabel"
+          (ngModelChange)="patch('priceLabel', $event)"
+          name="priceLabel"
+        />
+      </label>
+      <label>
+        Descrição
+        <textarea rows="4" [ngModel]="p.description" (ngModelChange)="patch('description', $event)" name="description"></textarea>
+      </label>
+      <label>
+        Fotos (uma URL por linha)
+        <textarea rows="4" [ngModel]="imagesText()" (ngModelChange)="onImagesChange($event)" name="images"></textarea>
+      </label>
+      <div class="admin-edit__footer">
+        <button type="submit" class="admin-edit__save">Salvar</button>
+        <button type="button" class="admin-edit__cancel" (click)="close()">Cancelar</button>
+      </div>
+    </form>
+  }
+</div>

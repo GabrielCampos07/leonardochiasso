@@ -1,0 +1,59 @@
+:host {
+  display: block;
+  position: relative;
+  height: 100%;
+  min-height: inherit;
+  background: #efe8dc;
+}
+
+.admin-3d-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #efe8dc;
+}
+
+.admin-3d-gate p {
+  margin: 0;
+  font-family: var(--lc-font-display);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-3d-gate__spinner {
+  width: 36px;
+  height: 36px;
+  border: 2px solid color-mix(in srgb, var(--lc-void) 16%, transparent);
+  border-top-color: var(--lc-void);
+  border-radius: 50%;
+  animation: admin-3d-gate-spin 0.8s linear infinite;
+}
+
+.admin-3d-gate__skel {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-3d-gate__skel span {
+  width: 44px;
+  height: 64px;
+  background: color-mix(in srgb, var(--lc-void) 10%, #efe8dc);
+}
+
+@keyframes admin-3d-gate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-3d-gate__spinner {
+    animation: none;
+    border-top-color: color-mix(in srgb, var(--lc-void) 40%, transparent);
+  }
+}

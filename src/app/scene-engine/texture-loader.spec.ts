@@ -1,6 +1,11 @@
 import {
   applyCorsBeforeSrc,
+  FALLBACK_WIDTH,
+  isSharedTexture,
+  LABEL_DEFAULT_WIDTH,
   makeFallbackTexture,
+  makeLabelTexture,
+  makePlaceholderTexture,
   TEXTURE_CROSS_ORIGIN,
   textureCacheUrl,
 } from './texture-loader';
@@ -43,8 +48,29 @@ describe('applyCorsBeforeSrc', () => {
 describe('makeFallbackTexture', () => {
   it('paints a named fallback instead of a blank gray plane', () => {
     const texture = makeFallbackTexture('#c8c2b8', 'Vestido Longo Radial');
-    expect(texture.image.width).toBeGreaterThanOrEqual(128);
+    expect(texture.image.width).toBe(FALLBACK_WIDTH);
     expect(texture.image.height).toBeGreaterThanOrEqual(128);
     texture.dispose();
+  });
+});
+
+describe('label and placeholder canvases', () => {
+  it('reuses the painted canvas for the same label', () => {
+    const a = makeLabelTexture('Organic Dreams', { width: 768, height: 120 });
+    const b = makeLabelTexture('Organic Dreams', { width: 768, height: 120 });
+    expect(a.image).toBe(b.image);
+    expect(a.image.width).toBe(LABEL_DEFAULT_WIDTH);
+    a.dispose();
+    b.dispose();
+  });
+
+  it('shares a tiny placeholder until photos stream in', () => {
+    const a = makePlaceholderTexture();
+    const b = makePlaceholderTexture();
+    expect(isSharedTexture(a)).toBeTrue();
+    expect(a.image).toBe(b.image);
+    expect(a.image.width).toBeLessThanOrEqual(64);
+    a.dispose();
+    b.dispose();
   });
 });

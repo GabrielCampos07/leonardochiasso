@@ -1,7 +1,11 @@
 import {
+  CAMERA_AZIMUTH_LIMIT,
+  CAMERA_POLAR_MAX,
+  CAMERA_POLAR_MIN,
   computeEyeLevelFit,
+  computeVitrineFit,
   easeInOutCubic,
-  formatStockLabel,
+  isCompactAtelierViewport,
   photoPlaneSize,
   rackNavItems,
   stepRackIndex,
@@ -24,19 +28,20 @@ describe('rackNavItems', () => {
   });
 });
 
-describe('formatStockLabel', () => {
-  it('describes stock in Portuguese', () => {
-    expect(formatStockLabel(0)).toBe('Sem estoque');
-    expect(formatStockLabel(1)).toBe('1 unidade');
-    expect(formatStockLabel(4)).toBe('4 unidades');
-  });
-});
-
 describe('easeInOutCubic', () => {
   it('starts and ends on the endpoints', () => {
     expect(easeInOutCubic(0)).toBe(0);
     expect(easeInOutCubic(1)).toBe(1);
     expect(easeInOutCubic(0.5)).toBeCloseTo(0.5, 5);
+  });
+});
+
+describe('camera lock', () => {
+  it('limits azimuth to about ±25° and polar to 10–35° above horizontal', () => {
+    expect(CAMERA_AZIMUTH_LIMIT).toBeCloseTo((25 * Math.PI) / 180, 5);
+    expect(CAMERA_POLAR_MIN).toBeCloseTo(Math.PI / 2 - (35 * Math.PI) / 180, 5);
+    expect(CAMERA_POLAR_MAX).toBeCloseTo(Math.PI / 2 - (10 * Math.PI) / 180, 5);
+    expect(CAMERA_POLAR_MIN).toBeLessThan(CAMERA_POLAR_MAX);
   });
 });
 
@@ -47,7 +52,6 @@ describe('computeEyeLevelFit', () => {
     const rack = computeEyeLevelFit(box, 16 / 9, 38, 'rack');
     const all = computeEyeLevelFit(box, 16 / 9, 38, 'overview');
     expect(rack.distance).toBeLessThan(all.distance);
-    expect(rack.target.y).toBeCloseTo((box.minY + box.maxY) / 2, 1);
     expect(rack.position.z).toBeGreaterThan(rack.target.z);
     expect(rack.position.y).toBeGreaterThan(-0.45);
   });
@@ -56,14 +60,32 @@ describe('computeEyeLevelFit', () => {
     const tall = { minX: -1.6, maxX: 1.6, minY: -0.2, maxY: 3.2, minZ: -0.1, maxZ: 0.1 };
     const rack = computeEyeLevelFit(tall, 16 / 9, 38, 'rack');
     expect(rack.distance).toBeGreaterThan(4.6);
-    expect(rack.target.y).toBeCloseTo((tall.minY + tall.maxY) / 2, 1);
   });
 
-  it('pulls back for a wide overview so every rack stays in frame', () => {
+  it('keeps Ver todas closer so plates stay legible', () => {
     const wide = { minX: -1, maxX: 16, minY: -0.2, maxY: 3.2, minZ: -0.1, maxZ: 0.1 };
     const all = computeEyeLevelFit(wide, 16 / 9, 38, 'overview');
-    expect(all.distance).toBeGreaterThan(8);
-    expect(all.distance).toBeLessThan(28);
+    expect(all.distance).toBeGreaterThan(6);
+    expect(all.distance).toBeLessThanOrEqual(16);
+  });
+});
+
+describe('computeVitrineFit', () => {
+  it('looks down from about 30–40° at the case', () => {
+    const box = { minX: -0.8, maxX: 0.8, minY: -0.6, maxY: 0.7, minZ: -0.25, maxZ: 0.25 };
+    const pose = computeVitrineFit(box, 16 / 9, 38);
+    const dy = pose.position.y - pose.target.y;
+    const dz = pose.position.z - pose.target.z;
+    const elev = Math.atan2(dy, dz) * (180 / Math.PI);
+    expect(elev).toBeGreaterThan(28);
+    expect(elev).toBeLessThan(42);
+  });
+});
+
+describe('isCompactAtelierViewport', () => {
+  it('treats 415px as one-unit framing', () => {
+    expect(isCompactAtelierViewport(415)).toBeTrue();
+    expect(isCompactAtelierViewport(1280)).toBeFalse();
   });
 });
 

@@ -1,6 +1,7 @@
 import { Component, HostBinding, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, NavigationStart, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { environment } from '../../../environments/environment';
+import { Admin3dBootService } from '../../core/admin-3d-boot.service';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { AdminViewMode, AdminViewModeService } from '../../core/admin-view-mode.service';
 import { ROUTES } from '../../core/routes';
@@ -19,6 +20,7 @@ export class AdminShell {
   private readonly session = inject(AdminSessionService);
   private readonly router = inject(Router);
   private readonly viewMode = inject(AdminViewModeService);
+  private readonly sceneBoot = inject(Admin3dBootService);
 
   readonly home = ROUTES.home;
   readonly products = ROUTES.adminProducts;
@@ -35,7 +37,6 @@ export class AdminShell {
   });
 
   private readonly url = signal(this.router.url);
-  readonly sceneOutletReady = signal(false);
 
   readonly selectedView = computed<AdminViewMode>(() => {
     const path = this.url().split('?')[0] ?? '';
@@ -49,7 +50,7 @@ export class AdminShell {
     return (this.url().split('?')[0] ?? '').startsWith(ROUTES.admin3d);
   }
 
-  readonly showSceneBoot = computed(() => this.sceneHost && !this.sceneOutletReady());
+  readonly showSceneBoot = computed(() => this.sceneHost && !this.sceneBoot.ready());
 
   @HostBinding('class.admin-shell--banner')
   get bannerHost(): boolean {
@@ -57,27 +58,21 @@ export class AdminShell {
   }
 
   constructor() {
+    if (this.sceneHost) this.sceneBoot.begin();
     this.router.events.subscribe((e) => {
       if (e instanceof NavigationStart) {
         const path = e.url.split('?')[0] ?? '';
+        const alreadyOnScene = this.sceneHost;
         this.url.set(e.url);
-        if (path.startsWith(ROUTES.admin3d)) this.sceneOutletReady.set(false);
+        if (path.startsWith(ROUTES.admin3d) && !alreadyOnScene) this.sceneBoot.begin();
       }
       if (e instanceof NavigationEnd) {
         this.url.set(e.urlAfterRedirects);
         if (!(e.urlAfterRedirects.split('?')[0] ?? '').startsWith(ROUTES.admin3d)) {
-          this.sceneOutletReady.set(false);
+          this.sceneBoot.reset();
         }
       }
     });
-  }
-
-  onSceneActivate(): void {
-    this.sceneOutletReady.set(true);
-  }
-
-  onSceneDeactivate(): void {
-    this.sceneOutletReady.set(false);
   }
 
   setViewMode(mode: AdminViewMode): void {
