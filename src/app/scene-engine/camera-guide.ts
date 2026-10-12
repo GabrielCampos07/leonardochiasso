@@ -53,6 +53,7 @@ export function easeInOutCubic(t: number): number {
 /** Slight overshoot for the collection rising from the floor. */
 export function easeOutBack(t: number): number {
   const x = Math.min(1, Math.max(0, t));
+  if (x === 0 || x === 1) return x;
   const c1 = 1.18;
   const c3 = c1 + 1;
   return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
