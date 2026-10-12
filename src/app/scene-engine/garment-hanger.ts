@@ -5,6 +5,8 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  Sprite,
+  SpriteMaterial,
   TorusGeometry,
 } from 'three';
 import type { SceneHanger } from './types';
@@ -12,6 +14,10 @@ import { hangerOpacity, stockBadgeColor } from './types';
 import { makeBadgeTexture, makeFallbackTexture, makeLabelTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
+
+function hangerLabelMap(name: string) {
+  return makeLabelTexture(name, { width: 1024, height: 192, fill: '#0e0c0e', size: 56 });
+}
 
 export function createGarmentHanger(data: SceneHanger): Group {
   const group = new Group();
@@ -45,7 +51,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
     new PlaneGeometry(0.26, 0.4),
     new MeshStandardMaterial({
       color: 0xffffff,
-      map: makeFallbackTexture(),
+      map: makeFallbackTexture('#c8c2b8', data.name),
       roughness: 0.7,
       metalness: 0.02,
       transparent: true,
@@ -72,19 +78,20 @@ export function createGarmentHanger(data: SceneHanger): Group {
   badge.userData = group.userData;
   group.add(badge);
 
-  const label = new Mesh(
-    new PlaneGeometry(0.3, 0.055),
-    new MeshStandardMaterial({
-      map: makeLabelTexture(data.name, { width: 320, height: 64, fill: '#0e0c0e', size: 20 }),
-      roughness: 0.8,
-      metalness: 0,
+  const label = new Sprite(
+    new SpriteMaterial({
+      map: hangerLabelMap(data.name),
       transparent: true,
+      depthTest: true,
+      sizeAttenuation: true,
       opacity,
     }),
   );
-  label.position.set(0, -0.16, 0.006);
+  label.scale.set(0.48, 0.09, 1);
+  label.position.set(0, -0.2, 0.04);
   label.name = 'label';
   label.userData = group.userData;
+  label.center.set(0.5, 0.5);
   group.add(label);
 
   return group;
@@ -100,11 +107,15 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
   const opacity = hangerOpacity(data.status);
   const garment = group.getObjectByName('garment') as Mesh | undefined;
   const badge = group.getObjectByName('badge') as Mesh | undefined;
-  const label = group.getObjectByName('label') as Mesh | undefined;
+  const label = group.getObjectByName('label') as Sprite | undefined;
 
   if (garment?.material instanceof MeshStandardMaterial) {
     garment.material.opacity = opacity;
     garment.material.transparent = opacity < 1;
+    if (!garment.material.map) {
+      garment.material.map = makeFallbackTexture('#c8c2b8', data.name);
+      garment.material.needsUpdate = true;
+    }
   }
   if (badge?.material instanceof MeshStandardMaterial) {
     const prev = badge.material.map;
@@ -113,14 +124,9 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     badge.material.needsUpdate = true;
     prev?.dispose();
   }
-  if (label?.material instanceof MeshStandardMaterial) {
+  if (label?.material instanceof SpriteMaterial) {
     const prev = label.material.map;
-    label.material.map = makeLabelTexture(data.name, {
-      width: 320,
-      height: 64,
-      fill: '#0e0c0e',
-      size: 20,
-    });
+    label.material.map = hangerLabelMap(data.name);
     label.material.opacity = opacity;
     label.material.needsUpdate = true;
     prev?.dispose();

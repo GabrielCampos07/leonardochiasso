@@ -10,6 +10,13 @@ export interface ProductEditModalData {
   product?: Product;
 }
 
+export const PRODUCT_EDIT_MODAL_TITLE_ID = 'product-edit-modal-title';
+
+export function productEditModalTitle(name: string | null | undefined): string {
+  const trimmed = name?.trim();
+  return trimmed ? `Editar produto · ${trimmed}` : 'Editar produto';
+}
+
 @Component({
   selector: 'lc-product-edit-modal',
   standalone: true,
@@ -23,9 +30,14 @@ export class ProductEditModal implements OnInit {
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly toast = inject(ToastService);
 
+  readonly titleId = PRODUCT_EDIT_MODAL_TITLE_ID;
   readonly product = signal<Product | null>(null);
   readonly missing = signal(false);
   readonly loading = signal(true);
+
+  get title(): string {
+    return productEditModalTitle(this.product()?.name ?? this.data.product?.name);
+  }
 
   ngOnInit(): void {
     if (this.data.product) {
