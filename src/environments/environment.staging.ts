@@ -7,4 +7,5 @@ export const environment = {
   cdnBaseUrl: 'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev',
   adminPassword: '',
   stagingBanner: 'Ambiente de teste, dados reais',
+  admin3dMock: false,
 };
