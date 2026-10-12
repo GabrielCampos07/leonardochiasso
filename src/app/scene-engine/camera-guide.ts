@@ -23,11 +23,15 @@ export interface RackNavItem {
 
 export const OVERVIEW_FOCUS_ID = 'all';
 export const CAMERA_TWEEN_MS = 720;
+/** Create / cancel / rise tweens stay inside the 400–700 ms band. */
+export const CREATE_TWEEN_MS = 560;
 /** Keep the lens above the wood floor (`collection-rack` FLOOR_Y = -0.7). */
 export const CAMERA_MIN_Y = -0.45;
 export const FIT_PAD_TOP = 0.12;
 export const FIT_PAD_BOTTOM = 0.18;
 export const FIT_PAD_SIDE = 0.08;
+/** Extra side inset so the name plate and end hangers stay on-screen. */
+export const FIT_WIDTH_MARGIN = 0.08;
 
 /** ±25° around the front of the active unit. */
 export const CAMERA_AZIMUTH_LIMIT = (25 * Math.PI) / 180;
@@ -49,6 +53,14 @@ export function easeInOutCubic(t: number): number {
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
+/** Light spring for the new rack / vitrine rising from the floor. */
+export function easeOutBack(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+}
+
 export function stepRackIndex(current: number, delta: -1 | 1, count: number): number {
   if (count <= 0) return 0;
   return Math.min(count - 1, Math.max(0, current + delta));
@@ -56,6 +68,18 @@ export function stepRackIndex(current: number, delta: -1 | 1, count: number): nu
 
 export function rackNavItems(racks: ReadonlyArray<{ id: string; name: string }>): RackNavItem[] {
   return racks.map((rack, index) => ({ id: rack.id, name: rack.name, index }));
+}
+
+/** Distance that fits `width` in the horizontal FOV, with a side margin on each edge. */
+export function distanceToFitWidth(
+  width: number,
+  aspect: number,
+  fovDeg: number,
+  margin = FIT_WIDTH_MARGIN,
+): number {
+  const fov = (fovDeg * Math.PI) / 180;
+  const visibleW = Math.max(0.4, 1 - margin * 2);
+  return Math.max(0.4, width) / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2) * visibleW);
 }
 
 export function poseFromElevation(
@@ -95,12 +119,11 @@ export function computeEyeLevelFit(
   const padTop = compact ? 0.06 : FIT_PAD_TOP;
   const padBottom = compact ? 0.14 : FIT_PAD_BOTTOM;
   const visibleH = Math.max(0.35, 1 - padTop - padBottom);
-  const visibleW = Math.max(0.4, 1 - FIT_PAD_SIDE * 2);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 0.98 : 1.12) : compact ? 0.86 : 1.1;
+  const fill = mode === 'overview' ? (compact ? 0.98 : 1.12) : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
-  const fitW = width / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2) * visibleW);
-  const fitted = compact && mode !== 'overview' ? fitH : Math.max(fitH, fitW);
+  const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
+  const fitted = Math.max(fitH, fitW);
   let distance = Math.max(fitted, compact ? 1.45 : 2.05) * fill + depth * (compact ? 0.22 : 0.35);
   if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 3.0 : 4.4), compact ? 9 : 16);
   else distance = Math.min(Math.max(distance, compact ? 1.45 : 2.2), 12);
@@ -125,13 +148,12 @@ export function computeVitrineFit(
   const cz = (box.minZ + box.maxZ) / 2;
   const fov = (fovDeg * Math.PI) / 180;
   const visibleH = compact ? 0.82 : 0.74;
-  const visibleW = compact ? 0.86 : 0.8;
-  const fill = compact ? 0.8 : 0.86;
+  const fill = 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
-  const fitW = width / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2) * visibleW);
-  const fitted = compact ? fitH : Math.max(fitH, fitW);
+  const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
+  const fitted = Math.max(fitH, fitW);
   let distance = Math.max(fitted, compact ? 1.2 : 1.45) * fill + depth * 0.18;
-  distance = Math.min(Math.max(distance, compact ? 1.2 : 1.45), compact ? 3.6 : 5);
+  distance = Math.min(Math.max(distance, compact ? 1.2 : 1.45), compact ? 6 : 5);
   return poseFromElevation(cx, cy, cz, distance, VITRINE_ELEVATION);
 }
 

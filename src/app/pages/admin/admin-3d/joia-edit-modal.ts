@@ -11,6 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { uniqueJoiaSlug } from './atelier-blank';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { ToastService } from '../../../core/feedback/toast.service';
@@ -20,6 +21,7 @@ import { PRODUCT_EDIT_MODAL_TITLE_ID } from './product-edit-modal';
 export interface JoiaEditModalData {
   slug: string;
   piece?: JoiaPiece;
+  isNew?: boolean;
 }
 
 @Component({
@@ -49,12 +51,22 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
   });
 
   get title(): string {
+    if (this.data.isNew) return 'Adicionar joia';
     const name = this.piece()?.title ?? this.data.piece?.title;
     return name?.trim() ? `Editar joia · ${name}` : 'Editar joia';
   }
 
   ngOnInit(): void {
     this.detachEscape = listenDialogEscape(() => this.close());
+    if (this.data.isNew) {
+      this.loading.set(false);
+      if (!this.data.piece) {
+        this.missing.set(true);
+        return;
+      }
+      this.piece.set(structuredClone(this.data.piece));
+      return;
+    }
     const found = this.data.piece ?? this.catalog.get(this.data.slug);
     this.loading.set(false);
     if (!found) {
@@ -92,16 +104,23 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
       this.toast.info('Informe o título.');
       return;
     }
+    const title = cur.title.trim();
+    const slug = this.data.isNew
+      ? uniqueJoiaSlug(title, (s) => this.catalog.slugExists(s))
+      : cur.slug;
     const next: JoiaPiece = {
       ...cur,
-      title: cur.title.trim(),
+      id: slug,
+      slug,
+      title,
       description: cur.description.trim(),
       priceLabel: cur.priceLabel.trim() || 'Sob consulta',
       image: cur.image?.trim() || joiaGallery(cur)[0],
       images: joiaGallery(cur),
     };
-    this.catalog.save(next);
-    this.toast.success('Joia salva.');
+    if (this.data.isNew) this.catalog.create(next);
+    else this.catalog.save(next);
+    this.toast.success(this.data.isNew ? 'Joia criada.' : 'Joia salva.');
     this.ref.close(next);
   }
 

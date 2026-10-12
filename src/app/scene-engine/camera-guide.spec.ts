@@ -2,10 +2,13 @@ import {
   CAMERA_AZIMUTH_LIMIT,
   CAMERA_POLAR_MAX,
   CAMERA_POLAR_MIN,
+  CREATE_TWEEN_MS,
   computeEyeLevelFit,
   clampOrbitSpherical,
   computeVitrineFit,
+  distanceToFitWidth,
   easeInOutCubic,
+  easeOutBack,
   isCompactAtelierViewport,
   photoPlaneSize,
   rackNavItems,
@@ -34,6 +37,21 @@ describe('easeInOutCubic', () => {
     expect(easeInOutCubic(0)).toBe(0);
     expect(easeInOutCubic(1)).toBe(1);
     expect(easeInOutCubic(0.5)).toBeCloseTo(0.5, 5);
+  });
+});
+
+describe('easeOutBack', () => {
+  it('overshoots then lands on 1', () => {
+    expect(easeOutBack(0)).toBe(0);
+    expect(easeOutBack(1)).toBeCloseTo(1, 5);
+    expect(easeOutBack(0.85)).toBeGreaterThan(1);
+  });
+});
+
+describe('CREATE_TWEEN_MS', () => {
+  it('stays inside the 400–700 ms motion band', () => {
+    expect(CREATE_TWEEN_MS).toBeGreaterThanOrEqual(400);
+    expect(CREATE_TWEEN_MS).toBeLessThanOrEqual(700);
   });
 });
 
@@ -66,11 +84,11 @@ describe('computeEyeLevelFit', () => {
     expect(rack.position.y).toBeGreaterThan(-0.45);
   });
 
-  it('frames a compact 400px viewport closer so the rack fills the canvas', () => {
-    const desktop = computeEyeLevelFit(box, 16 / 9, 38, 'rack', false);
+  it('backs a compact 400px viewport so the full rack width and plate fit with 8% margin', () => {
     const compact = computeEyeLevelFit(box, 400 / 720, 38, 'rack', true);
-    expect(compact.distance).toBeLessThan(desktop.distance);
-    expect(compact.distance).toBeLessThan(2.8);
+    const need = distanceToFitWidth(3, 400 / 720, 38, 0.08);
+    expect(compact.distance).toBeGreaterThanOrEqual(need);
+    expect(compact.distance).toBeGreaterThan(2.8);
   });
 
   it('fits a tall 3-row rack without the old 4.6 distance cap', () => {
@@ -88,6 +106,13 @@ describe('computeEyeLevelFit', () => {
 });
 
 describe('computeVitrineFit', () => {
+  it('fits compact vitrine width including the plate', () => {
+    const box = { minX: -1.2, maxX: 1.2, minY: -0.6, maxY: 0.9, minZ: -0.25, maxZ: 0.25 };
+    const compact = computeVitrineFit(box, 400 / 720, 38, true);
+    const need = distanceToFitWidth(2.4, 400 / 720, 38, 0.08);
+    expect(compact.distance).toBeGreaterThanOrEqual(need);
+  });
+
   it('looks down from about 18–26° and stays closer than the old 34° framing', () => {
     const box = { minX: -0.8, maxX: 0.8, minY: -0.6, maxY: 0.7, minZ: -0.25, maxZ: 0.25 };
     const pose = computeVitrineFit(box, 16 / 9, 38);
@@ -105,6 +130,14 @@ describe('isCompactAtelierViewport', () => {
   it('treats 415px as one-unit framing', () => {
     expect(isCompactAtelierViewport(415)).toBeTrue();
     expect(isCompactAtelierViewport(1280)).toBeFalse();
+  });
+});
+
+describe('distanceToFitWidth', () => {
+  it('grows as the viewport gets narrower', () => {
+    const wide = distanceToFitWidth(3, 16 / 9, 38, 0.08);
+    const narrow = distanceToFitWidth(3, 400 / 720, 38, 0.08);
+    expect(narrow).toBeGreaterThan(wide);
   });
 });
 

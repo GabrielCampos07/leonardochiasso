@@ -48,6 +48,10 @@ describe('productEditModalTitle', () => {
     expect(productEditModalTitle('')).toBe('Editar produto');
     expect(productEditModalTitle(null)).toBe('Editar produto');
   });
+
+  it('uses Adicionar produto for the create flow', () => {
+    expect(productEditModalTitle('Vestido', true)).toBe('Adicionar produto');
+  });
 });
 
 describe('ProductEditModal', () => {

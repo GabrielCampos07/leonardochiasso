@@ -1,0 +1,163 @@
+:host {
+  display: contents;
+}
+
+.create-col {
+  position: fixed;
+  z-index: 8;
+  width: min(280px, calc(100vw - 24px));
+  padding: 16px;
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
+  box-shadow: 0 12px 32px rgb(20 16 12 / 12%);
+  color: var(--lc-void);
+}
+
+.create-col__kicker {
+  margin: 0 0 10px;
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lc-ash);
+}
+
+.create-col__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+  cursor: text;
+}
+
+.create-col__editor {
+  display: block;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 45%, transparent);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font: inherit;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  outline: none;
+}
+
+.create-col__editor:empty::before {
+  content: 'Nome da coleção';
+  color: color-mix(in srgb, var(--lc-void) 42%, white);
+}
+
+.create-col__editor:focus {
+  border-color: var(--lc-void);
+}
+
+.create-col__editor[aria-invalid='true'] {
+  border-color: #8b1e2d;
+}
+
+.create-col__plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  background: #1c1814;
+  color: #f4efe6;
+  font-family: var(--lc-font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  overflow: hidden;
+}
+
+.create-col__plate span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.create-col__lines {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.create-col__line {
+  flex: 1 1 auto;
+  min-height: 44px;
+  min-width: 44px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 28%, transparent);
+  background: var(--lc-white);
+  font-family: var(--lc-font-display);
+  font-size: 0.88rem;
+}
+
+.create-col__line + .create-col__line {
+  border-left: none;
+}
+
+.create-col__line.is-on {
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.create-col__error {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #8b1e2d;
+}
+
+.create-col__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.create-col__save,
+.create-col__cancel {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.create-col__save {
+  border: none;
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.create-col__save:disabled {
+  opacity: 0.55;
+}
+
+.create-col__cancel {
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  background: var(--lc-white);
+}
+
+.create-col--sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: 100%;
+  max-width: none;
+  padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -12px 32px rgb(20 16 12 / 16%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .create-col {
+    transition: none;
+  }
+}

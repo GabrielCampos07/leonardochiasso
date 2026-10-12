@@ -1,10 +1,11 @@
 import { NgComponentOutlet } from '@angular/common';
-import { AfterViewInit, Component, OnDestroy, Type, inject, signal } from '@angular/core';
+import { Component, OnDestroy, Type, inject, signal } from '@angular/core';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
+import { Admin3dPrefetchService } from './admin-3d-prefetch';
 
 /**
- * Eager, three.js-free route wrapper. Paints the atelier spinner on first paint,
- * then dynamically imports the heavy scene page.
+ * Eager, three.js-free route wrapper. Starts the scene chunk and catalog HTTP
+ * immediately, then swaps in the heavy page when the import resolves.
  */
 @Component({
   selector: 'lc-admin-3d-gate',
@@ -13,7 +14,7 @@ import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
   templateUrl: './admin-3d-gate.html',
   styleUrl: './admin-3d-gate.scss',
 })
-export class Admin3dGate implements AfterViewInit, OnDestroy {
+export class Admin3dGate implements OnDestroy {
   readonly boot = inject(Admin3dBootService);
   readonly page = signal<Type<unknown> | null>(null);
 
@@ -21,14 +22,10 @@ export class Admin3dGate implements AfterViewInit, OnDestroy {
 
   constructor() {
     this.boot.begin();
-  }
-
-  ngAfterViewInit(): void {
-    requestAnimationFrame(() => {
-      if (this.cancelled) return;
-      void import('./admin-3d-page').then((m) => {
-        if (!this.cancelled) this.page.set(m.Admin3dPage);
-      });
+    const prefetch = inject(Admin3dPrefetchService);
+    prefetch.prefetchCatalog();
+    void prefetch.prefetchPage().then((cmp) => {
+      if (!this.cancelled) this.page.set(cmp);
     });
   }
 
