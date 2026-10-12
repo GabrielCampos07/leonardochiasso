@@ -16,10 +16,13 @@ import { makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './
 import { FLOOR_Y } from './collection-rack';
 import { VITRINE_SHELF_LIMIT, VITRINE_TRAYS_PER_SHELF } from './mapping';
 
-export const TRAY_SPACING = 0.4;
-export const TRAY_PHOTO = 0.3;
-export const VITRINE_DEPTH = 0.52;
-export const VITRINE_SHELF_PITCH = 0.36;
+export const TRAY_SPACING = 0.5;
+export const TRAY_PHOTO = 0.42;
+export const TRAY_WIDTH = 0.46;
+export const TRAY_DEPTH = 0.36;
+export const VITRINE_DEPTH = 0.58;
+export const VITRINE_SHELF_PITCH = 0.58;
+export const TRAY_PHOTO_Y = 0.28;
 
 export function vitrineWidth(count: number): number {
   const perShelf = Math.min(Math.max(count, 1), VITRINE_TRAYS_PER_SHELF);
@@ -52,7 +55,7 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
   const count = unit.hangers.length;
   const shelves = Math.min(VITRINE_SHELF_LIMIT, Math.max(1, Math.ceil(count / VITRINE_TRAYS_PER_SHELF) || 1));
   const width = vitrineWidth(count);
-  const innerH = 0.22 + shelves * VITRINE_SHELF_PITCH;
+  const innerH = 0.32 + shelves * VITRINE_SHELF_PITCH;
   const wood = new MeshStandardMaterial({ color: 0x3a2f26, roughness: 0.72, metalness: 0.08 });
   const brass = new MeshStandardMaterial({ color: 0xc4b08a, roughness: 0.35, metalness: 0.55 });
 
@@ -173,7 +176,7 @@ export function createJewelryTray(data: SceneHanger): Group {
   stand.castShadow = true;
   group.add(stand);
 
-  const tray = new Mesh(new BoxGeometry(0.34, 0.012, 0.28), wood);
+  const tray = new Mesh(new BoxGeometry(TRAY_WIDTH, 0.014, TRAY_DEPTH), wood);
   tray.position.y = 0.06;
   tray.userData = group.userData;
   tray.name = 'tray';
@@ -184,7 +187,7 @@ export function createJewelryTray(data: SceneHanger): Group {
     new PlaneGeometry(1, 1),
     new MeshStandardMaterial({ color: 0x2a241c, roughness: 0.5, transparent: true, opacity }),
   );
-  frame.position.set(0, 0.22, 0);
+  frame.position.set(0, TRAY_PHOTO_Y, 0);
   frame.scale.set(photo.width + 0.02, photo.height + 0.02, 1);
   frame.name = 'frame';
   frame.userData = group.userData;
@@ -200,7 +203,7 @@ export function createJewelryTray(data: SceneHanger): Group {
       opacity,
     }),
   );
-  garment.position.set(0, 0.22, 0.004);
+  garment.position.set(0, TRAY_PHOTO_Y, 0.004);
   garment.scale.set(photo.width, photo.height, 1);
   garment.name = 'garment';
   garment.userData = group.userData;
@@ -214,7 +217,7 @@ export function createJewelryTray(data: SceneHanger): Group {
       opacity: isSoldOut(data.stockQty) ? opacity : 0,
     }),
   );
-  badge.position.set(0.1, 0.34, 0.01);
+  badge.position.set(0.14, TRAY_PHOTO_Y + TRAY_PHOTO * 0.42, 0.01);
   badge.name = 'badge';
   badge.userData = group.userData;
   badge.visible = isSoldOut(data.stockQty);

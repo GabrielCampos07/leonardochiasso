@@ -15,6 +15,7 @@ import {
   PlaneGeometry,
   Raycaster,
   Scene,
+  Spherical,
   Texture,
   Vector2,
   Vector3,
@@ -31,6 +32,7 @@ import {
   CameraFocusMode,
   CameraPose,
   OVERVIEW_FOCUS_ID,
+  clampOrbitSpherical,
   computeEyeLevelFit,
   computeVitrineFit,
   easeInOutCubic,
@@ -53,10 +55,11 @@ import {
 } from './jewelry-vitrine';
 import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
-import { isSharedTexture, loadTextureSafe, makeFallbackTexture } from './texture-loader';
-import { TextureLoadQueue, texturePriority } from './texture-queue';
-import { replaceHanger } from './mapping';
-import type { SceneHanger, SceneLayout } from './types';
+import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
+import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
+import { racksForFirstFrame, replaceHanger } from './mapping';
+import { hangerTextureUrls } from './photo-url';
+import type { SceneHanger, SceneLayout, SceneRack } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
 export type HangerPickHandler = (slug: string) => void;
@@ -66,6 +69,7 @@ export type HangerHoverHandler = (
 ) => void;
 export type FocusChangeHandler = (id: string) => void;
 export type FirstFrameHandler = () => void;
+export type SceneCompleteHandler = () => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
@@ -91,6 +95,8 @@ export class SceneEngine {
   private readonly fitSize = new Vector3();
   private readonly fitCenter = new Vector3();
   private readonly bounds = new Box3();
+  private readonly orbitOffset = new Vector3();
+  private readonly orbitSpherical = new Spherical();
 
   private raf = 0;
   private renderQueued = false;
@@ -109,12 +115,20 @@ export class SceneEngine {
   private onHoverCb: HangerHoverHandler | null = null;
   private onFocusCb: FocusChangeHandler | null = null;
   private onFirstFrameCb: FirstFrameHandler | null = null;
+  private onSceneCompleteCb: SceneCompleteHandler | null = null;
   private firstFrameSent = false;
+  private sceneCompleteSent = false;
+  private expectedPhotos = 0;
+  private finishedPhotos = 0;
   private readonly texQueue = new TextureLoadQueue();
   private readonly loadedPhotos = new Set<string>();
   private shadowsArmed = false;
   private keyLight: DirectionalLight | null = null;
   private hasLayout = false;
+  private deferredSlots: Array<{ id: string; rack: SceneRack; x: number }> = [];
+  private idleHandle = 0;
+  private idleRic = 0;
+  private capturedPointerId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private tween: {
     fromPos: Vector3;
@@ -127,6 +141,12 @@ export class SceneEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    try {
+      this.canvas.setPointerCapture(event.pointerId);
+      this.capturedPointerId = event.pointerId;
+    } catch {
+      this.capturedPointerId = event.pointerId;
+    }
   };
   private readonly onPointerMove = (event: PointerEvent) => {
     this.pendingHover = event;
@@ -142,21 +162,27 @@ export class SceneEngine {
   private readonly onPointerUp = (event: PointerEvent) => {
     const dx = event.clientX - this.pointerDown.x;
     const dy = event.clientY - this.pointerDown.y;
+    this.releasePointer(event.pointerId);
+    this.endOrbit();
     if (dx * dx + dy * dy > DRAG_SLOP_SQ) return;
     this.handlePointer(event, true);
   };
+  private readonly onPointerCancel = (event: PointerEvent) => {
+    this.releasePointer(event.pointerId);
+    this.endOrbit();
+  };
+  private readonly onLostPointerCapture = () => {
+    this.capturedPointerId = null;
+    this.endOrbit();
+  };
+  private readonly onWindowBlur = () => this.endOrbit();
   private readonly onPointerLeave = () => this.setHover(null);
   private readonly onControlsStart = () => {
     this.interacting = true;
     this.dampingFrames = this.reducedMotion ? 0 : 24;
     this.requestRender();
   };
-  private readonly onControlsEnd = () => {
-    this.interacting = false;
-    this.dampingFrames = this.reducedMotion ? 0 : 24;
-    this.restoreFrontView();
-    this.requestRender();
-  };
+  private readonly onControlsEnd = () => this.endOrbit();
   private readonly onControlsChange = () => this.requestRender();
 
   constructor(canvas: HTMLCanvasElement, options: SceneEngineOptions = {}) {
@@ -240,7 +266,10 @@ export class SceneEngine {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerCancel);
+    canvas.addEventListener('lostpointercapture', this.onLostPointerCapture);
     canvas.addEventListener('pointerleave', this.onPointerLeave);
+    window.addEventListener('blur', this.onWindowBlur);
 
     this.resize();
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -263,6 +292,10 @@ export class SceneEngine {
     this.onFirstFrameCb = handler;
   }
 
+  onSceneComplete(handler: SceneCompleteHandler): void {
+    this.onSceneCompleteCb = handler;
+  }
+
   start(): void {
     this.requestRender();
   }
@@ -273,31 +306,32 @@ export class SceneEngine {
 
   setLayout(layout: SceneLayout): void {
     this.layout = layout;
+    this.cancelDeferredRacks();
     while (this.racksRoot.children.length) {
       const child = this.racksRoot.children[0]!;
       this.racksRoot.remove(child);
       disposeObject3D(child);
     }
 
-    let cursor = 0;
-    const gap = 1.35;
-    for (const rack of layout.racks) {
-      const width = rack.kind === 'vitrine' ? vitrineWidth(rack.hangers.length) : rackWidth(rack.hangers.length);
-      const x = cursor + width / 2;
-      const group = rack.kind === 'vitrine' ? createJewelryVitrine(rack, x) : createCollectionRack(rack, x);
-      this.racksRoot.add(group);
-      cursor += width + gap;
-    }
+    const slots = this.computeRackSlots(layout);
+    const firstId = layout.racks[0]?.id ?? OVERVIEW_FOCUS_ID;
+    const split = racksForFirstFrame(slots, firstId);
+    this.deferredSlots = split.deferred;
+    for (const slot of split.immediate) this.mountRack(slot);
 
     this.hasLayout = true;
     this.firstFrameSent = false;
+    this.sceneCompleteSent = false;
+    this.expectedPhotos = layout.racks.reduce((n, r) => n + r.hangers.length, 0);
+    this.finishedPhotos = 0;
     this.loadedPhotos.clear();
     this.texQueue.clear();
-    const first = layout.racks[0]?.id;
-    if (first) this.focusRack(first, true);
+    if (firstId !== OVERVIEW_FOCUS_ID) this.focusRack(firstId, true);
     else this.focusOverview(true);
     this.requestRender();
     this.enqueueHangerTextures();
+    this.scheduleDeferredRacks();
+    this.maybeSceneComplete();
   }
 
   focusRack(id: string, immediate = this.reducedMotion): void {
@@ -305,6 +339,7 @@ export class SceneEngine {
       this.focusOverview(immediate);
       return;
     }
+    this.ensureRackMounted(id);
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
     this.focusedId = id;
@@ -317,10 +352,12 @@ export class SceneEngine {
   }
 
   focusOverview(immediate = this.reducedMotion): void {
+    this.flushDeferredRacks();
     this.focusedId = OVERVIEW_FOCUS_ID;
     this.applyOrbitLimits('overview');
     this.moveCamera(this.poseFor(this.racksRoot, 'overview'), immediate);
     this.onFocusCb?.(OVERVIEW_FOCUS_ID);
+    if (this.hasLayout) this.enqueueHangerTextures();
   }
 
   updateHanger(next: SceneHanger): void {
@@ -330,12 +367,12 @@ export class SceneEngine {
     const prev = group.userData['data'] as SceneHanger | undefined;
     if (next.kind === 'jewelry') applyTrayData(group, next);
     else applyHangerData(group, next);
-    if (prev?.imageUrl !== next.imageUrl) {
+    if (prev?.imageUrl !== next.imageUrl || prev?.thumbUrl !== next.thumbUrl) {
       this.loadedPhotos.delete(next.slug);
       this.texQueue.enqueue({
         id: next.slug,
         priority: 0,
-        run: () => this.loadHangerTexture(next.slug, next.imageUrl, next.name),
+        run: () => this.loadHangerTexture(next),
       });
     }
     if (prev && prev.rackId !== next.rackId) {
@@ -365,10 +402,14 @@ export class SceneEngine {
     cancelAnimationFrame(this.raf);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.cancelDeferredRacks();
     this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
+    this.canvas.removeEventListener('lostpointercapture', this.onLostPointerCapture);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
+    window.removeEventListener('blur', this.onWindowBlur);
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);
     this.controls.removeEventListener('change', this.onControlsChange);
@@ -379,6 +420,7 @@ export class SceneEngine {
     this.onHoverCb = null;
     this.onFocusCb = null;
     this.onFirstFrameCb = null;
+    this.onSceneCompleteCb = null;
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     this.keyLight = null;
@@ -463,7 +505,7 @@ export class SceneEngine {
       this.renderQueued = false;
       if (this.disposed) return;
       const animating = this.stepTween() || this.stepLift();
-      if (!this.reducedMotion) this.controls.update();
+      if (!this.tween && !this.reducedMotion) this.controls.update();
       this.clampCamera();
       this.faceLabels();
       this.renderer.render(this.scene, this.camera);
@@ -480,9 +522,18 @@ export class SceneEngine {
   }
 
   private clampCamera(): void {
-    if (this.camera.position.y < CAMERA_MIN_Y) this.camera.position.y = CAMERA_MIN_Y;
-    if (this.controls.target.y < FLOOR_Y + 0.12) this.controls.target.y = FLOOR_Y + 0.12;
     this.camera.up.set(0, 1, 0);
+    if (this.controls.target.y < FLOOR_Y + 0.12) this.controls.target.y = FLOOR_Y + 0.12;
+    this.orbitOffset.copy(this.camera.position).sub(this.controls.target);
+    this.orbitSpherical.setFromVector3(this.orbitOffset);
+    const locked = clampOrbitSpherical(this.orbitSpherical.theta, this.orbitSpherical.phi);
+    this.orbitSpherical.theta = locked.theta;
+    this.orbitSpherical.phi = locked.phi;
+    this.orbitSpherical.makeSafe();
+    this.orbitOffset.setFromSpherical(this.orbitSpherical);
+    this.camera.position.copy(this.controls.target).add(this.orbitOffset);
+    if (this.camera.position.y < CAMERA_MIN_Y) this.camera.position.y = CAMERA_MIN_Y;
+    this.camera.lookAt(this.controls.target);
   }
 
   /** Keep plates and name tags facing the lens so they do not overlap when orbiting. */
@@ -562,18 +613,115 @@ export class SceneEngine {
     if (garment) applyPhotoAspect(garment, frame, texture);
   }
 
+  private computeRackSlots(layout: SceneLayout): Array<{ id: string; rack: SceneRack; x: number }> {
+    let cursor = 0;
+    const gap = 1.35;
+    return layout.racks.map((rack) => {
+      const width = rack.kind === 'vitrine' ? vitrineWidth(rack.hangers.length) : rackWidth(rack.hangers.length);
+      const x = cursor + width / 2;
+      cursor += width + gap;
+      return { id: rack.id, rack, x };
+    });
+  }
+
+  private mountRack(slot: { rack: SceneRack; x: number }): void {
+    if (this.racksRoot.getObjectByName(`rack:${slot.rack.id}`)) return;
+    const group =
+      slot.rack.kind === 'vitrine'
+        ? createJewelryVitrine(slot.rack, slot.x)
+        : createCollectionRack(slot.rack, slot.x);
+    this.racksRoot.add(group);
+  }
+
+  private ensureRackMounted(id: string): void {
+    const index = this.deferredSlots.findIndex((slot) => slot.id === id);
+    if (index < 0) return;
+    const [slot] = this.deferredSlots.splice(index, 1);
+    if (slot) this.mountRack(slot);
+  }
+
+  private scheduleDeferredRacks(): void {
+    if (!this.deferredSlots.length) return;
+    const pump = (deadline?: IdleDeadline) => {
+      if (this.disposed) return;
+      const started = performance.now();
+      while (this.deferredSlots.length) {
+        const remaining = deadline?.timeRemaining?.() ?? 8 - (performance.now() - started);
+        if (remaining < 3 && this.racksRoot.children.length > 0) break;
+        const next = this.deferredSlots.shift();
+        if (next) this.mountRack(next);
+      }
+      if (this.deferredSlots.length) {
+        this.scheduleDeferredRacks();
+        return;
+      }
+      this.enqueueHangerTextures();
+      this.requestRender();
+      this.maybeSceneComplete();
+    };
+    if (typeof requestIdleCallback === 'function') {
+      this.idleRic = requestIdleCallback((deadline) => pump(deadline), { timeout: 180 });
+    } else {
+      this.idleHandle = window.setTimeout(() => pump(), 0);
+    }
+  }
+
+  private flushDeferredRacks(): void {
+    this.cancelDeferredRacks(false);
+    while (this.deferredSlots.length) {
+      const next = this.deferredSlots.shift();
+      if (next) this.mountRack(next);
+    }
+    this.enqueueHangerTextures();
+    this.maybeSceneComplete();
+  }
+
+  private cancelDeferredRacks(clearQueue = true): void {
+    if (this.idleRic && typeof cancelIdleCallback === 'function') {
+      cancelIdleCallback(this.idleRic);
+      this.idleRic = 0;
+    }
+    if (this.idleHandle) {
+      window.clearTimeout(this.idleHandle);
+      this.idleHandle = 0;
+    }
+    if (clearQueue) this.deferredSlots = [];
+  }
+
+  private releasePointer(pointerId?: number): void {
+    const id = pointerId ?? this.capturedPointerId;
+    if (id == null) return;
+    try {
+      if (this.canvas.hasPointerCapture(id)) this.canvas.releasePointerCapture(id);
+    } catch {
+      /* already released */
+    }
+    this.capturedPointerId = null;
+  }
+
+  private endOrbit(): void {
+    this.interacting = false;
+    this.dampingFrames = 0;
+    this.controls.enableDamping = false;
+    this.controls.update();
+    this.clampCamera();
+    this.controls.enableDamping = !this.reducedMotion;
+    if (!this.tween) this.restoreFrontView();
+    this.requestRender();
+  }
+
   private enqueueHangerTextures(): void {
     const focused = this.focusedId;
     const focusedIndex = this.layout.racks.findIndex((r) => r.id === focused);
     this.layout.racks.forEach((rack, rackIndex) => {
-      const priority = texturePriority(rack.id, focused, rackIndex, focusedIndex);
-      for (const hanger of rack.hangers) {
+      if (!this.racksRoot.getObjectByName(`rack:${rack.id}`)) return;
+      rack.hangers.forEach((hanger, hangerIndex) => {
         this.texQueue.enqueue({
           id: hanger.slug,
-          priority,
-          run: () => this.loadHangerTexture(hanger.slug, hanger.imageUrl, hanger.name),
+          priority: hangerPhotoPriority(rack.id, focused, rackIndex, focusedIndex, hangerIndex),
+          run: () => this.loadHangerTexture(hanger),
         });
-      }
+      });
     });
   }
 
@@ -585,12 +733,17 @@ export class SceneEngine {
     this.requestRender();
   }
 
-  private async loadHangerTexture(slug: string, url: string | null, name?: string): Promise<void> {
+  private async loadHangerTexture(hanger: SceneHanger | string, url?: string | null, name?: string): Promise<void> {
+    const slug = typeof hanger === 'string' ? hanger : hanger.slug;
     if (this.disposed || this.loadedPhotos.has(slug)) return;
-    const label = name ?? this.hangerName(slug);
+    const piece = typeof hanger === 'string' ? null : hanger;
+    const label = piece?.name ?? name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
-    if (!group || !garment || !(garment.material instanceof MeshStandardMaterial)) return;
+    if (!group || !garment || !(garment.material instanceof MeshStandardMaterial)) {
+      this.markPhotoFinished();
+      return;
+    }
     const previous = garment.material.map;
     const apply = (texture: Texture) => {
       const live = this.findHangerGroup(slug);
@@ -602,18 +755,36 @@ export class SceneEngine {
       if (previous && previous !== texture && !isSharedTexture(previous)) previous.dispose();
       this.requestRender();
     };
-    if (!url) {
+    const candidates = hangerTextureUrls(
+      piece ?? { imageUrl: url ?? null, thumbUrl: this.findHangerGroup(slug)?.userData?.['data']?.thumbUrl },
+    );
+    if (!candidates.length) {
       apply(makeFallbackTexture('#c8c2b8', label));
       this.loadedPhotos.add(slug);
+      this.markPhotoFinished();
       return;
     }
-    const texture = await loadTextureSafe(url);
+    const texture = await loadTextureCandidates(candidates);
     if (this.disposed) {
       texture?.dispose();
       return;
     }
     apply(texture ?? makeFallbackTexture('#c8c2b8', label));
     this.loadedPhotos.add(slug);
+    this.markPhotoFinished();
+  }
+
+  private markPhotoFinished(): void {
+    this.finishedPhotos += 1;
+    this.maybeSceneComplete();
+  }
+
+  private maybeSceneComplete(): void {
+    if (this.sceneCompleteSent || this.disposed) return;
+    if (this.deferredSlots.length) return;
+    if (this.finishedPhotos < this.expectedPhotos) return;
+    this.sceneCompleteSent = true;
+    this.onSceneCompleteCb?.();
   }
 
   private handlePointer(event: PointerEvent, isClick: boolean): void {

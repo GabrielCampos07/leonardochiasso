@@ -92,6 +92,9 @@
 
 .admin-bar__nav-wrap {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--lc-space-8) var(--lc-space-16);
   min-width: 0;
   flex: 0 1 auto;
 }
@@ -99,6 +102,8 @@
 .admin-bar__nav {
   display: flex;
   flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
   gap: var(--lc-space-8) var(--lc-space-24);
   align-items: center;
 }
@@ -125,6 +130,7 @@
 }
 
 .admin-bar__out {
+  flex: 0 0 auto;
   color: var(--lc-void);
   font-weight: 500;
 }
@@ -181,6 +187,8 @@
 
 .admin-main--scene {
   position: relative;
+  display: flex;
+  flex-direction: column;
   flex: 1 1 auto;
   max-width: none;
   width: 100%;
@@ -258,14 +266,7 @@
   }
 
   .admin-bar__nav-wrap::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 32px;
-    pointer-events: none;
-    background: linear-gradient(to right, transparent, var(--lc-white));
+    display: none;
   }
 
   .admin-bar__nav {
@@ -274,13 +275,19 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
     gap: var(--lc-space-8) var(--lc-space-16);
-    padding-right: 28px;
+    padding-right: 8px;
   }
 
   .admin-bar__nav a,
   .admin-bar__out {
     flex: 0 0 auto;
     white-space: nowrap;
+  }
+
+  .admin-bar__out {
+    margin-left: auto;
+    padding-inline: 10px;
+    background: var(--lc-white);
   }
 }
 

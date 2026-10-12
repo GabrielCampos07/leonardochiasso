@@ -35,7 +35,8 @@ export const CAMERA_AZIMUTH_LIMIT = (25 * Math.PI) / 180;
 export const CAMERA_POLAR_MIN = Math.PI / 2 - (35 * Math.PI) / 180;
 /** 10° above horizontal. */
 export const CAMERA_POLAR_MAX = Math.PI / 2 - (10 * Math.PI) / 180;
-export const VITRINE_ELEVATION = (34 * Math.PI) / 180;
+/** ~22° above horizontal — closer and lower than the old 34° look-down. */
+export const VITRINE_ELEVATION = (22 * Math.PI) / 180;
 
 export function isCompactAtelierViewport(
   width = typeof window === 'undefined' ? 1280 : window.innerWidth,
@@ -91,31 +92,55 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const padTop = compact ? 0.1 : FIT_PAD_TOP;
-  const padBottom = compact ? 0.22 : FIT_PAD_BOTTOM;
+  const padTop = compact ? 0.06 : FIT_PAD_TOP;
+  const padBottom = compact ? 0.14 : FIT_PAD_BOTTOM;
   const visibleH = Math.max(0.35, 1 - padTop - padBottom);
   const visibleW = Math.max(0.4, 1 - FIT_PAD_SIDE * 2);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 1.08 : 1.12) : compact ? 1.04 : 1.1;
+  const fill = mode === 'overview' ? (compact ? 0.98 : 1.12) : compact ? 0.86 : 1.1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = width / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2) * visibleW);
-  let distance = Math.max(fitH, fitW, 2.05) * fill + depth * 0.35;
-  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 3.6 : 4.4), compact ? 10 : 16);
-  else distance = Math.min(Math.max(distance, compact ? 2.0 : 2.2), 12);
+  const fitted = compact && mode !== 'overview' ? fitH : Math.max(fitH, fitW);
+  let distance = Math.max(fitted, compact ? 1.45 : 2.05) * fill + depth * (compact ? 0.22 : 0.35);
+  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 3.0 : 4.4), compact ? 9 : 16);
+  else distance = Math.min(Math.max(distance, compact ? 1.45 : 2.2), 12);
 
-  const targetY = compact ? box.minY + height * 0.58 : cy;
-  const elevation = mode === 'vitrine' ? VITRINE_ELEVATION : compact ? 0.22 : 0.16;
+  const targetY = compact ? box.minY + height * 0.5 : cy;
+  const elevation = compact ? 0.14 : 0.16;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
-/** Closer, ~30–40° above, looking at the vitrine top and shelves. */
+/** Closer and a bit lower so tray photos fill the frame without the top shelf covering them. */
 export function computeVitrineFit(
   box: FitBox,
   aspect: number,
   fovDeg: number,
   compact = false,
 ): CameraPose {
-  return computeEyeLevelFit(box, aspect, fovDeg, 'vitrine', compact);
+  const width = Math.max(box.maxX - box.minX, 0.4);
+  const height = Math.max(box.maxY - box.minY, 0.4);
+  const depth = Math.max(box.maxZ - box.minZ, 0.2);
+  const cx = (box.minX + box.maxX) / 2;
+  const cy = box.minY + height * (compact ? 0.4 : 0.38);
+  const cz = (box.minZ + box.maxZ) / 2;
+  const fov = (fovDeg * Math.PI) / 180;
+  const visibleH = compact ? 0.82 : 0.74;
+  const visibleW = compact ? 0.86 : 0.8;
+  const fill = compact ? 0.8 : 0.86;
+  const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
+  const fitW = width / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2) * visibleW);
+  const fitted = compact ? fitH : Math.max(fitH, fitW);
+  let distance = Math.max(fitted, compact ? 1.2 : 1.45) * fill + depth * 0.18;
+  distance = Math.min(Math.max(distance, compact ? 1.2 : 1.45), compact ? 3.6 : 5);
+  return poseFromElevation(cx, cy, cz, distance, VITRINE_ELEVATION);
+}
+
+/** Hard lock: azimuth ±25°, elevation 10–35° above horizontal. No roll. */
+export function clampOrbitSpherical(theta: number, phi: number): { theta: number; phi: number } {
+  return {
+    theta: Math.min(CAMERA_AZIMUTH_LIMIT, Math.max(-CAMERA_AZIMUTH_LIMIT, theta)),
+    phi: Math.min(CAMERA_POLAR_MAX, Math.max(CAMERA_POLAR_MIN, phi)),
+  };
 }
 
 export function photoPlaneSize(

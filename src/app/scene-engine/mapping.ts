@@ -8,6 +8,7 @@ import {
   UNCOLLECTED_RACK_ID,
   UNCOLLECTED_RACK_NAME,
   primaryImageUrl,
+  thumbImageUrl,
 } from './types';
 
 export const VITRINE_SHELF_LIMIT = 3;
@@ -38,6 +39,7 @@ export function toSceneHanger(product: SceneProductInput, rackId: string): Scene
     slug: product.slug,
     name: product.name.trim() || product.slug,
     imageUrl: primaryImageUrl(product),
+    thumbUrl: thumbImageUrl(product),
     stockQty: Math.max(0, Math.round(product.stockQty ?? 1)),
     priceLabel: hangerPriceFromFields(product),
     status: (product.status ?? 'published').toLowerCase(),
@@ -151,6 +153,19 @@ export function mapAtelierToScene(
 
 export function unitsOfKind(layout: SceneLayout, kind: SceneRack['kind']): SceneRack[] {
   return layout.racks.filter((r) => r.kind === kind);
+}
+
+/** Build the focused collection first; the rest mounts on idle after the first frame. */
+export function racksForFirstFrame<T extends { id: string }>(
+  racks: readonly T[],
+  focusedId: string,
+): { immediate: T[]; deferred: T[] } {
+  if (!racks.length) return { immediate: [], deferred: [] };
+  const focused = racks.find((r) => r.id === focusedId) ?? racks[0]!;
+  return {
+    immediate: [focused],
+    deferred: racks.filter((r) => r.id !== focused.id),
+  };
 }
 
 export function findHanger(layout: SceneLayout, slug: string): SceneHanger | undefined {

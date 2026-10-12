@@ -1,4 +1,4 @@
-import { ADMIN_3D_TTFF_LOG, Admin3dBootService } from './admin-3d-boot.service';
+import { ADMIN_3D_SCENE_COMPLETE_LOG, ADMIN_3D_TTFF_LOG, Admin3dBootService } from './admin-3d-boot.service';
 
 describe('Admin3dBootService', () => {
   it('stays pending until the first scene frame', () => {
@@ -20,5 +20,17 @@ describe('Admin3dBootService', () => {
     boot.markFirstFrame();
     expect(info).toHaveBeenCalledTimes(1);
     expect(String(info.calls.mostRecent().args[0])).toContain(ADMIN_3D_TTFF_LOG);
+  });
+
+  it('logs scene-complete once after the first frame', () => {
+    const boot = new Admin3dBootService();
+    const info = spyOn(console, 'info');
+    boot.begin();
+    boot.markFirstFrame();
+    const ms = boot.markSceneComplete();
+    boot.markSceneComplete();
+    expect(ms).toBeGreaterThanOrEqual(0);
+    expect(info.calls.allArgs().some((args) => String(args[0]).includes(ADMIN_3D_SCENE_COMPLETE_LOG))).toBeTrue();
+    expect(info.calls.allArgs().filter((args) => String(args[0]).includes(ADMIN_3D_SCENE_COMPLETE_LOG)).length).toBe(1);
   });
 });
