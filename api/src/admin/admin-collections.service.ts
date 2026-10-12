@@ -116,17 +116,17 @@ export class AdminCollectionsService {
     slug: string,
     productSlugs: string[],
   ): Promise<CollectionDto & { productSlugs: string[] }> {
-    const collection = await this.prisma.collection.findUnique({
-      where: { slug },
-    });
+    // Coleção e produtos são buscas independentes → em paralelo.
+    const [collection, products] = await Promise.all([
+      this.prisma.collection.findUnique({ where: { slug } }),
+      this.prisma.product.findMany({
+        where: { slug: { in: productSlugs } },
+        select: { id: true, slug: true },
+      }),
+    ]);
     if (!collection) {
       throw new NotFoundException(`Collection not found: ${slug}`);
     }
-
-    const products = await this.prisma.product.findMany({
-      where: { slug: { in: productSlugs } },
-      select: { id: true, slug: true },
-    });
     if (products.length !== productSlugs.length) {
       const found = new Set(products.map((p) => p.slug));
       const missing = productSlugs.filter((s) => !found.has(s));
