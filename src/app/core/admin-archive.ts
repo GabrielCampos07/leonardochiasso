@@ -106,6 +106,14 @@ export function isArchivedAt(value: string | Date | null | undefined): boolean {
   return true;
 }
 
+/** Archive-collection copy counts only live hangers (archived pieces stay in the catalog). */
+export function countActiveHangers(
+  hangers: ReadonlyArray<{ slug: string }>,
+  archivedAtBySlug: ReadonlyMap<string, string | Date | null | undefined>,
+): number {
+  return hangers.filter((hanger) => !isArchivedAt(archivedAtBySlug.get(hanger.slug))).length;
+}
+
 /** Old API during the 1–2 min deploy window: archive/restore routes are missing. */
 export function isArchiveRouteUnavailable(err: unknown): boolean {
   const status =

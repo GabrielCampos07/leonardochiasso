@@ -98,9 +98,21 @@ export function atelierPixelRatio(
   return reducedMotion ? 1 : Math.min(dpr || 1, 2);
 }
 
+/** Keep the drawing buffer CSS at 100% so setSize never locks a px height. */
+export function applyCanvasHostCss(canvas: HTMLCanvasElement): void {
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.display = 'block';
+}
+
+/**
+ * Current host box on both grow and shrink. Prefer the laid-out rect; fall back
+ * to clientWidth/Height when the rect is collapsed (jsdom / detached nodes).
+ */
 export function hostDrawingSize(host: HTMLElement): { width: number; height: number } | null {
-  const width = Math.max(0, Math.round(host.clientWidth));
-  const height = Math.max(0, Math.round(host.clientHeight));
+  const rect = typeof host.getBoundingClientRect === 'function' ? host.getBoundingClientRect() : null;
+  const width = Math.max(0, Math.round(rect?.width || host.clientWidth));
+  const height = Math.max(0, Math.round(rect?.height || host.clientHeight));
   if (width < 1 || height < 1) return null;
   return { width, height };
 }
@@ -396,6 +408,7 @@ export class SceneEngine {
     window.visualViewport?.addEventListener('resize', this.onHostResize);
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.host);
+    applyCanvasHostCss(canvas);
     this.resize();
   }
 
@@ -718,6 +731,7 @@ export class SceneEngine {
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(size.width, size.height, false);
+    applyCanvasHostCss(this.canvas);
     if (changed && (this.racksRoot.children.length || this.draft)) {
       if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
       else if (this.focusedId === DRAFT_UNIT_ID) this.focusDraft(true);

@@ -16,6 +16,7 @@ import {
   filterArchivedList,
   insertAt,
   isArchiveRouteUnavailable,
+  countActiveHangers,
   isArchivedAt,
   primaryCollectionLabel,
   removeBySlug,
@@ -55,6 +56,21 @@ describe('isArchivedAt', () => {
     expect(isArchivedAt(null)).toBeFalse();
     expect(isArchivedAt('')).toBeFalse();
     expect(isArchivedAt(undefined)).toBeFalse();
+  });
+});
+
+describe('countActiveHangers', () => {
+  it('counts only non-archived pieces on the rack', () => {
+    const archivedAtBySlug = new Map<string, string | null>([
+      ['viva', null],
+      ['arquivo', '2026-10-12T12:00:00.000Z'],
+    ]);
+    expect(
+      countActiveHangers(
+        [{ slug: 'viva' }, { slug: 'arquivo' }, { slug: 'outra' }],
+        archivedAtBySlug,
+      ),
+    ).toBe(2);
   });
 });
 

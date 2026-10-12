@@ -9,7 +9,7 @@
     <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
   }
 
-  @if (!webglUnavailable() && !error() && !loading() && firstFrame()) {
+  @if (!webglUnavailable() && !error() && !loading() && firstFrame() && !creating()) {
     <nav class="admin-3d__guide" aria-label="Navegação das araras">
       <div class="admin-3d__lines" role="radiogroup" aria-label="Tipo de peça">
         <button
@@ -84,7 +84,8 @@
             [disabled]="adding()"
             (click)="addPieceToFocused()"
           >
-            + Adicionar peça
+            <span class="admin-3d__add-full">+ Adicionar peça</span>
+            <span class="admin-3d__add-short">+ Adicionar</span>
           </button>
         }
       </div>
@@ -134,9 +135,6 @@
     <button
       type="button"
       class="admin-3d__add-piece"
-      [style.left.px]="addAnchor()?.x ?? null"
-      [style.top.px]="addAnchor()?.y ?? null"
-      [class.admin-3d__add-piece--anchored]="!!addAnchor()"
       (click)="addPieceToFocused()"
     >
       + Adicionar peça

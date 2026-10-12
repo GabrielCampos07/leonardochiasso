@@ -4,6 +4,9 @@
   role="dialog"
   aria-label="Adicionar peça"
   aria-modal="true"
+  (click)="$event.stopPropagation()"
+  (pointerdown)="$event.stopPropagation()"
+  (touchstart)="$event.stopPropagation()"
 >
   @if (sheet) {
     <div class="add-piece__handle" aria-hidden="true"></div>
@@ -72,7 +75,8 @@
                 type="checkbox"
                 [checked]="isChecked(item.slug)"
                 [disabled]="item.onRack"
-                (change)="toggle(item.slug)"
+                (change)="$event.stopPropagation(); toggle(item.slug)"
+                (click)="$event.stopPropagation()"
               />
               <span class="add-piece__thumb" aria-hidden="true">
                 @if (item.thumb) {

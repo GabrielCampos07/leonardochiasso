@@ -1,4 +1,5 @@
 import {
+  applyCanvasHostCss,
   atelierPixelRatio,
   createSceneEngine,
   hostDrawingSize,
@@ -47,6 +48,24 @@ describe('hostDrawingSize', () => {
     Object.defineProperty(live, 'clientHeight', { value: 450.6 });
     expect(hostDrawingSize(live)).toEqual({ width: 800, height: 451 });
   });
+
+  it('prefers the current bounding box when the client size is stale', () => {
+    const host = document.createElement('div');
+    Object.defineProperty(host, 'clientWidth', { value: 400 });
+    Object.defineProperty(host, 'clientHeight', { value: 280 });
+    spyOn(host, 'getBoundingClientRect').and.returnValue({
+      width: 800,
+      height: 450,
+      top: 0,
+      left: 0,
+      bottom: 450,
+      right: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    expect(hostDrawingSize(host)).toEqual({ width: 800, height: 450 });
+  });
 });
 
 describe('SceneEngine resize and WebGL context', () => {
@@ -72,6 +91,42 @@ describe('SceneEngine resize and WebGL context', () => {
     window.dispatchEvent(new Event('resize'));
     expect(canvas.width).toBe(400);
     engine.dispose();
+  });
+
+  it('grows back to the host size after a shrink and keeps CSS at 100%', () => {
+    const { host, canvas } = mountHost(800, 450);
+    const engine = createEngine(canvas, host);
+    if (!engine) return;
+    expect(canvas.style.width).toBe('100%');
+    expect(canvas.style.height).toBe('100%');
+
+    host.style.width = '400px';
+    host.style.height = '280px';
+    engine.resize();
+    expect(canvas.width).toBe(400);
+    expect(canvas.height).toBe(280);
+    expect(canvas.style.width).toBe('100%');
+    expect(canvas.style.height).toBe('100%');
+
+    host.style.width = '800px';
+    host.style.height = '450px';
+    engine.resize();
+    expect(canvas.width).toBe(800);
+    expect(canvas.height).toBe(450);
+    expect(canvas.style.width).toBe('100%');
+    expect(canvas.style.height).toBe('100%');
+    expect(canvas.style.width).not.toContain('px');
+    expect(canvas.style.height).not.toContain('px');
+    engine.dispose();
+  });
+
+  it('forces canvas CSS to 100% even if setSize wrote px', () => {
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '640px';
+    canvas.style.height = '360px';
+    applyCanvasHostCss(canvas);
+    expect(canvas.style.width).toBe('100%');
+    expect(canvas.style.height).toBe('100%');
   });
 
   it('resizes from a window resize after the host box changes', () => {

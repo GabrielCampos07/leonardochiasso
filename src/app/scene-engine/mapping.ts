@@ -178,6 +178,14 @@ export function unitsOfKind(layout: SceneLayout, kind: SceneRack['kind']): Scene
   return layout.racks.filter((r) => r.kind === kind);
 }
 
+/** Keep "Sem coleção" last so a newly created unit matches reload order. */
+export function insertUnitBeforeUncollected(layout: SceneLayout, unit: SceneRack): SceneLayout {
+  const racks = layout.racks.filter((rack) => rack.id !== unit.id);
+  const noneAt = racks.findIndex((rack) => rack.id === UNCOLLECTED_RACK_ID);
+  if (noneAt < 0) return { racks: [...racks, unit] };
+  return { racks: [...racks.slice(0, noneAt), unit, ...racks.slice(noneAt)] };
+}
+
 /** Build the focused collection first; the rest mounts on idle after the first frame. */
 export function racksForFirstFrame<T extends { id: string }>(
   racks: readonly T[],

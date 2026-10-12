@@ -1,3 +1,5 @@
+import { UNCOLLECTED_RACK_ID } from './types';
+
 export type CameraFocusMode = 'rack' | 'vitrine' | 'overview';
 
 export interface FitBox {
@@ -66,8 +68,24 @@ export function stepRackIndex(current: number, delta: -1 | 1, count: number): nu
   return Math.min(count - 1, Math.max(0, current + delta));
 }
 
-export function rackNavItems(racks: ReadonlyArray<{ id: string; name: string }>): RackNavItem[] {
-  return racks.map((rack, index) => ({ id: rack.id, name: rack.name, index }));
+/** Collections in sortOrder, then "Sem coleção" last — same before and after reload. */
+export function rackNavItems(
+  racks: ReadonlyArray<{ id: string; name: string; sortOrder?: number }>,
+): RackNavItem[] {
+  const uncollected = racks.filter((rack) => rack.id === UNCOLLECTED_RACK_ID);
+  const collected = racks
+    .filter((rack) => rack.id !== UNCOLLECTED_RACK_ID)
+    .slice()
+    .sort((a, b) => {
+      const order = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      if (order !== 0) return order;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+  return [...collected, ...uncollected].map((rack, index) => ({
+    id: rack.id,
+    name: rack.name,
+    index,
+  }));
 }
 
 /** Distance that fits `width` in the horizontal FOV, with a side margin on each edge. */
