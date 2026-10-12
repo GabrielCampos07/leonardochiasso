@@ -207,7 +207,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.boot.markFirstFrame();
       return;
     }
-    this.engine = createSceneEngine(canvas, { reducedMotion: this.reducedMotion });
+    this.engine = createSceneEngine(canvas, {
+      reducedMotion: this.reducedMotion,
+      host: this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas,
+    });
     if (!this.engine) {
       this.webglUnavailable.set(true);
       this.loading.set(false);
@@ -240,8 +243,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   @HostListener('window:resize')
+  @HostListener('window:orientationchange')
   onViewport(): void {
     this.createSheet.set(isCreateSheetViewport());
+    this.engine?.resize();
   }
 
   @HostListener('window:keydown', ['$event'])

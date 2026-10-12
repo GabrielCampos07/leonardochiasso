@@ -7,6 +7,7 @@ import {
   Fog,
   Group,
   HemisphereLight,
+  Material,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -79,6 +80,21 @@ export type EmptyUnitHandler = (rackId: string) => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
+  host?: HTMLElement;
+}
+
+export function atelierPixelRatio(
+  reducedMotion: boolean,
+  dpr = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
+): number {
+  return reducedMotion ? 1 : Math.min(dpr || 1, 2);
+}
+
+export function hostDrawingSize(host: HTMLElement): { width: number; height: number } | null {
+  const width = Math.max(0, Math.round(host.clientWidth));
+  const height = Math.max(0, Math.round(host.clientHeight));
+  if (width < 1 || height < 1) return null;
+  return { width, height };
 }
 
 const DRAG_SLOP_SQ = 36;
@@ -133,6 +149,7 @@ export class SceneEngine {
   private readonly racksRoot = new Group();
   private readonly reducedMotion: boolean;
   private readonly canvas: HTMLCanvasElement;
+  private readonly host: HTMLElement;
   private readonly fitSize = new Vector3();
   private readonly fitCenter = new Vector3();
   private readonly bounds = new Box3();
@@ -173,6 +190,10 @@ export class SceneEngine {
   private idleRic = 0;
   private capturedPointerId: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private contextLost = false;
+  private lastWidth = 0;
+  private lastHeight = 0;
+  private lastPixelRatio = 0;
   private tween: {
     fromPos: Vector3;
     toPos: Vector3;
@@ -239,9 +260,21 @@ export class SceneEngine {
   };
   private readonly onControlsEnd = () => this.endOrbit();
   private readonly onControlsChange = () => this.requestRender();
+  private readonly onHostResize = () => this.resize();
+  private readonly onContextLost = (event: Event) => {
+    event.preventDefault();
+    if (this.disposed) return;
+    this.contextLost = true;
+  };
+  private readonly onContextRestored = () => {
+    if (this.disposed) return;
+    this.contextLost = false;
+    this.restoreAfterContext();
+  };
 
   constructor(canvas: HTMLCanvasElement, options: SceneEngineOptions = {}) {
     this.canvas = canvas;
+    this.host = options.host ?? canvas.parentElement ?? canvas;
     this.reducedMotion = Boolean(options.reducedMotion);
     this.scene.background = new Color(CLEAR);
     this.scene.fog = new Fog(CLEAR, 22, 48);
@@ -250,7 +283,7 @@ export class SceneEngine {
     this.camera.position.set(0, 1.15, 3.2);
 
     this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false });
-    this.renderer.setPixelRatio(this.reducedMotion ? 1 : Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(atelierPixelRatio(this.reducedMotion));
     this.renderer.setClearColor(CLEAR, 1);
     this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = PCFShadowMap;
@@ -330,9 +363,13 @@ export class SceneEngine {
     canvas.addEventListener('wheel', this.noopTouch, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
-    this.resize();
+    canvas.addEventListener('webglcontextlost', this.onContextLost, false);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored, false);
+    window.addEventListener('resize', this.onHostResize);
+    window.visualViewport?.addEventListener('resize', this.onHostResize);
     this.resizeObserver = new ResizeObserver(() => this.resize());
-    this.resizeObserver.observe(canvas.parentElement ?? canvas);
+    this.resizeObserver.observe(this.host);
+    this.resize();
   }
 
   onClick(handler: HangerPickHandler): void {
@@ -529,14 +566,22 @@ export class SceneEngine {
   }
 
   resize(): void {
-    if (this.disposed) return;
-    const parent = this.canvas.parentElement ?? this.canvas;
-    const width = Math.max(parent.clientWidth, 1);
-    const height = Math.max(parent.clientHeight, 1);
-    this.camera.aspect = width / height;
+    if (this.disposed || this.contextLost) return;
+    const size = hostDrawingSize(this.host);
+    if (!size) return;
+    const ratio = atelierPixelRatio(this.reducedMotion);
+    const changed =
+      this.lastWidth !== size.width ||
+      this.lastHeight !== size.height ||
+      this.lastPixelRatio !== ratio;
+    this.lastWidth = size.width;
+    this.lastHeight = size.height;
+    this.lastPixelRatio = ratio;
+    this.camera.aspect = size.width / size.height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(width, height, false);
-    if (this.racksRoot.children.length || this.draft) {
+    this.renderer.setPixelRatio(ratio);
+    this.renderer.setSize(size.width, size.height, false);
+    if (changed && (this.racksRoot.children.length || this.draft)) {
       if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
       else if (this.focusedId === DRAFT_UNIT_ID) this.focusDraft(true);
       else this.focusRack(this.focusedId, true);
@@ -561,6 +606,10 @@ export class SceneEngine {
     this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('wheel', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('webglcontextlost', this.onContextLost, false);
+    this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored, false);
+    window.removeEventListener('resize', this.onHostResize);
+    window.visualViewport?.removeEventListener('resize', this.onHostResize);
     window.removeEventListener('blur', this.onWindowBlur);
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);
@@ -580,6 +629,40 @@ export class SceneEngine {
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     this.keyLight = null;
+  }
+
+  private restoreAfterContext(): void {
+    this.markGpuStateDirty();
+    this.lastWidth = 0;
+    this.lastHeight = 0;
+    this.lastPixelRatio = 0;
+    this.resize();
+    if (this.hasLayout) {
+      this.loadedPhotos.clear();
+      this.finishedPhotos = 0;
+      this.expectedPhotos = this.layout.racks.reduce((n, r) => n + r.hangers.length, 0);
+      this.sceneCompleteSent = false;
+      this.enqueueHangerTextures();
+    }
+    this.requestRender();
+  }
+
+  private markGpuStateDirty(): void {
+    this.scene.traverse((obj) => {
+      if (!(obj instanceof Mesh)) return;
+      const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const material of materials) {
+        if (!material) continue;
+        material.needsUpdate = true;
+        const record = material as Material & Record<string, unknown>;
+        for (const key of Object.keys(record)) {
+          const value = record[key];
+          if (value && typeof value === 'object' && 'isTexture' in value) {
+            (value as Texture).needsUpdate = true;
+          }
+        }
+      }
+    });
   }
 
   private applyOrbitLimits(mode: CameraFocusMode): void {
@@ -663,7 +746,7 @@ export class SceneEngine {
     this.renderQueued = true;
     this.raf = requestAnimationFrame(() => {
       this.renderQueued = false;
-      if (this.disposed) return;
+      if (this.disposed || this.contextLost) return;
       const animating =
         this.stepTween() || this.stepLift() || this.stepDraft() || this.stepRise() || this.stepGlow();
       if (!this.tween && !this.reducedMotion) this.controls.update();
