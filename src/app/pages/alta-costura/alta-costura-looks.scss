@@ -136,7 +136,13 @@
   margin: 0;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  background: color-mix(in srgb, var(--lc-void) 4%, var(--lc-white));
+  background: linear-gradient(165deg, #f7f1e6 0%, #efe8dc 48%, #e4d4c2 100%);
+}
+
+.acl-look__media > * {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .acl-look__media img {
@@ -203,7 +209,7 @@
   display: block;
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
+  background: linear-gradient(165deg, #f7f1e6 0%, #efe8dc 48%, #e4d4c2 100%);
 }
 
 .acl-related__cat-media img {

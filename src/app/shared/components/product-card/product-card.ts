@@ -41,7 +41,9 @@ import { WishlistService } from '../../../core/wishlist.service';
           [class.is-focus-waist]="selectedPiece()?.imageFocus === 'waist'"
         >
           <a [routerLink]="linkFor(product)" class="card__link">
-            <img [src]="displayThumb()" [alt]="displayName()" />
+            @if (displayThumb()) {
+              <img [src]="displayThumb()" [alt]="displayName()" (error)="onThumbError()" />
+            }
           </a>
           <button
             class="card__wish"
@@ -118,7 +120,7 @@ import { WishlistService } from '../../../core/wishlist.service';
     .card__media {
       position: relative;
       aspect-ratio: 3 / 4;
-      background: color-mix(in srgb, var(--lc-ash) 18%, var(--lc-white));
+      background: linear-gradient(165deg, #f7f1e6 0%, #efe8dc 48%, #e4d4c2 100%);
       overflow: hidden;
       margin-bottom: 12px;
     }
@@ -312,10 +314,12 @@ export class LcProductCard implements OnChanges {
   @Input() loading = false;
 
   readonly selectedPieceId = signal<string | null>(null);
+  readonly thumbFailed = signal(false);
 
   ngOnChanges(): void {
     const first = this.product?.pieces?.[0]?.id ?? null;
     this.selectedPieceId.set(first);
+    this.thumbFailed.set(false);
   }
 
   hasPieces(): boolean {
@@ -343,7 +347,12 @@ export class LcProductCard implements OnChanges {
   }
 
   displayThumb(): string {
+    if (this.thumbFailed()) return '';
     return this.displayProduct()?.thumb ?? this.product?.thumb ?? '';
+  }
+
+  onThumbError(): void {
+    this.thumbFailed.set(true);
   }
 
   swatches(): ProductColor[] {
@@ -368,6 +377,7 @@ export class LcProductCard implements OnChanges {
   selectPiece(pieceId: string, event: Event): void {
     event.preventDefault();
     event.stopPropagation();
+    this.thumbFailed.set(false);
     this.selectedPieceId.set(pieceId);
   }
 

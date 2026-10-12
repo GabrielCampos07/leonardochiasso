@@ -11,6 +11,7 @@ import {
 import { photoPlaneSize } from './camera-guide';
 import type { SceneHanger } from './types';
 import { hangerOpacity, isSoldOut } from './types';
+import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { makeFallbackTexture, makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
@@ -42,7 +43,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
     roughness: 0.28,
   });
   const opacity = hangerOpacity(data.status);
-  const fallback = makePlaceholderTexture('#c8c2b8');
+  const fallback = makePlaceholderTexture(COLLECTION_COVER_FALLBACK_HEX);
   const photo = photoPlaneSize(3, 4, PHOTO_MAX_W, PHOTO_MAX_H);
 
   const hook = new Mesh(new TorusGeometry(0.05, 0.007, 8, 18, Math.PI * 1.3), metal);
@@ -148,7 +149,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     garment.material.opacity = opacity;
     garment.material.transparent = opacity < 1;
     if (!garment.material.map) {
-      garment.material.map = makeFallbackTexture('#c8c2b8', data.name);
+      garment.material.map = makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, data.name);
       garment.material.needsUpdate = true;
     }
   }

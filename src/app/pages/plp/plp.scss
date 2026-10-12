@@ -31,6 +31,19 @@
   border-bottom: 1px solid color-mix(in srgb, var(--lc-ash) 40%, transparent);
 }
 
+.plp__title {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.plp__cover {
+  width: 56px;
+  height: 75px;
+  flex: 0 0 auto;
+}
+
 .plp__head h1 {
   font-family: var(--lc-font-display);
   font-weight: 300;
@@ -244,7 +257,7 @@
 .plp__rec-media {
   width: 100%;
   aspect-ratio: 3 / 4;
-  background: color-mix(in srgb, var(--lc-ash) 18%, var(--lc-white));
+  background: linear-gradient(165deg, #f7f1e6 0%, #efe8dc 48%, #e4d4c2 100%);
   overflow: hidden;
   margin-bottom: 12px;
 }

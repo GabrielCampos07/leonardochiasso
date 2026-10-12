@@ -16,12 +16,15 @@
   </nav>
 
   <div class="plp__head">
-    <h1>
-      {{ collectionLabel() }}
-      @if (!loading()) {
-        <span>{{ products().length }}</span>
-      }
-    </h1>
+    <div class="plp__title">
+      <lc-collection-cover class="plp__cover" [src]="coverUrl()" [alt]="collectionLabel()" />
+      <h1>
+        {{ collectionLabel() }}
+        @if (!loading()) {
+          <span>{{ products().length }}</span>
+        }
+      </h1>
+    </div>
 
     <div class="plp__toolbar">
       <div class="plp__sort" [class.is-open]="sortOpen()">
@@ -128,11 +131,7 @@
       >
         @for (item of organicJoias(); track item.id) {
           <a class="plp__rec" [routerLink]="joiasRoute">
-            <div class="plp__rec-media">
-              @if (item.image) {
-                <img [src]="item.image" [alt]="item.title" />
-              }
-            </div>
+            <lc-collection-cover class="plp__rec-media" [src]="item.image" [alt]="item.title" />
             <p class="plp__rec-name">{{ item.title }}</p>
             <p class="plp__rec-price">{{ priceLabel(item.priceLabel) }}</p>
           </a>

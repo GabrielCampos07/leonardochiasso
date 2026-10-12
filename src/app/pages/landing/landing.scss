@@ -130,20 +130,26 @@
 }
 
 .landing-shop__cols {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 28px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
   margin-bottom: var(--lc-space-40);
 }
 
 .landing-shop__col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   font-family: var(--lc-font-display);
   font-size: 12px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--lc-void);
-  border-bottom: 1px solid currentColor;
-  padding-bottom: 2px;
+}
+
+.landing-shop__cover {
+  aspect-ratio: 3 / 4;
+  width: 100%;
 }
 
 .landing-shop__col:hover {

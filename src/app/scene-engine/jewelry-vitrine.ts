@@ -8,6 +8,7 @@ import {
   PlaneGeometry,
   Texture,
 } from 'three';
+import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { photoPlaneSize } from './camera-guide';
 import { disposeObject3D } from './dispose';
 import { HANGER_USER_DATA } from './garment-hanger';
@@ -199,7 +200,7 @@ export function createJewelryTray(data: SceneHanger): Group {
     new PlaneGeometry(1, 1),
     new MeshStandardMaterial({
       color: 0xffffff,
-      map: makePlaceholderTexture('#d8cfc4'),
+      map: makePlaceholderTexture(COLLECTION_COVER_FALLBACK_HEX),
       roughness: 0.55,
       transparent: true,
       opacity,

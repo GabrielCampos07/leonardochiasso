@@ -48,7 +48,10 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
   const collections = product.collections.map((pc) => ({
     slug: pc.collection.slug,
     name: pc.collection.name,
+    archivedAt: pc.collection.archivedAt?.toISOString() ?? null,
+    sortOrder: pc.sortOrder,
   }));
+  const liveCollections = collections.filter((c) => !c.archivedAt);
 
   const details = Array.isArray(product.details)
     ? (product.details as string[])
@@ -74,7 +77,7 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
     status: product.status,
     stockQty: product.stockQty,
     category: product.category.slug,
-    collection: collections[0]?.name ?? '',
+    collection: liveCollections[0]?.name ?? '',
     collections,
     thumb: thumbAsset?.cdnUrl ?? '',
     gallery:

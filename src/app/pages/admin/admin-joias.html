@@ -28,7 +28,20 @@
     </label>
   </div>
 
-  <p class="admin-list__count">{{ filtered().length }} joia(s)</p>
+  @if (error()) {
+    <p class="admin-list__toast" role="alert">
+      {{ error() }}
+      <button type="button" class="admin-list__retry" (click)="refresh()">Tentar de novo</button>
+    </p>
+  }
+
+  <p class="admin-list__count">
+    @if (loading()) {
+      Carregando…
+    } @else {
+      {{ filtered().length }} joia(s)
+    }
+  </p>
 
   <ul class="admin-list__rows">
     @for (p of filtered(); track p.slug; let i = $index) {
@@ -42,8 +55,14 @@
         <div class="admin-row__actions">
           <a class="admin-row__edit" [routerLink]="editPath(p.slug)">Editar</a>
           @if (showArchived()) {
-            <button type="button" class="admin-row__order-btn" (click)="restore(p.slug)">
-              Restaurar
+            <button
+              type="button"
+              class="admin-row__order-btn"
+              (click)="restore(p)"
+              [disabled]="restoringSlug() === p.slug"
+              [attr.aria-busy]="restoringSlug() === p.slug"
+            >
+              {{ restoringSlug() === p.slug ? 'Restaurando…' : 'Restaurar' }}
             </button>
           } @else {
             <button type="button" class="admin-row__archive" (click)="archive(p.slug)">

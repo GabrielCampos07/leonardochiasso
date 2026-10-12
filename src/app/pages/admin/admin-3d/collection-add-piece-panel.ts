@@ -1,6 +1,7 @@
 import {
   Component,
   EventEmitter,
+  HostListener,
   Input,
   OnChanges,
   Output,
@@ -23,11 +24,19 @@ export interface AddPieceCandidate {
 
 export interface AddPieceSource {
   slug: string;
+  id?: string;
   name: string;
   thumb?: string;
   collectionSlug?: string;
   collectionName?: string;
+  collectionSlugs?: string[];
   archivedAt?: string | null;
+}
+
+export interface AddPieceHangerRef {
+  slug: string;
+  rackId: string;
+  productId?: string;
 }
 
 export interface AddPieceItemError {
@@ -68,24 +77,55 @@ export function otherCollectionCaption(name?: string | null): string {
   return trimmed ? `em ${trimmed}` : '';
 }
 
+export function pieceIdentityKeys(piece: { slug: string; id?: string; productId?: string }): string[] {
+  return [piece.slug, piece.id, piece.productId].filter((key): key is string => Boolean(key));
+}
+
+export function findHangerForPiece(
+  piece: AddPieceSource,
+  hangers: ReadonlyArray<AddPieceHangerRef>,
+): AddPieceHangerRef | undefined {
+  const keys = new Set(pieceIdentityKeys(piece));
+  return hangers.find((hanger) => pieceIdentityKeys(hanger).some((key) => keys.has(key)));
+}
+
+export function isPieceOnFocusedRack(
+  piece: AddPieceSource,
+  ctx: {
+    unitId: string;
+    hangers: ReadonlyArray<AddPieceHangerRef>;
+    unitProductSlugs?: readonly string[];
+  },
+): boolean {
+  const keys = new Set(pieceIdentityKeys(piece));
+  if (
+    ctx.hangers.some(
+      (hanger) => hanger.rackId === ctx.unitId && pieceIdentityKeys(hanger).some((key) => keys.has(key)),
+    )
+  ) {
+    return true;
+  }
+  return Boolean(ctx.unitProductSlugs?.some((slug) => keys.has(slug)));
+}
+
 export function buildAddPieceCandidates(
   pieces: readonly AddPieceSource[],
   ctx: {
     unitId: string;
     unitCollectionSlug: string;
-    hangers: ReadonlyArray<{ slug: string; rackId: string }>;
+    hangers: ReadonlyArray<AddPieceHangerRef>;
     units: ReadonlyArray<{ id: string; name: string }>;
     collections: ReadonlyArray<{ slug: string; name: string }>;
+    unitProductSlugs?: readonly string[];
   },
 ): AddPieceCandidate[] {
-  const hangerBySlug = new Map(ctx.hangers.map((h) => [h.slug, h]));
   const unitNameById = new Map(ctx.units.map((u) => [u.id, u.name]));
   const collectionNameBySlug = new Map(ctx.collections.map((c) => [c.slug, c.name]));
   return pieces
     .filter((piece) => !piece.archivedAt)
     .map((piece) => {
-      const hanger = hangerBySlug.get(piece.slug);
-      const onRack = hanger?.rackId === ctx.unitId;
+      const hanger = findHangerForPiece(piece, ctx.hangers);
+      const onRack = isPieceOnFocusedRack(piece, ctx);
       return {
         slug: piece.slug,
         name: piece.name,
@@ -113,7 +153,8 @@ function resolveOtherCollectionName(
     }
   }
   if (piece.collectionSlug && piece.collectionSlug !== unitCollectionSlug) {
-    return collectionNameBySlug.get(piece.collectionSlug) ?? piece.collectionName;
+    // Only caption live collections. Archived names must not appear as "em X".
+    return collectionNameBySlug.get(piece.collectionSlug);
   }
   return undefined;
 }
@@ -174,6 +215,13 @@ export class CollectionAddPiecePanel implements OnChanges {
   readonly selected = new Set<string>();
   private photo: File | null = null;
 
+  @HostListener('click', ['$event'])
+  @HostListener('pointerdown', ['$event'])
+  @HostListener('touchstart', ['$event'])
+  stopBubble(event: Event): void {
+    event.stopPropagation();
+  }
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['candidates']) this.pruneSelection();
   }
@@ -203,6 +251,11 @@ export class CollectionAddPiecePanel implements OnChanges {
 
   errorFor(slug: string): string {
     return this.itemErrors.find((item) => item.slug === slug)?.message ?? '';
+  }
+
+  onThumbError(event: Event): void {
+    const img = event.target;
+    if (img instanceof HTMLImageElement) img.remove();
   }
 
   isOnRack(slug: string): boolean {

@@ -1,8 +1,10 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { isArchivedAt } from '../../core/admin-archive';
 import { CatalogService } from '../../core/catalog.service';
 import { ChromeService } from '../../core/chrome.service';
+import { piecePhotoUrl } from '../../core/collection-cover';
 import { Product } from '../../core/product.model';
 import {
   GenderSlug,
@@ -13,6 +15,7 @@ import {
 } from '../../core/routes';
 import { RtwType, productMatchesRtwType, rtwLabel } from '../../core/rtw';
 import { sortByRecommendOrder } from '../../core/recommend-order';
+import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import { LookbookCollection, LookbookLook, getLookbook } from './lookbook.data';
 import { resolveMediaUrl } from '../../core/media-url';
 
@@ -30,14 +33,14 @@ const ACESSORIO_TILE_IMAGE = resolveMediaUrl('assets/media/pdp-echarpe-degrade-0
 
 interface RelatedCatTile {
   label: string;
-  image: string;
+  image: string | null;
   route: string | null;
 }
 
 @Component({
   selector: 'lc-alta-costura-looks-page',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, CollectionCover],
   templateUrl: './alta-costura-looks.html',
   styleUrl: './alta-costura-looks.scss',
 })
@@ -69,9 +72,10 @@ export class AltaCosturaLooksPage implements OnInit {
     const book = this.book();
     if (!book) return [];
     const gender = this.gender();
-    const products = gender
+    const products = (gender
       ? this.collectionProducts().filter((p) => p.category === gender)
-      : this.collectionProducts();
+      : this.collectionProducts()
+    ).filter((p) => !isArchivedAt(p.archivedAt));
     const usedImages = new Set<string>();
     const tiles: RelatedCatTile[] = [];
 
@@ -93,14 +97,14 @@ export class AltaCosturaLooksPage implements OnInit {
 
       let image: string | null = null;
       for (const p of ordered) {
-        if (!usedImages.has(p.thumb)) {
-          usedImages.add(p.thumb);
-          image = p.thumb;
+        const url = piecePhotoUrl(p);
+        if (url && !usedImages.has(url)) {
+          usedImages.add(url);
+          image = url;
           break;
         }
       }
-      image ??= matches[0]?.thumb ?? null;
-      if (!image) continue;
+      image ??= piecePhotoUrl(matches[0] ?? {});
 
       tiles.push({
         label: rtwLabel(tipo),
