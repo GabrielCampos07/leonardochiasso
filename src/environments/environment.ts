@@ -8,4 +8,5 @@ export const environment = {
   cdnBaseUrl: '',
   /** Empty = admin panel disabled. */
   adminPassword: '',
+  stagingBanner: '',
 };

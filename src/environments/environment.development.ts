@@ -10,4 +10,5 @@ export const environment = {
   cdnBaseUrl: '',
   /** Local admin panel password (`/admin`). Not for production security. */
   adminPassword: '123',
+  stagingBanner: '',
 };
