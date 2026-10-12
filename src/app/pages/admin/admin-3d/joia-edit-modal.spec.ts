@@ -46,4 +46,16 @@ describe('JoiaEditModal', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(close).toHaveBeenCalledWith(undefined);
   });
+
+  it('shows Salvando… and disables save while the request is in flight', () => {
+    const component = fixture.componentInstance;
+    component.saving.set(true);
+    fixture.detectChanges();
+    const save = fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement;
+    expect(save.disabled).toBeTrue();
+    expect(save.getAttribute('aria-busy')).toBe('true');
+    expect(save.textContent).toContain('Salvando');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(close).not.toHaveBeenCalled();
+  });
 });

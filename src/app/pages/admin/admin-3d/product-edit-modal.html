@@ -4,7 +4,9 @@
       <p class="product-edit-modal__kicker">Ateliê · 3D</p>
       <h2 [id]="titleId">{{ title }}</h2>
     </div>
-    <button type="button" class="product-edit-modal__close" (click)="close()">Fechar</button>
+    <button type="button" class="product-edit-modal__close" (click)="close()" [disabled]="saving()">
+      Fechar
+    </button>
   </header>
 
   @if (loading()) {
@@ -20,6 +22,7 @@
       (saved)="onSaved($event)"
       (archived)="onArchived($event)"
       (cancelled)="close()"
+      (savingChange)="onSaving($event)"
     />
   }
 </div>

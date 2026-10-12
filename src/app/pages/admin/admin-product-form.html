@@ -275,15 +275,22 @@
     </fieldset>
 
     <div class="admin-edit__footer">
-      <button type="submit" class="admin-edit__save" [disabled]="saving()">
+      <button
+        type="submit"
+        class="admin-edit__save"
+        [disabled]="saving() || archiving()"
+        [attr.aria-busy]="saving()"
+      >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>
-      <button type="button" class="admin-edit__cancel" (click)="cancel()">Cancelar</button>
+      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving() || archiving()">
+        Cancelar
+      </button>
       @if (!isNew()) {
         <button
           type="button"
           class="admin-edit__archive"
-          [disabled]="archiving()"
+          [disabled]="archiving() || saving()"
           (click)="archive()"
         >
           {{ archiving() ? 'Arquivando…' : 'Arquivar' }}

@@ -1,0 +1,189 @@
+<section
+  class="add-piece"
+  [class.add-piece--sheet]="sheet"
+  role="dialog"
+  aria-label="Adicionar peça"
+  aria-modal="true"
+>
+  @if (sheet) {
+    <div class="add-piece__handle" aria-hidden="true"></div>
+  }
+  <header class="add-piece__head">
+    <div>
+      <p class="add-piece__kicker">Adicionar peça</p>
+      <p class="add-piece__name">{{ unitName }}</p>
+    </div>
+    <button
+      type="button"
+      class="add-piece__close"
+      aria-label="Fechar"
+      (click)="close.emit()"
+    >
+      ×
+    </button>
+  </header>
+
+  @if (addedLabel) {
+    <p class="add-piece__count" aria-live="polite">{{ addedLabel }}</p>
+  }
+
+  <div class="add-piece__tabs" role="tablist" aria-label="Como adicionar">
+    <button
+      type="button"
+      class="add-piece__tab"
+      role="tab"
+      [attr.aria-selected]="tab === 'existentes'"
+      [class.is-on]="tab === 'existentes'"
+      (click)="setTab('existentes')"
+    >
+      Escolher existentes
+    </button>
+    <button
+      type="button"
+      class="add-piece__tab"
+      role="tab"
+      [attr.aria-selected]="tab === 'nova'"
+      [class.is-on]="tab === 'nova'"
+      (click)="setTab('nova')"
+    >
+      Criar nova
+    </button>
+  </div>
+
+  @if (tab === 'existentes') {
+    <div class="add-piece__pane" role="tabpanel">
+      <label class="add-piece__field">
+        Buscar
+        <input
+          type="search"
+          class="add-piece__search"
+          name="addPieceSearch"
+          autocomplete="off"
+          placeholder="Nome ou slug"
+          [value]="query"
+          (input)="query = $any($event.target).value"
+        />
+      </label>
+      <ul class="add-piece__list" role="listbox" aria-multiselectable="true" aria-label="Peças disponíveis">
+        @for (item of filtered; track item.slug) {
+          <li>
+            <label class="add-piece__row" [class.add-piece__row--on]="item.onRack">
+              <input
+                type="checkbox"
+                [checked]="isChecked(item.slug)"
+                [disabled]="item.onRack"
+                (change)="toggle(item.slug)"
+              />
+              <span class="add-piece__thumb" aria-hidden="true">
+                @if (item.thumb) {
+                  <img [src]="item.thumb" alt="" />
+                }
+              </span>
+              <span class="add-piece__meta">
+                <span class="add-piece__title">{{ item.name }}</span>
+                @if (item.otherCollection) {
+                  <span class="add-piece__where">em {{ item.otherCollection }}</span>
+                }
+              </span>
+            </label>
+            @if (errorFor(item.slug); as itemError) {
+              <p class="add-piece__item-error" role="alert">{{ itemError }}</p>
+            }
+          </li>
+        } @empty {
+          <li class="add-piece__empty">
+            @if (query.trim()) {
+              <p>Nenhuma peça encontrada</p>
+              <button type="button" class="add-piece__from-search" (click)="createFromSearch()">
+                Criar nova peça
+              </button>
+            } @else {
+              Nenhuma peça nesta lista.
+            }
+          </li>
+        }
+      </ul>
+      <button
+        type="button"
+        class="add-piece__save"
+        [disabled]="!pickCount"
+        (click)="confirm()"
+      >
+        {{ actionLabel }}
+      </button>
+    </div>
+  } @else {
+    <form class="add-piece__pane" role="tabpanel" (submit)="$event.preventDefault(); confirmCreate()">
+      <label class="add-piece__field">
+        Nome
+        <input
+          type="text"
+          class="add-piece__input"
+          name="addPieceName"
+          autocomplete="off"
+          maxlength="80"
+          placeholder="Nome da peça"
+          [value]="createName"
+          [disabled]="saving"
+          (input)="createName = $any($event.target).value"
+        />
+      </label>
+      <label class="add-piece__field">
+        Preço
+        <input
+          type="text"
+          class="add-piece__input"
+          name="addPiecePrice"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="0,00"
+          [value]="createPrice"
+          [disabled]="saving"
+          (input)="createPrice = $any($event.target).value"
+        />
+      </label>
+      <label class="add-piece__field">
+        Estoque
+        <input
+          type="number"
+          class="add-piece__input"
+          name="addPieceStock"
+          inputmode="numeric"
+          min="0"
+          step="1"
+          placeholder="1"
+          [value]="createStock"
+          [disabled]="saving"
+          (input)="createStock = $any($event.target).value"
+        />
+      </label>
+      @if (canUpload) {
+        <label class="add-piece__field">
+          Foto
+          <input
+            type="file"
+            class="add-piece__file"
+            name="addPiecePhoto"
+            accept="image/*"
+            [disabled]="saving"
+            (change)="onPhoto($event)"
+          />
+          @if (photoName) {
+            <span class="add-piece__file-name">{{ photoName }}</span>
+          }
+        </label>
+      }
+      @if (formError || createError) {
+        <p class="add-piece__error" role="alert">{{ formError || createError }}</p>
+      }
+      <button
+        type="submit"
+        class="add-piece__save"
+        [disabled]="!createName.trim() || saving"
+        [attr.aria-busy]="saving"
+      >
+        {{ createLabel }}
+      </button>
+    </form>
+  }
+</section>

@@ -3,6 +3,7 @@ import {
   mapCatalogToScene,
   mapJoiasToVitrines,
   racksForFirstFrame,
+  omitHanger,
   removeHangerFromLayout,
   removeUnitFromLayout,
   replaceHanger,
@@ -181,6 +182,20 @@ describe('toSceneHanger / primaryImageUrl', () => {
     expect(hanger.stockQty).toBe(0);
     expect(hanger.status).toBe('published');
     expect(hanger.name).toBe('A');
+  });
+});
+
+describe('omitHanger', () => {
+  it('removes only the reverted piece', () => {
+    const layout = mapCatalogToScene(
+      [{ slug: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1 }],
+      [
+        { slug: 'a', name: 'A', collectionSlug: 'organic-dreams', stockQty: 1 },
+        { slug: 'b', name: 'B', collectionSlug: 'organic-dreams', stockQty: 2 },
+      ],
+    );
+    const next = omitHanger(layout, 'a');
+    expect(next.racks[0]?.hangers.map((h) => h.slug)).toEqual(['b']);
   });
 });
 
