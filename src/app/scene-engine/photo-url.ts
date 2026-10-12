@@ -12,12 +12,15 @@ export interface LooseMedia {
 }
 
 export interface LooseProductPhotos {
+  slug?: string | null;
+  name?: string | null;
   thumb?: string | null;
   gallery?: string[] | null;
   imageUrl?: string | null;
   images?: Array<string | LooseMedia> | null;
   photos?: Array<string | LooseMedia> | null;
   media?: LooseMedia[] | null;
+  imageBindings?: unknown[] | null;
 }
 
 function asText(value: unknown): string | null {

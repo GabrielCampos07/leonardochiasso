@@ -139,7 +139,13 @@ describe('mergeProductPhotos', () => {
   });
 
   it('copies storefront thumb/media when the admin row has no photo', () => {
-    const admin = { slug: PROD_BATEAU.slug, name: PROD_BATEAU.name, thumb: '', media: [], imageBindings: [] };
+    const admin = {
+      slug: PROD_BATEAU.slug,
+      name: PROD_BATEAU.name,
+      thumb: '',
+      media: [] as typeof PROD_BATEAU.media,
+      imageBindings: [],
+    };
     const merged = mergeProductPhotos(admin, PROD_BATEAU);
     expect(primaryImageUrl(merged)).toBe(PROD_THUMB);
     expect(merged.media?.[0]?.cdnUrl).toBe(PROD_THUMB);
