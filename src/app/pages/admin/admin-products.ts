@@ -1,7 +1,9 @@
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { Subject, switchMap, tap } from 'rxjs';
 import {
   AdminCatalogService,
   adminHttpErrorMessage,
@@ -15,9 +17,14 @@ import {
   adminProductPath,
 } from '../../core/routes';
 import {
+  adminLoadErrorMessage,
   archiveAwareError,
   confirmArchivePiece,
+  endAdminLoad,
+  insertAt,
+  removeBySlug,
   showArchiveUndo,
+  upsertBySlug,
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
@@ -36,12 +43,16 @@ export class AdminProductsPage implements OnInit {
   private readonly catalog = inject(CatalogService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly load$ = new Subject<boolean>();
 
   readonly query = signal('');
   readonly category = signal<'todos' | 'feminino' | 'masculino'>('todos');
   readonly collection = signal<'todas' | string>('todas');
   readonly showArchived = signal(false);
   readonly loading = signal(true);
+  readonly error = signal('');
+  readonly restoringSlug = signal<string | null>(null);
   readonly savingOrder = signal(false);
   readonly useApi = this.adminCatalog.useApi;
   readonly collections = COLLECTIONS;
@@ -60,6 +71,32 @@ export class AdminProductsPage implements OnInit {
       return true;
     });
   });
+
+  constructor() {
+    this.load$
+      .pipe(
+        tap(() => {
+          this.loading.set(true);
+          this.error.set('');
+        }),
+        switchMap((archived) => endAdminLoad(this.adminCatalog.list$(archived))),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((result) => {
+        this.loading.set(false);
+        if (result.ok) {
+          this.products.set(result.value);
+          if (!this.useApi) this.catalog.refreshLocalCatalog();
+          return;
+        }
+        this.error.set(
+          adminLoadErrorMessage(
+            result.error,
+            adminHttpErrorMessage(result.error, 'Não foi possível carregar os produtos.'),
+          ),
+        );
+      });
+  }
 
   ngOnInit(): void {
     this.refresh();
@@ -93,12 +130,16 @@ export class AdminProductsPage implements OnInit {
   async archive(slug: string): Promise<void> {
     const ok = await confirmArchivePiece(this.confirm);
     if (!ok) return;
+    const current = this.products().find((p) => p.slug === slug);
+    if (!current) return;
+    const index = this.products().findIndex((p) => p.slug === slug);
+    this.products.set(removeBySlug(this.products(), slug));
     this.adminCatalog.archiveViaApi(slug).subscribe({
-      next: () => {
-        this.refresh();
-        showArchiveUndo(this.toast, () => this.restore(slug));
+      next: (saved) => {
+        showArchiveUndo(this.toast, () => this.undoArchive(saved, index));
       },
       error: (err) => {
+        this.products.set(insertAt(this.products(), index, current));
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
         );
@@ -106,13 +147,37 @@ export class AdminProductsPage implements OnInit {
     });
   }
 
-  restore(slug: string): void {
-    this.adminCatalog.restoreViaApi(slug).subscribe({
-      next: () => {
-        this.refresh();
+  restore(product: Product): void {
+    this.restoringSlug.set(product.slug);
+    this.products.set(removeBySlug(this.products(), product.slug));
+    this.adminCatalog.restoreViaApi(product.slug).subscribe({
+      next: (restored) => {
+        this.restoringSlug.set(null);
+        if (!this.showArchived()) {
+          this.products.set(upsertBySlug(this.products(), { ...restored, archivedAt: null }));
+        }
         this.toast.success('Restaurado.');
       },
       error: (err) => {
+        this.restoringSlug.set(null);
+        this.products.set(upsertBySlug(this.products(), product));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        );
+      },
+    });
+  }
+
+  private undoArchive(snapshot: Product, index: number): void {
+    const live = { ...snapshot, archivedAt: null };
+    this.products.set(insertAt(this.products(), index < 0 ? 0 : index, live));
+    this.adminCatalog.restoreViaApi(snapshot.slug).subscribe({
+      next: (restored) => {
+        this.products.set(upsertBySlug(this.products(), { ...restored, archivedAt: null }));
+        this.toast.success('Restaurado.');
+      },
+      error: (err) => {
+        this.products.set(removeBySlug(this.products(), snapshot.slug));
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
         );
@@ -121,18 +186,7 @@ export class AdminProductsPage implements OnInit {
   }
 
   refresh(): void {
-    this.loading.set(true);
-    this.adminCatalog.list$(this.showArchived()).subscribe({
-      next: (list) => {
-        this.products.set(list);
-        this.loading.set(false);
-        if (!this.useApi) this.catalog.refreshLocalCatalog();
-      },
-      error: (err) => {
-        this.loading.set(false);
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível carregar os produtos.'));
-      },
-    });
+    this.load$.next(this.showArchived());
   }
 
   drop(event: CdkDragDrop<Product[]>): void {

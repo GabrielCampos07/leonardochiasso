@@ -265,6 +265,29 @@ export class AdminCatalogService {
       );
   }
 
+  /** Atelier create: POST only — use the response, no follow-up PATCH/GET. */
+  createPublishedProduct$(product: Product): Observable<Product> {
+    if (!this.useApi) {
+      this.create(product);
+      return of(product);
+    }
+    const collectionSlug = product.collectionSlug || slugFromCollection(product.collection);
+    return this.createViaApi({
+      name: product.name.trim(),
+      slug: product.slug.trim(),
+      category: product.category,
+      collectionSlug,
+      priceCents: product.priceCents ?? Math.round(product.price * 100),
+      stockQty: Math.max(0, Math.round(product.stockQty ?? 0)),
+      status: 'published',
+      description: product.description || undefined,
+      color: product.color || undefined,
+      size: product.size || undefined,
+      fabric: product.fabric || undefined,
+      season: product.season || undefined,
+    });
+  }
+
   updateViaApi(slug: string, payload: AdminUpdateProductPayload): Observable<Product> {
     return this.http
       .patch<ApiProductDto>(`${this.baseUrl}/api/admin/products/${encodeURIComponent(slug)}`, payload, {

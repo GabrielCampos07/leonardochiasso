@@ -4,6 +4,7 @@ import { environment } from '../../../environments/environment';
 import { Admin3dBootService } from '../../core/admin-3d-boot.service';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { AdminViewMode, AdminViewModeService } from '../../core/admin-view-mode.service';
+import { adminAtelierSectionLabel } from '../../core/admin-archive';
 import { ROUTES } from '../../core/routes';
 import { readStagingBannerStorage, resolveStagingBannerText } from '../../core/staging-banner';
 import { LcConfirmDialog } from '../../shared/components/feedback/confirm-dialog';
@@ -37,6 +38,8 @@ export class AdminShell {
   });
 
   private readonly url = signal(this.router.url);
+
+  readonly sectionLabel = computed(() => adminAtelierSectionLabel(this.url()));
 
   readonly selectedView = computed<AdminViewMode>(() => {
     const path = this.url().split('?')[0] ?? '';

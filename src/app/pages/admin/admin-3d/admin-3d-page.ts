@@ -17,6 +17,7 @@ import { AdminCatalogService, adminHttpErrorMessage, uniqueAdminSlug } from '../
 import {
   archiveAwareError,
   confirmArchiveCollection,
+  countActiveHangers,
   isArchivedAt,
   showArchiveUndo,
 } from '../../../core/admin-archive';
@@ -43,6 +44,7 @@ import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-e
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
   findHanger,
+  insertUnitBeforeUncollected,
   mapAtelierToScene,
   omitHanger,
   removeHangerFromLayout,
@@ -230,7 +232,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly addCount = signal(0);
   readonly addErrors = signal<AddPieceItemError[]>([]);
   readonly addCreateError = signal('');
-  readonly addAnchor = signal<{ x: number; y: number } | null>(null);
   readonly addCanUpload = true;
   readonly addPriceRequired = computed(() => this.line() !== 'joias');
 
@@ -273,11 +274,13 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.engine.onClick((slug) => this.openEditor(slug));
-    this.engine.onEmptyUnit((id) => this.openAddPanel(id));
+    this.engine.onEmptyUnit((id) => {
+      if (this.adding()) return;
+      this.openAddPanel(id);
+    });
     this.engine.onHover((slug, pointer) => this.setHoverTip(slug, pointer));
     this.engine.onFocusChange((id) => {
       this.focusedId.set(id);
-      this.refreshAddAnchor();
     });
     this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.onSceneComplete(() => this.markSceneComplete());
@@ -307,7 +310,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.createSheet.set(isCreateSheetViewport());
     this.addSheet.set(isCreateSheetViewport());
     this.engine?.resize();
-    this.refreshAddAnchor();
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -618,7 +620,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     } else {
       this.pendingLayout = visible;
     }
-    this.refreshAddAnchor();
   }
 
   private showDraftOutline(): void {
@@ -646,7 +647,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       ...this.collections,
       { slug: created.slug, name: created.name, sortOrder: created.sortOrder },
     ];
-    this.layout = { racks: [...this.layout.racks, unit] };
+    this.layout = insertUnitBeforeUncollected(this.layout, unit);
     this.collectionProducts.remember(created.slug, []);
     this.line.set(kind === 'vitrine' ? 'joias' : 'roupas');
     this.creating.set(false);
@@ -656,11 +657,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.commitDraft(unit, this.reducedMotion);
     this.focusedId.set(unit.id);
     this.toast.success('Coleção criada.');
-    this.refreshAddAnchor();
   }
 
   private openAddPanel(unitId: string): void {
-    if (this.creating() || this.modalOpen || this.addSaving()) return;
+    if (this.creating() || this.adding() || this.modalOpen || this.addSaving()) return;
     const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
     const unit = unitsOfKind(this.layout, kind).find((r) => r.id === unitId);
     if (!unit) return;
@@ -675,7 +675,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.addCount.set(0);
     this.addPanel?.resetCreate();
     this.adding.set(true);
-    this.refreshAddAnchor();
   }
 
   private openEditor(slug: string): void {
@@ -770,7 +769,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       (r) => collectionSlugFromUnitId(r.id) === slug,
     );
     if (!units.length) return;
-    const pieceCount = units.reduce((n, u) => n + u.hangers.length, 0);
+    const archivedAtBySlug = new Map<string, string | null | undefined>();
+    for (const [slug, product] of this.productsBySlug) archivedAtBySlug.set(slug, product.archivedAt);
+    for (const [slug, piece] of this.joiasBySlug) archivedAtBySlug.set(slug, piece.archivedAt);
+    const pieceCount = units.reduce((n, unit) => n + countActiveHangers(unit.hangers, archivedAtBySlug), 0);
     const ok = await confirmArchiveCollection(this.confirm, pieceCount);
     if (!ok) return;
     this.collectionsApi.archive(slug).subscribe({
@@ -793,7 +795,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
                 ...this.collections,
                 { slug: restored.slug, name: restored.name, sortOrder: restored.sortOrder },
               ];
-              this.layout = { racks: [...this.layout.racks, ...snapshots] };
+              this.layout = snapshots.reduce(
+                (layout, snapshot) => insertUnitBeforeUncollected(layout, snapshot),
+                this.layout,
+              );
               this.racks.set(rackNavItems(unitsOfKind(this.layout, kind)));
               for (const snapshot of snapshots) this.engine?.restoreUnit(snapshot);
               this.empty.set(false);
@@ -821,7 +826,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.removeHanger(product.slug, this.reducedMotion);
     this.hoverTip.set(null);
     this.bumpLayout();
-    this.refreshAddAnchor();
     showArchiveUndo(this.toast, () => {
       this.adminCatalog.restoreViaApi(product.slug).subscribe({
         next: (restored) => this.applySaved(restored),
@@ -839,7 +843,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.removeHanger(piece.slug, this.reducedMotion);
     this.hoverTip.set(null);
     this.bumpLayout();
-    this.refreshAddAnchor();
     showArchiveUndo(this.toast, () => {
       this.joiasAdmin.restore(piece.slug).subscribe({
         next: (restored) => this.applySavedJoia(restored),
@@ -869,7 +872,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     if (animate && !existed) this.engine?.addHanger(hanger, this.reducedMotion);
     else this.engine?.updateHanger(hanger);
     this.refreshTip(hanger);
-    this.refreshAddAnchor();
   }
 
   private focusedUnit(): SceneRack | null {
@@ -882,20 +884,29 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private listAddCandidates(unitId: string): AddPieceCandidate[] {
     const unit = this.layout.racks.find((r) => r.id === unitId);
     if (!unit) return [];
-    const hangers = this.layout.racks.flatMap((rack) => rack.hangers.map((h) => ({ slug: h.slug, rackId: h.rackId })));
+    const hangers = this.layout.racks.flatMap((rack) =>
+      rack.hangers.map((h) => ({ slug: h.slug, productId: h.productId, rackId: h.rackId })),
+    );
     const units = this.layout.racks.map((rack) => ({ id: rack.id, name: rack.name }));
     const collections = this.collections.map((c) => ({ slug: c.slug, name: c.name }));
+    const unitCollectionSlug = collectionSlugFromUnitId(unit.id);
     const ctx = {
       unitId,
-      unitCollectionSlug: collectionSlugFromUnitId(unit.id),
+      unitCollectionSlug,
       hangers,
       units,
       collections,
+      unitProductSlugs: [
+        ...unit.hangers.map((h) => h.slug),
+        ...unit.hangers.map((h) => h.productId),
+        ...this.collectionProducts.current(unitCollectionSlug),
+      ],
     };
     if (unit.kind === 'vitrine') {
       return buildAddPieceCandidates(
         [...this.joiasBySlug.values()].map((piece) => ({
           slug: piece.slug,
+          id: piece.id,
           name: piece.title,
           thumb: piece.image || joiaGallery(piece)[0],
           collectionSlug: piece.collectionSlug,
@@ -907,6 +918,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     return buildAddPieceCandidates(
       [...this.productsBySlug.values()].map((product) => ({
         slug: product.slug,
+        id: product.id,
         name: product.name,
         thumb: product.thumb || product.gallery?.[0],
         collectionSlug: product.collectionSlug,
@@ -948,7 +960,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     if (animate && !existed) this.engine?.addHanger(hanger, this.reducedMotion);
     else this.engine?.updateHanger(hanger);
     this.refreshTip(hanger);
-    this.refreshAddAnchor();
   }
 
   private addOneOptimistic(unitId: string, slug: string): void {
@@ -1040,7 +1051,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       if (unit.kind === 'vitrine' && piece) this.applySavedJoia(piece, previousRackId, false);
       else if (product) this.applySaved(product, previousRackId, false);
     }
-    this.refreshAddAnchor();
   }
 
   private createAndAddProduct(unit: SceneRack, draft: AddPieceCreatePayload): void {
@@ -1078,7 +1088,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       });
     };
 
-    this.adminCatalog.saveProduct$(product, { isNew: true, details: [] }).pipe(
+    this.adminCatalog.createPublishedProduct$(product).pipe(
       switchMap((created) => this.attachCreatedPhoto$(created, draft.photo)),
     ).subscribe({
       next: afterCreate,
@@ -1131,7 +1141,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private attachCreatedPhoto$(product: Product, photo: File | null) {
     if (!photo) return of(product);
     if (this.adminCatalog.useApi) {
-      return this.adminCatalog.uploadAndAttach$(product.slug, [photo]).pipe(
+      return this.adminCatalog.uploadMediaAsset$(photo, product.name).pipe(
+        switchMap((asset) =>
+          this.adminCatalog.attachMediaViaApi(product.slug, asset.id, { isPrimary: true }),
+        ),
         catchError(() => of(product)),
       );
     }
@@ -1158,15 +1171,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
         useApi: this.adminCatalog.useApi,
       })
     );
-  }
-
-  private refreshAddAnchor(): void {
-    const unit = this.activeUnit();
-    if (!unit || !this.engine) {
-      this.addAnchor.set(null);
-      return;
-    }
-    this.addAnchor.set(this.engine.unitScreenPoint(unit.id));
   }
 
   private refreshTip(hanger: { slug: string; name: string; priceLabel: string }): void {

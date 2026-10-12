@@ -4,7 +4,9 @@ import {
   addPiecesActionLabel,
   addedPiecesLabel,
   buildAddPieceCandidates,
+  findHangerForPiece,
   filterAddPieceCandidates,
+  isPieceOnFocusedRack,
   otherCollectionCaption,
   parseAddPiecePrice,
   parseAddPieceStock,
@@ -63,6 +65,58 @@ describe('buildAddPieceCandidates', () => {
     expect(rows.find((r) => r.slug === 'jaqueta')).toEqual(
       jasmine.objectContaining({ onRack: false, otherCollection: 'Niponic Dreams', thumb: 'jaqueta.jpg' }),
     );
+  });
+
+  it('does not caption an archived collection as em X', () => {
+    const rows = buildAddPieceCandidates(
+      [
+        {
+          slug: 'cinto',
+          name: 'Cinto',
+          collectionSlug: 'teste-col-ux-r',
+          collectionName: 'TESTE-COL-UX-R',
+        },
+      ],
+      {
+        unitId: 'organic-dreams',
+        unitCollectionSlug: 'organic-dreams',
+        hangers: [],
+        units: [{ id: 'organic-dreams', name: 'Organic Dreams' }],
+        collections: [{ slug: 'organic-dreams', name: 'Organic Dreams' }],
+      },
+    );
+    expect(rows[0]?.otherCollection).toBeUndefined();
+    expect(otherCollectionCaption(rows[0]?.otherCollection)).toBe('');
+  });
+
+  it('marks on-rack pieces when hanger productId matches piece slug', () => {
+    const rows = buildAddPieceCandidates(
+      [
+        { id: 'prod-1', slug: 'cinto-couro', name: 'Cinto' },
+        { id: 'prod-2', slug: 'jaqueta-preta', name: 'Jaqueta' },
+      ],
+      {
+        unitId: 'organic-dreams',
+        unitCollectionSlug: 'organic-dreams',
+        hangers: [{ slug: 'prod-1', productId: 'cinto-couro', rackId: 'organic-dreams' }],
+        units: [{ id: 'organic-dreams', name: 'Organic Dreams' }],
+        collections: [{ slug: 'organic-dreams', name: 'Organic Dreams' }],
+      },
+    );
+    expect(findHangerForPiece({ slug: 'cinto-couro', id: 'prod-1', name: 'Cinto' }, [
+      { slug: 'prod-1', productId: 'cinto-couro', rackId: 'organic-dreams' },
+    ])?.rackId).toBe('organic-dreams');
+    expect(rows.find((r) => r.slug === 'cinto-couro')?.onRack).toBeTrue();
+    expect(rows.find((r) => r.slug === 'jaqueta-preta')?.onRack).toBeFalse();
+  });
+
+  it('marks on-rack from the collection membership list when hangers are stale', () => {
+    expect(
+      isPieceOnFocusedRack(
+        { slug: 'cinto', id: 'cinto-id', name: 'Cinto' },
+        { unitId: 'organic-dreams', hangers: [], unitProductSlugs: ['cinto'] },
+      ),
+    ).toBeTrue();
   });
 
   it('omits archived pieces from the add list', () => {
@@ -206,6 +260,19 @@ describe('CollectionAddPiecePanel', () => {
     expect(fixture.nativeElement.querySelector('.add-piece__cancel')).toBeNull();
     (fixture.nativeElement.querySelector('.add-piece__close') as HTMLButtonElement).click();
     expect(close).toHaveBeenCalled();
+  });
+
+  it('does not close when unchecking a piece', () => {
+    const close = jasmine.createSpy('close');
+    component.close.subscribe(close);
+    const boxes = fixture.nativeElement.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+    boxes[0]?.click();
+    fixture.detectChanges();
+    expect(component.selected.has('cinto')).toBeTrue();
+    boxes[0]?.click();
+    fixture.detectChanges();
+    expect(component.selected.has('cinto')).toBeFalse();
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('emits a short create payload from the second tab', () => {

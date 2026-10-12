@@ -201,6 +201,8 @@ export interface Product {
   collection: Collection;
   /** URL-safe slug — pairs with `/colecao/:collectionSlug` */
   collectionSlug: CollectionSlug;
+  /** Memberships with optional `product_collections.sortOrder`. */
+  collections?: { slug: string; name: string; archivedAt?: string | null; sortOrder?: number }[];
   /**
    * When set (2+), PLP/PDP offer choosing one piece to buy.
    * Look `price` remains the full-look reference; each piece has its own price.

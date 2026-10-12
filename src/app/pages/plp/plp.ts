@@ -4,7 +4,10 @@ import { UpperCasePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { combineLatest, switchMap } from 'rxjs';
 import { LcProductCard } from '../../shared/components/product-card/product-card';
+import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
+import { isArchivedAt } from '../../core/admin-archive';
 import { CatalogService } from '../../core/catalog.service';
+import { collectionCoverUrl } from '../../core/collection-cover';
 import { COLLECTION_LABELS, Product } from '../../core/product.model';
 import { ChromeService } from '../../core/chrome.service';
 import { productMatchesRtwType, RtwType } from '../../core/rtw';
@@ -34,7 +37,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 @Component({
   selector: 'lc-plp-page',
   standalone: true,
-  imports: [RouterLink, LcProductCard, UpperCasePipe],
+  imports: [RouterLink, LcProductCard, CollectionCover, UpperCasePipe],
   templateUrl: './plp.html',
   styleUrl: './plp.scss',
 })
@@ -86,8 +89,12 @@ export class PlpPage implements OnInit {
     () => SORT_OPTIONS.find((o) => o.key === this.sortKey())?.label ?? 'Recomendados',
   );
 
+  readonly coverUrl = computed(() =>
+    collectionCoverUrl(this.rawProducts().map((p, index) => ({ ...p, sortOrder: index }))),
+  );
+
   readonly products = computed(() => {
-    let list = [...this.rawProducts()];
+    let list = this.rawProducts().filter((p) => !isArchivedAt(p.archivedAt));
     const category = this.categoryFilter();
     if (category) {
       list = list.filter((p) => p.category === category);
@@ -114,7 +121,9 @@ export class PlpPage implements OnInit {
   /** Joias featured under the current collection PLP. */
   readonly organicJoias = computed((): JoiaPiece[] => {
     const slug = this.collectionSlug();
-    return this.joiasCatalog.list().filter((j) => j.collectionSlug === slug);
+    return this.joiasCatalog
+      .list()
+      .filter((j) => j.collectionSlug === slug && !isArchivedAt(j.archivedAt));
   });
 
   constructor() {

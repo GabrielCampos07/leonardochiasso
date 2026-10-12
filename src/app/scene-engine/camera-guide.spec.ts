@@ -30,6 +30,22 @@ describe('rackNavItems', () => {
       { id: 'b', name: 'B', index: 1 },
     ]);
   });
+
+  it('keeps Sem coleção last after a new collection is created', () => {
+    const items = rackNavItems([
+      { id: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1 },
+      { id: '__none__', name: 'Sem coleção', sortOrder: 99 },
+      { id: 'nova-col', name: 'Nova col', sortOrder: 2 },
+    ]);
+    expect(items.map((item) => item.id)).toEqual(['organic-dreams', 'nova-col', '__none__']);
+    expect(items.map((item) => item.id)).toEqual(
+      rackNavItems([
+        { id: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1 },
+        { id: 'nova-col', name: 'Nova col', sortOrder: 2 },
+        { id: '__none__', name: 'Sem coleção', sortOrder: 99 },
+      ]).map((item) => item.id),
+    );
+  });
 });
 
 describe('easeInOutCubic', () => {

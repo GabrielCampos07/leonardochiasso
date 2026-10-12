@@ -104,3 +104,74 @@ describe('AdminProductsService archive', () => {
     expect(prisma.product.update).not.toHaveBeenCalled();
   });
 });
+
+describe('AdminProductsService create (otimizado, lookups em paralelo)', () => {
+  function makePrisma() {
+    return {
+      category: { findUnique: jest.fn() },
+      collection: { findUnique: jest.fn() },
+      product: { findUnique: jest.fn(), create: jest.fn() },
+      productCollection: { aggregate: jest.fn() },
+    };
+  }
+  const dto = {
+    name: 'Vestido',
+    slug: 'vestido',
+    category: 'feminino',
+    collectionSlug: 'verao',
+    priceCents: 720000,
+  } as never;
+
+  it('cria com link de coleção em um único nested create (sortOrder = max+1)', async () => {
+    const prisma = makePrisma();
+    prisma.category.findUnique.mockResolvedValue({ id: 'c1', slug: 'feminino' });
+    prisma.collection.findUnique.mockResolvedValue({ id: 'col1', slug: 'verao' });
+    prisma.product.findUnique.mockResolvedValue(null);
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: 4 } });
+    prisma.product.create.mockResolvedValue(productRow());
+
+    const service = new AdminProductsService(prisma as never);
+    await service.create(dto);
+
+    // aggregate filtrado pela relação (não depende do id da coleção)
+    expect(prisma.productCollection.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { collection: { slug: 'verao' } } }),
+    );
+    // único create aninhado com o link e sortOrder = 4 + 1
+    expect(prisma.product.create).toHaveBeenCalledTimes(1);
+    const arg = prisma.product.create.mock.calls[0][0];
+    expect(arg.data.collections.create).toEqual(
+      expect.objectContaining({ collectionId: 'col1', sortOrder: 5 }),
+    );
+  });
+
+  it('mantém a ordem dos erros: categoria desconhecida primeiro', async () => {
+    const prisma = makePrisma();
+    prisma.category.findUnique.mockResolvedValue(null);
+    prisma.collection.findUnique.mockResolvedValue(null);
+    prisma.product.findUnique.mockResolvedValue({ id: 'dup' });
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: null } });
+    const service = new AdminProductsService(prisma as never);
+    await expect(service.create(dto)).rejects.toThrow('Unknown category: feminino');
+  });
+
+  it('coleção desconhecida quando a categoria existe', async () => {
+    const prisma = makePrisma();
+    prisma.category.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.collection.findUnique.mockResolvedValue(null);
+    prisma.product.findUnique.mockResolvedValue(null);
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: null } });
+    const service = new AdminProductsService(prisma as never);
+    await expect(service.create(dto)).rejects.toThrow('Unknown collection: verao');
+  });
+
+  it('conflito de slug quando categoria e coleção existem', async () => {
+    const prisma = makePrisma();
+    prisma.category.findUnique.mockResolvedValue({ id: 'c1' });
+    prisma.collection.findUnique.mockResolvedValue({ id: 'col1' });
+    prisma.product.findUnique.mockResolvedValue({ id: 'dup', slug: 'vestido' });
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: 0 } });
+    const service = new AdminProductsService(prisma as never);
+    await expect(service.create(dto)).rejects.toThrow('Product slug already exists: vestido');
+  });
+});

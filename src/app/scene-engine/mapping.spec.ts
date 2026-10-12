@@ -1,5 +1,6 @@
 import {
   VITRINE_CAPACITY,
+  insertUnitBeforeUncollected,
   mapCatalogToScene,
   mapJoiasToVitrines,
   racksForFirstFrame,
@@ -89,6 +90,23 @@ describe('mapCatalogToScene', () => {
   it('omits Sem coleção when it would be empty', () => {
     const layout = mapCatalogToScene(collections, [products[0]!]);
     expect(layout.racks.some((r) => r.id === UNCOLLECTED_RACK_ID)).toBeFalse();
+  });
+
+  it('inserts a new unit before Sem coleção', () => {
+    const layout = mapCatalogToScene(collections, products);
+    const next = insertUnitBeforeUncollected(layout, {
+      id: 'nova-col',
+      name: 'Nova col',
+      sortOrder: 3,
+      hangers: [],
+      kind: 'rack',
+    });
+    expect(next.racks.map((r) => r.id)).toEqual([
+      'organic-dreams',
+      'niponic-dreams',
+      'nova-col',
+      UNCOLLECTED_RACK_ID,
+    ]);
   });
 
   it('maps the current BRL price onto hangers', () => {

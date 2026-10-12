@@ -1,4 +1,5 @@
 import { CanvasTexture, SRGBColorSpace, Texture } from 'three';
+import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 
 /** Must be assigned on the Image *before* `src` so R2 (`pub-…r2.dev`) sends CORS headers. */
 export const TEXTURE_CROSS_ORIGIN = 'anonymous';
@@ -65,7 +66,7 @@ function cachedCanvas(key: string, width: number, height: number, paint: (ctx: C
 }
 
 /** Tiny shared plane used until the real photo streams in. */
-export function makePlaceholderTexture(hex = '#c8c2b8'): CanvasTexture {
+export function makePlaceholderTexture(hex = COLLECTION_COVER_FALLBACK_HEX): CanvasTexture {
   if (!placeholderCanvas) {
     placeholderCanvas = document.createElement('canvas');
     placeholderCanvas.width = 32;
@@ -80,7 +81,7 @@ export function makePlaceholderTexture(hex = '#c8c2b8'): CanvasTexture {
 }
 
 /** Gray garment plane when the CDN image is missing or blocked. Shows name + initial. */
-export function makeFallbackTexture(hex = '#c8c2b8', name = ''): CanvasTexture {
+export function makeFallbackTexture(hex = COLLECTION_COVER_FALLBACK_HEX, name = ''): CanvasTexture {
   const trimmed = name.trim();
   const canvas = cachedCanvas(`fallback|${hex}|${trimmed}`, FALLBACK_WIDTH, FALLBACK_HEIGHT, (ctx) => {
     ctx.fillStyle = hex;

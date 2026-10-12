@@ -26,7 +26,8 @@
             [routerLink]="col.route"
             [queryParams]="col.queryParams"
           >
-            {{ col.label }}
+            <lc-collection-cover class="landing-shop__cover" [src]="col.cover" [alt]="col.label" />
+            <span>{{ col.label }}</span>
           </a>
         }
       </div>

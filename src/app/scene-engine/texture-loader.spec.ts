@@ -1,3 +1,4 @@
+import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import {
   applyCorsBeforeSrc,
   FALLBACK_WIDTH,
@@ -64,7 +65,7 @@ describe('applyCorsBeforeSrc', () => {
 
 describe('makeFallbackTexture', () => {
   it('paints a named fallback instead of a blank gray plane', () => {
-    const texture = makeFallbackTexture('#c8c2b8', 'Vestido Longo Radial');
+    const texture = makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, 'Vestido Longo Radial');
     expect(texture.image.width).toBe(FALLBACK_WIDTH);
     expect(texture.image.height).toBeGreaterThanOrEqual(128);
     texture.dispose();
