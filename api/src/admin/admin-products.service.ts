@@ -52,33 +52,31 @@ export class AdminProductsService {
   }
 
   async create(dto: CreateProductDto): Promise<ProductDto> {
-    const category = await this.prisma.category.findUnique({
-      where: { slug: dto.category },
-    });
+    // Lookups independentes em paralelo (categoria, coleção, slug existente e
+    // o maior sortOrder da coleção — este filtrado pela relação, sem depender
+    // do id da coleção). A ordem de validação/erros abaixo é mantida.
+    const [category, collection, existing, maxPc] = await Promise.all([
+      this.prisma.category.findUnique({ where: { slug: dto.category } }),
+      this.prisma.collection.findUnique({ where: { slug: dto.collectionSlug } }),
+      this.prisma.product.findUnique({ where: { slug: dto.slug } }),
+      this.prisma.productCollection.aggregate({
+        where: { collection: { slug: dto.collectionSlug } },
+        _max: { sortOrder: true },
+      }),
+    ]);
+
     if (!category) {
       throw new BadRequestException(`Unknown category: ${dto.category}`);
     }
-
-    const collection = await this.prisma.collection.findUnique({
-      where: { slug: dto.collectionSlug },
-    });
     if (!collection) {
       throw new BadRequestException(
         `Unknown collection: ${dto.collectionSlug}`,
       );
     }
-
-    const existing = await this.prisma.product.findUnique({
-      where: { slug: dto.slug },
-    });
     if (existing) {
       throw new ConflictException(`Product slug already exists: ${dto.slug}`);
     }
 
-    const maxPc = await this.prisma.productCollection.aggregate({
-      where: { collectionId: collection.id },
-      _max: { sortOrder: true },
-    });
     const nextSort = (maxPc._max.sortOrder ?? -1) + 1;
 
     const created = await this.prisma.product.create({
