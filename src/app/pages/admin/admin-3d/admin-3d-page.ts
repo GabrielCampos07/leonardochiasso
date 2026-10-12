@@ -51,8 +51,8 @@ import type {
   SceneProductInput,
   SceneRack,
   SceneUnitKind,
-  UNCOLLECTED_RACK_ID,
 } from '../../../scene-engine/types';
+import { UNCOLLECTED_RACK_ID } from '../../../scene-engine/types';
 import {
   WEBGL_UNAVAILABLE_ACTION,
   WEBGL_UNAVAILABLE_HINT,
