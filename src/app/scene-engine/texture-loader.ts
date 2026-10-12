@@ -135,8 +135,13 @@ export function makeSoldOutTexture(): CanvasTexture {
     soldOutCanvas.height = SOLD_OUT_TEXTURE_HEIGHT;
     const ctx = soldOutCanvas.getContext('2d');
     if (ctx) {
-      ctx.fillStyle = '#8B1E2D';
+      ctx.fillStyle = '#140e0c';
       ctx.fillRect(0, 0, SOLD_OUT_TEXTURE_WIDTH, SOLD_OUT_TEXTURE_HEIGHT);
+      ctx.fillStyle = '#8B1E2D';
+      ctx.fillRect(8, 8, SOLD_OUT_TEXTURE_WIDTH - 16, SOLD_OUT_TEXTURE_HEIGHT - 16);
+      ctx.strokeStyle = '#f3ece2';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(10, 10, SOLD_OUT_TEXTURE_WIDTH - 20, SOLD_OUT_TEXTURE_HEIGHT - 20);
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 42px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
       ctx.textAlign = 'center';

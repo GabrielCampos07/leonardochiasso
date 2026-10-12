@@ -1,29 +1,46 @@
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   Box3,
-  BoxGeometry,
   Color,
   DirectionalLight,
+  EquirectangularReflectionMapping,
   Fog,
   Group,
   HemisphereLight,
+  LoadingManager,
   Material,
   Mesh,
   MeshStandardMaterial,
+  NoToneMapping,
   Object3D,
-  PCFShadowMap,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
+  PMREMGenerator,
   Raycaster,
   Scene,
   Spherical,
+  SRGBColorSpace,
   Texture,
   Vector2,
   Vector3,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { makePlasterTexture, makeWoodFloorTexture } from './atelier-materials';
+import {
+  ATELIER_ASSETS,
+  cloneGlb,
+  createAtelierLoadingManager,
+  loadColorTexture,
+  loadGlb,
+  loadHdri,
+  type LoadProgressHandler,
+} from './atelier-assets';
+import { ATELIER_CLEAR, ATELIER_EXPOSURE, ATELIER_FOG, detectAtelierLiteMode } from './atelier-look';
+import { createAtelierRoom, placeRoomRug, ROOM_PLANT_Z } from './atelier-room';
+import { createDressForm, dimAsBackground, MANNEQUIN_GROUP, mannequinOffset } from './featured-mannequin';
+import { applyPhotoMap, isPhotoMaterial } from './photo-material';
 import {
   CAMERA_AZIMUTH_LIMIT,
   CAMERA_MIN_Y,
@@ -84,12 +101,14 @@ export type HangerHoverHandler = (
 export type FocusChangeHandler = (id: string) => void;
 export type FirstFrameHandler = () => void;
 export type SceneCompleteHandler = () => void;
+export type LoadProgressCb = LoadProgressHandler;
 export type DraftAnchorHandler = (point: { x: number; y: number } | null) => void;
 export type EmptyUnitHandler = (rackId: string) => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
   host?: HTMLElement;
+  lite?: boolean;
 }
 
 export function atelierPixelRatio(
@@ -119,7 +138,7 @@ export function hostDrawingSize(host: HTMLElement): { width: number; height: num
 }
 
 const DRAG_SLOP_SQ = 36;
-const CLEAR = 0xefe8dc;
+const CLEAR = ATELIER_CLEAR;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 /** Piece leave / unit sink: 400–600 ms. Cut instantly when reduced motion. */
 export const ARCHIVE_TWEEN_MS = 500;
@@ -251,6 +270,14 @@ export class SceneEngine {
   } | null = null;
   private readonly projectScratch = new Vector3();
   private restoreAddEventListener: (() => void) | null = null;
+  private readonly lite: boolean;
+  private readonly manager: LoadingManager;
+  private onProgressCb: LoadProgressHandler | null = null;
+  private room: Group | null = null;
+  private propsRoot: Group | null = null;
+  private hdri: Texture | null = null;
+  private pmrem: PMREMGenerator | null = null;
+  private propsArmed = false;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -316,17 +343,27 @@ export class SceneEngine {
     this.canvas = canvas;
     this.host = options.host ?? canvas.parentElement ?? canvas;
     this.reducedMotion = Boolean(options.reducedMotion);
+    this.lite =
+      options.lite ??
+      detectAtelierLiteMode({
+        reducedMotion: this.reducedMotion,
+        width: typeof window === 'undefined' ? 1280 : window.innerWidth,
+      });
+    this.manager = createAtelierLoadingManager((loaded, total) => this.onProgressCb?.(loaded, total));
     this.scene.background = new Color(CLEAR);
-    this.scene.fog = new Fog(CLEAR, 22, 48);
+    this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 18 : 16, this.lite ? 42 : 36);
 
     this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
     this.camera.position.set(0, 1.15, 3.2);
 
-    this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false });
+    this.renderer = new WebGLRenderer({ canvas, antialias: !this.lite, alpha: false });
     this.renderer.setPixelRatio(atelierPixelRatio(this.reducedMotion));
+    this.renderer.outputColorSpace = SRGBColorSpace;
+    this.renderer.toneMapping = this.lite ? NoToneMapping : ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = this.lite ? 1 : ATELIER_EXPOSURE;
     this.renderer.setClearColor(CLEAR, 1);
     this.renderer.shadowMap.enabled = false;
-    this.renderer.shadowMap.type = PCFShadowMap;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     this.restoreAddEventListener = forceNonPassiveCanvasListeners(canvas);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -341,13 +378,13 @@ export class SceneEngine {
     this.controls.addEventListener('change', this.onControlsChange);
     this.controls.update();
 
-    this.scene.add(new AmbientLight(0xfff3e4, 0.32));
-    this.scene.add(new HemisphereLight(0xfff4e8, 0x4a3d32, 0.38));
+    this.scene.add(new AmbientLight(0xfff3e4, this.lite ? 0.42 : 0.22));
+    this.scene.add(new HemisphereLight(0xfff4e8, 0x3a322b, this.lite ? 0.46 : 0.28));
 
-    const key = new DirectionalLight(0xffe2c4, 1.35);
+    const key = new DirectionalLight(0xffe2c4, this.lite ? 1.05 : 0.85);
     key.position.set(3.1, 6.2, 4.4);
     key.castShadow = false;
-    key.shadow.mapSize.set(512, 512);
+    key.shadow.mapSize.set(this.lite ? 256 : 1024, this.lite ? 256 : 1024);
     this.keyLight = key;
     key.shadow.camera.near = 1;
     key.shadow.camera.far = 36;
@@ -355,42 +392,24 @@ export class SceneEngine {
     key.shadow.camera.right = 16;
     key.shadow.camera.top = 12;
     key.shadow.camera.bottom = -6;
-    key.shadow.radius = 2.2;
-    key.shadow.bias = -0.00025;
+    key.shadow.radius = 3.2;
+    key.shadow.bias = -0.00022;
     this.scene.add(key);
 
-    const fill = new DirectionalLight(0xd8c8b4, 0.28);
+    const fill = new DirectionalLight(0xd8c8b4, this.lite ? 0.32 : 0.18);
     fill.position.set(-3.4, 2.4, 1.6);
     this.scene.add(fill);
 
-    const floor = new Mesh(
-      new BoxGeometry(96, 0.1, 64),
-      new MeshStandardMaterial({
-        color: 0xffffff,
-        map: makeWoodFloorTexture(),
-        roughness: 0.88,
-        metalness: 0,
-      }),
-    );
-    floor.position.y = FLOOR_Y - 0.05;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
-
-    const wall = new Mesh(
-      new PlaneGeometry(110, 18),
-      new MeshStandardMaterial({
-        color: 0xffffff,
-        map: makePlasterTexture(),
-        roughness: 0.92,
-        metalness: 0,
-      }),
-    );
-    wall.position.set(10, 6.4, -2.4);
-    wall.receiveShadow = true;
-    this.scene.add(wall);
+    this.room = createAtelierRoom(this.lite);
+    this.scene.add(this.room);
+    this.propsRoot = new Group();
+    this.propsRoot.name = 'atelier-props';
+    this.scene.add(this.propsRoot);
 
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
+    void this.loadRoomTextures();
+    if (!this.lite) void this.loadHdriEnv();
 
     canvas.addEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
     canvas.addEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
@@ -433,6 +452,14 @@ export class SceneEngine {
     this.onSceneCompleteCb = handler;
   }
 
+  onLoadProgress(handler: LoadProgressHandler): void {
+    this.onProgressCb = handler;
+  }
+
+  isLite(): boolean {
+    return this.lite;
+  }
+
   onDraftAnchor(handler: DraftAnchorHandler): void {
     this.onDraftAnchorCb = handler;
   }
@@ -468,6 +495,9 @@ export class SceneEngine {
     this.hasLayout = true;
     this.firstFrameSent = false;
     this.sceneCompleteSent = false;
+    this.propsArmed = false;
+    this.clearDeferredProps();
+    this.fitRoomToLayout();
     this.expectedPhotos = layout.racks.reduce((n, r) => n + r.hangers.length, 0);
     this.finishedPhotos = 0;
     this.loadedPhotos.clear();
@@ -781,6 +811,13 @@ export class SceneEngine {
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     this.keyLight = null;
+    this.hdri?.dispose();
+    this.hdri = null;
+    this.pmrem?.dispose();
+    this.pmrem = null;
+    this.room = null;
+    this.propsRoot = null;
+    this.onProgressCb = null;
   }
 
   private restoreAfterContext(): void {
@@ -915,6 +952,7 @@ export class SceneEngine {
         this.firstFrameSent = true;
         this.onFirstFrameCb?.();
         this.armShadows();
+        this.scheduleDeferredProps();
       }
       if (animating || this.draft || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
         if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
@@ -1280,7 +1318,7 @@ export class SceneEngine {
   }
 
   private armShadows(): void {
-    if (this.shadowsArmed || this.disposed) return;
+    if (this.lite || this.shadowsArmed || this.disposed) return;
     this.shadowsArmed = true;
     this.renderer.shadowMap.enabled = true;
     if (this.keyLight) this.keyLight.castShadow = true;
@@ -1294,7 +1332,7 @@ export class SceneEngine {
     const label = piece?.name ?? name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
-    if (!group || !garment || !(garment.material instanceof MeshStandardMaterial)) {
+    if (!group || !garment || !isPhotoMaterial(garment.material)) {
       this.markPhotoFinished();
       return;
     }
@@ -1302,9 +1340,8 @@ export class SceneEngine {
     const apply = (texture: Texture) => {
       const live = this.findHangerGroup(slug);
       const liveGarment = live?.getObjectByName('garment') as Mesh | undefined;
-      if (!live || !liveGarment || !(liveGarment.material instanceof MeshStandardMaterial)) return;
-      liveGarment.material.map = texture;
-      liveGarment.material.needsUpdate = true;
+      if (!live || !liveGarment || !isPhotoMaterial(liveGarment.material)) return;
+      applyPhotoMap(liveGarment.material, texture);
       this.applyPiecePhoto(live, texture);
       if (previous && previous !== texture && !isSharedTexture(previous)) previous.dispose();
       this.requestRender();
@@ -1391,10 +1428,169 @@ export class SceneEngine {
 
   private tintHanger(slug: string, on: boolean): void {
     const group = this.findHangerGroup(slug);
-    const garment = group?.getObjectByName('garment') as Mesh | undefined;
-    if (!garment || !(garment.material instanceof MeshStandardMaterial)) return;
-    garment.material.emissive.setHex(on ? 0x2a241c : 0x000000);
-    garment.material.emissiveIntensity = on ? 0.12 : 0;
+    const frame = group?.getObjectByName('frame') as Mesh | undefined;
+    if (!frame || !(frame.material instanceof MeshStandardMaterial)) return;
+    frame.material.emissive.setHex(on ? 0xc4b08a : 0x000000);
+    frame.material.emissiveIntensity = on ? 0.16 : 0;
+  }
+
+  private fitRoomToLayout(): void {
+    if (!this.room) return;
+    const slots = this.computeRackSlots(this.layout);
+    const first = slots[0];
+    const last = slots[slots.length - 1];
+    if (!first || !last) {
+      placeRoomRug(this.room, 0, 4);
+      return;
+    }
+    const minX = first.x - unitWidth(first.rack.kind, first.rack.hangers.length) / 2;
+    const maxX = last.x + unitWidth(last.rack.kind, last.rack.hangers.length) / 2;
+    placeRoomRug(this.room, (minX + maxX) / 2, Math.max(3.2, maxX - minX + 1.2));
+  }
+
+  private async loadRoomTextures(): Promise<void> {
+    const [floorMap, wallMap] = await Promise.all([
+      loadColorTexture(ATELIER_ASSETS.woodFloor, this.manager, 8, 6),
+      loadColorTexture(ATELIER_ASSETS.plaster, this.manager, 4, 2),
+    ]);
+    if (this.disposed || !this.room) {
+      floorMap?.dispose();
+      wallMap?.dispose();
+      return;
+    }
+    const floor = this.room.getObjectByName('floor') as Mesh | undefined;
+    const wall = this.room.getObjectByName('wall') as Mesh | undefined;
+    if (floor?.material instanceof MeshStandardMaterial && floorMap) {
+      const prev = floor.material.map;
+      floor.material.map = floorMap;
+      floor.material.color.setHex(0xffffff);
+      floor.material.needsUpdate = true;
+      if (prev && !isSharedTexture(prev)) prev.dispose();
+    } else {
+      floorMap?.dispose();
+    }
+    if (wall?.material instanceof MeshStandardMaterial && wallMap) {
+      const prev = wall.material.map;
+      wall.material.map = wallMap;
+      wall.material.color.setHex(0x8a8076);
+      wall.material.needsUpdate = true;
+      if (prev && !isSharedTexture(prev)) prev.dispose();
+    } else {
+      wallMap?.dispose();
+    }
+    this.requestRender();
+  }
+
+  private async loadHdriEnv(): Promise<void> {
+    const texture = await loadHdri(ATELIER_ASSETS.hdri, this.manager);
+    if (this.disposed || this.lite || !texture) {
+      texture?.dispose();
+      return;
+    }
+    texture.mapping = EquirectangularReflectionMapping;
+    this.hdri = texture;
+    this.pmrem = new PMREMGenerator(this.renderer);
+    const env = this.pmrem.fromEquirectangular(texture).texture;
+    this.scene.environment = env;
+    this.requestRender();
+  }
+
+  private scheduleDeferredProps(): void {
+    if (this.propsArmed || this.disposed) return;
+    this.propsArmed = true;
+    const run = () => {
+      if (this.disposed) return;
+      void this.mountDeferredProps();
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(run, { timeout: 240 });
+    } else {
+      window.setTimeout(run, 0);
+    }
+  }
+
+  private async mountDeferredProps(): Promise<void> {
+    if (this.disposed || !this.propsRoot) return;
+    const [mannequinSrc, plantA, plantB, coatRack] = await Promise.all([
+      loadGlb(ATELIER_ASSETS.mannequin, this.manager),
+      loadGlb(ATELIER_ASSETS.plantPotted, this.manager),
+      loadGlb(ATELIER_ASSETS.plantBush, this.manager),
+      loadGlb(ATELIER_ASSETS.coatRack, this.manager),
+    ]);
+    if (this.disposed || !this.propsRoot) return;
+
+    for (const rack of this.layout.racks) {
+      const unit = this.racksRoot.getObjectByName(`rack:${rack.id}`) as Group | undefined;
+      if (!unit) continue;
+      const width = Number(unit.userData['unitWidth'] ?? unitWidth(rack.kind, rack.hangers.length));
+      const offset = mannequinOffset(width, rack.kind);
+      const form = mannequinSrc ? cloneGlb(mannequinSrc) : createDressForm(this.lite);
+      form.name = `${MANNEQUIN_GROUP}:${rack.id}`;
+      form.position.set(unit.position.x + offset.x, FLOOR_Y, offset.z);
+      form.rotation.y = offset.rotY;
+      if (mannequinSrc) this.fitPropToFloor(form, 1.52);
+      dimAsBackground(form, this.lite ? 0.18 : 0.3);
+      form.userData = { ignorePick: true, kind: 'mannequin' };
+      this.propsRoot.add(form);
+    }
+
+    const slots = this.computeRackSlots(this.layout);
+    const first = slots[0];
+    const last = slots[slots.length - 1];
+    if (first && plantA) {
+      const pot = cloneGlb(plantA);
+      dimAsBackground(pot, 0.22);
+      pot.position.set(
+        first.x - unitWidth(first.rack.kind, first.rack.hangers.length) / 2 - 1.15,
+        FLOOR_Y,
+        ROOM_PLANT_Z,
+      );
+      this.fitPropToFloor(pot, 0.95);
+      pot.userData = { ignorePick: true, kind: 'plant' };
+      this.propsRoot.add(pot);
+    }
+    if (last && plantB) {
+      const bush = cloneGlb(plantB);
+      dimAsBackground(bush, 0.2);
+      bush.position.set(
+        last.x + unitWidth(last.rack.kind, last.rack.hangers.length) / 2 + 1.05,
+        FLOOR_Y,
+        ROOM_PLANT_Z,
+      );
+      this.fitPropToFloor(bush, 0.82);
+      bush.userData = { ignorePick: true, kind: 'plant' };
+      this.propsRoot.add(bush);
+    }
+    if (first && coatRack) {
+      const rack = cloneGlb(coatRack);
+      dimAsBackground(rack, 0.24);
+      rack.position.set(
+        first.x - unitWidth(first.rack.kind, first.rack.hangers.length) / 2 - 1.85,
+        FLOOR_Y,
+        ROOM_PLANT_Z - 0.15,
+      );
+      this.fitPropToFloor(rack, 1.55);
+      rack.userData = { ignorePick: true, kind: 'prop' };
+      this.propsRoot.add(rack);
+    }
+    this.requestRender();
+  }
+
+  private fitPropToFloor(object: Group, targetHeight: number): void {
+    const box = new Box3().setFromObject(object);
+    const size = box.getSize(new Vector3());
+    if (size.y > 0.05) object.scale.multiplyScalar(targetHeight / size.y);
+    const next = new Box3().setFromObject(object);
+    object.position.y += FLOOR_Y - next.min.y;
+  }
+
+  private clearDeferredProps(): void {
+    if (!this.propsRoot) return;
+    while (this.propsRoot.children.length) {
+      const child = this.propsRoot.children[0]!;
+      this.propsRoot.remove(child);
+      disposeObject3D(child);
+    }
   }
 }
 

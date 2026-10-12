@@ -185,6 +185,24 @@
   letter-spacing: 0.04em;
 }
 
+.admin-3d__pct {
+  margin-left: 8px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.admin-3d__bar {
+  width: 168px;
+  height: 3px;
+  background: color-mix(in srgb, var(--lc-void) 12%, #efe8dc);
+}
+
+.admin-3d__bar span {
+  display: block;
+  height: 100%;
+  background: var(--lc-void);
+}
+
 .admin-3d__spinner {
   width: 36px;
   height: 36px;

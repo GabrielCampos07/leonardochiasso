@@ -12,6 +12,8 @@ import { photoPlaneSize } from './camera-guide';
 import type { SceneHanger } from './types';
 import { hangerOpacity, isSoldOut } from './types';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
+import { brassMaterial, darkWoodMaterial } from './atelier-materials';
+import { applyPhotoMap, isPhotoMaterial, makePhotoMaterial } from './photo-material';
 import { makeFallbackTexture, makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
@@ -23,6 +25,45 @@ export const SOLD_OUT_BADGE_H = 0.105;
 
 function hangerLabelMap(name: string) {
   return makeLabelTexture(name, { width: 512, height: 80, fill: '#2a241c', size: 32 });
+}
+
+function attachSoldOutBadge(parent: Group, x: number, y: number, z: number, w: number, h: number, opacity: number): Group {
+  const badge = new Group();
+  badge.name = 'badge';
+  badge.userData = parent.userData;
+  badge.position.set(x, y, z);
+
+  const back = new Mesh(
+    new PlaneGeometry(w + 0.028, h + 0.022),
+    makePhotoMaterial(null, { color: 0x140e0c, opacity, transparent: opacity < 1 }),
+  );
+  back.name = 'badgeBack';
+  back.position.z = -0.002;
+  back.userData = parent.userData;
+  badge.add(back);
+
+  const text = new Mesh(
+    new PlaneGeometry(w, h),
+    makePhotoMaterial(makeSoldOutTexture(), { opacity, transparent: true }),
+  );
+  text.name = 'badgeText';
+  text.userData = parent.userData;
+  badge.add(text);
+  parent.add(badge);
+  return badge;
+}
+
+function setBadgeState(group: Group, soldOut: boolean, opacity: number): void {
+  const badge = group.getObjectByName('badge');
+  if (badge) badge.visible = soldOut;
+  for (const name of ['badgeBack', 'badgeText']) {
+    const mesh = group.getObjectByName(name) as Mesh | undefined;
+    if (mesh && isPhotoMaterial(mesh.material)) {
+      mesh.material.opacity = soldOut ? opacity : 0;
+      mesh.material.transparent = true;
+      mesh.material.needsUpdate = true;
+    }
+  }
 }
 
 export function applyPhotoAspect(garment: Mesh, frame: Mesh | undefined, texture: Texture): void {
@@ -37,11 +78,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
   group.name = `hanger:${data.slug}`;
   group.userData = { kind: HANGER_USER_DATA, slug: data.slug, data, restY: 0 };
 
-  const metal = new MeshStandardMaterial({
-    color: 0xc4bfb8,
-    metalness: 0.72,
-    roughness: 0.28,
-  });
+  const metal = brassMaterial();
   const opacity = hangerOpacity(data.status);
   const fallback = makePlaceholderTexture(COLLECTION_COVER_FALLBACK_HEX);
   const photo = photoPlaneSize(3, 4, PHOTO_MAX_W, PHOTO_MAX_H);
@@ -65,14 +102,12 @@ export function createGarmentHanger(data: SceneHanger): Group {
 
   const frame = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      color: 0x2a241c,
-      roughness: 0.55,
-      metalness: 0.08,
-      transparent: true,
-      opacity,
-    }),
+    darkWoodMaterial(),
   );
+  if (frame.material instanceof MeshStandardMaterial) {
+    frame.material.transparent = opacity < 1;
+    frame.material.opacity = opacity;
+  }
   frame.position.set(0, 0.02, -0.004);
   frame.scale.set(photo.width + 0.028, photo.height + 0.028, 1);
   frame.name = 'frame';
@@ -82,14 +117,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
 
   const garment = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      color: 0xffffff,
-      map: fallback,
-      roughness: 0.62,
-      metalness: 0.02,
-      transparent: true,
-      opacity,
-    }),
+    makePhotoMaterial(fallback, { opacity, transparent: opacity < 1 }),
   );
   garment.position.set(0, 0.02, 0.002);
   garment.scale.set(photo.width, photo.height, 1);
@@ -98,30 +126,20 @@ export function createGarmentHanger(data: SceneHanger): Group {
   garment.castShadow = true;
   group.add(garment);
 
-  const badge = new Mesh(
-    new PlaneGeometry(SOLD_OUT_BADGE_W, SOLD_OUT_BADGE_H),
-    new MeshStandardMaterial({
-      map: makeSoldOutTexture(),
-      transparent: true,
-      roughness: 0.5,
-      metalness: 0.05,
-      opacity,
-    }),
+  const badge = attachSoldOutBadge(
+    group,
+    photo.width * 0.28,
+    photo.height * 0.38,
+    0.01,
+    SOLD_OUT_BADGE_W,
+    SOLD_OUT_BADGE_H,
+    opacity,
   );
-  badge.position.set(photo.width * 0.28, photo.height * 0.38, 0.01);
-  badge.name = 'badge';
-  badge.userData = group.userData;
   badge.visible = isSoldOut(data.stockQty);
-  group.add(badge);
 
   const label = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      map: hangerLabelMap(data.name),
-      transparent: true,
-      roughness: 0.55,
-      opacity,
-    }),
+    makePhotoMaterial(hangerLabelMap(data.name), { opacity, transparent: true }),
   );
   label.scale.set(0.5, 0.08, 1);
   label.position.set(0, -photo.height * 0.5 - 0.06, 0.04);
@@ -142,26 +160,21 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
   const opacity = hangerOpacity(data.status);
   const garment = group.getObjectByName('garment') as Mesh | undefined;
   const frame = group.getObjectByName('frame') as Mesh | undefined;
-  const badge = group.getObjectByName('badge') as Mesh | undefined;
   const label = group.getObjectByName('label') as Mesh | undefined;
 
-  if (garment?.material instanceof MeshStandardMaterial) {
+  if (garment && isPhotoMaterial(garment.material)) {
     garment.material.opacity = opacity;
     garment.material.transparent = opacity < 1;
     if (!garment.material.map) {
-      garment.material.map = makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, data.name);
-      garment.material.needsUpdate = true;
+      applyPhotoMap(garment.material, makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, data.name));
     }
   }
   if (frame?.material instanceof MeshStandardMaterial) {
     frame.material.opacity = opacity;
+    frame.material.transparent = opacity < 1;
   }
-  if (badge?.material instanceof MeshStandardMaterial) {
-    badge.visible = isSoldOut(data.stockQty);
-    badge.material.opacity = isSoldOut(data.stockQty) ? opacity : 0;
-    badge.material.needsUpdate = true;
-  }
-  if (label?.material instanceof MeshStandardMaterial) {
+  setBadgeState(group, isSoldOut(data.stockQty), opacity);
+  if (label && isPhotoMaterial(label.material)) {
     const prev = label.material.map;
     label.material.map = hangerLabelMap(data.name);
     label.material.opacity = opacity;
@@ -169,3 +182,5 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     prev?.dispose();
   }
 }
+
+export { attachSoldOutBadge, setBadgeState };

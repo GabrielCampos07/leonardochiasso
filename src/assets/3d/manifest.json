@@ -1,0 +1,101 @@
+[
+  {
+    "file": "assets/3d/hdri-studio-small-08-1k.f6a989f8.hdr",
+    "bytes": 1508872,
+    "name": "hdri-studio-small-08-1k.f6a989f8.hdr",
+    "license": "CC0",
+    "author": "Greg Zaal / Poly Haven",
+    "url": "https://polyhaven.com/a/studio_small_08",
+    "kind": "hdri"
+  },
+  {
+    "file": "assets/3d/tex-wood-floor-diff.531d0840.jpg",
+    "bytes": 21485,
+    "name": "tex-wood-floor-diff.531d0840.jpg",
+    "license": "CC0",
+    "author": "Rob Tuytel / Poly Haven",
+    "url": "https://polyhaven.com/a/wood_floor",
+    "kind": "texture"
+  },
+  {
+    "file": "assets/3d/tex-light-wood-diff.7f175455.jpg",
+    "bytes": 33367,
+    "name": "tex-light-wood-diff.7f175455.jpg",
+    "license": "CC0",
+    "author": "Rob Tuytel / Poly Haven",
+    "url": "https://polyhaven.com/a/wood_cabinet_worn_long",
+    "kind": "texture"
+  },
+  {
+    "file": "assets/3d/tex-plaster-wall-diff.bef42e7d.jpg",
+    "bytes": 13279,
+    "name": "tex-plaster-wall-diff.bef42e7d.jpg",
+    "license": "CC0",
+    "author": "Rob Tuytel / Poly Haven",
+    "url": "https://polyhaven.com/a/plastered_wall",
+    "kind": "texture"
+  },
+  {
+    "file": "assets/3d/mdl-coat-rack.d8231c22.glb",
+    "bytes": 13288,
+    "name": "mdl-coat-rack.d8231c22.glb",
+    "license": "CC0",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "kind": "model"
+  },
+  {
+    "file": "assets/3d/mdl-plant-potted.5b760eda.glb",
+    "bytes": 7576,
+    "name": "mdl-plant-potted.5b760eda.glb",
+    "license": "CC0",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "kind": "model"
+  },
+  {
+    "file": "assets/3d/mdl-plant-bush.d7c8ff42.glb",
+    "bytes": 12996,
+    "name": "mdl-plant-bush.d7c8ff42.glb",
+    "license": "CC0",
+    "author": "Kenney",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "kind": "model"
+  },
+  {
+    "file": "assets/3d/mdl-hanger.5a1292b8.glb",
+    "bytes": 10132,
+    "name": "mdl-hanger.5a1292b8.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "Brushed-brass hanger (modeled in code)",
+    "kind": "model"
+  },
+  {
+    "file": "assets/3d/mdl-jewelry-tray.b25f1b38.glb",
+    "bytes": 6468,
+    "name": "mdl-jewelry-tray.b25f1b38.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "Waxed-wood jewelry tray (modeled in code)",
+    "kind": "model"
+  },
+  {
+    "file": "assets/3d/mdl-vitrine.90eaa2e6.glb",
+    "bytes": 7976,
+    "name": "mdl-vitrine.90eaa2e6.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "Wood-and-glass vitrine (modeled in code)",
+    "kind": "model"
+  },
+  {
+    "file": "assets/3d/mdl-mannequin.a721699c.glb",
+    "bytes": 20508,
+    "name": "mdl-mannequin.a721699c.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "Dress-form mannequin (modeled in code)",
+    "kind": "model"
+  }
+]

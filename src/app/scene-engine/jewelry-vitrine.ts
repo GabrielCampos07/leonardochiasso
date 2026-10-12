@@ -3,7 +3,6 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
-  MeshPhysicalMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   Texture,
@@ -11,9 +10,11 @@ import {
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { photoPlaneSize } from './camera-guide';
 import { disposeObject3D } from './dispose';
-import { HANGER_USER_DATA } from './garment-hanger';
+import { attachSoldOutBadge, HANGER_USER_DATA, setBadgeState } from './garment-hanger';
 import { hangerOpacity, isSoldOut, type SceneHanger, type SceneRack } from './types';
-import { makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
+import { brassMaterial, darkWoodMaterial, glassMaterial, lightWoodMaterial } from './atelier-materials';
+import { makePhotoMaterial } from './photo-material';
+import { makeLabelTexture, makePlaceholderTexture } from './texture-loader';
 import { FLOOR_Y } from './collection-rack';
 import { VITRINE_SHELF_LIMIT, VITRINE_TRAYS_PER_SHELF } from './mapping';
 
@@ -32,19 +33,6 @@ export function vitrineWidth(count: number): number {
   return Math.max(1.7, perShelf * TRAY_SPACING + 0.36);
 }
 
-function glassMaterial(): MeshPhysicalMaterial {
-  return new MeshPhysicalMaterial({
-    color: 0xf4fbff,
-    transparent: true,
-    opacity: 0.1,
-    roughness: 0.04,
-    metalness: 0.04,
-    transmission: 0.55,
-    thickness: 0.02,
-    depthWrite: false,
-  });
-}
-
 function markGlass(mesh: Mesh): void {
   mesh.userData = { ...mesh.userData, ignorePick: true, kind: 'glass' };
 }
@@ -59,8 +47,9 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
   const shelves = Math.min(VITRINE_SHELF_LIMIT, Math.max(1, Math.ceil(count / VITRINE_TRAYS_PER_SHELF) || 1));
   const width = vitrineWidth(count);
   const innerH = 0.32 + shelves * VITRINE_SHELF_PITCH;
-  const wood = new MeshStandardMaterial({ color: 0x3a2f26, roughness: 0.72, metalness: 0.08 });
-  const brass = new MeshStandardMaterial({ color: 0xc4b08a, roughness: 0.35, metalness: 0.55 });
+  const wood = lightWoodMaterial();
+  const brass = brassMaterial();
+  group.userData['unitWidth'] = width;
 
   const baseY = FLOOR_Y + 0.04;
   const caseBottom = baseY + 0.06;
@@ -112,10 +101,7 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
 
   const plate = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      map: makeLabelTexture(unit.name, { width: 768, height: 120, fill: '#2a221c', size: 40 }),
-      roughness: 0.55,
-    }),
+    makePhotoMaterial(makeLabelTexture(unit.name, { width: 768, height: 120, fill: '#2a221c', size: 40 })),
   );
   plate.scale.set(Math.min(width * 0.72, 1.6), 0.16, 1);
   plate.position.set(0, caseTop + 0.12, VITRINE_DEPTH / 2 - 0.04);
@@ -166,13 +152,7 @@ export function createJewelryTray(data: SceneHanger): Group {
   group.userData = { kind: HANGER_USER_DATA, slug: data.slug, data, restY: 0 };
 
   const opacity = hangerOpacity(data.status);
-  const wood = new MeshStandardMaterial({
-    color: 0x4a3d32,
-    roughness: 0.62,
-    metalness: 0.08,
-    transparent: true,
-    opacity,
-  });
+  const wood = waxedTrayWood(opacity);
   const stand = new Mesh(new CylinderGeometry(0.03, 0.04, 0.05, 12), wood);
   stand.position.y = 0.03;
   stand.userData = group.userData;
@@ -186,10 +166,11 @@ export function createJewelryTray(data: SceneHanger): Group {
   group.add(tray);
 
   const photo = photoPlaneSize(1, 1, TRAY_PHOTO, TRAY_PHOTO);
-  const frame = new Mesh(
-    new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({ color: 0x2a241c, roughness: 0.5, transparent: true, opacity }),
-  );
+  const frame = new Mesh(new PlaneGeometry(1, 1), darkWoodMaterial());
+  if (frame.material instanceof MeshStandardMaterial) {
+    frame.material.transparent = opacity < 1;
+    frame.material.opacity = opacity;
+  }
   frame.position.set(0, TRAY_PHOTO_Y, 0);
   frame.scale.set(photo.width + 0.02, photo.height + 0.02, 1);
   frame.name = 'frame';
@@ -198,12 +179,9 @@ export function createJewelryTray(data: SceneHanger): Group {
 
   const garment = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      color: 0xffffff,
-      map: makePlaceholderTexture(COLLECTION_COVER_FALLBACK_HEX),
-      roughness: 0.55,
-      transparent: true,
+    makePhotoMaterial(makePlaceholderTexture(COLLECTION_COVER_FALLBACK_HEX), {
       opacity,
+      transparent: opacity < 1,
     }),
   );
   garment.position.set(0, TRAY_PHOTO_Y, 0.004);
@@ -212,19 +190,16 @@ export function createJewelryTray(data: SceneHanger): Group {
   garment.userData = group.userData;
   group.add(garment);
 
-  const badge = new Mesh(
-    new PlaneGeometry(TRAY_SOLD_OUT_BADGE_W, TRAY_SOLD_OUT_BADGE_H),
-    new MeshStandardMaterial({
-      map: makeSoldOutTexture(),
-      transparent: true,
-      opacity: isSoldOut(data.stockQty) ? opacity : 0,
-    }),
+  const badge = attachSoldOutBadge(
+    group,
+    0.14,
+    TRAY_PHOTO_Y + TRAY_PHOTO * 0.42,
+    0.01,
+    TRAY_SOLD_OUT_BADGE_W,
+    TRAY_SOLD_OUT_BADGE_H,
+    opacity,
   );
-  badge.position.set(0.14, TRAY_PHOTO_Y + TRAY_PHOTO * 0.42, 0.01);
-  badge.name = 'badge';
-  badge.userData = group.userData;
   badge.visible = isSoldOut(data.stockQty);
-  group.add(badge);
 
   return group;
 }
@@ -245,11 +220,16 @@ export function applyTrayData(group: Group, data: SceneHanger): void {
       child.userData = group.userData;
     }
   });
-  const opacity = hangerOpacity(data.status);
-  const badge = group.getObjectByName('badge') as Mesh | undefined;
-  if (badge?.material instanceof MeshStandardMaterial) {
-    badge.visible = isSoldOut(data.stockQty);
-    badge.material.opacity = isSoldOut(data.stockQty) ? opacity : 0;
-    badge.material.needsUpdate = true;
-  }
+  setBadgeState(group, isSoldOut(data.stockQty), hangerOpacity(data.status));
+}
+
+function waxedTrayWood(opacity: number): MeshStandardMaterial {
+  const wood = new MeshStandardMaterial({
+    color: 0x4a3d32,
+    roughness: 0.42,
+    metalness: 0.08,
+    transparent: opacity < 1,
+    opacity,
+  });
+  return wood;
 }

@@ -3,11 +3,12 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
-  MeshStandardMaterial,
   PlaneGeometry,
 } from 'three';
+import { brassMaterial, darkWoodMaterial, lightWoodMaterial } from './atelier-materials';
 import { disposeObject3D } from './dispose';
 import { createGarmentHanger } from './garment-hanger';
+import { makePhotoMaterial } from './photo-material';
 import { makeLabelTexture } from './texture-loader';
 import type { SceneHanger, SceneRack } from './types';
 
@@ -52,7 +53,9 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   const rows = rackRowCount(count);
   const barTop = rackBarTop(rows);
   const width = rackWidth(count);
-  const metal = new MeshStandardMaterial({ color: 0xb7b1a8, roughness: 0.32, metalness: 0.68 });
+  const metal = brassMaterial();
+  const wood = lightWoodMaterial();
+  group.userData['unitWidth'] = width;
 
   const topY = barTop + 0.38;
   const bottomY = FLOOR_Y + 0.02;
@@ -67,11 +70,11 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   right.castShadow = true;
   group.add(left, right);
 
-  const footGeo = new CylinderGeometry(0.04, 0.045, 0.02, 12);
-  const footL = new Mesh(footGeo, metal);
-  footL.position.set(-width / 2, FLOOR_Y + 0.02, 0);
-  const footR = new Mesh(footGeo.clone(), metal);
-  footR.position.set(width / 2, FLOOR_Y + 0.02, 0);
+  const footGeo = new BoxGeometry(0.12, 0.03, 0.16);
+  const footL = new Mesh(footGeo, wood);
+  footL.position.set(-width / 2, FLOOR_Y + 0.025, 0);
+  const footR = new Mesh(footGeo.clone(), wood);
+  footR.position.set(width / 2, FLOOR_Y + 0.025, 0);
   group.add(footL, footR);
 
   const hangersRoot = new Group();
@@ -88,19 +91,13 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   }
 
   const plateW = Math.min(width * 0.72, 2.6);
-  const plate = new Mesh(
-    new BoxGeometry(plateW, 0.2, 0.03),
-    new MeshStandardMaterial({ color: 0x1c1814, roughness: 0.5 }),
-  );
+  const plate = new Mesh(new BoxGeometry(plateW, 0.2, 0.03), darkWoodMaterial());
   plate.position.set(0, barTop + 0.28, 0.02);
   group.add(plate);
 
   const plateLabel = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      map: makeLabelTexture(rack.name, { width: 768, height: 120, fill: '#1c1814', size: 48 }),
-      roughness: 0.55,
-    }),
+    makePhotoMaterial(makeLabelTexture(rack.name, { width: 768, height: 120, fill: '#1c1814', size: 48 })),
   );
   plateLabel.scale.set(Math.min(width * 0.78, 2.8), 0.22, 1);
   plateLabel.position.set(0, barTop + 0.28, 0.05);

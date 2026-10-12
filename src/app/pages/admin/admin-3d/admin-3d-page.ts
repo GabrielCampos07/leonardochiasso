@@ -167,6 +167,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly loading = signal(true);
   readonly firstFrame = signal(false);
   readonly bootFading = signal(false);
+  readonly sceneProgress = signal(0);
+  readonly bootPercent = computed(() => Math.round(this.sceneProgress() * 100));
   readonly error = signal('');
   readonly empty = signal(false);
   readonly usingMock = signal(false);
@@ -284,6 +286,9 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     });
     this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.onSceneComplete(() => this.markSceneComplete());
+    this.engine.onLoadProgress((loaded, total) => {
+      this.sceneProgress.set(total > 0 ? Math.min(1, loaded / total) : 0);
+    });
     this.engine.onDraftAnchor((point) => {
       if (point && !this.createSheet()) this.createPanel.set(clampCreatePanel(point.x, point.y));
     });
@@ -521,6 +526,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.loading.set(true);
     this.firstFrame.set(false);
     this.bootFading.set(false);
+    this.sceneProgress.set(0);
     this.error.set('');
     this.empty.set(false);
 

@@ -183,7 +183,15 @@
         <span></span>
         <span></span>
       </div>
-      <p>Montando o ateliê…</p>
+      <p>
+        Montando o ateliê…
+        @if (bootPercent() > 0) {
+          <span class="admin-3d__pct">{{ bootPercent() }}%</span>
+        }
+      </p>
+      <div class="admin-3d__bar" aria-hidden="true">
+        <span [style.width.%]="bootPercent()"></span>
+      </div>
     </div>
   }
 
