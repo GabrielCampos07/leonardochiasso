@@ -17,7 +17,6 @@
       type="button"
       class="add-piece__close"
       aria-label="Fechar"
-      [disabled]="saving"
       (click)="close.emit()"
     >
       ×
@@ -35,7 +34,6 @@
       role="tab"
       [attr.aria-selected]="tab === 'existentes'"
       [class.is-on]="tab === 'existentes'"
-      [disabled]="saving"
       (click)="setTab('existentes')"
     >
       Escolher existentes
@@ -46,7 +44,6 @@
       role="tab"
       [attr.aria-selected]="tab === 'nova'"
       [class.is-on]="tab === 'nova'"
-      [disabled]="saving"
       (click)="setTab('nova')"
     >
       Criar nova
@@ -64,21 +61,30 @@
           autocomplete="off"
           placeholder="Nome ou slug"
           [value]="query"
-          [disabled]="saving"
           (input)="query = $any($event.target).value"
         />
       </label>
       <ul class="add-piece__list" role="listbox" aria-multiselectable="true" aria-label="Peças disponíveis">
         @for (item of filtered; track item.slug) {
           <li>
-            <label class="add-piece__row">
+            <label class="add-piece__row" [class.add-piece__row--on]="item.onRack">
               <input
                 type="checkbox"
-                [checked]="selected.has(item.slug)"
-                [disabled]="saving"
+                [checked]="isChecked(item.slug)"
+                [disabled]="item.onRack"
                 (change)="toggle(item.slug)"
               />
-              <span>{{ item.name }}</span>
+              <span class="add-piece__thumb" aria-hidden="true">
+                @if (item.thumb) {
+                  <img [src]="item.thumb" alt="" />
+                }
+              </span>
+              <span class="add-piece__meta">
+                <span class="add-piece__title">{{ item.name }}</span>
+                @if (item.otherCollection) {
+                  <span class="add-piece__where">em {{ item.otherCollection }}</span>
+                }
+              </span>
             </label>
             @if (errorFor(item.slug); as itemError) {
               <p class="add-piece__item-error" role="alert">{{ itemError }}</p>
@@ -86,15 +92,21 @@
           </li>
         } @empty {
           <li class="add-piece__empty">
-            {{ query.trim() ? 'Nenhuma peça corresponde à busca.' : 'Nenhuma peça fora desta coleção.' }}
+            @if (query.trim()) {
+              <p>Nenhuma peça encontrada</p>
+              <button type="button" class="add-piece__from-search" (click)="createFromSearch()">
+                Criar nova peça
+              </button>
+            } @else {
+              Nenhuma peça nesta lista.
+            }
           </li>
         }
       </ul>
       <button
         type="button"
         class="add-piece__save"
-        [disabled]="!selected.size || saving"
-        [attr.aria-busy]="saving"
+        [disabled]="!pickCount"
         (click)="confirm()"
       >
         {{ actionLabel }}

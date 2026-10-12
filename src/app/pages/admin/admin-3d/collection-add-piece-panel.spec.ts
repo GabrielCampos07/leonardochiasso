@@ -3,7 +3,9 @@ import {
   CollectionAddPiecePanel,
   addPiecesActionLabel,
   addedPiecesLabel,
+  buildAddPieceCandidates,
   filterAddPieceCandidates,
+  otherCollectionCaption,
   parseAddPiecePrice,
   parseAddPieceStock,
 } from './collection-add-piece-panel';
@@ -17,9 +19,50 @@ describe('addedPiecesLabel', () => {
 });
 
 describe('addPiecesActionLabel', () => {
-  it('includes the selected count', () => {
+  it('includes the selected count in Portuguese', () => {
     expect(addPiecesActionLabel(0)).toBe('Adicionar');
-    expect(addPiecesActionLabel(2)).toBe('Adicionar 2');
+    expect(addPiecesActionLabel(1)).toBe('Adicionar 1 peça');
+    expect(addPiecesActionLabel(3)).toBe('Adicionar 3 peças');
+  });
+});
+
+describe('otherCollectionCaption', () => {
+  it('prefixes another collection name', () => {
+    expect(otherCollectionCaption('Organic Dreams')).toBe('em Organic Dreams');
+    expect(otherCollectionCaption('')).toBe('');
+  });
+});
+
+describe('buildAddPieceCandidates', () => {
+  it('marks pieces on this rack and captions another collection', () => {
+    const rows = buildAddPieceCandidates(
+      [
+        { slug: 'cinto', name: 'Cinto', thumb: 'cinto.jpg', collectionSlug: 'organic-dreams', collectionName: 'Organic Dreams' },
+        { slug: 'jaqueta', name: 'Jaqueta', thumb: 'jaqueta.jpg', collectionSlug: 'niponic-dreams', collectionName: 'Niponic Dreams' },
+      ],
+      {
+        unitId: 'organic-dreams',
+        unitCollectionSlug: 'organic-dreams',
+        hangers: [
+          { slug: 'cinto', rackId: 'organic-dreams' },
+          { slug: 'jaqueta', rackId: 'niponic-dreams' },
+        ],
+        units: [
+          { id: 'organic-dreams', name: 'Organic Dreams' },
+          { id: 'niponic-dreams', name: 'Niponic Dreams' },
+        ],
+        collections: [
+          { slug: 'organic-dreams', name: 'Organic Dreams' },
+          { slug: 'niponic-dreams', name: 'Niponic Dreams' },
+        ],
+      },
+    );
+    expect(rows.find((r) => r.slug === 'cinto')).toEqual(
+      jasmine.objectContaining({ onRack: true, otherCollection: undefined, thumb: 'cinto.jpg' }),
+    );
+    expect(rows.find((r) => r.slug === 'jaqueta')).toEqual(
+      jasmine.objectContaining({ onRack: false, otherCollection: 'Niponic Dreams', thumb: 'jaqueta.jpg' }),
+    );
   });
 });
 
@@ -100,8 +143,38 @@ describe('CollectionAddPiecePanel', () => {
     expect(fixture.nativeElement.textContent).toContain('3 peças adicionadas');
     expect(fixture.nativeElement.textContent).toContain('Falhou');
     expect((fixture.nativeElement.querySelector('.add-piece__save') as HTMLButtonElement).textContent).toContain(
-      'Adicionar 1',
+      'Adicionar 1 peça',
     );
+  });
+
+  it('shows a thumbnail and another collection, and locks pieces already on the rack', () => {
+    fixture.componentRef.setInput('candidates', [
+      { slug: 'cinto', name: 'Cinto', thumb: 'cinto.jpg', onRack: true },
+      { slug: 'jaqueta', name: 'Jaqueta', thumb: 'jaqueta.jpg', otherCollection: 'Niponic Dreams' },
+    ]);
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll('.add-piece__row') as NodeListOf<HTMLElement>;
+    const onRackBox = rows[0]?.querySelector('input') as HTMLInputElement;
+    expect(onRackBox.checked).toBeTrue();
+    expect(onRackBox.disabled).toBeTrue();
+    expect(rows[0]?.querySelector('img')?.getAttribute('src')).toBe('cinto.jpg');
+    expect(rows[1]?.textContent).toContain('em Niponic Dreams');
+    onRackBox.click();
+    fixture.detectChanges();
+    expect(component.selected.has('cinto')).toBeFalse();
+  });
+
+  it('offers to create a piece when search finds nothing', () => {
+    const search = fixture.nativeElement.querySelector('input[type="search"]') as HTMLInputElement;
+    search.value = 'Capa de chuva';
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Nenhuma peça encontrada');
+    (fixture.nativeElement.querySelector('.add-piece__from-search') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(component.tab).toBe('nova');
+    const name = fixture.nativeElement.querySelector('input[name="addPieceName"]') as HTMLInputElement;
+    expect(name.value).toBe('Capa de chuva');
   });
 
   it('filters the list from search and closes only via X', () => {
@@ -111,7 +184,7 @@ describe('CollectionAddPiecePanel', () => {
     search.value = 'jaq';
     search.dispatchEvent(new Event('input', { bubbles: true }));
     fixture.detectChanges();
-    const names = [...fixture.nativeElement.querySelectorAll('.add-piece__row span')].map((el) => el.textContent);
+    const names = [...fixture.nativeElement.querySelectorAll('.add-piece__title')].map((el) => el.textContent);
     expect(names).toEqual(['Jaqueta']);
     expect(fixture.nativeElement.querySelector('.add-piece__cancel')).toBeNull();
     (fixture.nativeElement.querySelector('.add-piece__close') as HTMLButtonElement).click();

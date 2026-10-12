@@ -62,7 +62,7 @@ import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
-import { racksForFirstFrame, replaceHanger } from './mapping';
+import { findHanger, omitHanger, racksForFirstFrame, replaceHanger } from './mapping';
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls } from './photo-url';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
@@ -526,6 +526,20 @@ export class SceneEngine {
     return this.worldToClient(this.projectScratch);
   }
 
+  removeHanger(slug: string): void {
+    const prev = findHanger(this.layout, slug);
+    const group = this.findHangerGroup(slug);
+    this.rises = this.rises.filter((rise) => rise.group !== group);
+    if (group) {
+      group.parent?.remove(group);
+      disposeObject3D(group);
+    }
+    this.layout = omitHanger(this.layout, slug);
+    if (prev) this.relayoutUnit(prev.rackId);
+    if (this.hoverSlug === slug) this.hoverSlug = null;
+    this.requestRender();
+  }
+
   updateHanger(next: SceneHanger): void {
     this.layout = replaceHanger(this.layout, next);
     const group = this.findHangerGroup(next.slug);
@@ -952,10 +966,17 @@ export class SceneEngine {
     const hangersRoot = dest.getObjectByName('hangers') as Group | undefined;
     if (!hangersRoot) return;
     hangersRoot.add(group);
-    const rack = this.layout.racks.find((r) => r.id === next.rackId);
-    if (rack?.kind === 'vitrine') {
+    this.relayoutUnit(next.rackId);
+  }
+
+  private relayoutUnit(rackId: string): void {
+    const dest = this.racksRoot.getObjectByName(`rack:${rackId}`) as Group | undefined;
+    const hangersRoot = dest?.getObjectByName('hangers') as Group | undefined;
+    const rack = this.layout.racks.find((r) => r.id === rackId);
+    if (!hangersRoot || !rack) return;
+    if (rack.kind === 'vitrine') {
       layoutTrays(hangersRoot, rack.hangers, vitrineWidth(rack.hangers.length));
-    } else if (rack) {
+    } else {
       const barTop = rackBarTop(rackRowCount(rack.hangers.length));
       layoutHangers(hangersRoot, rack.hangers, rackWidth(rack.hangers.length), barTop);
     }

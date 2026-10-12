@@ -6,12 +6,27 @@ import {
   Output,
   SimpleChanges,
 } from '@angular/core';
+import { UNCOLLECTED_RACK_ID } from '../../../scene-engine/types';
+import { collectionSlugFromUnitId } from './atelier-blank';
 
 export type AddPieceTab = 'existentes' | 'nova';
 
 export interface AddPieceCandidate {
   slug: string;
   name: string;
+  thumb?: string;
+  /** Display name of another collection this piece already hangs in. */
+  otherCollection?: string;
+  /** Already on the focused rack / vitrine. */
+  onRack?: boolean;
+}
+
+export interface AddPieceSource {
+  slug: string;
+  name: string;
+  thumb?: string;
+  collectionSlug?: string;
+  collectionName?: string;
 }
 
 export interface AddPieceItemError {
@@ -44,7 +59,61 @@ export function addedPiecesLabel(count: number): string {
 
 export function addPiecesActionLabel(count: number): string {
   if (count <= 0) return 'Adicionar';
-  return `Adicionar ${count}`;
+  return count === 1 ? 'Adicionar 1 peça' : `Adicionar ${count} peças`;
+}
+
+export function otherCollectionCaption(name?: string | null): string {
+  const trimmed = name?.trim();
+  return trimmed ? `em ${trimmed}` : '';
+}
+
+export function buildAddPieceCandidates(
+  pieces: readonly AddPieceSource[],
+  ctx: {
+    unitId: string;
+    unitCollectionSlug: string;
+    hangers: ReadonlyArray<{ slug: string; rackId: string }>;
+    units: ReadonlyArray<{ id: string; name: string }>;
+    collections: ReadonlyArray<{ slug: string; name: string }>;
+  },
+): AddPieceCandidate[] {
+  const hangerBySlug = new Map(ctx.hangers.map((h) => [h.slug, h]));
+  const unitNameById = new Map(ctx.units.map((u) => [u.id, u.name]));
+  const collectionNameBySlug = new Map(ctx.collections.map((c) => [c.slug, c.name]));
+  return pieces
+    .map((piece) => {
+      const hanger = hangerBySlug.get(piece.slug);
+      const onRack = hanger?.rackId === ctx.unitId;
+      return {
+        slug: piece.slug,
+        name: piece.name,
+        thumb: piece.thumb,
+        onRack,
+        otherCollection: onRack
+          ? undefined
+          : resolveOtherCollectionName(piece, hanger, ctx.unitCollectionSlug, unitNameById, collectionNameBySlug),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+}
+
+function resolveOtherCollectionName(
+  piece: AddPieceSource,
+  hanger: { slug: string; rackId: string } | undefined,
+  unitCollectionSlug: string,
+  unitNameById: Map<string, string>,
+  collectionNameBySlug: Map<string, string>,
+): string | undefined {
+  if (hanger && hanger.rackId !== UNCOLLECTED_RACK_ID) {
+    const hangerCollection = collectionSlugFromUnitId(hanger.rackId);
+    if (hangerCollection && hangerCollection !== unitCollectionSlug) {
+      return unitNameById.get(hanger.rackId) ?? collectionNameBySlug.get(hangerCollection);
+    }
+  }
+  if (piece.collectionSlug && piece.collectionSlug !== unitCollectionSlug) {
+    return collectionNameBySlug.get(piece.collectionSlug) ?? piece.collectionName;
+  }
+  return undefined;
 }
 
 export function parseAddPiecePrice(
@@ -115,8 +184,15 @@ export class CollectionAddPiecePanel implements OnChanges {
     return addedPiecesLabel(this.addedCount);
   }
 
+  get pickCount(): number {
+    return [...this.selected].filter((slug) => {
+      const item = this.candidates.find((c) => c.slug === slug);
+      return item && !item.onRack;
+    }).length;
+  }
+
   get actionLabel(): string {
-    return this.saving ? 'Adicionando…' : addPiecesActionLabel(this.selected.size);
+    return addPiecesActionLabel(this.pickCount);
   }
 
   get createLabel(): string {
@@ -127,20 +203,34 @@ export class CollectionAddPiecePanel implements OnChanges {
     return this.itemErrors.find((item) => item.slug === slug)?.message ?? '';
   }
 
+  isOnRack(slug: string): boolean {
+    return Boolean(this.candidates.find((item) => item.slug === slug)?.onRack);
+  }
+
+  isChecked(slug: string): boolean {
+    return this.isOnRack(slug) || this.selected.has(slug);
+  }
+
   setTab(tab: AddPieceTab): void {
-    if (this.saving) return;
     this.tab = tab;
   }
 
   toggle(slug: string): void {
-    if (this.saving) return;
+    if (this.isOnRack(slug)) return;
     if (this.selected.has(slug)) this.selected.delete(slug);
     else this.selected.add(slug);
   }
 
   confirm(): void {
-    if (this.saving || !this.selected.size) return;
-    this.add.emit([...this.selected]);
+    const slugs = [...this.selected].filter((slug) => !this.isOnRack(slug));
+    if (!slugs.length) return;
+    this.add.emit(slugs);
+  }
+
+  createFromSearch(): void {
+    this.createName = this.query.trim();
+    this.formError = '';
+    this.tab = 'nova';
   }
 
   confirmCreate(): void {
@@ -191,7 +281,9 @@ export class CollectionAddPiecePanel implements OnChanges {
   }
 
   private pruneSelection(): void {
-    const allowed = new Set(this.candidates.map((item) => item.slug));
+    const allowed = new Set(
+      this.candidates.filter((item) => !item.onRack).map((item) => item.slug),
+    );
     for (const slug of [...this.selected]) {
       if (!allowed.has(slug)) this.selected.delete(slug);
     }

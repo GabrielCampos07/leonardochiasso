@@ -176,6 +176,16 @@ export function findHanger(layout: SceneLayout, slug: string): SceneHanger | und
   return undefined;
 }
 
+/** Drop one hanger from every rack. Used when an optimistic add is reverted. */
+export function omitHanger(layout: SceneLayout, slug: string): SceneLayout {
+  return {
+    racks: layout.racks.map((rack) => ({
+      ...rack,
+      hangers: rack.hangers.filter((h) => h.slug !== slug),
+    })),
+  };
+}
+
 /** Replace one hanger in-place; move it if the rack changed. */
 export function replaceHanger(layout: SceneLayout, next: SceneHanger): SceneLayout {
   const racks = layout.racks.map((rack) => ({

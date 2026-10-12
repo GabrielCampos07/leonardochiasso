@@ -26,7 +26,7 @@ import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.serv
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
 import { mapApiProduct } from '../../../core/catalog.service';
 import { ContentAdminService } from '../../../core/content-admin.service';
-import { JoiaPiece } from '../../../core/joias.data';
+import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { formatPriceLabel, Product } from '../../../core/product.model';
 import { CollectionSlug } from '../../../core/routes';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
@@ -35,7 +35,9 @@ import { environment } from '../../../../environments/environment';
 import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-engine/camera-guide';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
+  findHanger,
   mapAtelierToScene,
+  omitHanger,
   replaceHanger,
   resolveProductRackId,
   toSceneHanger,
@@ -73,6 +75,8 @@ import { Admin3dPrefetchService } from './admin-3d-prefetch';
 import { blankAtelierJoia, blankAtelierProduct, collectionSlugFromUnitId, uniqueJoiaSlug } from './atelier-blank';
 import {
   CollectionAddPiecePanel,
+  buildAddPieceCandidates,
+  type AddPieceCandidate,
   type AddPieceCreatePayload,
   type AddPieceItemError,
 } from './collection-add-piece-panel';
@@ -201,7 +205,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
   readonly adding = signal(false);
   readonly addSaving = signal(false);
-  readonly addCandidates = signal<{ slug: string; name: string }[]>([]);
+  readonly addCandidates = signal<AddPieceCandidate[]>([]);
   readonly addUnitName = signal('');
   readonly addSheet = signal(isCreateSheetViewport());
   readonly addCount = signal(0);
@@ -225,6 +229,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private modalOpen = false;
   private readonly layoutRev = signal(0);
   private addTimers: number[] = [];
+  private readonly addingSlugs = new Set<string>();
 
   ngOnInit(): void {
     this.load();
@@ -418,33 +423,17 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
 
   confirmAddPieces(slugs: string[]): void {
     const unit = this.focusedUnit();
-    if (!unit || !slugs.length || this.addSaving()) return;
-    if (unit.kind === 'vitrine') {
-      this.confirmAddJoias(unit, slugs);
-      return;
-    }
-    const collectionSlug = collectionSlugFromUnitId(unit.id);
-    const current = unit.hangers.map((h) => h.slug);
-    this.collectionProducts.remember(collectionSlug, current);
-    this.addSaving.set(true);
-    this.addErrors.set([]);
-
-    if (this.usesLocalCatalog()) {
-      this.finishAddBatch(unit, slugs, []);
-      return;
-    }
-
-    this.collectionProducts.tryAppend(collectionSlug, slugs).subscribe({
-      next: (batch) => this.finishAddBatch(unit, batch.added, batch.failed),
-      error: (err) => {
-        this.addSaving.set(false);
-        this.addErrors.set(
-          slugs.map((slug) => ({
-            slug,
-            message: adminHttpErrorMessage(err, 'Não foi possível adicionar as peças.'),
-          })),
-        );
-      },
+    if (!unit || !slugs.length) return;
+    const incoming = slugs.filter(
+      (slug) => !unit.hangers.some((h) => h.slug === slug) && !this.addingSlugs.has(slug),
+    );
+    if (!incoming.length) return;
+    this.addErrors.update((errors) => errors.filter((item) => !incoming.includes(item.slug)));
+    this.addPanel?.finishAdd(incoming);
+    incoming.forEach((slug, index) => {
+      this.addingSlugs.add(slug);
+      const timer = window.setTimeout(() => this.addOneOptimistic(unit.id, slug), addPieceStaggerDelay(index));
+      this.addTimers.push(timer);
     });
   }
 
@@ -461,7 +450,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   cancelAddPiece(): void {
-    if (this.addSaving()) return;
     this.adding.set(false);
     this.addCandidates.set([]);
     this.addErrors.set([]);
@@ -660,7 +648,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     if (this.focusedId() !== unit.id) this.engine?.focusRack(unit.id, this.reducedMotion);
     this.hoverTip.set(null);
     this.addUnitName.set(unit.name);
-    this.addCandidates.set(this.piecesOutside(unit.id));
+    this.addCandidates.set(this.listAddCandidates(unit.id));
     this.addSheet.set(isCreateSheetViewport());
     this.addSaving.set(false);
     this.addErrors.set([]);
@@ -780,41 +768,40 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     return unitsOfKind(this.layout, kind).find((r) => r.id === id) ?? null;
   }
 
-  private piecesOutside(unitId: string): { slug: string; name: string }[] {
+  private listAddCandidates(unitId: string): AddPieceCandidate[] {
     const unit = this.layout.racks.find((r) => r.id === unitId);
-    const taken = new Set(unit?.hangers.map((h) => h.slug) ?? []);
-    if (unit?.kind === 'vitrine') {
-      return [...this.joiasBySlug.values()]
-        .filter((piece) => !taken.has(piece.slug))
-        .map((piece) => ({ slug: piece.slug, name: piece.title }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    if (!unit) return [];
+    const hangers = this.layout.racks.flatMap((rack) => rack.hangers.map((h) => ({ slug: h.slug, rackId: h.rackId })));
+    const units = this.layout.racks.map((rack) => ({ id: rack.id, name: rack.name }));
+    const collections = this.collections.map((c) => ({ slug: c.slug, name: c.name }));
+    const ctx = {
+      unitId,
+      unitCollectionSlug: collectionSlugFromUnitId(unit.id),
+      hangers,
+      units,
+      collections,
+    };
+    if (unit.kind === 'vitrine') {
+      return buildAddPieceCandidates(
+        [...this.joiasBySlug.values()].map((piece) => ({
+          slug: piece.slug,
+          name: piece.title,
+          thumb: piece.image || joiaGallery(piece)[0],
+          collectionSlug: piece.collectionSlug,
+        })),
+        ctx,
+      );
     }
-    return [...this.productsBySlug.values()]
-      .filter((p) => !taken.has(p.slug))
-      .map((p) => ({ slug: p.slug, name: p.name }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-  }
-
-  private staggerAddedPieces(slugs: string[], rackId: string): void {
-    this.clearAddTimers();
-    slugs.forEach((slug, index) => {
-      const product = this.productsBySlug.get(slug);
-      if (!product) return;
-      const wait = addPieceStaggerDelay(index);
-      const timer = window.setTimeout(() => this.applySaved(product, rackId, true), wait);
-      this.addTimers.push(timer);
-    });
-  }
-
-  private staggerAddedJoias(slugs: string[], rackId: string): void {
-    this.clearAddTimers();
-    slugs.forEach((slug, index) => {
-      const piece = this.joiasBySlug.get(slug);
-      if (!piece) return;
-      const wait = addPieceStaggerDelay(index);
-      const timer = window.setTimeout(() => this.applySavedJoia(piece, rackId, true), wait);
-      this.addTimers.push(timer);
-    });
+    return buildAddPieceCandidates(
+      [...this.productsBySlug.values()].map((product) => ({
+        slug: product.slug,
+        name: product.name,
+        thumb: product.thumb || product.gallery?.[0],
+        collectionSlug: product.collectionSlug,
+        collectionName: product.collection,
+      })),
+      ctx,
+    );
   }
 
   private rememberCollectionProducts(): void {
@@ -851,36 +838,96 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.refreshAddAnchor();
   }
 
-  private confirmAddJoias(unit: SceneRack, slugs: string[]): void {
-    const collectionSlug = collectionSlugFromUnitId(unit.id);
-    const added: string[] = [];
-    const failed: AddPieceItemError[] = [];
-    this.addSaving.set(true);
-    for (const slug of slugs) {
-      const piece = this.joiasBySlug.get(slug);
-      if (!piece) {
-        failed.push({ slug, message: 'Peça não encontrada.' });
-        continue;
-      }
-      const next: JoiaPiece = { ...piece, collectionSlug: collectionSlug as CollectionSlug };
-      this.joiasAdmin.save(next);
-      this.joiasBySlug.set(next.slug, next);
-      this.contentAdmin.patchContentField('joia', next.slug, 'collectionSlug', collectionSlug).subscribe({
-        error: () => undefined,
-      });
-      added.push(slug);
+  private addOneOptimistic(unitId: string, slug: string): void {
+    const unit = this.layout.racks.find((rack) => rack.id === unitId);
+    if (!unit) {
+      this.addingSlugs.delete(slug);
+      return;
     }
-    this.finishAddBatch(unit, added, failed);
+    if (unit.kind === 'vitrine') {
+      this.addOneJoiaOptimistic(unit, slug);
+      return;
+    }
+    this.addOneProductOptimistic(unit, slug);
   }
 
-  private finishAddBatch(unit: SceneRack, added: string[], failed: AddPieceItemError[]): void {
-    this.addSaving.set(false);
-    this.addErrors.set(failed);
-    this.addPanel?.finishAdd(added);
-    this.addCandidates.set(this.piecesOutside(unit.id));
-    if (added.length) this.addCount.update((n) => n + added.length);
-    if (unit.kind === 'vitrine') this.staggerAddedJoias(added, unit.id);
-    else this.staggerAddedPieces(added, unit.id);
+  private addOneProductOptimistic(unit: SceneRack, slug: string): void {
+    const product = this.productsBySlug.get(slug);
+    if (!product) {
+      this.markAddPieceFailed(slug, 'Peça não encontrada.');
+      return;
+    }
+    const previous = findHanger(this.layout, slug);
+    this.applySaved(product, unit.id, true);
+    this.addCount.update((n) => n + 1);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    if (this.usesLocalCatalog()) {
+      this.addingSlugs.delete(slug);
+      return;
+    }
+    this.collectionProducts.append(collectionSlug, [slug]).subscribe({
+      next: () => this.addingSlugs.delete(slug),
+      error: (err) =>
+        this.failAddPiece(
+          unit,
+          slug,
+          adminHttpErrorMessage(err, 'Não foi possível adicionar esta peça.'),
+          previous?.rackId ?? null,
+        ),
+    });
+  }
+
+  private addOneJoiaOptimistic(unit: SceneRack, slug: string): void {
+    const piece = this.joiasBySlug.get(slug);
+    if (!piece) {
+      this.markAddPieceFailed(slug, 'Peça não encontrada.');
+      return;
+    }
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    const next: JoiaPiece = { ...piece, collectionSlug: collectionSlug as CollectionSlug };
+    this.joiasAdmin.save(next);
+    this.applySavedJoia(next, unit.id, true);
+    this.addCount.update((n) => n + 1);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+    this.contentAdmin.patchContentField('joia', next.slug, 'collectionSlug', collectionSlug).subscribe({
+      next: () => this.addingSlugs.delete(slug),
+      error: () => this.addingSlugs.delete(slug),
+    });
+    if (this.usesLocalCatalog()) this.addingSlugs.delete(slug);
+  }
+
+  private failAddPiece(unit: SceneRack, slug: string, message: string, previousRackId: string | null): void {
+    this.revertAddedPiece(unit, slug, previousRackId);
+    this.addCount.update((n) => Math.max(0, n - 1));
+    this.markAddPieceFailed(slug, message);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+  }
+
+  private markAddPieceFailed(slug: string, message: string): void {
+    this.addingSlugs.delete(slug);
+    this.addErrors.update((errors) => [...errors.filter((item) => item.slug !== slug), { slug, message }]);
+    this.addPanel?.selected.add(slug);
+  }
+
+  private revertAddedPiece(unit: SceneRack, slug: string, previousRackId: string | null): void {
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    this.layout = omitHanger(this.layout, slug);
+    this.bumpLayout();
+    this.engine?.removeHanger(slug);
+    if (unit.kind !== 'vitrine') {
+      this.collectionProducts.remember(
+        collectionSlug,
+        this.collectionProducts.current(collectionSlug).filter((item) => item !== slug),
+      );
+    }
+    if (previousRackId && previousRackId !== unit.id) {
+      const product = this.productsBySlug.get(slug);
+      const piece = this.joiasBySlug.get(slug);
+      if (unit.kind === 'vitrine' && piece) this.applySavedJoia(piece, previousRackId, false);
+      else if (product) this.applySaved(product, previousRackId, false);
+    }
+    this.refreshAddAnchor();
   }
 
   private createAndAddProduct(unit: SceneRack, draft: AddPieceCreatePayload): void {
@@ -951,7 +998,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.addSaving.set(false);
       this.addCreateError.set('');
       this.addCount.update((n) => n + 1);
-      this.addCandidates.set(this.piecesOutside(unit.id));
+      this.addCandidates.set(this.listAddCandidates(unit.id));
       this.addPanel?.resetCreate();
     };
 
@@ -986,7 +1033,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.addSaving.set(false);
     this.addCreateError.set('');
     this.addCount.update((n) => n + 1);
-    this.addCandidates.set(this.piecesOutside(unit.id));
+    this.addCandidates.set(this.listAddCandidates(unit.id));
     this.addPanel?.resetCreate();
   }
 
