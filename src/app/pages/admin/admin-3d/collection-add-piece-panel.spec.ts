@@ -79,7 +79,10 @@ describe('CollectionAddPiecePanel', () => {
     const boxes = fixture.nativeElement.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     boxes[0]?.click();
     boxes[1]?.click();
-    (fixture.nativeElement.querySelector('.add-piece__save') as HTMLButtonElement | null)?.click();
+    fixture.detectChanges();
+    const save = fixture.nativeElement.querySelector('.add-piece__save') as HTMLButtonElement;
+    expect(save.disabled).toBeFalse();
+    save.click();
     expect(add).toHaveBeenCalledWith(['cinto', 'jaqueta']);
   });
 
