@@ -23,6 +23,8 @@ export interface JoiaPiece {
   videoSrc?: string;
   /** Collection this joia is featured under (PLP cross-sell). */
   collectionSlug?: CollectionSlug;
+  /** Soft-archive timestamp from Admin / catalog API. */
+  archivedAt?: string | null;
 }
 
 export const JOIAS_PIECES: JoiaPiece[] = withCdnUrls([

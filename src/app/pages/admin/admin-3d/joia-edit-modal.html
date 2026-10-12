@@ -37,6 +37,9 @@
       <div class="admin-edit__footer">
         <button type="submit" class="admin-edit__save">Salvar</button>
         <button type="button" class="admin-edit__cancel" (click)="close()">Cancelar</button>
+        @if (!creating) {
+          <button type="button" class="admin-edit__archive" (click)="archive()">Arquivar</button>
+        }
       </div>
     </form>
   }

@@ -31,6 +31,26 @@
   overflow-wrap: anywhere;
 }
 
+.admin-edit__save-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.admin-edit__archive {
+  min-height: 52px;
+  padding: 0 22px;
+  border: 1px solid #8b1e2d;
+  background: var(--lc-white);
+  color: #8b1e2d;
+  font-family: var(--lc-font-display);
+  font-size: 0.95rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 @media (max-width: 768px) {
   .admin-edit h1 {
     font-size: 1.5rem;

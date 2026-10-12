@@ -52,12 +52,31 @@ export function toSceneHanger(product: SceneProductInput, rackId: string): Scene
  * One rack per clothing collection (sortOrder). "Sem coleção" only when it has hangers.
  * Jewelry is never placed on racks.
  */
+export function isArchivedInput(value: string | null | undefined): boolean {
+  return Boolean(value);
+}
+
+export function removeHangerFromLayout(layout: SceneLayout, slug: string): SceneLayout {
+  return {
+    racks: layout.racks.map((rack) => ({
+      ...rack,
+      hangers: rack.hangers.filter((h) => h.slug !== slug),
+    })),
+  };
+}
+
+export function removeUnitFromLayout(layout: SceneLayout, id: string): SceneLayout {
+  return { racks: layout.racks.filter((rack) => rack.id !== id) };
+}
+
 export function mapCatalogToScene(
   collections: SceneCollectionInput[],
   products: SceneProductInput[],
 ): SceneLayout {
-  const garments = products.filter((p) => p.pieceKind !== 'jewelry');
-  const orderedCollections = [...collections].sort((a, b) => {
+  const garments = products.filter((p) => p.pieceKind !== 'jewelry' && !isArchivedInput(p.archivedAt));
+  const orderedCollections = [...collections]
+    .filter((c) => !isArchivedInput(c.archivedAt))
+    .sort((a, b) => {
     if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
     return a.name.localeCompare(b.name, 'pt-BR');
   });
@@ -97,9 +116,13 @@ export function mapJoiasToVitrines(
   collections: SceneCollectionInput[],
   joias: SceneProductInput[],
 ): SceneRack[] {
-  const jewelry = joias.filter((p) => p.pieceKind === 'jewelry' || p.pieceKind == null);
+  const jewelry = joias.filter(
+    (p) => (p.pieceKind === 'jewelry' || p.pieceKind == null) && !isArchivedInput(p.archivedAt),
+  );
   const byCollection = new Map<string, { name: string; sortOrder: number; pieces: SceneProductInput[] }>();
-  const known = new Map(collections.map((c) => [c.slug, c]));
+  const known = new Map(
+    collections.filter((c) => !isArchivedInput(c.archivedAt)).map((c) => [c.slug, c]),
+  );
 
   for (const piece of jewelry) {
     if (!piece.slug) continue;
