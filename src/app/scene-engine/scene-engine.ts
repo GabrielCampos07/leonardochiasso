@@ -3,10 +3,13 @@ import {
   Box3,
   Color,
   DirectionalLight,
+  Fog,
   Group,
   HemisphereLight,
   Mesh,
   MeshStandardMaterial,
+  Object3D,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
   Raycaster,
@@ -16,9 +19,18 @@ import {
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { makePlasterTexture, makeWoodFloorTexture } from './atelier-materials';
+import {
+  CAMERA_TWEEN_MS,
+  CameraFocusMode,
+  CameraPose,
+  OVERVIEW_FOCUS_ID,
+  computeEyeLevelFit,
+  easeInOutCubic,
+} from './camera-guide';
 import { createCollectionRack, layoutHangers, rackWidth } from './collection-rack';
 import { disposeObject3D, disposeRenderer } from './dispose';
-import { applyHangerData, HANGER_USER_DATA } from './garment-hanger';
+import { applyHangerData, applyPhotoAspect, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { loadTextureSafe, makeFallbackTexture } from './texture-loader';
 import { replaceHanger } from './mapping';
 import type { SceneHanger, SceneLayout } from './types';
@@ -26,18 +38,18 @@ import { isWebGLAvailable, tryCreate } from './webgl-support';
 
 export type HangerPickHandler = (slug: string) => void;
 export type HangerHoverHandler = (slug: string | null) => void;
+export type FocusChangeHandler = (id: string) => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
 }
 
-const FIT_MARGIN = 1.32;
 const DRAG_SLOP_SQ = 36;
+const CLEAR = 0xefe8dc;
 
 /**
- * Framework-agnostic WebGL scene: renderer, orbit camera, lights,
- * click/hover *raycast* (no readPixels), texture load + CORS fallback,
- * fit-to-bbox camera, render-on-demand, resize, full dispose.
+ * Framework-agnostic WebGL atelier: eye-level first rack, guided focus tween,
+ * warm light + soft shadows, raycast hover (no readPixels), render-on-demand.
  */
 export class SceneEngine {
   private readonly scene = new Scene();
@@ -62,10 +74,22 @@ export class SceneEngine {
   private dampingFrames = 0;
   private disposed = false;
   private hoverSlug: string | null = null;
+  private lift = 0;
+  private liftTarget = 0;
+  private focusedId: string = OVERVIEW_FOCUS_ID;
   private layout: SceneLayout = { racks: [] };
   private onClickCb: HangerPickHandler | null = null;
   private onHoverCb: HangerHoverHandler | null = null;
+  private onFocusCb: FocusChangeHandler | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private tween: {
+    fromPos: Vector3;
+    toPos: Vector3;
+    fromTarget: Vector3;
+    toTarget: Vector3;
+    start: number;
+    duration: number;
+  } | null = null;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -103,46 +127,77 @@ export class SceneEngine {
   constructor(canvas: HTMLCanvasElement, options: SceneEngineOptions = {}) {
     this.canvas = canvas;
     this.reducedMotion = Boolean(options.reducedMotion);
-    this.scene.background = new Color(0xf4f1ea);
+    this.scene.background = new Color(CLEAR);
+    this.scene.fog = new Fog(CLEAR, 7, 20);
 
-    this.camera = new PerspectiveCamera(42, 1, 0.1, 80);
-    this.camera.position.set(0, 1.4, 6.2);
+    this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
+    this.camera.position.set(0, 1.15, 3.2);
 
     this.renderer = new WebGLRenderer({ canvas, antialias: !this.reducedMotion, alpha: false });
     this.renderer.setPixelRatio(this.reducedMotion ? 1 : Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.setClearColor(0xf4f1ea, 1);
+    this.renderer.setClearColor(CLEAR, 1);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !this.reducedMotion;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = true;
-    this.controls.minDistance = 2.2;
-    this.controls.maxDistance = 28;
-    this.controls.maxPolarAngle = Math.PI * 0.49;
-    this.controls.target.set(0, 0.5, 0);
+    this.controls.screenSpacePanning = true;
+    this.applyOrbitLimits('rack');
+    this.controls.target.set(0, 0.35, 0);
     this.controls.addEventListener('start', this.onControlsStart);
     this.controls.addEventListener('end', this.onControlsEnd);
     this.controls.addEventListener('change', this.onControlsChange);
     this.controls.update();
 
-    this.scene.add(new AmbientLight(0xffffff, 0.55));
-    const hemi = new HemisphereLight(0xf7f3ea, 0x3a322c, 0.45);
-    this.scene.add(hemi);
-    const key = new DirectionalLight(0xfff6ea, 1.05);
-    key.position.set(2.4, 5.2, 3.2);
+    this.scene.add(new AmbientLight(0xfff3e4, 0.32));
+    this.scene.add(new HemisphereLight(0xfff4e8, 0x4a3d32, 0.38));
+
+    const key = new DirectionalLight(0xffe2c4, 1.35);
+    key.position.set(3.1, 6.2, 4.4);
+    key.castShadow = true;
+    key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.near = 1;
+    key.shadow.camera.far = 22;
+    key.shadow.camera.left = -8;
+    key.shadow.camera.right = 8;
+    key.shadow.camera.top = 6;
+    key.shadow.camera.bottom = -4;
+    key.shadow.radius = 2.2;
+    key.shadow.bias = -0.00025;
     this.scene.add(key);
-    const fill = new DirectionalLight(0xdde6f0, 0.35);
-    fill.position.set(-3, 2, -2);
+
+    const fill = new DirectionalLight(0xd8c8b4, 0.28);
+    fill.position.set(-3.4, 2.4, 1.6);
     this.scene.add(fill);
 
     const floor = new Mesh(
-      new PlaneGeometry(40, 24),
-      new MeshStandardMaterial({ color: 0xe7e2d8, roughness: 0.95, metalness: 0 }),
+      new PlaneGeometry(36, 22),
+      new MeshStandardMaterial({
+        color: 0xffffff,
+        map: makeWoodFloorTexture(),
+        roughness: 0.88,
+        metalness: 0,
+      }),
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.7;
-    floor.receiveShadow = false;
+    floor.receiveShadow = true;
     this.scene.add(floor);
+
+    const wall = new Mesh(
+      new PlaneGeometry(40, 8),
+      new MeshStandardMaterial({
+        color: 0xffffff,
+        map: makePlasterTexture(),
+        roughness: 0.92,
+        metalness: 0,
+      }),
+    );
+    wall.position.set(8, 3.1, -1.55);
+    wall.receiveShadow = true;
+    this.scene.add(wall);
 
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
@@ -165,8 +220,16 @@ export class SceneEngine {
     this.onHoverCb = handler;
   }
 
+  onFocusChange(handler: FocusChangeHandler): void {
+    this.onFocusCb = handler;
+  }
+
   start(): void {
     this.requestRender();
+  }
+
+  focusedRackId(): string {
+    return this.focusedId;
   }
 
   setLayout(layout: SceneLayout): void {
@@ -178,7 +241,7 @@ export class SceneEngine {
     }
 
     let cursor = 0;
-    const gap = 1.15;
+    const gap = 1.35;
     for (const rack of layout.racks) {
       const width = rackWidth(rack.hangers.length);
       const x = cursor + width / 2;
@@ -190,8 +253,30 @@ export class SceneEngine {
       }
     }
 
-    this.fitCameraToRacks();
+    const first = layout.racks[0]?.id;
+    if (first) this.focusRack(first, true);
+    else this.focusOverview(true);
     this.requestRender();
+  }
+
+  focusRack(id: string, immediate = this.reducedMotion): void {
+    if (id === OVERVIEW_FOCUS_ID) {
+      this.focusOverview(immediate);
+      return;
+    }
+    const group = this.racksRoot.getObjectByName(`rack:${id}`);
+    if (!group) return;
+    this.focusedId = id;
+    this.applyOrbitLimits('rack');
+    this.moveCamera(this.poseFor(group as Group, 'rack'), immediate);
+    this.onFocusCb?.(id);
+  }
+
+  focusOverview(immediate = this.reducedMotion): void {
+    this.focusedId = OVERVIEW_FOCUS_ID;
+    this.applyOrbitLimits('overview');
+    this.moveCamera(this.poseFor(this.racksRoot, 'overview'), immediate);
+    this.onFocusCb?.(OVERVIEW_FOCUS_ID);
   }
 
   updateHanger(next: SceneHanger): void {
@@ -217,7 +302,10 @@ export class SceneEngine {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
-    if (this.racksRoot.children.length) this.fitCameraToRacks();
+    if (this.racksRoot.children.length) {
+      if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
+      else this.focusRack(this.focusedId, true);
+    }
     this.requestRender();
   }
 
@@ -239,31 +327,73 @@ export class SceneEngine {
     disposeRenderer(this.renderer);
     this.onClickCb = null;
     this.onHoverCb = null;
+    this.onFocusCb = null;
   }
 
-  private fitCameraToRacks(): void {
+  private applyOrbitLimits(mode: CameraFocusMode): void {
+    if (mode === 'rack') {
+      this.controls.minDistance = 1.7;
+      this.controls.maxDistance = 5.4;
+      this.controls.minPolarAngle = Math.PI * 0.3;
+      this.controls.maxPolarAngle = Math.PI * 0.52;
+      this.controls.minAzimuthAngle = -0.7;
+      this.controls.maxAzimuthAngle = 0.7;
+    } else {
+      this.controls.minDistance = 3.4;
+      this.controls.maxDistance = 16;
+      this.controls.minPolarAngle = Math.PI * 0.28;
+      this.controls.maxPolarAngle = Math.PI * 0.5;
+      this.controls.minAzimuthAngle = -0.55;
+      this.controls.maxAzimuthAngle = 0.55;
+    }
+  }
+
+  private poseFor(object: Object3D, mode: CameraFocusMode): CameraPose {
     this.bounds.makeEmpty();
-    this.bounds.expandByObject(this.racksRoot);
-    if (this.bounds.isEmpty()) return;
-
+    this.bounds.expandByObject(object);
+    if (this.bounds.isEmpty()) {
+      return { position: { x: 0, y: 1.15, z: 3.2 }, target: { x: 0, y: 0.35, z: 0 }, distance: 3.2 };
+    }
     this.bounds.getSize(this.fitSize);
     this.bounds.getCenter(this.fitCenter);
-    const pad = Math.max(this.fitSize.x, this.fitSize.y, 1) * 0.14 + 0.45;
-    this.bounds.expandByScalar(pad);
-    this.bounds.getSize(this.fitSize);
-    this.bounds.getCenter(this.fitCenter);
+    return computeEyeLevelFit(
+      {
+        minX: this.bounds.min.x,
+        maxX: this.bounds.max.x,
+        minY: this.bounds.min.y,
+        maxY: this.bounds.max.y,
+        minZ: this.bounds.min.z,
+        maxZ: this.bounds.max.z,
+      },
+      this.camera.aspect,
+      this.camera.fov,
+      mode,
+    );
+  }
 
-    const fov = this.camera.fov * (Math.PI / 180);
-    const fitH = this.fitSize.y / (2 * Math.tan(fov / 2));
-    const fitW = this.fitSize.x / (2 * Math.tan(fov / 2) * Math.max(this.camera.aspect, 0.2));
-    const dist = Math.max(fitH, fitW, this.controls.minDistance + 0.4) * FIT_MARGIN;
-
-    this.controls.target.copy(this.fitCenter);
-    this.camera.position.set(this.fitCenter.x, this.fitCenter.y + this.fitSize.y * 0.06, this.fitCenter.z + dist);
-    this.camera.near = Math.max(0.05, dist / 80);
-    this.camera.far = Math.max(80, dist * 10);
-    this.camera.updateProjectionMatrix();
-    this.controls.update();
+  private moveCamera(pose: CameraPose, immediate: boolean): void {
+    const toPos = new Vector3(pose.position.x, pose.position.y, pose.position.z);
+    const toTarget = new Vector3(pose.target.x, pose.target.y, pose.target.z);
+    if (immediate) {
+      this.tween = null;
+      this.camera.position.copy(toPos);
+      this.controls.target.copy(toTarget);
+      this.camera.near = Math.max(0.05, pose.distance / 80);
+      this.camera.far = Math.max(80, pose.distance * 10);
+      this.camera.updateProjectionMatrix();
+      this.controls.update();
+      this.requestRender();
+      return;
+    }
+    this.tween = {
+      fromPos: this.camera.position.clone(),
+      toPos,
+      fromTarget: this.controls.target.clone(),
+      toTarget,
+      start: performance.now(),
+      duration: CAMERA_TWEEN_MS,
+    };
+    this.requestRender();
   }
 
   private requestRender(): void {
@@ -272,13 +402,43 @@ export class SceneEngine {
     this.raf = requestAnimationFrame(() => {
       this.renderQueued = false;
       if (this.disposed) return;
+      const animating = this.stepTween() || this.stepLift();
       if (!this.reducedMotion) this.controls.update();
       this.renderer.render(this.scene, this.camera);
-      if (!this.reducedMotion && (this.interacting || this.dampingFrames > 0)) {
+      if (animating || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
         if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
         this.requestRender();
       }
     });
+  }
+
+  private stepTween(): boolean {
+    if (!this.tween) return false;
+    const t = Math.min(1, (performance.now() - this.tween.start) / this.tween.duration);
+    const e = easeInOutCubic(t);
+    this.camera.position.lerpVectors(this.tween.fromPos, this.tween.toPos, e);
+    this.controls.target.lerpVectors(this.tween.fromTarget, this.tween.toTarget, e);
+    if (t >= 1) {
+      this.tween = null;
+      this.controls.update();
+      return false;
+    }
+    return true;
+  }
+
+  private stepLift(): boolean {
+    if (this.reducedMotion) {
+      this.lift = this.liftTarget;
+    } else {
+      this.lift += (this.liftTarget - this.lift) * 0.22;
+      if (Math.abs(this.liftTarget - this.lift) < 0.001) this.lift = this.liftTarget;
+    }
+    if (this.hoverSlug) {
+      const group = this.findHangerGroup(this.hoverSlug);
+      const rest = Number(group?.userData['restY'] ?? group?.position.y ?? 0);
+      if (group) group.position.y = rest + this.lift;
+    }
+    return this.lift !== this.liftTarget;
   }
 
   private moveHanger(group: Group, next: SceneHanger): void {
@@ -309,13 +469,19 @@ export class SceneEngine {
     const label = name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
+    const frame = group?.getObjectByName('frame') as Mesh | undefined;
     if (!garment || !(garment.material instanceof MeshStandardMaterial)) return;
     const previous = garment.material.map;
-    if (!url) {
-      garment.material.map = makeFallbackTexture('#c8c2b8', label);
+    const apply = (texture: ReturnType<typeof makeFallbackTexture>) => {
+      if (!(garment.material instanceof MeshStandardMaterial)) return;
+      garment.material.map = texture;
       garment.material.needsUpdate = true;
-      if (previous && previous !== garment.material.map) previous.dispose();
+      applyPhotoAspect(garment, frame, texture);
+      if (previous && previous !== texture) previous.dispose();
       this.requestRender();
+    };
+    if (!url) {
+      apply(makeFallbackTexture('#c8c2b8', label));
       return;
     }
     const texture = await loadTextureSafe(url);
@@ -324,13 +490,16 @@ export class SceneEngine {
       return;
     }
     const still = this.findHangerGroup(slug)?.getObjectByName('garment') as Mesh | undefined;
+    const stillFrame = this.findHangerGroup(slug)?.getObjectByName('frame') as Mesh | undefined;
     if (!still || !(still.material instanceof MeshStandardMaterial)) {
       texture?.dispose();
       return;
     }
-    still.material.map = texture ?? makeFallbackTexture('#c8c2b8', label);
+    const next = texture ?? makeFallbackTexture('#c8c2b8', label);
+    still.material.map = next;
     still.material.needsUpdate = true;
-    if (previous && previous !== still.material.map) previous.dispose();
+    applyPhotoAspect(still, stillFrame, next);
+    if (previous && previous !== next) previous.dispose();
     this.requestRender();
   }
 
@@ -354,9 +523,23 @@ export class SceneEngine {
 
   private setHover(slug: string | null): void {
     if (this.hoverSlug === slug) return;
-    if (this.hoverSlug) this.tintHanger(this.hoverSlug, false);
+    if (this.hoverSlug) {
+      const prev = this.findHangerGroup(this.hoverSlug);
+      const rest = Number(prev?.userData['restY'] ?? prev?.position.y ?? 0);
+      if (prev) prev.position.y = rest;
+      this.tintHanger(this.hoverSlug, false);
+    }
     this.hoverSlug = slug;
-    if (slug) this.tintHanger(slug, true);
+    this.lift = 0;
+    this.liftTarget = slug && !this.reducedMotion ? HANGER_LIFT : 0;
+    if (slug) {
+      this.tintHanger(slug, true);
+      if (this.reducedMotion) {
+        const group = this.findHangerGroup(slug);
+        const rest = Number(group?.userData['restY'] ?? group?.position.y ?? 0);
+        if (group) group.position.y = rest;
+      }
+    }
     this.onHoverCb?.(slug);
     this.requestRender();
   }
@@ -366,7 +549,7 @@ export class SceneEngine {
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
     if (!garment || !(garment.material instanceof MeshStandardMaterial)) return;
     garment.material.emissive.setHex(on ? 0x2a241c : 0x000000);
-    garment.material.emissiveIntensity = on ? 0.18 : 0;
+    garment.material.emissiveIntensity = on ? 0.12 : 0;
   }
 }
 
@@ -377,3 +560,5 @@ export function createSceneEngine(
   if (!isWebGLAvailable()) return null;
   return tryCreate(() => new SceneEngine(canvas, options));
 }
+
+export { OVERVIEW_FOCUS_ID } from './camera-guide';

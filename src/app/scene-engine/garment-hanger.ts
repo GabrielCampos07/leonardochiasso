@@ -7,64 +7,98 @@ import {
   PlaneGeometry,
   Sprite,
   SpriteMaterial,
+  Texture,
   TorusGeometry,
 } from 'three';
+import { photoPlaneSize } from './camera-guide';
 import type { SceneHanger } from './types';
 import { hangerOpacity, stockBadgeColor } from './types';
 import { makeBadgeTexture, makeFallbackTexture, makeLabelTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
+export const PHOTO_MAX_W = 0.48;
+export const PHOTO_MAX_H = 0.64;
+export const HANGER_LIFT = 0.055;
 
 function hangerLabelMap(name: string) {
-  return makeLabelTexture(name, { width: 1024, height: 192, fill: '#0e0c0e', size: 56 });
+  return makeLabelTexture(name, { width: 1024, height: 160, fill: '#2a241c', size: 48 });
+}
+
+export function applyPhotoAspect(garment: Mesh, frame: Mesh | undefined, texture: Texture): void {
+  const img = texture.image as { width?: number; height?: number } | undefined;
+  const size = photoPlaneSize(img?.width ?? 3, img?.height ?? 4, PHOTO_MAX_W, PHOTO_MAX_H);
+  garment.scale.set(size.width, size.height, 1);
+  if (frame) frame.scale.set(size.width + 0.028, size.height + 0.028, 1);
 }
 
 export function createGarmentHanger(data: SceneHanger): Group {
   const group = new Group();
   group.name = `hanger:${data.slug}`;
-  group.userData = { kind: HANGER_USER_DATA, slug: data.slug, data };
+  group.userData = { kind: HANGER_USER_DATA, slug: data.slug, data, restY: 0 };
 
   const metal = new MeshStandardMaterial({
-    color: 0x9a9590,
-    metalness: 0.55,
-    roughness: 0.35,
+    color: 0xc4bfb8,
+    metalness: 0.72,
+    roughness: 0.28,
   });
   const opacity = hangerOpacity(data.status);
+  const fallback = makeFallbackTexture('#c8c2b8', data.name);
+  const photo = photoPlaneSize(3, 4, PHOTO_MAX_W, PHOTO_MAX_H);
 
-  const hook = new Mesh(new TorusGeometry(0.045, 0.008, 8, 16, Math.PI * 1.3), metal);
+  const hook = new Mesh(new TorusGeometry(0.05, 0.007, 8, 18, Math.PI * 1.3), metal);
   hook.rotation.z = Math.PI * 0.15;
-  hook.position.y = 0.42;
+  hook.position.y = 0.48;
   hook.userData = group.userData;
+  hook.castShadow = false;
   group.add(hook);
 
-  const neck = new Mesh(new CylinderGeometry(0.008, 0.008, 0.06, 8), metal);
-  neck.position.y = 0.355;
+  const neck = new Mesh(new CylinderGeometry(0.007, 0.007, 0.07, 8), metal);
+  neck.position.y = 0.405;
   neck.userData = group.userData;
   group.add(neck);
 
-  const bar = new Mesh(new BoxGeometry(0.28, 0.012, 0.012), metal);
-  bar.position.y = 0.32;
+  const bar = new Mesh(new BoxGeometry(0.34, 0.01, 0.01), metal);
+  bar.position.y = 0.365;
   bar.userData = group.userData;
   group.add(bar);
 
+  const frame = new Mesh(
+    new PlaneGeometry(1, 1),
+    new MeshStandardMaterial({
+      color: 0x2a241c,
+      roughness: 0.55,
+      metalness: 0.08,
+      transparent: true,
+      opacity,
+    }),
+  );
+  frame.position.set(0, 0.02, -0.004);
+  frame.scale.set(photo.width + 0.028, photo.height + 0.028, 1);
+  frame.name = 'frame';
+  frame.userData = group.userData;
+  frame.castShadow = true;
+  group.add(frame);
+
   const garment = new Mesh(
-    new PlaneGeometry(0.26, 0.4),
+    new PlaneGeometry(1, 1),
     new MeshStandardMaterial({
       color: 0xffffff,
-      map: makeFallbackTexture('#c8c2b8', data.name),
-      roughness: 0.7,
+      map: fallback,
+      roughness: 0.62,
       metalness: 0.02,
       transparent: true,
       opacity,
     }),
   );
-  garment.position.y = 0.08;
+  garment.position.set(0, 0.02, 0.002);
+  garment.scale.set(photo.width, photo.height, 1);
   garment.name = 'garment';
   garment.userData = group.userData;
+  garment.castShadow = true;
   group.add(garment);
 
   const badge = new Mesh(
-    new PlaneGeometry(0.07, 0.07),
+    new PlaneGeometry(0.08, 0.08),
     new MeshStandardMaterial({
       map: makeBadgeTexture(data.stockQty, stockBadgeColor(data.stockQty)),
       transparent: true,
@@ -73,7 +107,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
       opacity,
     }),
   );
-  badge.position.set(0.11, 0.24, 0.008);
+  badge.position.set(photo.width * 0.42, photo.height * 0.38, 0.01);
   badge.name = 'badge';
   badge.userData = group.userData;
   group.add(badge);
@@ -87,8 +121,8 @@ export function createGarmentHanger(data: SceneHanger): Group {
       opacity,
     }),
   );
-  label.scale.set(0.48, 0.09, 1);
-  label.position.set(0, -0.2, 0.04);
+  label.scale.set(0.5, 0.08, 1);
+  label.position.set(0, -photo.height * 0.5 - 0.06, 0.04);
   label.name = 'label';
   label.userData = group.userData;
   label.center.set(0.5, 0.5);
@@ -98,7 +132,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
 }
 
 export function applyHangerData(group: Group, data: SceneHanger): void {
-  group.userData = { kind: HANGER_USER_DATA, slug: data.slug, data };
+  group.userData = { ...group.userData, kind: HANGER_USER_DATA, slug: data.slug, data };
   group.traverse((child) => {
     if (child.userData?.['kind'] === HANGER_USER_DATA) {
       child.userData = group.userData;
@@ -106,6 +140,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
   });
   const opacity = hangerOpacity(data.status);
   const garment = group.getObjectByName('garment') as Mesh | undefined;
+  const frame = group.getObjectByName('frame') as Mesh | undefined;
   const badge = group.getObjectByName('badge') as Mesh | undefined;
   const label = group.getObjectByName('label') as Sprite | undefined;
 
@@ -116,6 +151,9 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
       garment.material.map = makeFallbackTexture('#c8c2b8', data.name);
       garment.material.needsUpdate = true;
     }
+  }
+  if (frame?.material instanceof MeshStandardMaterial) {
+    frame.material.opacity = opacity;
   }
   if (badge?.material instanceof MeshStandardMaterial) {
     const prev = badge.material.map;
