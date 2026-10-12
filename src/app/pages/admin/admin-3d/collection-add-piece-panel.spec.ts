@@ -64,6 +64,23 @@ describe('buildAddPieceCandidates', () => {
       jasmine.objectContaining({ onRack: false, otherCollection: 'Niponic Dreams', thumb: 'jaqueta.jpg' }),
     );
   });
+
+  it('omits archived pieces from the add list', () => {
+    const rows = buildAddPieceCandidates(
+      [
+        { slug: 'cinto', name: 'Cinto', collectionSlug: 'organic-dreams' },
+        { slug: 'arquivo', name: 'Arquivo', collectionSlug: 'organic-dreams', archivedAt: '2026-10-12T12:00:00.000Z' },
+      ],
+      {
+        unitId: 'organic-dreams',
+        unitCollectionSlug: 'organic-dreams',
+        hangers: [{ slug: 'cinto', rackId: 'organic-dreams' }],
+        units: [{ id: 'organic-dreams', name: 'Organic Dreams' }],
+        collections: [{ slug: 'organic-dreams', name: 'Organic Dreams' }],
+      },
+    );
+    expect(rows.map((r) => r.slug)).toEqual(['cinto']);
+  });
 });
 
 describe('filterAddPieceCandidates', () => {

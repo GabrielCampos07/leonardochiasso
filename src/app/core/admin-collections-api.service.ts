@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { filterArchivedList } from './admin-archive';
 import { ApiCollectionDto, ApiProductDto } from './catalog.service';
 
 export interface AdminCollectionDto {
@@ -11,6 +12,8 @@ export interface AdminCollectionDto {
   description: string | null;
   sortOrder: number;
   publishedAt: string | null;
+  archivedAt?: string | null;
+  productCount?: number;
 }
 
 export interface CreateCollectionPayload {
@@ -41,8 +44,29 @@ export class AdminCollectionsApiService {
     return `${this.base}/api/admin/collections`;
   }
 
-  list(): Observable<AdminCollectionDto[]> {
-    return this.http.get<AdminCollectionDto[]>(this.url, { withCredentials: true });
+  list(archived = false): Observable<AdminCollectionDto[]> {
+    return this.http
+      .get<AdminCollectionDto[]>(this.url, {
+        withCredentials: true,
+        params: archived ? { archived: 'true' } : {},
+      })
+      .pipe(map((list) => filterArchivedList(list, archived)));
+  }
+
+  archive(slug: string): Observable<AdminCollectionDto> {
+    return this.http.post<AdminCollectionDto>(
+      `${this.url}/${encodeURIComponent(slug)}/archive`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  restore(slug: string): Observable<AdminCollectionDto> {
+    return this.http.post<AdminCollectionDto>(
+      `${this.url}/${encodeURIComponent(slug)}/restore`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   create(payload: CreateCollectionPayload): Observable<AdminCollectionDto> {

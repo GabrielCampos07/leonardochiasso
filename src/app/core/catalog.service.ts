@@ -35,6 +35,7 @@ export interface ApiProductDto {
   imageBindings?: Product['imageBindings'];
   artCouture?: boolean;
   recommendOrder?: number;
+  archivedAt?: string | null;
   media?: Product['media'];
 }
 
@@ -45,6 +46,8 @@ export interface ApiCollectionDto {
   description: string | null;
   sortOrder: number;
   publishedAt: string | null;
+  archivedAt?: string | null;
+  productCount?: number;
   products?: ApiProductDto[];
 }
 
@@ -83,6 +86,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     media: dto.media,
     status: dto.status,
     stockQty: dto.stockQty,
+    archivedAt: dto.archivedAt ?? null,
   });
 }
 

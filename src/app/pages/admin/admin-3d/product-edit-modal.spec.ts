@@ -20,6 +20,7 @@ class StubAdminProductForm {
   readonly saved = output<Product>();
   readonly cancelled = output<void>();
   readonly savingChange = output<boolean>();
+  readonly archived = output<Product>();
 }
 
 const piece: Product = {

@@ -62,7 +62,13 @@ import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
 import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
-import { findHanger, omitHanger, racksForFirstFrame, replaceHanger } from './mapping';
+import {
+  findHanger,
+  racksForFirstFrame,
+  removeHangerFromLayout,
+  removeUnitFromLayout,
+  replaceHanger,
+} from './mapping';
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls } from './photo-url';
 import { soldOutBadgeScale } from './sold-out-scale';
@@ -102,6 +108,10 @@ export function hostDrawingSize(host: HTMLElement): { width: number; height: num
 const DRAG_SLOP_SQ = 36;
 const CLEAR = 0xefe8dc;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
+/** Piece leave / unit sink: 400–600 ms. Cut instantly when reduced motion. */
+export const ARCHIVE_TWEEN_MS = 500;
+const ARCHIVE_HANGER_LIFT = 0.36;
+const ARCHIVE_SINK_DELTA = -2.4;
 
 const NON_PASSIVE_TYPES = new Set([
   'pointerdown',
@@ -211,6 +221,21 @@ export class SceneEngine {
   private rises: Array<{ group: Group; start: number; duration: number; fromY: number; toY: number }> =
     [];
   private plateGlow: { mesh: Mesh; start: number; duration: number } | null = null;
+  private hangerExit: {
+    group: Group;
+    rackId: string;
+    start: number;
+    duration: number;
+    fromY: number;
+    toY: number;
+  } | null = null;
+  private sink: {
+    group: Group;
+    start: number;
+    duration: number;
+    fromY: number;
+    toY: number;
+  } | null = null;
   private readonly projectScratch = new Vector3();
   private restoreAddEventListener: (() => void) | null = null;
 
@@ -527,17 +552,57 @@ export class SceneEngine {
     return this.worldToClient(this.projectScratch);
   }
 
-  removeHanger(slug: string): void {
+  removeHanger(slug: string, immediate = this.reducedMotion): void {
     const prev = findHanger(this.layout, slug);
+    this.layout = removeHangerFromLayout(this.layout, slug);
     const group = this.findHangerGroup(slug);
     this.rises = this.rises.filter((rise) => rise.group !== group);
-    if (group) {
-      group.parent?.remove(group);
-      disposeObject3D(group);
+    if (!prev) return;
+    if (this.hoverSlug === slug) this.setHover(null);
+    if (immediate || !group) {
+      this.remountUnit(prev.rackId);
+      return;
     }
-    this.layout = omitHanger(this.layout, slug);
-    if (prev) this.relayoutUnit(prev.rackId);
-    if (this.hoverSlug === slug) this.hoverSlug = null;
+    this.hangerExit = {
+      group,
+      rackId: prev.rackId,
+      start: performance.now(),
+      duration: ARCHIVE_TWEEN_MS,
+      fromY: group.position.y,
+      toY: group.position.y + ARCHIVE_HANGER_LIFT,
+    };
+    this.requestRender();
+  }
+
+  sinkUnit(id: string, immediate = this.reducedMotion): void {
+    this.ensureRackMounted(id);
+    const group = this.racksRoot.getObjectByName(`rack:${id}`) as Group | undefined;
+    this.layout = removeUnitFromLayout(this.layout, id);
+    if (this.focusedId === id) this.focusedId = OVERVIEW_FOCUS_ID;
+    this.rises = this.rises.filter((rise) => rise.group !== group);
+    if (immediate || !group) {
+      if (group) {
+        group.removeFromParent();
+        disposeObject3D(group);
+      }
+      this.requestRender();
+      return;
+    }
+    this.sink = {
+      group,
+      start: performance.now(),
+      duration: ARCHIVE_TWEEN_MS,
+      fromY: group.position.y,
+      toY: group.position.y + ARCHIVE_SINK_DELTA,
+    };
+    this.requestRender();
+  }
+
+  restoreUnit(unit: SceneRack): void {
+    if (this.layout.racks.some((r) => r.id === unit.id)) return;
+    this.layout = { racks: [...this.layout.racks, unit] };
+    const slot = this.computeRackSlots(this.layout).find((s) => s.id === unit.id);
+    if (slot) this.mountRack(slot);
     this.requestRender();
   }
 
@@ -820,7 +885,12 @@ export class SceneEngine {
       this.renderQueued = false;
       if (this.disposed || this.contextLost) return;
       const animating =
-        this.stepTween() || this.stepLift() || this.stepDraft() || this.stepRise() || this.stepGlow();
+        this.stepTween() ||
+        this.stepLift() ||
+        this.stepDraft() ||
+        this.stepRise() ||
+        this.stepGlow() ||
+        this.stepArchive();
       if (!this.tween && !this.reducedMotion) this.controls.update();
       this.clampCamera();
       this.faceLabels();
@@ -909,6 +979,37 @@ export class SceneEngine {
       return true;
     });
     return this.rises.length > 0;
+  }
+
+  private stepArchive(): boolean {
+    let running = false;
+    if (this.hangerExit) {
+      const t = Math.min(1, (performance.now() - this.hangerExit.start) / this.hangerExit.duration);
+      const e = easeInOutCubic(t);
+      this.hangerExit.group.position.y =
+        this.hangerExit.fromY + (this.hangerExit.toY - this.hangerExit.fromY) * e;
+      fadeObjectOpacity(this.hangerExit.group, 1 - e);
+      if (t >= 1) {
+        const rackId = this.hangerExit.rackId;
+        this.hangerExit = null;
+        this.remountUnit(rackId);
+      } else {
+        running = true;
+      }
+    }
+    if (this.sink) {
+      const t = Math.min(1, (performance.now() - this.sink.start) / this.sink.duration);
+      const e = easeInOutCubic(t);
+      this.sink.group.position.y = this.sink.fromY + (this.sink.toY - this.sink.fromY) * e;
+      if (t >= 1) {
+        this.sink.group.removeFromParent();
+        disposeObject3D(this.sink.group);
+        this.sink = null;
+      } else {
+        running = true;
+      }
+    }
+    return running;
   }
 
   private stepGlow(): boolean {
@@ -1280,6 +1381,20 @@ export class SceneEngine {
     garment.material.emissive.setHex(on ? 0x2a241c : 0x000000);
     garment.material.emissiveIntensity = on ? 0.12 : 0;
   }
+}
+
+function fadeObjectOpacity(root: Object3D, opacity: number): void {
+  root.traverse((child) => {
+    const mat = (child as Mesh).material;
+    if (!mat) return;
+    const mats = Array.isArray(mat) ? mat : [mat];
+    for (const item of mats) {
+      if (!item || typeof item !== 'object' || !('opacity' in item)) continue;
+      const next = item as { transparent: boolean; opacity: number };
+      next.transparent = true;
+      next.opacity = opacity;
+    }
+  });
 }
 
 export function createSceneEngine(

@@ -48,6 +48,14 @@
         }
       </select>
     </label>
+    <label class="admin-list__check">
+      <input
+        type="checkbox"
+        [ngModel]="showArchived()"
+        (ngModelChange)="onArchivedFilter($event)"
+      />
+      Arquivados
+    </label>
   </div>
 
   <p class="admin-list__count">
@@ -83,6 +91,15 @@
         </div>
         <div class="admin-row__actions">
           <a class="admin-row__edit" [routerLink]="editPath(p.slug)">Editar</a>
+          @if (showArchived()) {
+            <button type="button" class="admin-row__order-btn" (click)="restore(p.slug)">
+              Restaurar
+            </button>
+          } @else {
+            <button type="button" class="admin-row__archive" (click)="archive(p.slug)">
+              Arquivar
+            </button>
+          }
           <div class="admin-row__order">
             <button
               type="button"

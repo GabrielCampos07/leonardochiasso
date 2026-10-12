@@ -26,6 +26,7 @@ import {
 } from '../../core/product.model';
 import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
+import { archiveAwareError, confirmArchivePiece } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 
@@ -67,6 +68,9 @@ export class AdminProductForm implements OnInit {
   readonly saved = output<Product>();
   readonly cancelled = output<void>();
   readonly savingChange = output<boolean>();
+  readonly archived = output<Product>();
+
+  readonly archiving = signal(false);
 
   readonly collectionOptions = (
     Object.entries(COLLECTION_LABELS) as [CollectionSlug, Collection][]
@@ -404,6 +408,26 @@ export class AdminProductForm implements OnInit {
       error: (err) => {
         this.setSaving(false);
         this.toast.error(adminHttpErrorMessage(err));
+      },
+    });
+  }
+
+  async archive(): Promise<void> {
+    const p = this.draft();
+    if (!p || this.isNew() || this.archiving() || this.saving()) return;
+    const ok = await confirmArchivePiece(this.confirm);
+    if (!ok) return;
+    this.archiving.set(true);
+    this.adminCatalog.archiveViaApi(p.slug).subscribe({
+      next: (saved) => {
+        this.archiving.set(false);
+        this.archived.emit(saved);
+      },
+      error: (err) => {
+        this.archiving.set(false);
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }

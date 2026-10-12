@@ -264,6 +264,23 @@
   top: 0;
 }
 
+.admin-3d__archive-col {
+  position: absolute;
+  right: 16px;
+  top: calc(72px + env(safe-area-inset-top, 0px));
+  z-index: 7;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #8b1e2d;
+  background: rgb(255 255 255 / 94%);
+  color: #8b1e2d;
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 .admin-3d__hover {
   position: fixed;
   z-index: 6;

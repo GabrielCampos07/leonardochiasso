@@ -65,6 +65,9 @@
         <button type="submit" class="admin-edit__save" [disabled]="saving()">
           {{ saving() ? 'Salvando…' : isNew() ? 'Criar coleção' : 'Salvar' }}
         </button>
+        @if (!isNew()) {
+          <button type="button" class="admin-edit__archive" (click)="archive()">Arquivar</button>
+        }
       </div>
     </form>
 

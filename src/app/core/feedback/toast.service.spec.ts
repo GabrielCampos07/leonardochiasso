@@ -18,4 +18,19 @@ describe('ToastService', () => {
     tick(3200);
     expect(toast.message()).toBeNull();
   }));
+
+  it('keeps an undo action for 5s and runs it once', fakeAsync(() => {
+    const toast = new ToastService();
+    const run = jasmine.createSpy('restore');
+    toast.success('Arquivado.', {
+      durationMs: 5000,
+      action: { label: 'Desfazer', run },
+    });
+    expect(toast.message()?.action?.label).toBe('Desfazer');
+    tick(4999);
+    expect(toast.message()?.text).toBe('Arquivado.');
+    toast.runAction();
+    expect(run).toHaveBeenCalled();
+    expect(toast.message()).toBeNull();
+  }));
 });

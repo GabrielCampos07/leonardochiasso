@@ -14,6 +14,12 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { catchError, of, switchMap } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage, uniqueAdminSlug } from '../../../core/admin-catalog.service';
+import {
+  archiveAwareError,
+  confirmArchiveCollection,
+  isArchivedAt,
+  showArchiveUndo,
+} from '../../../core/admin-archive';
 import { formatCollectionCreateError, validateCreateCollection } from '../../../core/admin-collection-create';
 import {
   AdminCollectionProductsService,
@@ -21,6 +27,7 @@ import {
   appendCollectionProductSlugs,
 } from '../../../core/admin-collection-products';
 import { AdminCollectionDto, AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
+import { ConfirmService } from '../../../core/feedback/confirm.service';
 import { ToastService } from '../../../core/feedback/toast.service';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
@@ -38,6 +45,8 @@ import {
   findHanger,
   mapAtelierToScene,
   omitHanger,
+  removeHangerFromLayout,
+  removeUnitFromLayout,
   replaceHanger,
   resolveProductRackId,
   toSceneHanger,
@@ -54,6 +63,7 @@ import type {
   SceneRack,
   SceneUnitKind,
 } from '../../../scene-engine/types';
+import { UNCOLLECTED_RACK_ID } from '../../../scene-engine/types';
 import {
   WEBGL_UNAVAILABLE_ACTION,
   WEBGL_UNAVAILABLE_HINT,
@@ -149,6 +159,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly viewMode = inject(AdminViewModeService);
   private readonly boot = inject(Admin3dBootService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
   private readonly prefetch = inject(Admin3dPrefetchService);
 
   readonly loading = signal(true);
@@ -204,6 +215,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   });
   readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
   readonly adding = signal(false);
+  readonly canArchiveFocused = computed(() => {
+    if (this.creating() || this.adding()) return false;
+    const id = this.focusedId();
+    if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID || id === UNCOLLECTED_RACK_ID) {
+      return false;
+    }
+    return Boolean(collectionSlugFromUnitId(id));
+  });
   readonly addSaving = signal(false);
   readonly addCandidates = signal<AddPieceCandidate[]>([]);
   readonly addUnitName = signal('');
@@ -675,7 +694,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       });
       ref.closed.subscribe((saved) => {
         this.modalOpen = false;
-        if (saved) this.applySavedJoia(saved);
+        if (saved && isArchivedAt(saved.archivedAt)) this.onJoiaArchived(saved);
+        else if (saved) this.applySavedJoia(saved);
         queueMicrotask(() => this.focusScene());
       });
       return;
@@ -693,7 +713,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     );
     ref.closed.subscribe((saved) => {
       this.modalOpen = false;
-      if (saved) this.applySaved(saved);
+      if (saved && isArchivedAt(saved.archivedAt)) this.onProductArchived(saved);
+      else if (saved) this.applySaved(saved);
       queueMicrotask(() => this.focusScene());
     });
   }
@@ -738,6 +759,96 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.bootFading.set(true);
     if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
     this.bootFadeTimer = window.setTimeout(() => this.bootFading.set(false), 420);
+  }
+
+  async archiveFocusedCollection(): Promise<void> {
+    const id = this.focusedId();
+    const slug = collectionSlugFromUnitId(id);
+    if (!slug || id === UNCOLLECTED_RACK_ID) return;
+    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+    const units = unitsOfKind(this.layout, kind).filter(
+      (r) => collectionSlugFromUnitId(r.id) === slug,
+    );
+    if (!units.length) return;
+    const pieceCount = units.reduce((n, u) => n + u.hangers.length, 0);
+    const ok = await confirmArchiveCollection(this.confirm, pieceCount);
+    if (!ok) return;
+    this.collectionsApi.archive(slug).subscribe({
+      next: () => {
+        const snapshots = units.map((u) => structuredClone(u));
+        for (const unit of units) {
+          this.layout = removeUnitFromLayout(this.layout, unit.id);
+          this.engine?.sinkUnit(unit.id, this.reducedMotion);
+        }
+        this.knownRackIds.delete(slug);
+        this.collections = this.collections.filter((c) => c.slug !== slug);
+        this.racks.set(rackNavItems(unitsOfKind(this.layout, kind)));
+        this.focusedId.set(OVERVIEW_FOCUS_ID);
+        this.empty.set(unitsOfKind(this.layout, kind).length === 0);
+        showArchiveUndo(this.toast, () => {
+          this.collectionsApi.restore(slug).subscribe({
+            next: (restored) => {
+              this.knownRackIds.add(restored.slug);
+              this.collections = [
+                ...this.collections,
+                { slug: restored.slug, name: restored.name, sortOrder: restored.sortOrder },
+              ];
+              this.layout = { racks: [...this.layout.racks, ...snapshots] };
+              this.racks.set(rackNavItems(unitsOfKind(this.layout, kind)));
+              for (const snapshot of snapshots) this.engine?.restoreUnit(snapshot);
+              this.empty.set(false);
+              this.toast.success('Restaurado.');
+            },
+            error: (err) => {
+              this.toast.error(
+                archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+              );
+            },
+          });
+        });
+      },
+      error: (err) => {
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
+      },
+    });
+  }
+
+  private onProductArchived(product: Product): void {
+    this.layout = removeHangerFromLayout(this.layout, product.slug);
+    this.productsBySlug.delete(product.slug);
+    this.engine?.removeHanger(product.slug, this.reducedMotion);
+    this.hoverTip.set(null);
+    this.bumpLayout();
+    this.refreshAddAnchor();
+    showArchiveUndo(this.toast, () => {
+      this.adminCatalog.restoreViaApi(product.slug).subscribe({
+        next: (restored) => this.applySaved(restored),
+        error: (err) =>
+          this.toast.error(
+            archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          ),
+      });
+    });
+  }
+
+  private onJoiaArchived(piece: JoiaPiece): void {
+    this.layout = removeHangerFromLayout(this.layout, piece.slug);
+    this.joiasBySlug.delete(piece.slug);
+    this.engine?.removeHanger(piece.slug, this.reducedMotion);
+    this.hoverTip.set(null);
+    this.bumpLayout();
+    this.refreshAddAnchor();
+    showArchiveUndo(this.toast, () => {
+      this.joiasAdmin.restore(piece.slug).subscribe({
+        next: (restored) => this.applySavedJoia(restored),
+        error: (err) =>
+          this.toast.error(
+            archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          ),
+      });
+    });
   }
 
   private applySaved(product: Product, ontoRackId?: string, animate = false): void {
@@ -788,6 +899,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
           name: piece.title,
           thumb: piece.image || joiaGallery(piece)[0],
           collectionSlug: piece.collectionSlug,
+          archivedAt: piece.archivedAt,
         })),
         ctx,
       );
@@ -799,6 +911,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
         thumb: product.thumb || product.gallery?.[0],
         collectionSlug: product.collectionSlug,
         collectionName: product.collection,
+        archivedAt: product.archivedAt,
       })),
       ctx,
     );
@@ -914,7 +1027,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     const collectionSlug = collectionSlugFromUnitId(unit.id);
     this.layout = omitHanger(this.layout, slug);
     this.bumpLayout();
-    this.engine?.removeHanger(slug);
+    this.engine?.removeHanger(slug, true);
     if (unit.kind !== 'vitrine') {
       this.collectionProducts.remember(
         collectionSlug,

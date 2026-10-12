@@ -78,6 +78,18 @@
   background: var(--lc-white);
 }
 
+.admin-edit__archive {
+  min-height: 52px;
+  padding: 0 22px;
+  border: 1px solid #8b1e2d;
+  background: var(--lc-white);
+  color: #8b1e2d;
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 .product-edit-modal__head {
   display: flex;
   align-items: flex-start;

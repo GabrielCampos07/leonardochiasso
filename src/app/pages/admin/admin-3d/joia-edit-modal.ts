@@ -12,8 +12,11 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { uniqueJoiaSlug } from './atelier-blank';
+import { adminHttpErrorMessage } from '../../../core/admin-catalog.service';
+import { archiveAwareError, confirmArchivePiece } from '../../../core/admin-archive';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
+import { ConfirmService } from '../../../core/feedback/confirm.service';
 import { ToastService } from '../../../core/feedback/toast.service';
 import { focusEditModal, listenDialogEscape } from './dialog-escape';
 import { PRODUCT_EDIT_MODAL_TITLE_ID } from './product-edit-modal';
@@ -35,6 +38,7 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
   private readonly data = inject<JoiaEditModalData>(DIALOG_DATA);
   private readonly ref = inject(DialogRef<JoiaPiece | undefined>);
   private readonly catalog = inject(AdminJoiasCatalogService);
+  private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly host = inject(ElementRef<HTMLElement>);
   private detachEscape: (() => void) | null = null;
@@ -50,6 +54,10 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
     const p = this.piece();
     return p ? joiaGallery(p).join('\n') : '';
   });
+
+  get creating(): boolean {
+    return Boolean(this.data.isNew);
+  }
 
   get title(): string {
     if (this.data.isNew) return 'Adicionar joia';
@@ -97,6 +105,21 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
     if (!cur) return;
     const images = text.split('\n').map((l) => l.trim()).filter(Boolean);
     this.piece.set({ ...cur, images, image: images[0] ?? cur.image });
+  }
+
+  async archive(): Promise<void> {
+    const cur = this.piece();
+    if (!cur || this.data.isNew || this.saving()) return;
+    const ok = await confirmArchivePiece(this.confirm);
+    if (!ok) return;
+    this.catalog.archive(cur.slug).subscribe({
+      next: (saved) => this.ref.close({ ...saved, archivedAt: saved.archivedAt ?? new Date().toISOString() }),
+      error: (err) => {
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
+      },
+    });
   }
 
   save(): void {

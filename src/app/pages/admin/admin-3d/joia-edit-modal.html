@@ -48,6 +48,11 @@
         <button type="button" class="admin-edit__cancel" (click)="close()" [disabled]="saving()">
           Cancelar
         </button>
+        @if (!creating) {
+          <button type="button" class="admin-edit__archive" [disabled]="saving()" (click)="archive()">
+            Arquivar
+          </button>
+        }
       </div>
     </form>
   }

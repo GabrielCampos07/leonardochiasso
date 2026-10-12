@@ -278,14 +278,24 @@
       <button
         type="submit"
         class="admin-edit__save"
-        [disabled]="saving()"
+        [disabled]="saving() || archiving()"
         [attr.aria-busy]="saving()"
       >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>
-      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving()">
+      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving() || archiving()">
         Cancelar
       </button>
+      @if (!isNew()) {
+        <button
+          type="button"
+          class="admin-edit__archive"
+          [disabled]="archiving() || saving()"
+          (click)="archive()"
+        >
+          {{ archiving() ? 'Arquivando…' : 'Arquivar' }}
+        </button>
+      }
       @if (!isNew() && showSiteLink()) {
         <a class="admin-edit__site" [routerLink]="sitePath()" target="_blank" rel="noopener">
           Ver no site

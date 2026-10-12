@@ -27,6 +27,7 @@ export interface AddPieceSource {
   thumb?: string;
   collectionSlug?: string;
   collectionName?: string;
+  archivedAt?: string | null;
 }
 
 export interface AddPieceItemError {
@@ -81,6 +82,7 @@ export function buildAddPieceCandidates(
   const unitNameById = new Map(ctx.units.map((u) => [u.id, u.name]));
   const collectionNameBySlug = new Map(ctx.collections.map((c) => [c.slug, c.name]));
   return pieces
+    .filter((piece) => !piece.archivedAt)
     .map((piece) => {
       const hanger = hangerBySlug.get(piece.slug);
       const onRack = hanger?.rackId === ctx.unitId;

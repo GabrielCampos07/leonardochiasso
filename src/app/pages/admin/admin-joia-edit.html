@@ -95,6 +95,9 @@
 
       <div class="admin-edit__save-row">
         <button type="submit" class="admin-edit__save">Salvar</button>
+        @if (!isNew()) {
+          <button type="button" class="admin-edit__archive" (click)="archive()">Arquivar</button>
+        }
       </div>
     </form>
   </section>

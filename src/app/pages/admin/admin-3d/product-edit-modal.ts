@@ -93,6 +93,10 @@ export class ProductEditModal implements OnInit, AfterViewInit, OnDestroy {
     this.detachEscape = null;
   }
 
+  onArchived(saved: Product): void {
+    this.ref.close(saved);
+  }
+
   onSaved(saved: Product): void {
     this.product.set(structuredClone(saved));
     this.ref.close(saved);
