@@ -9,19 +9,67 @@
     <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
   }
 
+  @if (!webglUnavailable() && !empty() && !error() && !loading()) {
+    <nav class="admin-3d__guide" aria-label="Navegação das araras">
+      <button
+        type="button"
+        class="admin-3d__arrow"
+        [disabled]="atFirst()"
+        (click)="stepRack(-1)"
+        aria-label="Arara anterior"
+      >
+        ←
+      </button>
+      <div class="admin-3d__racks" role="tablist" aria-label="Coleções">
+        @for (rack of racks(); track rack.id) {
+          <button
+            type="button"
+            class="admin-3d__rack"
+            role="tab"
+            [attr.aria-selected]="focusedId() === rack.id"
+            [class.is-on]="focusedId() === rack.id"
+            (click)="focusRack(rack.id)"
+          >
+            {{ rack.name }}
+          </button>
+        }
+        <button
+          type="button"
+          class="admin-3d__rack admin-3d__rack--all"
+          [class.is-on]="focusedId() === overviewId"
+          (click)="focusOverview()"
+        >
+          Ver todas
+        </button>
+      </div>
+      <button
+        type="button"
+        class="admin-3d__arrow"
+        [disabled]="atLast()"
+        (click)="stepRack(1)"
+        aria-label="Próxima arara"
+      >
+        →
+      </button>
+    </nav>
+  }
+
   @if (!webglUnavailable()) {
     <div class="admin-3d__chrome">
       @if (showHint()) {
         <p class="admin-3d__hint">
-          <span>Clique · arraste · scroll</span>
+          <span>Clique · arraste · ← →</span>
           <button type="button" class="admin-3d__hint-dismiss" (click)="dismissHint()">Fechar</button>
         </p>
       }
       @if (usingMock()) {
         <p class="admin-3d__badge" role="status">Dados de exemplo</p>
       }
-      @if (hoverName()) {
-        <p class="admin-3d__hover" role="status">{{ hoverName() }}</p>
+      @if (hoverTip(); as tip) {
+        <p class="admin-3d__hover" role="status">
+          <strong>{{ tip.name }}</strong>
+          <span>{{ tip.stock }}</span>
+        </p>
       }
     </div>
   }
