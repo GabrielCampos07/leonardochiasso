@@ -59,10 +59,7 @@ describe('SceneEngine resize and WebGL context', () => {
   it('observes the host and updates setSize, pixel ratio, aspect and a frame', () => {
     const observed: Element[] = [];
     const OriginalRO = window.ResizeObserver;
-    const spy = spyOn(window, 'ResizeObserver').and.callFake(function (
-      this: unknown,
-      callback: ResizeObserverCallback,
-    ) {
+    spyOn(window, 'ResizeObserver').and.callFake(((callback: ResizeObserverCallback) => {
       const real = new OriginalRO(callback);
       const observe = real.observe.bind(real);
       real.observe = (target: Element) => {
@@ -70,7 +67,7 @@ describe('SceneEngine resize and WebGL context', () => {
         return observe(target);
       };
       return real;
-    } as unknown as typeof ResizeObserver);
+    }) as unknown as typeof window.ResizeObserver);
 
     const { host, canvas } = mountHost(800, 450);
     const engine = createEngine(canvas, host);
@@ -85,19 +82,18 @@ describe('SceneEngine resize and WebGL context', () => {
     expect(canvas.width).toBe(400);
     expect(canvas.height).toBe(300);
     engine.dispose();
-    spy.and.callThrough();
   });
 
   it('re-renders when ResizeObserver reports a new host box', () => {
     let callback: ResizeObserverCallback | null = null;
-    spyOn(window, 'ResizeObserver').and.callFake(function (cb: ResizeObserverCallback) {
+    spyOn(window, 'ResizeObserver').and.callFake(((cb: ResizeObserverCallback) => {
       callback = cb;
       return {
         observe: () => undefined,
         disconnect: () => undefined,
         unobserve: () => undefined,
-      } as unknown as ResizeObserver;
-    } as unknown as typeof ResizeObserver);
+      };
+    }) as unknown as typeof window.ResizeObserver);
 
     const { host, canvas } = mountHost(640, 360);
     const engine = createEngine(canvas, host);
