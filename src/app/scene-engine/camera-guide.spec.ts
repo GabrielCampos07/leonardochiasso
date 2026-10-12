@@ -49,9 +49,9 @@ describe('easeOutBack', () => {
 });
 
 describe('CREATE_TWEEN_MS', () => {
-  it('stays inside the 400–700 ms motion band', () => {
+  it('stays inside the 400–600 ms motion band', () => {
     expect(CREATE_TWEEN_MS).toBeGreaterThanOrEqual(400);
-    expect(CREATE_TWEEN_MS).toBeLessThanOrEqual(700);
+    expect(CREATE_TWEEN_MS).toBeLessThanOrEqual(600);
   });
 });
 

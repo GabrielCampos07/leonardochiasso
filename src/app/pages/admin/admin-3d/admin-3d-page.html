@@ -18,7 +18,7 @@
           role="radio"
           [attr.aria-checked]="line() === 'roupas'"
           [class.is-on]="line() === 'roupas'"
-          [disabled]="creating()"
+          [disabled]="creating() || adding()"
           (click)="setLine('roupas')"
         >
           Roupas
@@ -29,7 +29,7 @@
           role="radio"
           [attr.aria-checked]="line() === 'joias'"
           [class.is-on]="line() === 'joias'"
-          [disabled]="creating()"
+          [disabled]="creating() || adding()"
           (click)="setLine('joias')"
         >
           Joias
@@ -38,7 +38,7 @@
       <button
         type="button"
         class="admin-3d__arrow admin-3d__arrow--prev"
-        [disabled]="atFirst() || creating() || !racks().length"
+        [disabled]="atFirst() || creating() || adding() || !racks().length"
         (click)="stepRack(-1)"
         aria-label="Anterior"
       >
@@ -52,6 +52,7 @@
             role="tab"
             [attr.aria-selected]="focusedId() === rack.id"
             [class.is-on]="focusedId() === rack.id"
+            [disabled]="adding()"
             (click)="focusRack(rack.id)"
           >
             {{ rack.name }}
@@ -61,7 +62,7 @@
           type="button"
           class="admin-3d__rack admin-3d__rack--all"
           [class.is-on]="focusedId() === overviewId"
-          [disabled]="creating() || !racks().length"
+          [disabled]="creating() || adding() || !racks().length"
           (click)="focusOverview()"
         >
           Ver todas
@@ -70,16 +71,27 @@
           type="button"
           class="admin-3d__rack admin-3d__rack--new"
           [class.is-on]="creating()"
-          [disabled]="creating()"
+          [disabled]="creating() || adding()"
           (click)="startCreate()"
         >
           + Nova coleção
         </button>
+        @if (activeUnit()) {
+          <button
+            type="button"
+            class="admin-3d__rack admin-3d__rack--add"
+            [class.is-on]="adding()"
+            [disabled]="adding()"
+            (click)="addPieceToFocused()"
+          >
+            + Adicionar peça
+          </button>
+        }
       </div>
       <button
         type="button"
         class="admin-3d__arrow admin-3d__arrow--next"
-        [disabled]="atLast() || creating() || !racks().length"
+        [disabled]="atLast() || creating() || adding() || !racks().length"
         (click)="stepRack(1)"
         aria-label="Próxima"
       >
@@ -118,9 +130,16 @@
     />
   }
 
-  @if (addTarget(); as target) {
-    <button type="button" class="admin-3d__add-piece" (click)="addPieceToFocused()">
-      Adicionar peça
+  @if (showAddPieceButton()) {
+    <button
+      type="button"
+      class="admin-3d__add-piece"
+      [style.left.px]="addAnchor()?.x ?? null"
+      [style.top.px]="addAnchor()?.y ?? null"
+      [class.admin-3d__add-piece--anchored]="!!addAnchor()"
+      (click)="addPieceToFocused()"
+    >
+      + Adicionar peça
     </button>
   }
 
@@ -130,9 +149,14 @@
       [candidates]="addCandidates()"
       [sheet]="addSheet()"
       [saving]="addSaving()"
+      [addedCount]="addCount()"
+      [itemErrors]="addErrors()"
+      [createError]="addCreateError()"
+      [canUpload]="addCanUpload"
+      [priceRequired]="addPriceRequired()"
       (add)="confirmAddPieces($event)"
-      (create)="createFromAddPanel()"
-      (cancel)="cancelAddPiece()"
+      (create)="createAndAdd($event)"
+      (close)="cancelAddPiece()"
     />
   }
 

@@ -1,11 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { of, tap, delay } from 'rxjs';
+import { of, tap, delay, throwError } from 'rxjs';
 import {
   ADD_PIECE_STAGGER_MS,
   AdminCollectionProductsService,
   CollectionProductsLock,
   addPieceStaggerDelay,
   appendCollectionProductSlugs,
+  partitionAppendResults,
 } from './admin-collection-products';
 import {
   AdminCollectionsApiService,
@@ -133,5 +134,40 @@ describe('AdminCollectionProductsService', () => {
       ['a', 'b', 'c'],
       ['a', 'b', 'c', 'd'],
     ]);
+  });
+
+  it('falls back to per-item PUTs and keeps the failed slug out of the saved list', async () => {
+    let calls = 0;
+    const service = setup((_slug, productSlugs) => {
+      calls += 1;
+      if (calls === 1) return throwError(() => new Error('grouped failed'));
+      if (productSlugs.includes('ruim')) return throwError(() => ({ status: 400, error: { message: 'slug inválido' } }));
+      return of(result('organic-dreams', productSlugs));
+    });
+
+    service.remember('organic-dreams', ['vestido']);
+    const batch = await new Promise<{ added: string[]; failed: { slug: string; message: string }[] }>(
+      (resolve, reject) => {
+        service.tryAppend('organic-dreams', ['boa', 'ruim']).subscribe({ next: resolve, error: reject });
+      },
+    );
+
+    expect(batch.added).toEqual(['boa']);
+    expect(batch.failed.map((item) => item.slug)).toEqual(['ruim']);
+    expect(service.current('organic-dreams')).toEqual(['vestido', 'boa']);
+  });
+});
+
+describe('partitionAppendResults', () => {
+  it('splits successful slugs from per-item errors', () => {
+    expect(
+      partitionAppendResults([
+        { slug: 'a', ok: true },
+        { slug: 'b', ok: false, message: 'Falhou' },
+      ]),
+    ).toEqual({
+      added: ['a'],
+      failed: [{ slug: 'b', message: 'Falhou' }],
+    });
   });
 });

@@ -117,7 +117,8 @@
   border-style: dashed;
 }
 
-.admin-3d__rack--new {
+.admin-3d__rack--new,
+.admin-3d__rack--add {
   margin-left: 4px;
   border-style: dashed;
 }
@@ -258,6 +259,11 @@
   cursor: pointer;
 }
 
+.admin-3d__add-piece--anchored {
+  left: 0;
+  top: 0;
+}
+
 .admin-3d__hover {
   position: fixed;
   z-index: 6;
@@ -383,7 +389,9 @@
   }
 
   .admin-3d__rack.admin-3d__rack--new,
-  .admin-3d__rack.admin-3d__rack--new:not(.is-on) {
+  .admin-3d__rack.admin-3d__rack--new:not(.is-on),
+  .admin-3d__rack.admin-3d__rack--add,
+  .admin-3d__rack.admin-3d__rack--add:not(.is-on) {
     position: relative;
     width: auto;
     height: auto;

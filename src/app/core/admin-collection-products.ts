@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, firstValueFrom } from 'rxjs';
+import { Observable, catchError, firstValueFrom, map, of } from 'rxjs';
+import { adminHttpErrorMessage } from './admin-catalog.service';
 import {
   AdminCollectionsApiService,
   SetCollectionProductsResult,
@@ -32,6 +33,29 @@ export function appendCollectionProductSlugs(
 
 export function addPieceStaggerDelay(index: number, ms = ADD_PIECE_STAGGER_MS): number {
   return Math.max(0, index) * ms;
+}
+
+export interface CollectionProductAppendItem {
+  slug: string;
+  ok: boolean;
+  message?: string;
+}
+
+export interface CollectionProductAppendBatch {
+  added: string[];
+  failed: { slug: string; message: string }[];
+}
+
+export function partitionAppendResults(
+  rows: readonly CollectionProductAppendItem[],
+): CollectionProductAppendBatch {
+  const added: string[] = [];
+  const failed: { slug: string; message: string }[] = [];
+  for (const row of rows) {
+    if (row.ok) added.push(row.slug);
+    else failed.push({ slug: row.slug, message: row.message || 'Não foi possível adicionar esta peça.' });
+  }
+  return { added, failed };
 }
 
 /**
@@ -83,6 +107,47 @@ export class AdminCollectionProductsService {
       const next = appendCollectionProductSlugs(this.current(collectionSlug), incoming);
       return this.write(collectionSlug, next);
     });
+  }
+
+  /** One PUT per slug so a failure does not roll back pieces that already landed. */
+  appendEach(
+    collectionSlug: string,
+    incoming: readonly string[],
+  ): Observable<CollectionProductAppendItem[]> {
+    return new Observable<CollectionProductAppendItem[]>((subscriber) => {
+      void (async () => {
+        const results: CollectionProductAppendItem[] = [];
+        for (const slug of incoming) {
+          const trimmed = slug.trim();
+          if (!trimmed) continue;
+          try {
+            await firstValueFrom(this.append(collectionSlug, [trimmed]));
+            results.push({ slug: trimmed, ok: true });
+          } catch (err) {
+            results.push({
+              slug: trimmed,
+              ok: false,
+              message: adminHttpErrorMessage(err, 'Não foi possível adicionar esta peça.'),
+            });
+          }
+        }
+        subscriber.next(results);
+        subscriber.complete();
+      })();
+    });
+  }
+
+  /**
+   * Grouped PUT first; if it fails, retry per item so successful pieces stay
+   * associated and failed slugs can remain selected.
+   */
+  tryAppend(collectionSlug: string, incoming: readonly string[]): Observable<CollectionProductAppendBatch> {
+    const slugs = incoming.map((slug) => slug.trim()).filter(Boolean);
+    if (!slugs.length) return of({ added: [], failed: [] });
+    return this.append(collectionSlug, slugs).pipe(
+      map(() => ({ added: slugs, failed: [] })),
+      catchError(() => this.appendEach(collectionSlug, slugs).pipe(map(partitionAppendResults))),
+    );
   }
 
   private write(collectionSlug: string, productSlugs: string[]): Promise<SetCollectionProductsResult> {
