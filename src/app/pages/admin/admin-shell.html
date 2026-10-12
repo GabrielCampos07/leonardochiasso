@@ -54,7 +54,18 @@
   }
 </header>
 <main class="admin-main" [class.admin-main--scene]="sceneHost">
-  <router-outlet />
+  @if (showSceneBoot()) {
+    <div class="admin-3d-route-boot" role="status">
+      <div class="admin-3d-route-boot__spinner" aria-hidden="true"></div>
+      <div class="admin-3d-route-boot__skel" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <p>Montando o ateliê…</p>
+    </div>
+  }
+  <router-outlet (activate)="onSceneActivate()" (deactivate)="onSceneDeactivate()" />
 </main>
 <lc-toast-host />
 <lc-confirm-dialog />

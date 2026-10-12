@@ -1,4 +1,32 @@
-import { applyCorsBeforeSrc, makeFallbackTexture, TEXTURE_CROSS_ORIGIN } from './texture-loader';
+import {
+  applyCorsBeforeSrc,
+  makeFallbackTexture,
+  TEXTURE_CROSS_ORIGIN,
+  textureCacheUrl,
+} from './texture-loader';
+
+describe('textureCacheUrl', () => {
+  it('appends tex=1 on a bare CDN url', () => {
+    expect(textureCacheUrl('https://pub-example.r2.dev/pdp/plp-bateau-thumb.webp')).toBe(
+      'https://pub-example.r2.dev/pdp/plp-bateau-thumb.webp?tex=1',
+    );
+  });
+
+  it('preserves an existing query string', () => {
+    expect(textureCacheUrl('https://cdn.example/p.webp?w=800&v=2')).toBe(
+      'https://cdn.example/p.webp?w=800&v=2&tex=1',
+    );
+  });
+
+  it('does not duplicate tex when it is already present', () => {
+    expect(textureCacheUrl('https://cdn.example/p.webp?tex=1')).toBe('https://cdn.example/p.webp?tex=1');
+  });
+
+  it('keeps a hash and leaves data URLs alone', () => {
+    expect(textureCacheUrl('https://cdn.example/p.webp#hero')).toBe('https://cdn.example/p.webp?tex=1#hero');
+    expect(textureCacheUrl('data:image/png;base64,aaa')).toBe('data:image/png;base64,aaa');
+  });
+});
 
 describe('applyCorsBeforeSrc', () => {
   it('sets crossOrigin anonymous before src is assigned', () => {

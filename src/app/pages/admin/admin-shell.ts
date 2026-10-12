@@ -1,6 +1,5 @@
 import { Component, HostBinding, computed, inject, signal } from '@angular/core';
-import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
-import { filter } from 'rxjs';
+import { NavigationEnd, NavigationStart, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { AdminViewMode, AdminViewModeService } from '../../core/admin-view-mode.service';
@@ -36,6 +35,7 @@ export class AdminShell {
   });
 
   private readonly url = signal(this.router.url);
+  readonly sceneOutletReady = signal(false);
 
   readonly selectedView = computed<AdminViewMode>(() => {
     const path = this.url().split('?')[0] ?? '';
@@ -49,15 +49,35 @@ export class AdminShell {
     return (this.url().split('?')[0] ?? '').startsWith(ROUTES.admin3d);
   }
 
+  readonly showSceneBoot = computed(() => this.sceneHost && !this.sceneOutletReady());
+
   @HostBinding('class.admin-shell--banner')
   get bannerHost(): boolean {
     return Boolean(this.stagingBanner);
   }
 
   constructor() {
-    this.router.events.pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd)).subscribe((e) => {
-      this.url.set(e.urlAfterRedirects);
+    this.router.events.subscribe((e) => {
+      if (e instanceof NavigationStart) {
+        const path = e.url.split('?')[0] ?? '';
+        this.url.set(e.url);
+        if (path.startsWith(ROUTES.admin3d)) this.sceneOutletReady.set(false);
+      }
+      if (e instanceof NavigationEnd) {
+        this.url.set(e.urlAfterRedirects);
+        if (!(e.urlAfterRedirects.split('?')[0] ?? '').startsWith(ROUTES.admin3d)) {
+          this.sceneOutletReady.set(false);
+        }
+      }
     });
+  }
+
+  onSceneActivate(): void {
+    this.sceneOutletReady.set(true);
+  }
+
+  onSceneDeactivate(): void {
+    this.sceneOutletReady.set(false);
   }
 
   setViewMode(mode: AdminViewMode): void {

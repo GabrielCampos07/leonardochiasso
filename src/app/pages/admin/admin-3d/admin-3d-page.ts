@@ -97,7 +97,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     () =>
       !this.webglUnavailable() &&
       !this.error() &&
-      !this.empty() &&
       (this.loading() || !this.firstFrame() || this.bootFading()),
   );
   readonly reducedMotion = prefersReducedMotion();
