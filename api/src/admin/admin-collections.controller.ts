@@ -8,9 +8,11 @@ import {
   Put,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
 import { parseArchivedFlag } from './archive-query';
+import { CacheInvalidationInterceptor } from '../cache/cache-invalidation.interceptor';
 import { AdminCollectionsService } from './admin-collections.service';
 import {
   CreateCollectionDto,
@@ -20,6 +22,7 @@ import {
 
 @Controller('api/admin/collections')
 @UseGuards(AdminGuard)
+@UseInterceptors(CacheInvalidationInterceptor)
 export class AdminCollectionsController {
   constructor(private readonly collections: AdminCollectionsService) {}
 

@@ -4,6 +4,7 @@ import { AdminModule } from './admin/admin.module';
 import { AuthModule } from './auth/auth.module';
 import { AccountModule } from './account/account.module';
 import { CatalogModule } from './catalog/catalog.module';
+import { CatalogCacheModule } from './cache/catalog-cache.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { ContentModule } from './content/content.module';
 import { HealthModule } from './health/health.module';
@@ -15,6 +16,7 @@ import { WishlistModule } from './wishlist/wishlist.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    CatalogCacheModule,
     CatalogModule,
     AdminModule,
     ContentModule,
