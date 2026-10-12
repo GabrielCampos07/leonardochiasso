@@ -14,6 +14,8 @@ import { PRODUCT_EDIT_MODAL_TITLE_ID, ProductEditModal, productEditModalTitle } 
 })
 class StubAdminProductForm {
   readonly product = input.required<Product>();
+  readonly isNew = input(false);
+  readonly collectionFromContext = input(false);
   readonly showSiteLink = input(true);
   readonly saved = output<Product>();
   readonly cancelled = output<void>();

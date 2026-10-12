@@ -85,22 +85,6 @@ const DRAG_SLOP_SQ = 36;
 const CLEAR = 0xefe8dc;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 
-function bindCanvasListener(
-  canvas: HTMLCanvasElement,
-  type: string,
-  handler: EventListener,
-): void {
-  canvas.addEventListener(type, handler, NON_PASSIVE);
-}
-
-function unbindCanvasListener(
-  canvas: HTMLCanvasElement,
-  type: string,
-  handler: EventListener,
-): void {
-  canvas.removeEventListener(type, handler, NON_PASSIVE);
-}
-
 const NON_PASSIVE_TYPES = new Set([
   'pointerdown',
   'pointermove',
@@ -335,15 +319,15 @@ export class SceneEngine {
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
 
-    bindCanvasListener(canvas, 'pointerdown', this.onPointerDown);
-    bindCanvasListener(canvas, 'pointermove', this.onPointerMove);
-    bindCanvasListener(canvas, 'pointerup', this.onPointerUp);
-    bindCanvasListener(canvas, 'pointercancel', this.onPointerCancel);
-    bindCanvasListener(canvas, 'lostpointercapture', this.onLostPointerCapture);
-    bindCanvasListener(canvas, 'pointerleave', this.onPointerLeave);
-    bindCanvasListener(canvas, 'touchstart', this.noopTouch);
-    bindCanvasListener(canvas, 'touchmove', this.noopTouch);
-    bindCanvasListener(canvas, 'wheel', this.noopTouch);
+    canvas.addEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
+    canvas.addEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
+    canvas.addEventListener('pointerup', this.onPointerUp, NON_PASSIVE);
+    canvas.addEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
+    canvas.addEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
+    canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
+    canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('wheel', this.noopTouch, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
     this.resize();
@@ -568,15 +552,15 @@ export class SceneEngine {
     this.resizeObserver = null;
     this.cancelDeferredRacks();
     this.removeDraft(true);
-    unbindCanvasListener(this.canvas, 'pointerdown', this.onPointerDown);
-    unbindCanvasListener(this.canvas, 'pointermove', this.onPointerMove);
-    unbindCanvasListener(this.canvas, 'pointerup', this.onPointerUp);
-    unbindCanvasListener(this.canvas, 'pointercancel', this.onPointerCancel);
-    unbindCanvasListener(this.canvas, 'lostpointercapture', this.onLostPointerCapture);
-    unbindCanvasListener(this.canvas, 'pointerleave', this.onPointerLeave);
-    unbindCanvasListener(this.canvas, 'touchstart', this.noopTouch);
-    unbindCanvasListener(this.canvas, 'touchmove', this.noopTouch);
-    unbindCanvasListener(this.canvas, 'wheel', this.noopTouch);
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
+    this.canvas.removeEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
+    this.canvas.removeEventListener('pointerup', this.onPointerUp, NON_PASSIVE);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
+    this.canvas.removeEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
+    this.canvas.removeEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
+    this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('wheel', this.noopTouch, NON_PASSIVE);
     window.removeEventListener('blur', this.onWindowBlur);
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);

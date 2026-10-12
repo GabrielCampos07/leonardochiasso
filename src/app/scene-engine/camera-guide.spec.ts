@@ -42,7 +42,7 @@ describe('easeInOutCubic', () => {
 
 describe('easeOutBack', () => {
   it('overshoots then lands on 1', () => {
-    expect(easeOutBack(0)).toBe(0);
+    expect(easeOutBack(0)).toBeCloseTo(0, 10);
     expect(easeOutBack(1)).toBeCloseTo(1, 5);
     expect(easeOutBack(0.85)).toBeGreaterThan(1);
   });

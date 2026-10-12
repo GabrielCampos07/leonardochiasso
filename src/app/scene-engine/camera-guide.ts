@@ -153,7 +153,7 @@ export function computeVitrineFit(
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   const fitted = Math.max(fitH, fitW);
   let distance = Math.max(fitted, compact ? 1.2 : 1.45) * fill + depth * 0.18;
-  distance = Math.min(Math.max(distance, compact ? 1.2 : 1.45), compact ? 6 : 5);
+  distance = Math.min(Math.max(distance, compact ? 1.2 : 1.45), compact ? 10 : 6);
   return poseFromElevation(cx, cy, cz, distance, VITRINE_ELEVATION);
 }
 
