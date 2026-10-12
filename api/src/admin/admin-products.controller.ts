@@ -8,8 +8,10 @@ import {
   Post,
   Put,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
+import { CacheInvalidationInterceptor } from '../cache/cache-invalidation.interceptor';
 import { AdminProductsService } from './admin-products.service';
 import {
   AttachProductMediaDto,
@@ -22,6 +24,7 @@ import {
 
 @Controller('api/admin/products')
 @UseGuards(AdminGuard)
+@UseInterceptors(CacheInvalidationInterceptor)
 export class AdminProductsController {
   constructor(private readonly products: AdminProductsService) {}
 
