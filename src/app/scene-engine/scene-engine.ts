@@ -59,12 +59,13 @@ import {
 } from './jewelry-vitrine';
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeRenderer } from './dispose';
-import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
+import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
 import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
 import { findHanger, omitHanger, racksForFirstFrame, replaceHanger } from './mapping';
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls } from './photo-url';
+import { soldOutBadgeScale } from './sold-out-scale';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
@@ -924,10 +925,25 @@ export class SceneEngine {
 
   /** Keep plates and name tags facing the lens so they do not overlap when orbiting. */
   private faceLabels(): void {
+    const viewportH = this.canvas.clientHeight || this.renderer.domElement.height || 1;
     this.racksRoot.traverse((obj) => {
-      if (obj.name === 'plate' || obj.name === 'label' || obj.name === 'badge') {
+      if (obj.name === 'plate' || obj.name === 'label') {
         obj.lookAt(this.camera.position);
+        return;
       }
+      if (obj.name !== 'badge') return;
+      obj.lookAt(this.camera.position);
+      const mesh = obj as Mesh;
+      const geom = mesh.geometry as PlaneGeometry;
+      const badgeH = geom.parameters?.height || SOLD_OUT_BADGE_H;
+      mesh.getWorldPosition(this.projectScratch);
+      const scale = soldOutBadgeScale(
+        this.projectScratch.distanceTo(this.camera.position),
+        this.camera.fov,
+        viewportH,
+        badgeH,
+      );
+      mesh.scale.set(scale, scale, 1);
     });
   }
 

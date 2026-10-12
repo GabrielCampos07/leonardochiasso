@@ -4,7 +4,9 @@
       <p class="product-edit-modal__kicker">Ateliê · 3D · Joias</p>
       <h2 [id]="titleId">{{ title }}</h2>
     </div>
-    <button type="button" class="product-edit-modal__close" (click)="close()">Fechar</button>
+    <button type="button" class="product-edit-modal__close" (click)="close()" [disabled]="saving()">
+      Fechar
+    </button>
   </header>
 
   @if (loading()) {
@@ -35,8 +37,17 @@
         <textarea rows="4" [ngModel]="imagesText()" (ngModelChange)="onImagesChange($event)" name="images"></textarea>
       </label>
       <div class="admin-edit__footer">
-        <button type="submit" class="admin-edit__save">Salvar</button>
-        <button type="button" class="admin-edit__cancel" (click)="close()">Cancelar</button>
+        <button
+          type="submit"
+          class="admin-edit__save"
+          [disabled]="saving()"
+          [attr.aria-busy]="saving()"
+        >
+          {{ saving() ? 'Salvando…' : 'Salvar' }}
+        </button>
+        <button type="button" class="admin-edit__cancel" (click)="close()" [disabled]="saving()">
+          Cancelar
+        </button>
       </div>
     </form>
   }

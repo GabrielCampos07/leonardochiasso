@@ -19,6 +19,7 @@ class StubAdminProductForm {
   readonly showSiteLink = input(true);
   readonly saved = output<Product>();
   readonly cancelled = output<void>();
+  readonly savingChange = output<boolean>();
 }
 
 const piece: Product = {

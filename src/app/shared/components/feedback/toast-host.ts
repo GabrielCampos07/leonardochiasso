@@ -1,5 +1,6 @@
 import { Component, inject, input } from '@angular/core';
 import { ToastService } from '../../../core/feedback/toast.service';
+import { TOAST_BG, TOAST_ERROR_BG, TOAST_ERROR_TEXT, TOAST_TEXT } from './contrast';
 
 @Component({
   selector: 'lc-toast-host',
@@ -27,15 +28,16 @@ import { ToastService } from '../../../core/feedback/toast.service';
       z-index: 1200;
       transform: translateX(-50%);
       max-width: min(92vw, 420px);
-      padding: 12px 18px;
+      padding: 14px 20px;
       font-family: var(--lc-font-body);
-      font-size: 13px;
-      line-height: 1.45;
+      font-size: 1rem;
+      font-weight: 600;
+      line-height: 1.4;
       text-align: center;
-      border: 1px solid color-mix(in srgb, var(--lc-void) 18%, transparent);
-      background: color-mix(in srgb, var(--lc-white) 96%, transparent);
-      color: var(--lc-void);
-      box-shadow: 0 8px 32px rgb(14 12 14 / 12%);
+      border: 1px solid ${TOAST_TEXT};
+      background: ${TOAST_BG};
+      color: ${TOAST_TEXT};
+      box-shadow: 0 8px 32px rgb(14 12 14 / 16%);
       pointer-events: none;
     }
     .lc-toast--top {
@@ -43,14 +45,15 @@ import { ToastService } from '../../../core/feedback/toast.service';
       bottom: auto;
     }
     .lc-toast--success {
-      border-color: color-mix(in srgb, var(--lc-void) 28%, transparent);
+      border-color: ${TOAST_TEXT};
     }
     .lc-toast--error {
-      border-color: color-mix(in srgb, #8b2e2e 45%, transparent);
-      background: color-mix(in srgb, #fff5f5 92%, var(--lc-white));
+      border-color: ${TOAST_ERROR_TEXT};
+      background: ${TOAST_ERROR_BG};
+      color: ${TOAST_ERROR_TEXT};
     }
     .lc-toast--info {
-      border-color: color-mix(in srgb, var(--lc-ash) 55%, transparent);
+      border-color: ${TOAST_TEXT};
     }
   `,
 })

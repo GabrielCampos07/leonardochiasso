@@ -275,10 +275,17 @@
     </fieldset>
 
     <div class="admin-edit__footer">
-      <button type="submit" class="admin-edit__save" [disabled]="saving()">
+      <button
+        type="submit"
+        class="admin-edit__save"
+        [disabled]="saving()"
+        [attr.aria-busy]="saving()"
+      >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>
-      <button type="button" class="admin-edit__cancel" (click)="cancel()">Cancelar</button>
+      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving()">
+        Cancelar
+      </button>
       @if (!isNew() && showSiteLink()) {
         <a class="admin-edit__site" [routerLink]="sitePath()" target="_blank" rel="noopener">
           Ver no site

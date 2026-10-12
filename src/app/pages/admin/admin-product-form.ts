@@ -66,6 +66,7 @@ export class AdminProductForm implements OnInit {
 
   readonly saved = output<Product>();
   readonly cancelled = output<void>();
+  readonly savingChange = output<boolean>();
 
   readonly collectionOptions = (
     Object.entries(COLLECTION_LABELS) as [CollectionSlug, Collection][]
@@ -338,6 +339,7 @@ export class AdminProductForm implements OnInit {
   }
 
   save(): void {
+    if (this.saving()) return;
     const p = this.draft();
     if (!p) return;
     if (!p.name.trim()) {
@@ -386,10 +388,10 @@ export class AdminProductForm implements OnInit {
       ...syncPriceFields(p.price),
     };
 
-    this.saving.set(true);
+    this.setSaving(true);
     this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
       next: (saved) => {
-        this.saving.set(false);
+        this.setSaving(false);
         if (!this.useApi) this.catalog.refreshLocalCatalog();
         if (this.isNew()) this.slugLocked = true;
         this.loadDraft(structuredClone(saved));
@@ -400,14 +402,20 @@ export class AdminProductForm implements OnInit {
         this.saved.emit(saved);
       },
       error: (err) => {
-        this.saving.set(false);
+        this.setSaving(false);
         this.toast.error(adminHttpErrorMessage(err));
       },
     });
   }
 
   cancel(): void {
+    if (this.saving()) return;
     this.cancelled.emit();
+  }
+
+  private setSaving(value: boolean): void {
+    this.saving.set(value);
+    this.savingChange.emit(value);
   }
 
   /** After create, stay at the top so the toast does not sit over the form. */

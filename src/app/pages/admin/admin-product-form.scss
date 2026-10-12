@@ -262,6 +262,12 @@
   opacity: 0.88;
 }
 
+.admin-edit__save:disabled,
+.admin-edit__cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .admin-edit__cancel {
   border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
   background: var(--lc-white);

@@ -49,6 +49,7 @@ export class ProductEditModal implements OnInit, AfterViewInit, OnDestroy {
   readonly product = signal<Product | null>(null);
   readonly missing = signal(false);
   readonly loading = signal(true);
+  readonly saving = signal(false);
 
   get title(): string {
     return productEditModalTitle(this.product()?.name ?? this.data.product?.name, this.data.isNew);
@@ -97,7 +98,12 @@ export class ProductEditModal implements OnInit, AfterViewInit, OnDestroy {
     this.ref.close(saved);
   }
 
+  onSaving(value: boolean): void {
+    this.saving.set(value);
+  }
+
   close(): void {
+    if (this.saving()) return;
     this.ref.close(undefined);
   }
 }
