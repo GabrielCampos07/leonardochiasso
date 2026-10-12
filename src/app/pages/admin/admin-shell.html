@@ -2,11 +2,11 @@
   <div class="admin-staging-banner" role="status">{{ stagingBanner }}</div>
 }
 <header class="admin-bar">
-  <div class="admin-bar__brand">
-    <strong>Leo Chiasso</strong>
-    <span>Área do ateliê · produtos</span>
-  </div>
-  <nav class="admin-bar__nav">
+  <div class="admin-bar__top">
+    <div class="admin-bar__brand">
+      <strong>Leo Chiasso</strong>
+      <span>Área do ateliê · produtos</span>
+    </div>
     @if (loggedIn()) {
       <div
         class="admin-view-toggle"
@@ -39,13 +39,19 @@
           3D
         </button>
       </div>
-      <a [routerLink]="products">Produtos</a>
-      <a [routerLink]="collections">Coleções</a>
-      <a [routerLink]="joias">Joias</a>
-      <a [routerLink]="home">Abrir o site</a>
-      <button type="button" class="admin-bar__out" (click)="logout()">Sair</button>
     }
-  </nav>
+  </div>
+  @if (loggedIn()) {
+    <div class="admin-bar__nav-wrap">
+      <nav class="admin-bar__nav">
+        <a [routerLink]="products">Produtos</a>
+        <a [routerLink]="collections">Coleções</a>
+        <a [routerLink]="joias">Joias</a>
+        <a [routerLink]="home">Abrir o site</a>
+        <button type="button" class="admin-bar__out" (click)="logout()">Sair</button>
+      </nav>
+    </div>
+  }
 </header>
 <main class="admin-main" [class.admin-main--scene]="sceneHost">
   <router-outlet />

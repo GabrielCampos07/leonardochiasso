@@ -1,5 +1,6 @@
 import {
   AmbientLight,
+  Box3,
   Color,
   DirectionalLight,
   Group,
@@ -11,6 +12,7 @@ import {
   Raycaster,
   Scene,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -20,6 +22,7 @@ import { applyHangerData, HANGER_USER_DATA } from './garment-hanger';
 import { loadTextureSafe, makeFallbackTexture } from './texture-loader';
 import { replaceHanger } from './mapping';
 import type { SceneHanger, SceneLayout } from './types';
+import { isWebGLAvailable, tryCreate } from './webgl-support';
 
 export type HangerPickHandler = (slug: string) => void;
 export type HangerHoverHandler = (slug: string | null) => void;
@@ -28,9 +31,13 @@ export interface SceneEngineOptions {
   reducedMotion?: boolean;
 }
 
+const FIT_MARGIN = 1.32;
+const DRAG_SLOP_SQ = 36;
+
 /**
  * Framework-agnostic WebGL scene: renderer, orbit camera, lights,
- * click/hover raycast, texture load + CORS fallback, resize, full dispose.
+ * click/hover *raycast* (no readPixels), texture load + CORS fallback,
+ * fit-to-bbox camera, render-on-demand, resize, full dispose.
  */
 export class SceneEngine {
   private readonly scene = new Scene();
@@ -42,8 +49,17 @@ export class SceneEngine {
   private readonly racksRoot = new Group();
   private readonly reducedMotion: boolean;
   private readonly canvas: HTMLCanvasElement;
+  private readonly fitSize = new Vector3();
+  private readonly fitCenter = new Vector3();
+  private readonly bounds = new Box3();
 
   private raf = 0;
+  private renderQueued = false;
+  private hoverQueued = false;
+  private pendingHover: PointerEvent | null = null;
+  private pointerDown = { x: 0, y: 0 };
+  private interacting = false;
+  private dampingFrames = 0;
   private disposed = false;
   private hoverSlug: string | null = null;
   private layout: SceneLayout = { racks: [] };
@@ -51,9 +67,38 @@ export class SceneEngine {
   private onHoverCb: HangerHoverHandler | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  private readonly onPointerMove = (event: PointerEvent) => this.handlePointer(event, false);
-  private readonly onPointerUp = (event: PointerEvent) => this.handlePointer(event, true);
+  private readonly onPointerDown = (event: PointerEvent) => {
+    this.pointerDown = { x: event.clientX, y: event.clientY };
+  };
+  private readonly onPointerMove = (event: PointerEvent) => {
+    this.pendingHover = event;
+    if (this.hoverQueued) return;
+    this.hoverQueued = true;
+    requestAnimationFrame(() => {
+      this.hoverQueued = false;
+      if (this.disposed || !this.pendingHover) return;
+      this.handlePointer(this.pendingHover, false);
+      this.pendingHover = null;
+    });
+  };
+  private readonly onPointerUp = (event: PointerEvent) => {
+    const dx = event.clientX - this.pointerDown.x;
+    const dy = event.clientY - this.pointerDown.y;
+    if (dx * dx + dy * dy > DRAG_SLOP_SQ) return;
+    this.handlePointer(event, true);
+  };
   private readonly onPointerLeave = () => this.setHover(null);
+  private readonly onControlsStart = () => {
+    this.interacting = true;
+    this.dampingFrames = this.reducedMotion ? 0 : 24;
+    this.requestRender();
+  };
+  private readonly onControlsEnd = () => {
+    this.interacting = false;
+    this.dampingFrames = this.reducedMotion ? 0 : 24;
+    this.requestRender();
+  };
+  private readonly onControlsChange = () => this.requestRender();
 
   constructor(canvas: HTMLCanvasElement, options: SceneEngineOptions = {}) {
     this.canvas = canvas;
@@ -71,10 +116,13 @@ export class SceneEngine {
     this.controls.enableDamping = !this.reducedMotion;
     this.controls.dampingFactor = 0.08;
     this.controls.enablePan = true;
-    this.controls.minDistance = 2.4;
-    this.controls.maxDistance = 16;
-    this.controls.maxPolarAngle = Math.PI * 0.48;
+    this.controls.minDistance = 2.2;
+    this.controls.maxDistance = 28;
+    this.controls.maxPolarAngle = Math.PI * 0.49;
     this.controls.target.set(0, 0.5, 0);
+    this.controls.addEventListener('start', this.onControlsStart);
+    this.controls.addEventListener('end', this.onControlsEnd);
+    this.controls.addEventListener('change', this.onControlsChange);
     this.controls.update();
 
     this.scene.add(new AmbientLight(0xffffff, 0.55));
@@ -99,6 +147,7 @@ export class SceneEngine {
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
 
+    canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
     canvas.addEventListener('pointerleave', this.onPointerLeave);
@@ -117,14 +166,7 @@ export class SceneEngine {
   }
 
   start(): void {
-    if (this.disposed) return;
-    const tick = () => {
-      if (this.disposed) return;
-      this.raf = requestAnimationFrame(tick);
-      if (!this.reducedMotion) this.controls.update();
-      this.renderer.render(this.scene, this.camera);
-    };
-    this.raf = requestAnimationFrame(tick);
+    this.requestRender();
   }
 
   setLayout(layout: SceneLayout): void {
@@ -144,14 +186,12 @@ export class SceneEngine {
       this.racksRoot.add(group);
       cursor += width + gap;
       for (const hanger of rack.hangers) {
-        void this.loadHangerTexture(hanger.slug, hanger.imageUrl);
+        void this.loadHangerTexture(hanger.slug, hanger.imageUrl, hanger.name);
       }
     }
 
-    const total = Math.max(cursor - gap, 2);
-    this.controls.target.set(total / 2, 0.45, 0);
-    this.camera.position.set(total / 2, this.reducedMotion ? 1.6 : 1.45, Math.max(5.4, total * 0.42 + 4.2));
-    this.controls.update();
+    this.fitCameraToRacks();
+    this.requestRender();
   }
 
   updateHanger(next: SceneHanger): void {
@@ -161,11 +201,12 @@ export class SceneEngine {
     const prev = group.userData['data'] as SceneHanger | undefined;
     applyHangerData(group, next);
     if (prev?.imageUrl !== next.imageUrl) {
-      void this.loadHangerTexture(next.slug, next.imageUrl);
+      void this.loadHangerTexture(next.slug, next.imageUrl, next.name);
     }
     if (prev && prev.rackId !== next.rackId) {
       this.moveHanger(group, next);
     }
+    this.requestRender();
   }
 
   resize(): void {
@@ -176,6 +217,8 @@ export class SceneEngine {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    if (this.racksRoot.children.length) this.fitCameraToRacks();
+    this.requestRender();
   }
 
   dispose(): void {
@@ -184,14 +227,58 @@ export class SceneEngine {
     cancelAnimationFrame(this.raf);
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown);
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
+    this.controls.removeEventListener('start', this.onControlsStart);
+    this.controls.removeEventListener('end', this.onControlsEnd);
+    this.controls.removeEventListener('change', this.onControlsChange);
     this.controls.dispose();
     disposeObject3D(this.scene);
     disposeRenderer(this.renderer);
     this.onClickCb = null;
     this.onHoverCb = null;
+  }
+
+  private fitCameraToRacks(): void {
+    this.bounds.makeEmpty();
+    this.bounds.expandByObject(this.racksRoot);
+    if (this.bounds.isEmpty()) return;
+
+    this.bounds.getSize(this.fitSize);
+    this.bounds.getCenter(this.fitCenter);
+    const pad = Math.max(this.fitSize.x, this.fitSize.y, 1) * 0.14 + 0.45;
+    this.bounds.expandByScalar(pad);
+    this.bounds.getSize(this.fitSize);
+    this.bounds.getCenter(this.fitCenter);
+
+    const fov = this.camera.fov * (Math.PI / 180);
+    const fitH = this.fitSize.y / (2 * Math.tan(fov / 2));
+    const fitW = this.fitSize.x / (2 * Math.tan(fov / 2) * Math.max(this.camera.aspect, 0.2));
+    const dist = Math.max(fitH, fitW, this.controls.minDistance + 0.4) * FIT_MARGIN;
+
+    this.controls.target.copy(this.fitCenter);
+    this.camera.position.set(this.fitCenter.x, this.fitCenter.y + this.fitSize.y * 0.06, this.fitCenter.z + dist);
+    this.camera.near = Math.max(0.05, dist / 80);
+    this.camera.far = Math.max(80, dist * 10);
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  private requestRender(): void {
+    if (this.renderQueued || this.disposed) return;
+    this.renderQueued = true;
+    this.raf = requestAnimationFrame(() => {
+      this.renderQueued = false;
+      if (this.disposed) return;
+      if (!this.reducedMotion) this.controls.update();
+      this.renderer.render(this.scene, this.camera);
+      if (!this.reducedMotion && (this.interacting || this.dampingFrames > 0)) {
+        if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
+        this.requestRender();
+      }
+    });
   }
 
   private moveHanger(group: Group, next: SceneHanger): void {
@@ -210,15 +297,25 @@ export class SceneEngine {
     return (this.racksRoot.getObjectByName(`hanger:${slug}`) as Group | undefined) ?? null;
   }
 
-  private async loadHangerTexture(slug: string, url: string | null): Promise<void> {
+  private hangerName(slug: string): string {
+    for (const rack of this.layout.racks) {
+      const found = rack.hangers.find((h) => h.slug === slug);
+      if (found) return found.name;
+    }
+    return '';
+  }
+
+  private async loadHangerTexture(slug: string, url: string | null, name?: string): Promise<void> {
+    const label = name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
     if (!garment || !(garment.material instanceof MeshStandardMaterial)) return;
     const previous = garment.material.map;
     if (!url) {
-      garment.material.map = makeFallbackTexture();
+      garment.material.map = makeFallbackTexture('#c8c2b8', label);
       garment.material.needsUpdate = true;
       if (previous && previous !== garment.material.map) previous.dispose();
+      this.requestRender();
       return;
     }
     const texture = await loadTextureSafe(url);
@@ -231,9 +328,10 @@ export class SceneEngine {
       texture?.dispose();
       return;
     }
-    still.material.map = texture ?? makeFallbackTexture();
+    still.material.map = texture ?? makeFallbackTexture('#c8c2b8', label);
     still.material.needsUpdate = true;
     if (previous && previous !== still.material.map) previous.dispose();
+    this.requestRender();
   }
 
   private handlePointer(event: PointerEvent, isClick: boolean): void {
@@ -260,6 +358,7 @@ export class SceneEngine {
     this.hoverSlug = slug;
     if (slug) this.tintHanger(slug, true);
     this.onHoverCb?.(slug);
+    this.requestRender();
   }
 
   private tintHanger(slug: string, on: boolean): void {
@@ -269,4 +368,12 @@ export class SceneEngine {
     garment.material.emissive.setHex(on ? 0x2a241c : 0x000000);
     garment.material.emissiveIntensity = on ? 0.18 : 0;
   }
+}
+
+export function createSceneEngine(
+  canvas: HTMLCanvasElement,
+  options: SceneEngineOptions = {},
+): SceneEngine | null {
+  if (!isWebGLAvailable()) return null;
+  return tryCreate(() => new SceneEngine(canvas, options));
 }

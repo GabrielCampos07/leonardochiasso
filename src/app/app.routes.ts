@@ -3,6 +3,7 @@ import { Router, Routes } from '@angular/router';
 import { PATH } from './core/routes';
 import { customerAuthGuard } from './core/customer-auth.guard';
 import { adminAuthGuard } from './core/admin-auth.guard';
+import { adminProductsViewGuard } from './core/admin-products-view.guard';
 import { LcShell } from './layout/shell';
 
 function redirectGenderHome(categoria: 'feminino' | 'masculino') {
@@ -208,7 +209,7 @@ export const routes: Routes = [
       },
       {
         path: 'produtos',
-        canActivate: [adminAuthGuard],
+        canActivate: [adminAuthGuard, adminProductsViewGuard],
         loadComponent: () =>
           import('./pages/admin/admin-products').then((m) => m.AdminProductsPage),
       },

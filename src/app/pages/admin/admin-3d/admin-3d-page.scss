@@ -12,6 +12,15 @@
   overflow: hidden;
 }
 
+.admin-3d:focus {
+  outline: none;
+}
+
+.admin-3d:focus-visible {
+  outline: 2px solid var(--lc-void);
+  outline-offset: -2px;
+}
+
 .admin-3d__canvas {
   display: block;
   width: 100%;
@@ -23,21 +32,47 @@
 .admin-3d__chrome {
   pointer-events: none;
   position: absolute;
-  inset: auto 16px 16px 16px;
+  top: 12px;
+  right: 12px;
+  left: auto;
+  bottom: auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
+  flex-direction: column;
   align-items: flex-end;
+  gap: 8px;
+  max-width: min(280px, calc(100% - 24px));
 }
 
 .admin-3d__hint,
 .admin-3d__badge,
 .admin-3d__hover {
   margin: 0;
-  padding: 8px 12px;
-  background: rgb(255 255 255 / 86%);
+  padding: 6px 10px;
+  background: rgb(255 255 255 / 92%);
   color: var(--lc-void);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.admin-3d__hint {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-3d__hint-dismiss {
+  min-height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .admin-3d__badge {
@@ -64,6 +99,16 @@
   line-height: 1.45;
 }
 
+.admin-3d__panel p:last-child {
+  margin-bottom: 0;
+}
+
+.admin-3d__panel strong {
+  font-family: var(--lc-font-display);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
 .admin-3d__actions {
   display: flex;
   flex-wrap: wrap;
@@ -84,6 +129,18 @@
 .admin-3d__actions button:first-child {
   background: var(--lc-void);
   color: var(--lc-white);
+}
+
+@media (max-width: 768px) {
+  .admin-3d {
+    min-height: min(64vh, 640px);
+  }
+
+  .admin-3d__chrome {
+    top: 8px;
+    right: 8px;
+    max-width: min(240px, calc(100% - 16px));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

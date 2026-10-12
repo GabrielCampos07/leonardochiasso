@@ -1,19 +1,40 @@
-<section class="admin-3d" [class.admin-3d--reduced]="reducedMotion">
-  <canvas #canvas class="admin-3d__canvas" aria-label="Ateliê 3D de produtos"></canvas>
+<section
+  #sceneHost
+  class="admin-3d"
+  [class.admin-3d--reduced]="reducedMotion"
+  tabindex="0"
+  aria-label="Ateliê 3D de produtos"
+>
+  @if (!webglUnavailable()) {
+    <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
+  }
 
-  <div class="admin-3d__chrome">
-    <p class="admin-3d__hint">
-      Clique num cabide para editar · arraste para orbitar · scroll para aproximar
-    </p>
-    @if (usingMock()) {
-      <p class="admin-3d__badge" role="status">Dados de exemplo</p>
-    }
-    @if (hoverName()) {
-      <p class="admin-3d__hover" role="status">{{ hoverName() }}</p>
-    }
-  </div>
+  @if (!webglUnavailable()) {
+    <div class="admin-3d__chrome">
+      @if (showHint()) {
+        <p class="admin-3d__hint">
+          <span>Clique · arraste · scroll</span>
+          <button type="button" class="admin-3d__hint-dismiss" (click)="dismissHint()">Fechar</button>
+        </p>
+      }
+      @if (usingMock()) {
+        <p class="admin-3d__badge" role="status">Dados de exemplo</p>
+      }
+      @if (hoverName()) {
+        <p class="admin-3d__hover" role="status">{{ hoverName() }}</p>
+      }
+    </div>
+  }
 
-  @if (loading()) {
+  @if (webglUnavailable()) {
+    <div class="admin-3d__panel" role="status">
+      <p><strong>{{ webglTitle }}</strong></p>
+      <p>{{ webglHint }}</p>
+      <div class="admin-3d__actions">
+        <button type="button" (click)="backToList()">{{ webglAction }}</button>
+      </div>
+    </div>
+  } @else if (loading()) {
     <div class="admin-3d__panel" role="status">
       <p>Montando o ateliê…</p>
     </div>

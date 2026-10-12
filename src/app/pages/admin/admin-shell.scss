@@ -47,6 +47,15 @@
   background: var(--lc-white);
 }
 
+.admin-bar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lc-space-16);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 :host.admin-shell--banner .admin-bar {
   flex: 0 0 auto;
   padding-top: var(--lc-space-24);
@@ -81,6 +90,12 @@
   text-transform: none;
 }
 
+.admin-bar__nav-wrap {
+  position: relative;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
 .admin-bar__nav {
   display: flex;
   flex-wrap: wrap;
@@ -110,12 +125,14 @@
 }
 
 .admin-bar__out {
-  color: var(--lc-ash);
+  color: var(--lc-void);
+  font-weight: 500;
 }
 
 .admin-view-toggle {
   display: inline-flex;
   align-items: stretch;
+  flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--lc-void) 22%, transparent);
 }
 
@@ -170,6 +187,48 @@
   min-height: 0;
 }
 
+@media (max-width: 960px) {
+  .admin-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--lc-space-8);
+  }
+
+  .admin-bar__top {
+    width: 100%;
+  }
+
+  .admin-bar__nav-wrap {
+    width: 100%;
+  }
+
+  .admin-bar__nav-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 32px;
+    pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--lc-white));
+  }
+
+  .admin-bar__nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    gap: var(--lc-space-8) var(--lc-space-16);
+    padding-right: 28px;
+  }
+
+  .admin-bar__nav a,
+  .admin-bar__out {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
+
 @media (max-width: 768px) {
   .admin-staging-banner {
     font-size: 0.7rem;
@@ -178,9 +237,6 @@
   }
 
   .admin-bar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--lc-space-8);
     padding: var(--lc-space-16);
     padding-top: max(var(--lc-space-16), env(safe-area-inset-top));
     padding-left: max(var(--lc-space-16), env(safe-area-inset-left));
@@ -197,26 +253,9 @@
     display: none;
   }
 
-  .admin-bar__nav {
-    width: 100%;
-    justify-content: space-between;
-    gap: var(--lc-space-8);
-  }
-
-  .admin-bar__nav a,
-  .admin-bar__out {
-    flex: 1 1 auto;
-    min-height: 48px;
-    font-size: 1.1rem;
-  }
-
-  .admin-view-toggle {
-    flex: 1 1 100%;
-    width: 100%;
-  }
-
   .admin-view-toggle__btn {
-    flex: 1;
+    min-width: 64px;
+    padding: 0 12px;
   }
 
   .admin-main {

@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
+import { adminLoginDestination } from '../../core/admin-return-url';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { ROUTES } from '../../core/routes';
 
@@ -14,6 +15,7 @@ import { ROUTES } from '../../core/routes';
 export class AdminLoginPage {
   private readonly session = inject(AdminSessionService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   email = 'admin@leonardochiasso.com';
   password = '';
@@ -25,12 +27,12 @@ export class AdminLoginPage {
       return;
     }
     if (this.session.isLoggedIn()) {
-      void this.router.navigateByUrl(ROUTES.adminProducts);
+      void this.router.navigateByUrl(this.destination());
       return;
     }
     // Cookie may still be valid — check once on /admin only (not on public pages).
     this.session.ensureSession().subscribe((ok) => {
-      if (ok) void this.router.navigateByUrl(ROUTES.adminProducts);
+      if (ok) void this.router.navigateByUrl(this.destination());
     });
   }
 
@@ -42,7 +44,7 @@ export class AdminLoginPage {
           this.error.set('Credenciais incorretas.');
           return;
         }
-        void this.router.navigateByUrl(ROUTES.adminProducts);
+        void this.router.navigateByUrl(this.destination());
       },
       error: (err: unknown) => {
         const http = err as { status?: number; error?: { message?: string | string[] } };
@@ -60,5 +62,9 @@ export class AdminLoginPage {
         );
       },
     });
+  }
+
+  private destination(): string {
+    return adminLoginDestination(this.route.snapshot.queryParamMap.get('returnUrl'));
   }
 }
