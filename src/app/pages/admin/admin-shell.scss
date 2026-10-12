@@ -270,12 +270,10 @@
   }
 
   .admin-bar__nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    gap: var(--lc-space-8) var(--lc-space-16);
-    padding-right: 8px;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: var(--lc-space-4) var(--lc-space-16);
+    padding-right: 0;
   }
 
   .admin-bar__nav a,

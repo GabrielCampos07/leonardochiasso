@@ -18,11 +18,13 @@ import { focusEditModal, listenDialogEscape } from './dialog-escape';
 export interface ProductEditModalData {
   slug: string;
   product?: Product;
+  isNew?: boolean;
 }
 
 export const PRODUCT_EDIT_MODAL_TITLE_ID = 'product-edit-modal-title';
 
-export function productEditModalTitle(name: string | null | undefined): string {
+export function productEditModalTitle(name: string | null | undefined, isNew = false): string {
+  if (isNew) return 'Adicionar produto';
   const trimmed = name?.trim();
   return trimmed ? `Editar produto · ${trimmed}` : 'Editar produto';
 }
@@ -49,14 +51,19 @@ export class ProductEditModal implements OnInit, AfterViewInit, OnDestroy {
   readonly loading = signal(true);
 
   get title(): string {
-    return productEditModalTitle(this.product()?.name ?? this.data.product?.name);
+    return productEditModalTitle(this.product()?.name ?? this.data.product?.name, this.data.isNew);
+  }
+
+  get creating(): boolean {
+    return Boolean(this.data.isNew);
   }
 
   ngOnInit(): void {
     this.detachEscape = listenDialogEscape(() => this.close());
-    if (this.data.product) {
+    if (this.data.isNew || this.data.product) {
       this.loading.set(false);
-      this.product.set(structuredClone(this.data.product));
+      this.product.set(structuredClone(this.data.product ?? null));
+      if (!this.product()) this.missing.set(true);
       return;
     }
     this.adminCatalog.get$(this.data.slug).subscribe({
