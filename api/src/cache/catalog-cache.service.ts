@@ -19,8 +19,18 @@ interface Entry<T> {
 @Injectable()
 export class CatalogCacheService {
   private readonly store = new Map<string, Entry<unknown>>();
+  /**
+   * TTL fixo (não é parâmetro de construtor): um primitivo injetável no
+   * construtor quebra a DI do Nest e derruba o boot da API. `withTtl` existe
+   * só para testes.
+   */
+  private ttlMs = CATALOG_CACHE_TTL_MS;
 
-  constructor(private readonly ttlMs: number = CATALOG_CACHE_TTL_MS) {}
+  /** Apenas para testes: ajusta o TTL e devolve a própria instância. */
+  withTtl(ttlMs: number): this {
+    this.ttlMs = ttlMs;
+    return this;
+  }
 
   /** Retorna o valor em cache (se válido) ou executa `factory`, guarda e retorna. */
   async getOrSet<T>(
