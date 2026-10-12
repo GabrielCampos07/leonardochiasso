@@ -95,7 +95,7 @@ export class AdminProductsPage implements OnInit {
     this.adminCatalog.archiveViaApi(slug).subscribe({
       next: () => {
         this.refresh();
-        showArchiveUndo(this.toast, () => this.restore(slug, false));
+        showArchiveUndo(this.toast, () => this.restore(slug));
       },
       error: (err) => {
         this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
