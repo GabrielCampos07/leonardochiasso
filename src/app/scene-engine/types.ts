@@ -1,5 +1,10 @@
 /** Framework-agnostic scene graph inputs. No three.js imports here. */
 
+import type { LooseMedia, LooseProductPhotos } from './photo-url';
+
+export type { LooseMedia, LooseProductPhotos } from './photo-url';
+export { mediaItemUrl, mergeProductPhotos, primaryImageUrl } from './photo-url';
+
 export const UNCOLLECTED_RACK_ID = '__none__';
 export const UNCOLLECTED_RACK_NAME = 'Sem coleção';
 
@@ -9,12 +14,9 @@ export interface SceneCollectionInput {
   sortOrder: number;
 }
 
-export interface SceneMediaInput {
-  cdnUrl: string;
-  sortOrder?: number;
-}
+export type SceneMediaInput = LooseMedia;
 
-export interface SceneProductInput {
+export interface SceneProductInput extends LooseProductPhotos {
   slug: string;
   name: string;
   /** Primary collection slug when the API already resolved one. */
@@ -23,9 +25,6 @@ export interface SceneProductInput {
   collectionSlugs?: string[] | null;
   status?: string | null;
   stockQty?: number | null;
-  media?: SceneMediaInput[] | null;
-  thumb?: string | null;
-  gallery?: string[] | null;
 }
 
 export interface SceneHanger {
@@ -47,16 +46,6 @@ export interface SceneRack {
 
 export interface SceneLayout {
   racks: SceneRack[];
-}
-
-export function primaryImageUrl(product: SceneProductInput): string | null {
-  const media = [...(product.media ?? [])].sort(
-    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-  );
-  const fromMedia = media.find((m) => m.cdnUrl)?.cdnUrl;
-  if (fromMedia) return fromMedia;
-  if (product.thumb) return product.thumb;
-  return product.gallery?.find(Boolean) ?? null;
 }
 
 export function stockBadgeColor(stockQty: number): string {

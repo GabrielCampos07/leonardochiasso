@@ -79,7 +79,7 @@ export function makeBadgeTexture(qty: number, fill: string): CanvasTexture {
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.font = '700 56px "Quicksand", "Helvetica Neue", sans-serif';
+    ctx.font = '700 64px "Quicksand", "Helvetica Neue", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(Math.min(qty, 99)), 64, 68);

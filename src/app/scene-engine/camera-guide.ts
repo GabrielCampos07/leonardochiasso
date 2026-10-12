@@ -23,6 +23,13 @@ export interface RackNavItem {
 
 export const OVERVIEW_FOCUS_ID = 'all';
 export const CAMERA_TWEEN_MS = 720;
+/** Keep the lens above the wood floor (`collection-rack` FLOOR_Y = -0.7). */
+export const CAMERA_MIN_Y = -0.45;
+/** Header hint / chrome as a fraction of the viewport height. */
+export const FIT_PAD_TOP = 0.12;
+/** Guide bar as a fraction of the viewport height. */
+export const FIT_PAD_BOTTOM = 0.18;
+export const FIT_PAD_SIDE = 0.08;
 
 export function easeInOutCubic(t: number): number {
   const x = Math.min(1, Math.max(0, t));
@@ -44,7 +51,10 @@ export function formatStockLabel(qty: number): string {
   return `${qty} unidades`;
 }
 
-/** Eye-level fit: hangers fill the frame. Overview is pulled back, still not a ceiling shot. */
+/**
+ * Fit the full rack (or atelier) bounding box, leaving room for the header and
+ * the bottom guide. Distance is no longer capped at 4.6 — 2–3 row racks must fit.
+ */
 export function computeEyeLevelFit(
   box: FitBox,
   aspect: number,
@@ -58,16 +68,18 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const targetY = mode === 'rack' ? box.minY + height * 0.42 : cy;
+  const visibleH = Math.max(0.35, 1 - FIT_PAD_TOP - FIT_PAD_BOTTOM);
+  const visibleW = Math.max(0.4, 1 - FIT_PAD_SIDE * 2);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'rack' ? 1.06 : 1.22;
-  const fitH = height / (2 * Math.tan(fov / 2));
-  const fitW = width / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2));
-  let distance = Math.max(fitH, fitW, 1.8) * fill + depth * 0.35;
-  if (mode === 'rack') distance = Math.min(Math.max(distance, 2.05), 4.6);
-  else distance = Math.min(Math.max(distance, 4.2), 14);
+  const fill = mode === 'rack' ? 1.12 : 1.28;
+  const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
+  const fitW = width / (2 * Math.tan(fov / 2) * Math.max(aspect, 0.2) * visibleW);
+  let distance = Math.max(fitH, fitW, 2.05) * fill + depth * 0.4;
+  if (mode === 'rack') distance = Math.min(Math.max(distance, 2.2), 12);
+  else distance = Math.min(Math.max(distance, 5.2), 28);
 
-  const eyeY = mode === 'rack' ? targetY + 0.16 : cy + height * 0.08;
+  const targetY = cy;
+  const eyeY = Math.max(CAMERA_MIN_Y, targetY + (mode === 'rack' ? 0.06 : height * 0.03));
   return {
     position: { x: cx, y: eyeY, z: cz + distance },
     target: { x: cx, y: targetY, z: cz },

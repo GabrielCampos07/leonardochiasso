@@ -98,7 +98,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
   group.add(garment);
 
   const badge = new Mesh(
-    new PlaneGeometry(0.08, 0.08),
+    new PlaneGeometry(0.11, 0.11),
     new MeshStandardMaterial({
       map: makeBadgeTexture(data.stockQty, stockBadgeColor(data.stockQty)),
       transparent: true,

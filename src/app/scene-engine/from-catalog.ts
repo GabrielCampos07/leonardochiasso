@@ -13,6 +13,7 @@ export function productToSceneInput(product: Product): SceneProductInput {
     media: product.media,
     thumb: product.thumb,
     gallery: product.gallery,
+    imageUrl: product.thumb || null,
   };
 }
 
@@ -27,5 +28,6 @@ export function apiProductToSceneInput(dto: ApiProductDto): SceneProductInput {
     media: dto.media,
     thumb: dto.thumb,
     gallery: dto.gallery,
+    imageUrl: dto.thumb || null,
   };
 }
