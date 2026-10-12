@@ -8,8 +8,17 @@
   position: relative;
   height: 100%;
   min-height: min(72vh, 720px);
-  background: #f4f1ea;
+  background: #efe8dc;
   overflow: hidden;
+}
+
+.admin-3d:focus {
+  outline: none;
+}
+
+.admin-3d:focus-visible {
+  outline: 2px solid var(--lc-void);
+  outline-offset: -2px;
 }
 
 .admin-3d__canvas {
@@ -20,14 +29,75 @@
   touch-action: none;
 }
 
+.admin-3d__guide {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 10%, transparent);
+}
+
+.admin-3d__racks {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.admin-3d__arrow,
+.admin-3d__rack {
+  flex: 0 0 auto;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 18%, transparent);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-3d__rack.is-on,
+.admin-3d__arrow:not(:disabled):hover,
+.admin-3d__rack:hover {
+  background: var(--lc-void);
+  color: var(--lc-white);
+  border-color: var(--lc-void);
+}
+
+.admin-3d__rack--all {
+  margin-left: 4px;
+  border-style: dashed;
+}
+
+.admin-3d__arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
 .admin-3d__chrome {
   pointer-events: none;
   position: absolute;
-  inset: auto 16px 16px 16px;
+  top: 12px;
+  right: 12px;
+  left: auto;
+  bottom: auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
+  flex-direction: column;
   align-items: flex-end;
+  gap: 8px;
+  max-width: min(300px, calc(100% - 24px));
 }
 
 .admin-3d__hint,
@@ -35,9 +105,31 @@
 .admin-3d__hover {
   margin: 0;
   padding: 8px 12px;
-  background: rgb(255 255 255 / 86%);
+  background: rgb(255 255 255 / 92%);
   color: var(--lc-void);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+
+.admin-3d__hint {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-3d__hint-dismiss {
+  min-height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .admin-3d__badge {
@@ -45,6 +137,23 @@
   text-transform: uppercase;
   font-family: var(--lc-font-display);
   font-size: 0.72rem;
+}
+
+.admin-3d__hover {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-3d__hover strong {
+  font-family: var(--lc-font-display);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.admin-3d__hover span {
+  font-size: 0.8rem;
+  color: color-mix(in srgb, var(--lc-void) 72%, transparent);
 }
 
 .admin-3d__panel {
@@ -62,6 +171,16 @@
   margin: 0 0 16px;
   font-size: 1.05rem;
   line-height: 1.45;
+}
+
+.admin-3d__panel p:last-child {
+  margin-bottom: 0;
+}
+
+.admin-3d__panel strong {
+  font-family: var(--lc-font-display);
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .admin-3d__actions {
@@ -86,11 +205,30 @@
   color: var(--lc-white);
 }
 
+@media (max-width: 768px) {
+  .admin-3d {
+    min-height: min(64vh, 640px);
+  }
+
+  .admin-3d__chrome {
+    top: 8px;
+    right: 8px;
+    max-width: min(240px, calc(100% - 16px));
+  }
+
+  .admin-3d__guide {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .admin-3d__panel,
   .admin-3d__hint,
   .admin-3d__badge,
-  .admin-3d__hover {
+  .admin-3d__hover,
+  .admin-3d__rack {
     transition: none;
   }
 }

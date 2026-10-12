@@ -1,3 +1,5 @@
+import { adminProductsListRedirect } from './admin-return-url';
+import { ROUTES } from './routes';
 import {
   ADMIN_VIEW_MODE_KEY,
   AdminViewModeService,
@@ -60,5 +62,14 @@ describe('AdminViewModeService', () => {
     localStorage.setItem(ADMIN_VIEW_MODE_KEY, '3d');
     const service = new AdminViewModeService();
     expect(service.mode()).toBe('3d');
+  });
+
+  it('redirects /admin/produtos to /admin/3d when the stored mode is 3d', () => {
+    localStorage.setItem(ADMIN_VIEW_MODE_KEY, '3d');
+    const service = new AdminViewModeService();
+    expect(adminProductsListRedirect(service.mode())).toBe(ROUTES.admin3d);
+    service.setMode('list');
+    expect(localStorage.getItem(ADMIN_VIEW_MODE_KEY)).toBe('list');
+    expect(adminProductsListRedirect(service.mode())).toBeNull();
   });
 });

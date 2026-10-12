@@ -3,23 +3,38 @@ import {
   AfterViewInit,
   Component,
   ElementRef,
+  HostListener,
   OnDestroy,
   OnInit,
   ViewChild,
+  computed,
   inject,
   signal,
 } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
+import { AdminViewModeService } from '../../../core/admin-view-mode.service';
 import { mapApiProduct } from '../../../core/catalog.service';
 import { Product } from '../../../core/product.model';
+import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
+import {
+  OVERVIEW_FOCUS_ID,
+  formatStockLabel,
+  rackNavItems,
+  stepRackIndex,
+} from '../../../scene-engine/camera-guide';
 import { mapCatalogToScene, resolveProductRackId, toSceneHanger } from '../../../scene-engine/mapping';
 import { apiProductToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
-import { SceneEngine } from '../../../scene-engine/scene-engine';
+import { createSceneEngine, SceneEngine } from '../../../scene-engine/scene-engine';
 import type { SceneCollectionInput, SceneLayout, SceneProductInput } from '../../../scene-engine/types';
+import {
+  WEBGL_UNAVAILABLE_ACTION,
+  WEBGL_UNAVAILABLE_HINT,
+  WEBGL_UNAVAILABLE_TITLE,
+} from '../../../scene-engine/webgl-support';
 import {
   ADMIN_3D_MOCK_KEY,
   isAdmin3dMockEnabled,
@@ -32,9 +47,15 @@ import {
   admin3dFixtureSceneProducts,
   collectionsFromLabels,
 } from './admin-3d.fixtures';
-import { ProductEditModal, ProductEditModalData } from './product-edit-modal';
+import {
+  PRODUCT_EDIT_MODAL_TITLE_ID,
+  ProductEditModal,
+  ProductEditModalData,
+} from './product-edit-modal';
 
 export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
+
+const HINT_AUTO_HIDE_MS = 5000;
 
 export function prefersReducedMotion(): boolean {
   try {
@@ -51,20 +72,41 @@ export function prefersReducedMotion(): boolean {
   styleUrl: './admin-3d-page.scss',
 })
 export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
-  @ViewChild('canvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
+  @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
 
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly dialog = inject(Dialog);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly collectionsApi = inject(AdminCollectionsApiService);
+  private readonly viewMode = inject(AdminViewModeService);
 
   readonly loading = signal(true);
   readonly error = signal('');
   readonly empty = signal(false);
   readonly usingMock = signal(false);
   readonly allowMock = !environment.production;
-  readonly hoverName = signal<string | null>(null);
+  readonly hoverTip = signal<{ name: string; stock: string } | null>(null);
+  readonly showHint = signal(true);
+  readonly webglUnavailable = signal(false);
   readonly reducedMotion = prefersReducedMotion();
+  readonly webglTitle = WEBGL_UNAVAILABLE_TITLE;
+  readonly webglHint = WEBGL_UNAVAILABLE_HINT;
+  readonly webglAction = WEBGL_UNAVAILABLE_ACTION;
+  readonly focusedId = signal<string>(OVERVIEW_FOCUS_ID);
+  readonly overviewId = OVERVIEW_FOCUS_ID;
+  readonly racks = signal<{ id: string; name: string; index: number }[]>([]);
+  readonly atFirst = computed(() => {
+    const items = this.racks();
+    const id = this.focusedId();
+    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id;
+  });
+  readonly atLast = computed(() => {
+    const items = this.racks();
+    const id = this.focusedId();
+    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id;
+  });
 
   private engine: SceneEngine | null = null;
   private layout: SceneLayout = { racks: [] };
@@ -73,30 +115,84 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private canvasReady = false;
   private pendingLayout: SceneLayout | null = null;
   private loadGen = 0;
+  private hintTimer = 0;
 
   ngOnInit(): void {
     this.load();
   }
 
   ngAfterViewInit(): void {
-    const canvas = this.canvasRef.nativeElement;
-    this.engine = new SceneEngine(canvas, { reducedMotion: this.reducedMotion });
+    const canvas = this.canvasRef?.nativeElement;
+    if (!canvas) {
+      this.webglUnavailable.set(true);
+      this.loading.set(false);
+      return;
+    }
+    this.engine = createSceneEngine(canvas, { reducedMotion: this.reducedMotion });
+    if (!this.engine) {
+      this.webglUnavailable.set(true);
+      this.loading.set(false);
+      return;
+    }
     this.engine.onClick((slug) => this.openEditor(slug));
     this.engine.onHover((slug) => {
       const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
-      this.hoverName.set(hanger?.name ?? null);
+      this.hoverTip.set(hanger ? { name: hanger.name, stock: formatStockLabel(hanger.stockQty) } : null);
     });
+    this.engine.onFocusChange((id) => this.focusedId.set(id));
     this.engine.start();
     this.canvasReady = true;
     if (this.pendingLayout) {
       this.engine.setLayout(this.pendingLayout);
       this.pendingLayout = null;
     }
+    this.hintTimer = window.setTimeout(() => this.showHint.set(false), HINT_AUTO_HIDE_MS);
   }
 
   ngOnDestroy(): void {
+    if (this.hintTimer) window.clearTimeout(this.hintTimer);
     this.engine?.dispose();
     this.engine = null;
+  }
+
+  @HostListener('window:keydown', ['$event'])
+  onGuideKey(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    if (this.webglUnavailable() || this.loading() || this.empty() || this.error()) return;
+    const target = event.target as HTMLElement | null;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      return;
+    }
+    if (document.querySelector('.lc-product-edit-dialog')) return;
+    event.preventDefault();
+    this.stepRack(event.key === 'ArrowLeft' ? -1 : 1);
+  }
+
+  focusRack(id: string): void {
+    this.engine?.focusRack(id, this.reducedMotion);
+  }
+
+  focusOverview(): void {
+    this.engine?.focusOverview(this.reducedMotion);
+  }
+
+  stepRack(delta: -1 | 1): void {
+    const items = this.racks();
+    if (!items.length) return;
+    const current = items.findIndex((r) => r.id === this.focusedId());
+    const from = current < 0 ? (delta === 1 ? -1 : items.length) : current;
+    const next = items[stepRackIndex(from, delta, items.length)];
+    if (next) this.focusRack(next.id);
+  }
+
+  dismissHint(): void {
+    this.showHint.set(false);
+  }
+
+  backToList(): void {
+    const dest = leaveAdmin3dToList();
+    this.viewMode.setMode(dest.mode);
+    void this.router.navigateByUrl(dest.url);
   }
 
   retry(): void {
@@ -111,6 +207,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       /* ignore */
     }
     this.load();
+  }
+
+  focusScene(): void {
+    this.sceneHostRef?.nativeElement.focus({ preventScroll: true });
   }
 
   private load(): void {
@@ -181,6 +281,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.usingMock.set(mock);
     this.knownRackIds = new Set(collections.map((c) => c.slug));
     this.layout = mapCatalogToScene(collections, products);
+    this.racks.set(rackNavItems(this.layout.racks));
     const hangerCount = this.layout.racks.reduce((n, r) => n + r.hangers.length, 0);
     this.empty.set(hangerCount === 0);
     this.loading.set(false);
@@ -192,6 +293,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private openEditor(slug: string): void {
+    this.focusScene();
     const ref = this.dialog.open<Product | undefined, ProductEditModalData, ProductEditModal>(
       ProductEditModal,
       {
@@ -199,10 +301,13 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
         panelClass: 'lc-product-edit-dialog',
         backdropClass: 'lc-product-edit-backdrop',
         autoFocus: 'first-tabbable',
+        restoreFocus: false,
+        ariaLabelledBy: PRODUCT_EDIT_MODAL_TITLE_ID,
       },
     );
     ref.closed.subscribe((saved) => {
       if (saved) this.applySaved(saved);
+      queueMicrotask(() => this.focusScene());
     });
   }
 
@@ -216,12 +321,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     const rackId = resolveProductRackId(input, this.knownRackIds);
     const hanger = toSceneHanger(input, rackId);
     this.engine?.updateHanger(hanger);
-    const nextName = hanger.name;
-    if (this.hoverName() && this.hoverName() !== nextName) {
+    const tip = this.hoverTip();
+    if (tip && tip.name !== hanger.name) {
       const currentSlug = this.layout.racks
         .flatMap((r) => r.hangers)
-        .find((h) => h.name === this.hoverName())?.slug;
-      if (currentSlug === hanger.slug) this.hoverName.set(nextName);
+        .find((h) => h.name === tip.name)?.slug;
+      if (currentSlug === hanger.slug) {
+        this.hoverTip.set({ name: hanger.name, stock: formatStockLabel(hanger.stockQty) });
+      }
     }
   }
 }
