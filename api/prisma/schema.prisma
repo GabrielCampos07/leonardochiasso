@@ -35,11 +35,13 @@ model Collection {
   description String?
   sortOrder   Int       @default(0) @map("sort_order")
   publishedAt DateTime? @map("published_at")
+  archivedAt  DateTime? @map("archived_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   products ProductCollection[]
 
+  @@index([archivedAt])
   @@map("collections")
 }
 
@@ -74,6 +76,7 @@ model Product {
   imageBindings    Json          @default("[]") @map("image_bindings")
   artCouture       Boolean       @default(false) @map("art_couture")
   recommendOrder   Int           @default(9990) @map("recommend_order")
+  archivedAt       DateTime?     @map("archived_at")
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
@@ -84,6 +87,7 @@ model Product {
 
   @@index([status])
   @@index([categoryId])
+  @@index([archivedAt])
   @@map("products")
 }
 
@@ -314,11 +318,13 @@ model ContentDocument {
   kind      String
   slug      String
   data      Json     @default("{}")
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  sortOrder  Int       @default(0) @map("sort_order")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
   @@unique([kind, slug])
   @@index([kind])
+  @@index([archivedAt])
   @@map("content_documents")
 }

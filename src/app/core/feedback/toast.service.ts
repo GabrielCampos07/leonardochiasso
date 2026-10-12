@@ -2,10 +2,16 @@ import { Injectable, signal } from '@angular/core';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 export interface ToastMessage {
   id: number;
   kind: ToastKind;
   text: string;
+  action?: ToastAction;
 }
 
 const DISMISS_MS = 3200;
@@ -13,6 +19,7 @@ export const SAVE_TOAST_MS = 4000;
 
 export interface ToastOptions {
   durationMs?: number;
+  action?: ToastAction;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -23,15 +30,15 @@ export class ToastService {
   readonly message = signal<ToastMessage | null>(null);
 
   success(text: string, opts?: ToastOptions): void {
-    this.show('success', text, opts?.durationMs);
+    this.show('success', text, opts?.durationMs, opts?.action);
   }
 
   error(text: string, opts?: ToastOptions): void {
-    this.show('error', text, opts?.durationMs);
+    this.show('error', text, opts?.durationMs, opts?.action);
   }
 
   info(text: string, opts?: ToastOptions): void {
-    this.show('info', text, opts?.durationMs);
+    this.show('info', text, opts?.durationMs, opts?.action);
   }
 
   dismiss(): void {
@@ -42,14 +49,26 @@ export class ToastService {
     this.message.set(null);
   }
 
-  private show(kind: ToastKind, text: string, durationMs = DISMISS_MS): void {
+  runAction(): void {
+    const current = this.message();
+    const action = current?.action;
+    this.dismiss();
+    action?.run();
+  }
+
+  private show(kind: ToastKind, text: string, durationMs = DISMISS_MS, action?: ToastAction): void {
     const trimmed = text.trim();
     if (!trimmed) return;
 
     if (this.timer) clearTimeout(this.timer);
 
     const ms = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DISMISS_MS;
-    this.message.set({ id: ++this.seq, kind, text: trimmed });
+    this.message.set({
+      id: ++this.seq,
+      kind,
+      text: trimmed,
+      action: action?.label.trim() ? action : undefined,
+    });
     this.timer = setTimeout(() => {
       this.message.set(null);
       this.timer = null;

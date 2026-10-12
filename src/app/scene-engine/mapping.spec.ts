@@ -3,6 +3,8 @@ import {
   mapCatalogToScene,
   mapJoiasToVitrines,
   racksForFirstFrame,
+  removeHangerFromLayout,
+  removeUnitFromLayout,
   replaceHanger,
   resolveProductRackId,
   toSceneHanger,
@@ -108,6 +110,21 @@ describe('mapCatalogToScene', () => {
     ]);
     expect(layout.racks[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*289,00/);
     expect(layout.racks[0]?.hangers[0]?.stockQty).toBe(6);
+  });
+
+  it('keeps live pieces when a collection is archived and drops archived pieces', () => {
+    const layout = mapCatalogToScene(
+      [
+        ...collections,
+        { slug: 'gone', name: 'Gone', sortOrder: 9, archivedAt: '2026-10-12T12:00:00.000Z' },
+      ],
+      [
+        { slug: 'vestido', name: 'Vestido', collectionSlug: 'organic-dreams', stockQty: 1 },
+        { slug: 'arquivo', name: 'Arquivo', collectionSlug: 'organic-dreams', archivedAt: '2026-10-12' },
+      ],
+    );
+    expect(layout.racks.map((r) => r.id)).toEqual(['organic-dreams', 'niponic-dreams']);
+    expect(layout.racks[0]?.hangers.map((h) => h.slug)).toEqual(['vestido']);
   });
 
   it('never hangs jewelry on clothing racks', () => {
@@ -219,5 +236,32 @@ describe('mapJoiasToVitrines', () => {
     expect(vitrines[1]?.hangers).toHaveSize(2);
     expect(vitrines[0]?.hangers[0]?.kind).toBe('jewelry');
     expect(vitrines[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*180,00/);
+  });
+
+  it('omits archived jewelry and archived jewelry collections', () => {
+    const vitrines = mapJoiasToVitrines(
+      [{ slug: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1, archivedAt: '2026-10-12' }],
+      [
+        { slug: 'viva', name: 'Viva', collectionSlug: 'organic-dreams', pieceKind: 'jewelry' },
+        { slug: 'morta', name: 'Morta', pieceKind: 'jewelry', archivedAt: '2026-10-12' },
+      ],
+    );
+    expect(vitrines.map((u) => u.id)).toEqual(['vitrine:gioielli']);
+    expect(vitrines[0]?.hangers.map((h) => h.slug)).toEqual(['viva']);
+  });
+});
+
+describe('archive layout helpers', () => {
+  it('removes a hanger or a whole unit without rewriting other racks', () => {
+    const layout = mapCatalogToScene(
+      [{ slug: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1 }],
+      [
+        { slug: 'vestido', name: 'Vestido', collectionSlug: 'organic-dreams', stockQty: 1 },
+        { slug: 'jaqueta', name: 'Jaqueta', collectionSlug: 'organic-dreams', stockQty: 1 },
+      ],
+    );
+    const withoutHanger = removeHangerFromLayout(layout, 'vestido');
+    expect(withoutHanger.racks[0]?.hangers.map((h) => h.slug)).toEqual(['jaqueta']);
+    expect(removeUnitFromLayout(layout, 'organic-dreams').racks).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import { CatalogCacheService } from './catalog-cache.service';
 
 describe('CatalogCacheService', () => {
   it('cacheia dentro do TTL (factory roda uma vez)', async () => {
-    const cache = new CatalogCacheService(60_000);
+    const cache = new CatalogCacheService().withTtl(60_000);
     const factory = jest.fn().mockResolvedValue('v1');
 
     const a = await cache.getOrSet('k', factory, 1_000);
@@ -14,7 +14,7 @@ describe('CatalogCacheService', () => {
   });
 
   it('recomputa depois que o TTL expira', async () => {
-    const cache = new CatalogCacheService(60_000);
+    const cache = new CatalogCacheService().withTtl(60_000);
     const factory = jest
       .fn()
       .mockResolvedValueOnce('v1')
@@ -29,7 +29,7 @@ describe('CatalogCacheService', () => {
   });
 
   it('clear() força recomputo imediato', async () => {
-    const cache = new CatalogCacheService(60_000);
+    const cache = new CatalogCacheService().withTtl(60_000);
     const factory = jest
       .fn()
       .mockResolvedValueOnce('v1')
@@ -46,7 +46,7 @@ describe('CatalogCacheService', () => {
   });
 
   it('chaves distintas não colidem', async () => {
-    const cache = new CatalogCacheService(60_000);
+    const cache = new CatalogCacheService().withTtl(60_000);
     await cache.getOrSet('a', async () => 1, 0);
     await cache.getOrSet('b', async () => 2, 0);
     expect(cache.size).toBe(2);

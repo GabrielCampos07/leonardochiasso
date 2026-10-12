@@ -7,16 +7,21 @@ import {
 import { Prisma } from '@prisma/client';
 import { CollectionDto } from '../catalog/dto/catalog.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { archivedAtWhere } from './archive-query';
 
 @Injectable()
 export class AdminCollectionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(): Promise<CollectionDto[]> {
+  async list(archived = false): Promise<CollectionDto[]> {
     const collections = await this.prisma.collection.findMany({
+      where: archivedAtWhere(archived),
       orderBy: { sortOrder: 'asc' },
+      include: { _count: { select: { products: true } } },
     });
-    return collections.map(mapCollection);
+    return collections.map((c) =>
+      mapCollection(c, c._count.products),
+    );
   }
 
   async create(input: {
@@ -44,7 +49,7 @@ export class AdminCollectionsService {
         publishedAt: parseOptionalDate(input.publishedAt, false),
       },
     });
-    return mapCollection(created);
+    return mapCollection(created, 0);
   }
 
   async update(
@@ -74,8 +79,37 @@ export class AdminCollectionsService {
     const updated = await this.prisma.collection.update({
       where: { slug },
       data,
+      include: { _count: { select: { products: true } } },
     });
-    return mapCollection(updated);
+    return mapCollection(updated, updated._count.products);
+  }
+
+  /**
+   * Soft-archive only. Leaves `product_collections` and member products untouched
+   * so restore brings the same pieces back onto this collection.
+   */
+  async archive(slug: string): Promise<CollectionDto> {
+    const collection = await this.requireCollection(slug);
+    const productCount = await this.prisma.productCollection.count({
+      where: { collectionId: collection.id },
+    });
+    const updated = await this.prisma.collection.update({
+      where: { slug },
+      data: { archivedAt: new Date() },
+    });
+    return mapCollection(updated, productCount);
+  }
+
+  async restore(slug: string): Promise<CollectionDto> {
+    const collection = await this.requireCollection(slug);
+    const productCount = await this.prisma.productCollection.count({
+      where: { collectionId: collection.id },
+    });
+    const updated = await this.prisma.collection.update({
+      where: { slug },
+      data: { archivedAt: null },
+    });
+    return mapCollection(updated, productCount);
   }
 
   async setProducts(
@@ -119,20 +153,34 @@ export class AdminCollectionsService {
     });
 
     return {
-      ...mapCollection(collection),
+      ...mapCollection(collection, productSlugs.length),
       productSlugs,
     };
   }
+
+  private async requireCollection(slug: string) {
+    const collection = await this.prisma.collection.findUnique({
+      where: { slug },
+    });
+    if (!collection) {
+      throw new NotFoundException(`Collection not found: ${slug}`);
+    }
+    return collection;
+  }
 }
 
-function mapCollection(c: {
-  id: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  sortOrder: number;
-  publishedAt: Date | null;
-}): CollectionDto {
+function mapCollection(
+  c: {
+    id: string;
+    slug: string;
+    name: string;
+    description: string | null;
+    sortOrder: number;
+    publishedAt: Date | null;
+    archivedAt?: Date | null;
+  },
+  productCount = 0,
+): CollectionDto {
   return {
     id: c.id,
     slug: c.slug,
@@ -140,6 +188,8 @@ function mapCollection(c: {
     description: c.description,
     sortOrder: c.sortOrder,
     publishedAt: c.publishedAt?.toISOString() ?? null,
+    archivedAt: c.archivedAt?.toISOString() ?? null,
+    productCount,
   };
 }
 

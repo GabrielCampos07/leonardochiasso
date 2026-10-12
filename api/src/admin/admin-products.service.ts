@@ -11,6 +11,7 @@ import {
   publishedProductInclude,
 } from '../catalog/catalog.mapper';
 import { ProductDto } from '../catalog/dto/catalog.dto';
+import { archivedAtWhere } from './archive-query';
 import {
   AttachProductMediaDto,
   CreateProductDto,
@@ -21,12 +22,33 @@ import {
 export class AdminProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(): Promise<ProductDto[]> {
+  async list(archived = false): Promise<ProductDto[]> {
     const products = await this.prisma.product.findMany({
+      where: archivedAtWhere(archived),
       include: publishedProductInclude,
       orderBy: [{ recommendOrder: 'asc' }, { createdAt: 'asc' }],
     });
     return products.map(mapProduct);
+  }
+
+  async archive(slug: string): Promise<ProductDto> {
+    await this.requireProduct(slug);
+    const updated = await this.prisma.product.update({
+      where: { slug },
+      data: { archivedAt: new Date() },
+      include: publishedProductInclude,
+    });
+    return mapProduct(updated);
+  }
+
+  async restore(slug: string): Promise<ProductDto> {
+    await this.requireProduct(slug);
+    const updated = await this.prisma.product.update({
+      where: { slug },
+      data: { archivedAt: null },
+      include: publishedProductInclude,
+    });
+    return mapProduct(updated);
   }
 
   async create(dto: CreateProductDto): Promise<ProductDto> {

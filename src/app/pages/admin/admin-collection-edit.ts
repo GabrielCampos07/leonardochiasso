@@ -16,6 +16,11 @@ import {
   adminCollectionPath,
   adminProductPath,
 } from '../../core/routes';
+import {
+  archiveAwareError,
+  confirmArchiveCollection,
+  showArchiveUndo,
+} from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { isSoldOut } from '../../scene-engine/types';
@@ -108,6 +113,30 @@ export class AdminCollectionEditPage implements OnInit {
   onSlugChange(value: string): void {
     this.slugLocked = true;
     this.slug.set(slugify(value));
+  }
+
+  async archive(): Promise<void> {
+    const slug = this.slug();
+    if (!slug || this.isNew()) return;
+    const ok = await confirmArchiveCollection(this.confirm, this.products().length);
+    if (!ok) return;
+    this.api.archive(slug).subscribe({
+      next: () => {
+        showArchiveUndo(this.toast, () => {
+          this.api.restore(slug).subscribe({
+            next: () => this.toast.success('Restaurado.'),
+            error: (err) =>
+              this.error.set(
+                archiveAwareError(err, this.formatError(err, 'Não foi possível restaurar.')),
+              ),
+          });
+        });
+        void this.router.navigateByUrl(this.listPath);
+      },
+      error: (err) => {
+        this.error.set(archiveAwareError(err, this.formatError(err, 'Não foi possível arquivar.')));
+      },
+    });
   }
 
   saveMeta(): void {
