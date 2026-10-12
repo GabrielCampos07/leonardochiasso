@@ -66,6 +66,24 @@
   background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
   color: var(--lc-void);
   font-size: 1.15rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-list__retry {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--lc-void);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .admin-list__filters {

@@ -1,8 +1,8 @@
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { forkJoin, of, catchError } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 import {
   AdminCollectionDto,
   AdminCollectionsApiService,
@@ -18,8 +18,11 @@ import {
   adminProductPath,
 } from '../../core/routes';
 import {
+  adminLoadErrorMessage,
   archiveAwareError,
   confirmArchiveCollection,
+  endAdminLoad,
+  isArchivedAt,
   showArchiveUndo,
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
@@ -58,7 +61,10 @@ export class AdminCollectionEditPage implements OnInit {
   readonly missing = signal(false);
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly restoring = signal(false);
   readonly error = signal('');
+  readonly archivedAt = signal<string | null>(null);
+  readonly isArchived = computed(() => isArchivedAt(this.archivedAt()));
 
   readonly slug = signal('');
   name = '';
@@ -69,6 +75,7 @@ export class AdminCollectionEditPage implements OnInit {
 
   readonly products = signal<ApiProductDto[]>([]);
   readonly savingOrder = signal(false);
+  private loadGen = 0;
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -76,6 +83,7 @@ export class AdminCollectionEditPage implements OnInit {
       this.slugLocked = false;
       this.error.set('');
       if (param === ADMIN_NEW_COLLECTION_SLUG) {
+        this.loadGen += 1;
         this.isNew.set(true);
         this.missing.set(false);
         this.loading.set(false);
@@ -84,6 +92,7 @@ export class AdminCollectionEditPage implements OnInit {
         this.description = '';
         this.published = false;
         this.originalPublishedAt = null;
+        this.archivedAt.set(null);
         this.products.set([]);
         return;
       }
@@ -128,7 +137,7 @@ export class AdminCollectionEditPage implements OnInit {
           this.api.restore(slug).subscribe({
             next: () => this.toast.success('Restaurado.'),
             error: (err) =>
-              this.error.set(
+              this.toast.error(
                 archiveAwareError(err, this.formatError(err, 'Não foi possível restaurar.')),
               ),
           });
@@ -137,6 +146,28 @@ export class AdminCollectionEditPage implements OnInit {
       },
       error: (err) => {
         this.error.set(archiveAwareError(err, this.formatError(err, 'Não foi possível arquivar.')));
+      },
+    });
+  }
+
+  restore(): void {
+    const slug = this.slug();
+    if (!slug || this.restoring()) return;
+    this.restoring.set(true);
+    const previous = this.archivedAt();
+    this.archivedAt.set(null);
+    this.api.restore(slug).subscribe({
+      next: (restored) => {
+        this.applyMeta(restored);
+        this.restoring.set(false);
+        this.toast.success('Restaurado.');
+      },
+      error: (err) => {
+        this.archivedAt.set(previous);
+        this.restoring.set(false);
+        this.error.set(
+          archiveAwareError(err, this.formatError(err, 'Não foi possível restaurar.')),
+        );
       },
     });
   }
@@ -235,41 +266,58 @@ export class AdminCollectionEditPage implements OnInit {
     });
   }
 
-  private loadExisting(slug: string): void {
+  loadExisting(slug: string): void {
+    const gen = ++this.loadGen;
     this.loading.set(true);
     this.missing.set(false);
     this.error.set('');
 
     forkJoin({
-      collections: this.api.list(),
-      publicDetail: this.api.getPublicDetail(slug).pipe(catchError(() => of(null))),
-      adminProducts: this.api.listAdminProducts().pipe(catchError(() => of([] as ApiProductDto[]))),
+      live: endAdminLoad(this.api.list(false)),
+      archived: endAdminLoad(this.api.list(true)),
+      publicDetail: endAdminLoad(
+        this.api.getPublicDetail(slug).pipe(catchError(() => of(null))),
+      ),
+      adminProducts: endAdminLoad(this.api.listAdminProducts()),
     }).subscribe({
-      next: ({ collections, publicDetail, adminProducts }) => {
-        const meta = collections.find((c) => c.slug === slug);
+      next: ({ live, archived, publicDetail, adminProducts }) => {
+        if (gen !== this.loadGen) return;
+        const meta = findAdminCollection(
+          slug,
+          live.ok ? live.value : [],
+          archived.ok ? archived.value : [],
+        );
         if (!meta) {
-          this.missing.set(true);
           this.loading.set(false);
+          if (!live.ok && !archived.ok) {
+            this.error.set(
+              adminLoadErrorMessage(
+                live.error ?? archived.error,
+                'Não foi possível carregar a coleção.',
+              ),
+            );
+            return;
+          }
+          this.missing.set(true);
           return;
         }
         this.applyMeta(meta);
-
-        const orderedPublic = publicDetail?.products ?? [];
-        const inCollection = adminProducts.filter((p) =>
-          (p.collections ?? []).some((c) => c.slug === slug),
+        this.products.set(
+          productsInCollection(
+            slug,
+            adminProducts.ok ? adminProducts.value : [],
+            publicDetail.ok ? (publicDetail.value?.products ?? []) : [],
+          ),
         );
-        const seen = new Set(orderedPublic.map((p) => p.slug));
-        const extras = inCollection.filter((p) => !seen.has(p.slug));
-        // Prefer public order (collection sortOrder); append drafts / unpublished from admin list.
-        this.products.set([...orderedPublic, ...extras]);
         this.collectionProducts.remember(
           slug,
           this.products().map((p) => p.slug),
         );
         this.loading.set(false);
       },
-      error: () => {
-        this.error.set('Não foi possível carregar a coleção.');
+      error: (err) => {
+        if (gen !== this.loadGen) return;
+        this.error.set(adminLoadErrorMessage(err, 'Não foi possível carregar a coleção.'));
         this.loading.set(false);
       },
     });
@@ -281,6 +329,7 @@ export class AdminCollectionEditPage implements OnInit {
     this.description = c.description ?? '';
     this.originalPublishedAt = c.publishedAt;
     this.published = Boolean(c.publishedAt);
+    this.archivedAt.set(c.archivedAt ?? null);
   }
 
   private flash(msg: string): void {
@@ -297,4 +346,24 @@ export class AdminCollectionEditPage implements OnInit {
     if (err?.status === 409) return 'Já existe uma coleção com este slug.';
     return fallback;
   }
+}
+
+export function findAdminCollection(
+  slug: string,
+  live: AdminCollectionDto[],
+  archived: AdminCollectionDto[],
+): AdminCollectionDto | undefined {
+  return live.find((c) => c.slug === slug) ?? archived.find((c) => c.slug === slug);
+}
+
+export function productsInCollection(
+  slug: string,
+  adminProducts: ApiProductDto[],
+  publicProducts: ApiProductDto[],
+): ApiProductDto[] {
+  const inCollection = adminProducts.filter((p) =>
+    (p.collections ?? []).some((c) => c.slug === slug),
+  );
+  const seen = new Set(publicProducts.map((p) => p.slug));
+  return [...publicProducts, ...inCollection.filter((p) => !seen.has(p.slug))];
 }

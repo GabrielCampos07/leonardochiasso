@@ -113,7 +113,8 @@ function resolveOtherCollectionName(
     }
   }
   if (piece.collectionSlug && piece.collectionSlug !== unitCollectionSlug) {
-    return collectionNameBySlug.get(piece.collectionSlug) ?? piece.collectionName;
+    // Only caption live collections. Archived names must not appear as "em X".
+    return collectionNameBySlug.get(piece.collectionSlug);
   }
   return undefined;
 }

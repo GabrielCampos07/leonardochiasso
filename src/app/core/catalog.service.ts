@@ -7,6 +7,7 @@ import { CollectionSlug } from './routes';
 import { environment } from '../../environments/environment';
 import { sortByRecommendOrder } from './recommend-order';
 import { AdminCatalogService } from './admin-catalog.service';
+import { primaryCollectionLabel } from './admin-archive';
 import { withCdnUrls } from './media-url';
 
 /** API catalog DTO (subset used by the storefront). */
@@ -27,7 +28,7 @@ export interface ApiProductDto {
   stockQty?: number;
   category: string;
   collection: string;
-  collections?: { slug: string; name: string }[];
+  collections?: { slug: string; name: string; archivedAt?: string | null }[];
   thumb: string;
   gallery: string[];
   pieces?: Product['pieces'];
@@ -76,9 +77,11 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     thumb: dto.thumb,
     gallery: dto.gallery ?? [],
     category: (dto.category === 'masculino' ? 'masculino' : 'feminino') as Product['category'],
-    collection: (dto.collection || dto.collections?.[0]?.name || 'Organic Dreams') as Collection,
-    collectionSlug: (dto.collections?.[0]?.slug ??
-      collectionNameToSlug(dto.collection || 'Organic Dreams')) as CollectionSlug,
+    collection: (primaryCollectionLabel(dto.collections).name ||
+      (!dto.collections?.length ? dto.collection : '') ||
+      '') as Collection,
+    collectionSlug: (primaryCollectionLabel(dto.collections).slug ||
+      (!dto.collections?.length ? collectionNameToSlug(dto.collection || '') : '')) as CollectionSlug,
     pieces: (dto.pieces as Product['pieces']) ?? local?.pieces,
     colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
     imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,

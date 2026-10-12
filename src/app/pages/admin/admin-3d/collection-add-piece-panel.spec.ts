@@ -65,6 +65,28 @@ describe('buildAddPieceCandidates', () => {
     );
   });
 
+  it('does not caption an archived collection as em X', () => {
+    const rows = buildAddPieceCandidates(
+      [
+        {
+          slug: 'cinto',
+          name: 'Cinto',
+          collectionSlug: 'teste-col-ux-r',
+          collectionName: 'TESTE-COL-UX-R',
+        },
+      ],
+      {
+        unitId: 'organic-dreams',
+        unitCollectionSlug: 'organic-dreams',
+        hangers: [],
+        units: [{ id: 'organic-dreams', name: 'Organic Dreams' }],
+        collections: [{ slug: 'organic-dreams', name: 'Organic Dreams' }],
+      },
+    );
+    expect(rows[0]?.otherCollection).toBeUndefined();
+    expect(otherCollectionCaption(rows[0]?.otherCollection)).toBe('');
+  });
+
   it('omits archived pieces from the add list', () => {
     const rows = buildAddPieceCandidates(
       [

@@ -17,8 +17,27 @@
       </div>
     </header>
 
+    @if (isArchived()) {
+      <div class="admin-edit__archived" role="status">
+        <strong>Arquivada</strong>
+        <span>Esta coleção não aparece no site. Os produtos continuam no catálogo.</span>
+        <button
+          type="button"
+          class="admin-row__order-btn"
+          (click)="restore()"
+          [disabled]="restoring()"
+          [attr.aria-busy]="restoring()"
+        >
+          {{ restoring() ? 'Restaurando…' : 'Restaurar' }}
+        </button>
+      </div>
+    }
+
     @if (error()) {
-      <p class="admin-edit__toast" role="alert">{{ error() }}</p>
+      <p class="admin-edit__toast" role="alert">
+        {{ error() }}
+        <button type="button" class="admin-list__retry" (click)="loadExisting(slug())">Tentar de novo</button>
+      </p>
     }
 
     <form class="admin-edit__form" (ngSubmit)="saveMeta()">
@@ -65,7 +84,7 @@
         <button type="submit" class="admin-edit__save" [disabled]="saving()">
           {{ saving() ? 'Salvando…' : isNew() ? 'Criar coleção' : 'Salvar' }}
         </button>
-        @if (!isNew()) {
+        @if (!isNew() && !isArchived()) {
           <button type="button" class="admin-edit__archive" (click)="archive()">Arquivar</button>
         }
       </div>

@@ -1,31 +1,51 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { NEVER, of } from 'rxjs';
+import { fakeAsync, tick } from '@angular/core/testing';
 import {
+  ADMIN_LOAD_TIMEOUT_MESSAGE,
+  ADMIN_LOAD_TIMEOUT_MS,
+  ARCHIVE_COLLECTION_MESSAGE,
   ARCHIVE_PIECE_MESSAGE,
   ARCHIVE_UNDO_MS,
   ARCHIVE_UNAVAILABLE_MESSAGE,
+  adminAtelierSectionLabel,
+  adminLoadErrorMessage,
   archiveAwareError,
   archiveCollectionMessage,
+  endAdminLoad,
   filterArchivedList,
+  insertAt,
   isArchiveRouteUnavailable,
   isArchivedAt,
+  primaryCollectionLabel,
+  removeBySlug,
   showArchiveUndo,
+  upsertBySlug,
+  visibleCollections,
 } from './admin-archive';
 import { ToastService } from './feedback/toast.service';
 
 describe('archiveCollectionMessage', () => {
-  it('keeps pieces in the catalog when a collection is archived', () => {
-    expect(archiveCollectionMessage(4)).toContain(ARCHIVE_PIECE_MESSAGE);
-    expect(archiveCollectionMessage(4)).toContain(
-      'As 4 peças continuam no catálogo, só saem desta coleção',
+  it('uses collection copy and pluralizes pieces', () => {
+    expect(archiveCollectionMessage(4)).toBe(
+      `${ARCHIVE_COLLECTION_MESSAGE} As 4 peças dela continuam no catálogo.`,
     );
-    expect(archiveCollectionMessage(1)).toContain(
-      'As 1 peças continuam no catálogo, só saem desta coleção',
-    );
+    expect(archiveCollectionMessage(2)).toContain('As 2 peças dela continuam no catálogo.');
+    expect(archiveCollectionMessage(4)).not.toContain(ARCHIVE_PIECE_MESSAGE);
+    expect(archiveCollectionMessage(4)).not.toContain('As 1 peças');
   });
 
-  it('still mentions restore when the collection is empty', () => {
-    expect(archiveCollectionMessage(0)).toContain('pode ser restaurada');
-    expect(archiveCollectionMessage(0)).not.toContain('continuam no catálogo');
+  it('uses singular for one piece', () => {
+    expect(archiveCollectionMessage(1)).toBe(
+      `${ARCHIVE_COLLECTION_MESSAGE} A peça dela continua no catálogo.`,
+    );
+    expect(archiveCollectionMessage(1)).not.toContain('As 1 peças');
+  });
+
+  it('omits the pieces line when the collection is empty', () => {
+    expect(archiveCollectionMessage(0)).toBe(ARCHIVE_COLLECTION_MESSAGE);
+    expect(archiveCollectionMessage(0)).not.toContain('catálogo');
+    expect(archiveCollectionMessage(0)).not.toContain(ARCHIVE_PIECE_MESSAGE);
   });
 });
 
@@ -93,6 +113,63 @@ describe('old API compatibility during deploy', () => {
     ];
     expect(filterArchivedList(mixed, false).map((i) => i.slug)).toEqual(['live']);
     expect(filterArchivedList(mixed, true).map((i) => i.slug)).toEqual(['gone']);
+  });
+});
+
+describe('endAdminLoad', () => {
+  it('completes with ok on a value', (done) => {
+    endAdminLoad(of(['a'])).subscribe((result) => {
+      expect(result).toEqual({ ok: true, value: ['a'] });
+      done();
+    });
+  });
+
+  it('ends a hung request with an error after the timeout', fakeAsync(() => {
+    let result: { ok: boolean; error?: unknown } | undefined;
+    endAdminLoad(NEVER, 15_000).subscribe((r) => (result = r));
+    tick(ADMIN_LOAD_TIMEOUT_MS - 1);
+    expect(result).toBeUndefined();
+    tick(1);
+    expect(result?.ok).toBeFalse();
+    expect(adminLoadErrorMessage(result?.error, 'falhou')).toBe(ADMIN_LOAD_TIMEOUT_MESSAGE);
+  }));
+});
+
+describe('visibleCollections / primaryCollectionLabel', () => {
+  it('hides archived collections from badges without dropping join slugs from the source', () => {
+    const rows = [
+      { slug: 'teste-col-ux-r', name: 'TESTE-COL-UX-R', archivedAt: '2026-10-12T12:00:00.000Z' },
+      { slug: 'organic-dreams', name: 'Organic Dreams', archivedAt: null },
+    ];
+    expect(visibleCollections(rows).map((c) => c.slug)).toEqual(['organic-dreams']);
+    expect(primaryCollectionLabel(rows).name).toBe('Organic Dreams');
+    expect(rows.map((c) => c.slug)).toEqual(['teste-col-ux-r', 'organic-dreams']);
+  });
+
+  it('returns empty when every collection is archived', () => {
+    expect(primaryCollectionLabel([{ slug: 'gone', name: 'Gone', archivedAt: '2026-10-12' }])).toEqual({
+      name: '',
+      slug: '',
+    });
+  });
+});
+
+describe('optimistic list helpers', () => {
+  it('removes, inserts, and upserts by slug', () => {
+    const list = [{ slug: 'a' }, { slug: 'b' }];
+    expect(removeBySlug(list, 'a')).toEqual([{ slug: 'b' }]);
+    expect(insertAt(list, 0, { slug: 'c' }).map((i) => i.slug)).toEqual(['c', 'a', 'b']);
+    expect(upsertBySlug(list, { slug: 'b' })).toEqual([{ slug: 'a' }, { slug: 'b' }]);
+    expect(upsertBySlug(list, { slug: 'z' }).map((i) => i.slug)).toEqual(['z', 'a', 'b']);
+  });
+});
+
+describe('adminAtelierSectionLabel', () => {
+  it('reflects the current admin section', () => {
+    expect(adminAtelierSectionLabel('/admin/produtos')).toBe('produtos');
+    expect(adminAtelierSectionLabel('/admin/colecoes/teste-col-ux-r')).toBe('coleções');
+    expect(adminAtelierSectionLabel('/admin/joias?x=1')).toBe('joias');
+    expect(adminAtelierSectionLabel('/admin/3d')).toBe('3D');
   });
 });
 
