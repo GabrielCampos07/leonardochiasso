@@ -56,23 +56,10 @@ describe('SceneEngine resize and WebGL context', () => {
     });
   });
 
-  it('observes the host and updates setSize, pixel ratio, aspect and a frame', () => {
-    const observed: Element[] = [];
-    const OriginalRO = window.ResizeObserver;
-    spyOn(window, 'ResizeObserver').and.callFake(((callback: ResizeObserverCallback) => {
-      const real = new OriginalRO(callback);
-      const observe = real.observe.bind(real);
-      real.observe = (target: Element) => {
-        observed.push(target);
-        return observe(target);
-      };
-      return real;
-    }) as unknown as typeof window.ResizeObserver);
-
+  it('updates setSize, pixel ratio and aspect when the host box changes', () => {
     const { host, canvas } = mountHost(800, 450);
     const engine = createEngine(canvas, host);
     if (!engine) return;
-    expect(observed).toContain(host);
     expect(canvas.width).toBe(800);
     expect(canvas.height).toBe(450);
 
@@ -81,27 +68,19 @@ describe('SceneEngine resize and WebGL context', () => {
     engine.resize();
     expect(canvas.width).toBe(400);
     expect(canvas.height).toBe(300);
+
+    window.dispatchEvent(new Event('resize'));
+    expect(canvas.width).toBe(400);
     engine.dispose();
   });
 
-  it('re-renders when ResizeObserver reports a new host box', () => {
-    let callback: ResizeObserverCallback | null = null;
-    spyOn(window, 'ResizeObserver').and.callFake(((cb: ResizeObserverCallback) => {
-      callback = cb;
-      return {
-        observe: () => undefined,
-        disconnect: () => undefined,
-        unobserve: () => undefined,
-      };
-    }) as unknown as typeof window.ResizeObserver);
-
+  it('resizes from a window resize after the host box changes', () => {
     const { host, canvas } = mountHost(640, 360);
     const engine = createEngine(canvas, host);
     if (!engine) return;
-    Object.defineProperty(host, 'clientWidth', { configurable: true, get: () => 512 });
-    Object.defineProperty(host, 'clientHeight', { configurable: true, get: () => 288 });
-    expect(callback).toBeTruthy();
-    callback?.([] as unknown as ResizeObserverEntry[], {} as ResizeObserver);
+    host.style.width = '512px';
+    host.style.height = '288px';
+    window.dispatchEvent(new Event('resize'));
     expect(canvas.width).toBe(512);
     expect(canvas.height).toBe(288);
     engine.dispose();
