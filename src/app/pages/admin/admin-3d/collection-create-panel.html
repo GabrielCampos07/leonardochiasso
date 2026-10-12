@@ -1,0 +1,54 @@
+<form
+  class="create-col"
+  role="form"
+  aria-label="Nova coleção"
+  [style.left.px]="x"
+  [style.top.px]="y"
+  (submit)="$event.preventDefault(); save.emit()"
+>
+  <p class="create-col__kicker">Nova coleção</p>
+  <label class="create-col__field">
+    Nome
+    <input
+      type="text"
+      name="collectionName"
+      [value]="name"
+      (input)="onName($event)"
+      autocomplete="off"
+      required
+    />
+  </label>
+  <div class="create-col__lines" role="radiogroup" aria-label="Tipo da estrutura">
+    <button
+      type="button"
+      class="create-col__line"
+      role="radio"
+      [attr.aria-checked]="line === 'roupas'"
+      [class.is-on]="line === 'roupas'"
+      (click)="lineChange.emit('roupas')"
+    >
+      Roupas
+    </button>
+    <button
+      type="button"
+      class="create-col__line"
+      role="radio"
+      [attr.aria-checked]="line === 'joias'"
+      [class.is-on]="line === 'joias'"
+      (click)="lineChange.emit('joias')"
+    >
+      Joias
+    </button>
+  </div>
+  @if (error) {
+    <p class="create-col__error" role="alert">{{ error }}</p>
+  }
+  <div class="create-col__actions">
+    <button type="submit" class="create-col__save" [disabled]="saving">
+      {{ saving ? 'Salvando…' : 'Criar' }}
+    </button>
+    <button type="button" class="create-col__cancel" (click)="cancel.emit()" [disabled]="saving">
+      Cancelar
+    </button>
+  </div>
+</form>

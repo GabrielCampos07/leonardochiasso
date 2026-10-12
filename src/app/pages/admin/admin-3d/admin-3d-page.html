@@ -9,7 +9,7 @@
     <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
   }
 
-  @if (!webglUnavailable() && !empty() && !error() && !loading() && firstFrame()) {
+  @if (!webglUnavailable() && !error() && !loading() && firstFrame()) {
     <nav class="admin-3d__guide" aria-label="Navegação das araras">
       <div class="admin-3d__lines" role="radiogroup" aria-label="Tipo de peça">
         <button
@@ -18,6 +18,7 @@
           role="radio"
           [attr.aria-checked]="line() === 'roupas'"
           [class.is-on]="line() === 'roupas'"
+          [disabled]="creating()"
           (click)="setLine('roupas')"
         >
           Roupas
@@ -28,6 +29,7 @@
           role="radio"
           [attr.aria-checked]="line() === 'joias'"
           [class.is-on]="line() === 'joias'"
+          [disabled]="creating()"
           (click)="setLine('joias')"
         >
           Joias
@@ -36,7 +38,7 @@
       <button
         type="button"
         class="admin-3d__arrow"
-        [disabled]="atFirst()"
+        [disabled]="atFirst() || creating()"
         (click)="stepRack(-1)"
         aria-label="Anterior"
       >
@@ -59,15 +61,25 @@
           type="button"
           class="admin-3d__rack admin-3d__rack--all"
           [class.is-on]="focusedId() === overviewId"
+          [disabled]="creating()"
           (click)="focusOverview()"
         >
           Ver todas
+        </button>
+        <button
+          type="button"
+          class="admin-3d__rack admin-3d__rack--new"
+          [class.is-on]="creating()"
+          [disabled]="creating()"
+          (click)="startCreate()"
+        >
+          + Nova coleção
         </button>
       </div>
       <button
         type="button"
         class="admin-3d__arrow"
-        [disabled]="atLast()"
+        [disabled]="atLast() || creating()"
         (click)="stepRack(1)"
         aria-label="Próxima"
       >
@@ -88,6 +100,21 @@
         <p class="admin-3d__badge" role="status">Dados de exemplo</p>
       }
     </div>
+  }
+
+  @if (creating()) {
+    <lc-collection-create-panel
+      [name]="createName()"
+      [line]="createLine()"
+      [error]="createError()"
+      [saving]="createSaving()"
+      [x]="createPanel().x"
+      [y]="createPanel().y"
+      (nameChange)="onCreateName($event)"
+      (lineChange)="onCreateLine($event)"
+      (save)="saveCreate()"
+      (cancel)="cancelCreate()"
+    />
   }
 
   @if (hoverTip(); as tip) {
@@ -131,7 +158,7 @@
         }
       </div>
     </div>
-  } @else if (empty() && !loading()) {
+  } @else if (empty() && !loading() && !creating()) {
     <div class="admin-3d__panel" role="status">
       <p>
         @if (line() === 'joias') {

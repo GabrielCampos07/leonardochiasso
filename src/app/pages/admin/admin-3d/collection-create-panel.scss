@@ -1,0 +1,112 @@
+:host {
+  display: contents;
+}
+
+.create-col {
+  position: fixed;
+  z-index: 8;
+  width: min(280px, calc(100vw - 24px));
+  padding: 16px;
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
+  box-shadow: 0 12px 32px rgb(20 16 12 / 12%);
+  color: var(--lc-void);
+}
+
+.create-col__kicker {
+  margin: 0 0 10px;
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lc-ash);
+}
+
+.create-col__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.create-col__field input {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 45%, transparent);
+  font: inherit;
+}
+
+.create-col__lines {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.create-col__line {
+  flex: 1 1 auto;
+  min-height: 44px;
+  min-width: 44px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 28%, transparent);
+  background: var(--lc-white);
+  font-family: var(--lc-font-display);
+  font-size: 0.88rem;
+}
+
+.create-col__line + .create-col__line {
+  border-left: none;
+}
+
+.create-col__line.is-on {
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.create-col__error {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #8b1e2d;
+}
+
+.create-col__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.create-col__save,
+.create-col__cancel {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.create-col__save {
+  border: none;
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.create-col__save:disabled {
+  opacity: 0.55;
+}
+
+.create-col__cancel {
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  background: var(--lc-white);
+}
+
+@media (max-width: 768px) {
+  .create-col {
+    width: min(300px, calc(100vw - 16px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .create-col {
+    transition: none;
+  }
+}

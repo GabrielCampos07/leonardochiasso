@@ -23,6 +23,8 @@ export interface RackNavItem {
 
 export const OVERVIEW_FOCUS_ID = 'all';
 export const CAMERA_TWEEN_MS = 720;
+/** Create-collection camera / rise — inside the 400–700ms band. */
+export const CREATE_TWEEN_MS = 560;
 /** Keep the lens above the wood floor (`collection-rack` FLOOR_Y = -0.7). */
 export const CAMERA_MIN_Y = -0.45;
 export const FIT_PAD_TOP = 0.12;
@@ -46,6 +48,14 @@ export function isCompactAtelierViewport(
 export function easeInOutCubic(t: number): number {
   const x = Math.min(1, Math.max(0, t));
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+}
+
+/** Slight overshoot for the collection rising from the floor. */
+export function easeOutBack(t: number): number {
+  const x = Math.min(1, Math.max(0, t));
+  const c1 = 1.18;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
 }
 
 export function stepRackIndex(current: number, delta: -1 | 1, count: number): number {

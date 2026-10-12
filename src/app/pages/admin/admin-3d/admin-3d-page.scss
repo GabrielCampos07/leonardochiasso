@@ -111,6 +111,11 @@
   border-style: dashed;
 }
 
+.admin-3d__rack--new {
+  margin-left: 4px;
+  border-style: dashed;
+}
+
 .admin-3d__arrow:disabled {
   opacity: 1;
   color: color-mix(in srgb, var(--lc-void) 42%, white);
@@ -298,12 +303,20 @@
     overflow: hidden;
   }
 
-  .admin-3d__rack:not(.is-on) {
+  .admin-3d__rack:not(.is-on):not(.admin-3d__rack--new) {
     position: absolute;
     width: 1px;
     height: 1px;
     overflow: hidden;
     clip: rect(0 0 0 0);
+  }
+
+  .admin-3d__rack--new {
+    position: relative;
+    max-width: min(160px, 40vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .admin-3d__rack.is-on {

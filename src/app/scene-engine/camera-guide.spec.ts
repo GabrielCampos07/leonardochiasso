@@ -2,9 +2,11 @@ import {
   CAMERA_AZIMUTH_LIMIT,
   CAMERA_POLAR_MAX,
   CAMERA_POLAR_MIN,
+  CREATE_TWEEN_MS,
   computeEyeLevelFit,
   computeVitrineFit,
   easeInOutCubic,
+  easeOutBack,
   isCompactAtelierViewport,
   photoPlaneSize,
   rackNavItems,
@@ -33,6 +35,19 @@ describe('easeInOutCubic', () => {
     expect(easeInOutCubic(0)).toBe(0);
     expect(easeInOutCubic(1)).toBe(1);
     expect(easeInOutCubic(0.5)).toBeCloseTo(0.5, 5);
+  });
+});
+
+describe('create-collection motion', () => {
+  it('keeps the create tween inside 400–700ms', () => {
+    expect(CREATE_TWEEN_MS).toBeGreaterThanOrEqual(400);
+    expect(CREATE_TWEEN_MS).toBeLessThanOrEqual(700);
+  });
+
+  it('overshoots then settles for the floor rise', () => {
+    expect(easeOutBack(0)).toBe(0);
+    expect(easeOutBack(1)).toBeCloseTo(1, 5);
+    expect(easeOutBack(0.7)).toBeGreaterThan(1);
   });
 });
 

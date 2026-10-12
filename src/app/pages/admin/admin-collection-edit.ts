@@ -4,6 +4,11 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, of, catchError } from 'rxjs';
 import {
+  formatCollectionCreateError,
+  slugifyCollection,
+  validateCreateCollection,
+} from '../../core/admin-collection-create';
+import {
   AdminCollectionDto,
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
@@ -18,17 +23,6 @@ import {
 } from '../../core/routes';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
-
-function slugify(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 160);
-}
 
 @Component({
   selector: 'lc-admin-collection-edit',
@@ -96,23 +90,23 @@ export class AdminCollectionEditPage implements OnInit {
   onNameChange(value: string): void {
     this.name = value;
     if (this.isNew() && !this.slugLocked) {
-      this.slug.set(slugify(value));
+      this.slug.set(slugifyCollection(value));
     }
   }
 
   onSlugChange(value: string): void {
     this.slugLocked = true;
-    this.slug.set(slugify(value));
+    this.slug.set(slugifyCollection(value));
   }
 
   saveMeta(): void {
     this.error.set('');
-    const name = this.name.trim();
-    const slug = this.slug().trim();
-    if (!name || !slug) {
-      this.error.set('Nome e slug são obrigatórios.');
+    const checked = validateCreateCollection(this.name, this.slug());
+    if (!checked.ok) {
+      this.error.set(checked.error);
       return;
     }
+    const { name, slug } = checked.payload;
 
     this.saving.set(true);
     const publishedAt = this.published
@@ -135,7 +129,7 @@ export class AdminCollectionEditPage implements OnInit {
           },
           error: (err: { error?: { message?: string | string[] }; status?: number }) => {
             this.saving.set(false);
-            this.error.set(this.formatError(err, 'Não foi possível criar a coleção.'));
+            this.error.set(formatCollectionCreateError(err));
           },
         });
       return;
