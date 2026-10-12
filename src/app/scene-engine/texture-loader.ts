@@ -13,6 +13,8 @@ export const LABEL_DEFAULT_WIDTH = 768;
 export const LABEL_DEFAULT_HEIGHT = 120;
 export const FALLBACK_WIDTH = 128;
 export const FALLBACK_HEIGHT = 160;
+export const SOLD_OUT_TEXTURE_WIDTH = 320;
+export const SOLD_OUT_TEXTURE_HEIGHT = 96;
 
 /**
  * Distinct URL for WebGL textures so Chrome does not reuse the non-CORS
@@ -128,17 +130,17 @@ export function makeLabelTexture(
 export function makeSoldOutTexture(): CanvasTexture {
   if (!soldOutCanvas) {
     soldOutCanvas = document.createElement('canvas');
-    soldOutCanvas.width = 128;
-    soldOutCanvas.height = 40;
+    soldOutCanvas.width = SOLD_OUT_TEXTURE_WIDTH;
+    soldOutCanvas.height = SOLD_OUT_TEXTURE_HEIGHT;
     const ctx = soldOutCanvas.getContext('2d');
     if (ctx) {
       ctx.fillStyle = '#8B1E2D';
-      ctx.fillRect(0, 0, 128, 40);
+      ctx.fillRect(0, 0, SOLD_OUT_TEXTURE_WIDTH, SOLD_OUT_TEXTURE_HEIGHT);
       ctx.fillStyle = '#ffffff';
-      ctx.font = '700 18px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
+      ctx.font = '700 42px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('ESGOTADO', 64, 21, 118);
+      ctx.fillText('ESGOTADO', SOLD_OUT_TEXTURE_WIDTH / 2, SOLD_OUT_TEXTURE_HEIGHT / 2 + 2, SOLD_OUT_TEXTURE_WIDTH - 24);
     }
   }
   return makeCanvasTexture(soldOutCanvas, true);

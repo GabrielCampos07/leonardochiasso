@@ -6,6 +6,9 @@ import {
   makeFallbackTexture,
   makeLabelTexture,
   makePlaceholderTexture,
+  makeSoldOutTexture,
+  SOLD_OUT_TEXTURE_HEIGHT,
+  SOLD_OUT_TEXTURE_WIDTH,
   TEXTURE_BITMAP_ORIENTATION,
   TEXTURE_CROSS_ORIGIN,
   textureCacheUrl,
@@ -76,6 +79,15 @@ describe('label and placeholder canvases', () => {
     expect(a.image.width).toBe(LABEL_DEFAULT_WIDTH);
     a.dispose();
     b.dispose();
+  });
+
+  it('paints a large readable Esgotado badge', () => {
+    const texture = makeSoldOutTexture();
+    expect(texture.image.width).toBe(SOLD_OUT_TEXTURE_WIDTH);
+    expect(texture.image.height).toBe(SOLD_OUT_TEXTURE_HEIGHT);
+    expect(SOLD_OUT_TEXTURE_WIDTH).toBeGreaterThanOrEqual(256);
+    expect(SOLD_OUT_TEXTURE_HEIGHT).toBeGreaterThanOrEqual(80);
+    texture.dispose();
   });
 
   it('shares a tiny placeholder until photos stream in', () => {

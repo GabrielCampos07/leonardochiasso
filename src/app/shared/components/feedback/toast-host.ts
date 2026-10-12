@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { ToastService } from '../../../core/feedback/toast.service';
 
 @Component({
@@ -8,6 +8,7 @@ import { ToastService } from '../../../core/feedback/toast.service';
     @if (toast.message(); as msg) {
       <div
         class="lc-toast"
+        [class.lc-toast--top]="placement() === 'top'"
         [class.lc-toast--success]="msg.kind === 'success'"
         [class.lc-toast--error]="msg.kind === 'error'"
         [class.lc-toast--info]="msg.kind === 'info'"
@@ -37,6 +38,10 @@ import { ToastService } from '../../../core/feedback/toast.service';
       box-shadow: 0 8px 32px rgb(14 12 14 / 12%);
       pointer-events: none;
     }
+    .lc-toast--top {
+      top: calc(16px + env(safe-area-inset-top, 0px));
+      bottom: auto;
+    }
     .lc-toast--success {
       border-color: color-mix(in srgb, var(--lc-void) 28%, transparent);
     }
@@ -51,4 +56,6 @@ import { ToastService } from '../../../core/feedback/toast.service';
 })
 export class LcToastHost {
   readonly toast = inject(ToastService);
+  /** Admin uses top so the notice never covers the sticky form footer. */
+  readonly placement = input<'top' | 'bottom'>('bottom');
 }

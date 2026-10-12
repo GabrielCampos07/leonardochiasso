@@ -35,6 +35,7 @@ export function blankAtelierProduct(collectionSlug: string): Product {
     collection: collectionSlug as Collection,
     collectionSlug: collectionSlug as CollectionSlug,
     pieces: [],
+    stockQty: 1,
   };
 }
 

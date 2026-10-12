@@ -77,6 +77,9 @@
           <strong>{{ p.name }}</strong>
           <span>{{ p.collection }} · {{ p.category }}</span>
           <span>{{ priceLabel(p) }}</span>
+          @if (soldOut(p)) {
+            <span class="admin-row__sold-out">Esgotado</span>
+          }
         </div>
         <div class="admin-row__actions">
           <a class="admin-row__edit" [routerLink]="editPath(p.slug)">Editar</a>

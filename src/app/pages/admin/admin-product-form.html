@@ -128,6 +128,19 @@
         />
       </label>
       <p class="admin-edit__hint">Mostra como: {{ p.priceLabel }}</p>
+      <label>
+        Estoque
+        <input
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          [ngModel]="p.stockQty ?? 0"
+          (ngModelChange)="onStockQtyChange($event)"
+          name="stockQty"
+        />
+      </label>
+      <p class="admin-edit__hint">Inteiro ≥ 0. Zero marca a peça como esgotada.</p>
     </fieldset>
 
     <fieldset>

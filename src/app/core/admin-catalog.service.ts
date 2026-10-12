@@ -44,6 +44,7 @@ export interface AdminCreateProductPayload {
   size?: string;
   fabric?: string;
   season?: string;
+  stockQty?: number;
 }
 
 export interface AdminUpdateProductPayload {
@@ -59,6 +60,7 @@ export interface AdminUpdateProductPayload {
   size?: string;
   fabric?: string;
   season?: string;
+  stockQty?: number;
   details?: string[];
   pieces?: unknown;
   colorVariants?: unknown;
@@ -244,6 +246,7 @@ export class AdminCatalogService {
 
     const collectionSlug = product.collectionSlug || slugFromCollection(product.collection);
     const priceCents = product.priceCents ?? Math.round(product.price * 100);
+    const stockQty = Math.max(0, Math.round(product.stockQty ?? 0));
 
     if (opts.isNew) {
       return this.createViaApi({
@@ -252,6 +255,7 @@ export class AdminCatalogService {
         category: product.category,
         collectionSlug,
         priceCents,
+        stockQty,
         status: 'published',
         description: product.description || undefined,
         color: product.color || undefined,
@@ -261,6 +265,7 @@ export class AdminCatalogService {
       }).pipe(
         switchMap((created) =>
           this.updateViaApi(created.slug, {
+            stockQty,
             details: opts.details,
             pieces: product.pieces?.length ? product.pieces : undefined,
             colorVariants: product.colors?.length
@@ -281,6 +286,7 @@ export class AdminCatalogService {
       category: product.category,
       collectionSlug,
       priceCents,
+      stockQty,
       description: product.description,
       shippingCopy: product.shipping || undefined,
       color: product.color || undefined,

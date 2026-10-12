@@ -18,6 +18,7 @@ import {
 } from '../../core/routes';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
+import { isSoldOut } from '../../scene-engine/types';
 
 function slugify(value: string): string {
   return value
@@ -91,6 +92,10 @@ export class AdminCollectionEditPage implements OnInit {
 
   productEditPath(productSlug: string): string {
     return adminProductPath(productSlug);
+  }
+
+  soldOut(p: ApiProductDto): boolean {
+    return isSoldOut(p.stockQty);
   }
 
   onNameChange(value: string): void {
