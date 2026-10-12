@@ -6,6 +6,7 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  Texture,
 } from 'three';
 import { photoPlaneSize } from './camera-guide';
 import { disposeObject3D } from './dispose';
@@ -222,7 +223,7 @@ export function createJewelryTray(data: SceneHanger): Group {
   return group;
 }
 
-export function applyTrayPhoto(group: Group, texture: ReturnType<typeof makeFallbackTexture>): void {
+export function applyTrayPhoto(group: Group, texture: Texture): void {
   const garment = group.getObjectByName('garment') as Mesh | undefined;
   const frame = group.getObjectByName('frame') as Mesh | undefined;
   const img = texture.image as { width?: number; height?: number } | undefined;

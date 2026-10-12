@@ -15,6 +15,7 @@ import {
   PlaneGeometry,
   Raycaster,
   Scene,
+  Texture,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -533,7 +534,7 @@ export class SceneEngine {
     return '';
   }
 
-  private applyPiecePhoto(group: Group | null, texture: ReturnType<typeof makeFallbackTexture>): void {
+  private applyPiecePhoto(group: Group | null, texture: Texture): void {
     if (!group) return;
     const data = group.userData['data'] as SceneHanger | undefined;
     if (data?.kind === 'jewelry') {
@@ -551,7 +552,7 @@ export class SceneEngine {
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
     if (!group || !garment || !(garment.material instanceof MeshStandardMaterial)) return;
     const previous = garment.material.map;
-    const apply = (texture: ReturnType<typeof makeFallbackTexture>) => {
+    const apply = (texture: Texture) => {
       const live = this.findHangerGroup(slug);
       const liveGarment = live?.getObjectByName('garment') as Mesh | undefined;
       if (!live || !liveGarment || !(liveGarment.material instanceof MeshStandardMaterial)) return;
