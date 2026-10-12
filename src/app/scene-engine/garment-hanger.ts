@@ -5,15 +5,13 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
-  Sprite,
-  SpriteMaterial,
   Texture,
   TorusGeometry,
 } from 'three';
 import { photoPlaneSize } from './camera-guide';
 import type { SceneHanger } from './types';
-import { hangerOpacity, stockBadgeColor } from './types';
-import { makeBadgeTexture, makeFallbackTexture, makeLabelTexture } from './texture-loader';
+import { hangerOpacity, isSoldOut } from './types';
+import { makeFallbackTexture, makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
 export const PHOTO_MAX_W = 0.48;
@@ -21,7 +19,7 @@ export const PHOTO_MAX_H = 0.64;
 export const HANGER_LIFT = 0.055;
 
 function hangerLabelMap(name: string) {
-  return makeLabelTexture(name, { width: 1024, height: 160, fill: '#2a241c', size: 48 });
+  return makeLabelTexture(name, { width: 512, height: 80, fill: '#2a241c', size: 32 });
 }
 
 export function applyPhotoAspect(garment: Mesh, frame: Mesh | undefined, texture: Texture): void {
@@ -42,7 +40,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
     roughness: 0.28,
   });
   const opacity = hangerOpacity(data.status);
-  const fallback = makeFallbackTexture('#c8c2b8', data.name);
+  const fallback = makePlaceholderTexture('#c8c2b8');
   const photo = photoPlaneSize(3, 4, PHOTO_MAX_W, PHOTO_MAX_H);
 
   const hook = new Mesh(new TorusGeometry(0.05, 0.007, 8, 18, Math.PI * 1.3), metal);
@@ -98,26 +96,27 @@ export function createGarmentHanger(data: SceneHanger): Group {
   group.add(garment);
 
   const badge = new Mesh(
-    new PlaneGeometry(0.11, 0.11),
+    new PlaneGeometry(0.16, 0.055),
     new MeshStandardMaterial({
-      map: makeBadgeTexture(data.stockQty, stockBadgeColor(data.stockQty)),
+      map: makeSoldOutTexture(),
       transparent: true,
       roughness: 0.5,
       metalness: 0.05,
       opacity,
     }),
   );
-  badge.position.set(photo.width * 0.42, photo.height * 0.38, 0.01);
+  badge.position.set(photo.width * 0.28, photo.height * 0.38, 0.01);
   badge.name = 'badge';
   badge.userData = group.userData;
+  badge.visible = isSoldOut(data.stockQty);
   group.add(badge);
 
-  const label = new Sprite(
-    new SpriteMaterial({
+  const label = new Mesh(
+    new PlaneGeometry(1, 1),
+    new MeshStandardMaterial({
       map: hangerLabelMap(data.name),
       transparent: true,
-      depthTest: true,
-      sizeAttenuation: true,
+      roughness: 0.55,
       opacity,
     }),
   );
@@ -125,7 +124,6 @@ export function createGarmentHanger(data: SceneHanger): Group {
   label.position.set(0, -photo.height * 0.5 - 0.06, 0.04);
   label.name = 'label';
   label.userData = group.userData;
-  label.center.set(0.5, 0.5);
   group.add(label);
 
   return group;
@@ -142,7 +140,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
   const garment = group.getObjectByName('garment') as Mesh | undefined;
   const frame = group.getObjectByName('frame') as Mesh | undefined;
   const badge = group.getObjectByName('badge') as Mesh | undefined;
-  const label = group.getObjectByName('label') as Sprite | undefined;
+  const label = group.getObjectByName('label') as Mesh | undefined;
 
   if (garment?.material instanceof MeshStandardMaterial) {
     garment.material.opacity = opacity;
@@ -156,13 +154,11 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     frame.material.opacity = opacity;
   }
   if (badge?.material instanceof MeshStandardMaterial) {
-    const prev = badge.material.map;
-    badge.material.map = makeBadgeTexture(data.stockQty, stockBadgeColor(data.stockQty));
-    badge.material.opacity = opacity;
+    badge.visible = isSoldOut(data.stockQty);
+    badge.material.opacity = isSoldOut(data.stockQty) ? opacity : 0;
     badge.material.needsUpdate = true;
-    prev?.dispose();
   }
-  if (label?.material instanceof SpriteMaterial) {
+  if (label?.material instanceof MeshStandardMaterial) {
     const prev = label.material.map;
     label.material.map = hangerLabelMap(data.name);
     label.material.opacity = opacity;

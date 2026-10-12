@@ -1,0 +1,14 @@
+@if (page(); as cmp) {
+  <ng-container *ngComponentOutlet="cmp" />
+}
+@if (!boot.ready()) {
+  <div class="admin-3d-gate" role="status">
+    <div class="admin-3d-gate__spinner" aria-hidden="true"></div>
+    <div class="admin-3d-gate__skel" aria-hidden="true">
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <p>Montando o ateliê…</p>
+  </div>
+}
