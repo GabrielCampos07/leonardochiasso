@@ -8,7 +8,7 @@ describe('CatalogService (cache)', () => {
       product: { findMany, findFirst: jest.fn() },
       collection: { findMany, findUnique: jest.fn() },
     } as any;
-    const cache = new CatalogCacheService(60_000);
+    const cache = new CatalogCacheService().withTtl(60_000);
     const service = new CatalogService(prisma, cache);
     return { service, prisma, cache, findMany };
   }
