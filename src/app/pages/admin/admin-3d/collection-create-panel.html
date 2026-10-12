@@ -8,19 +8,26 @@
   (submit)="$event.preventDefault(); save.emit()"
 >
   <p class="create-col__kicker">Nova coleção</p>
-  <label class="create-col__field" (click)="focusName()">
+  <label class="create-col__field">
     Nome
-    <span
+    <input
       #nameField
+      type="text"
       class="create-col__editor"
-      role="textbox"
-      aria-label="Nome da coleção"
-      aria-multiline="false"
+      name="collectionName"
+      autocomplete="off"
+      autocapitalize="sentences"
+      spellcheck="false"
+      enterkeyhint="done"
+      maxlength="80"
+      placeholder="Nome da coleção"
       [attr.aria-invalid]="error ? 'true' : 'false'"
-      contenteditable="true"
+      [disabled]="saving"
       (input)="onName($event)"
+      (compositionstart)="onCompositionStart()"
+      (compositionend)="onCompositionEnd($event)"
       (keydown)="onNameKey($event)"
-    ></span>
+    />
   </label>
   <div class="create-col__plate" aria-hidden="true">
     <span>{{ plateLabel }}</span>

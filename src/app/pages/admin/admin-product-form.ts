@@ -67,6 +67,7 @@ export class AdminProductForm implements OnInit {
 
   readonly saved = output<Product>();
   readonly cancelled = output<void>();
+  readonly savingChange = output<boolean>();
   readonly archived = output<Product>();
 
   readonly archiving = signal(false);
@@ -342,6 +343,7 @@ export class AdminProductForm implements OnInit {
   }
 
   save(): void {
+    if (this.saving()) return;
     const p = this.draft();
     if (!p) return;
     if (!p.name.trim()) {
@@ -390,10 +392,10 @@ export class AdminProductForm implements OnInit {
       ...syncPriceFields(p.price),
     };
 
-    this.saving.set(true);
+    this.setSaving(true);
     this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
       next: (saved) => {
-        this.saving.set(false);
+        this.setSaving(false);
         if (!this.useApi) this.catalog.refreshLocalCatalog();
         if (this.isNew()) this.slugLocked = true;
         this.loadDraft(structuredClone(saved));
@@ -404,7 +406,7 @@ export class AdminProductForm implements OnInit {
         this.saved.emit(saved);
       },
       error: (err) => {
-        this.saving.set(false);
+        this.setSaving(false);
         this.toast.error(adminHttpErrorMessage(err));
       },
     });
@@ -412,7 +414,7 @@ export class AdminProductForm implements OnInit {
 
   async archive(): Promise<void> {
     const p = this.draft();
-    if (!p || this.isNew() || this.archiving()) return;
+    if (!p || this.isNew() || this.archiving() || this.saving()) return;
     const ok = await confirmArchivePiece(this.confirm);
     if (!ok) return;
     this.archiving.set(true);
@@ -431,7 +433,13 @@ export class AdminProductForm implements OnInit {
   }
 
   cancel(): void {
+    if (this.saving()) return;
     this.cancelled.emit();
+  }
+
+  private setSaving(value: boolean): void {
+    this.saving.set(value);
+    this.savingChange.emit(value);
   }
 
   /** After create, stay at the top so the toast does not sit over the form. */

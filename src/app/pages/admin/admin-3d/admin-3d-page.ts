@@ -12,7 +12,8 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
+import { catchError, of, switchMap } from 'rxjs';
+import { AdminCatalogService, adminHttpErrorMessage, uniqueAdminSlug } from '../../../core/admin-catalog.service';
 import {
   archiveAwareError,
   confirmArchiveCollection,
@@ -20,21 +21,30 @@ import {
   showArchiveUndo,
 } from '../../../core/admin-archive';
 import { formatCollectionCreateError, validateCreateCollection } from '../../../core/admin-collection-create';
+import {
+  AdminCollectionProductsService,
+  addPieceStaggerDelay,
+  appendCollectionProductSlugs,
+} from '../../../core/admin-collection-products';
 import { AdminCollectionDto, AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
 import { ConfirmService } from '../../../core/feedback/confirm.service';
 import { ToastService } from '../../../core/feedback/toast.service';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
 import { mapApiProduct } from '../../../core/catalog.service';
-import { JoiaPiece } from '../../../core/joias.data';
-import { Product } from '../../../core/product.model';
+import { ContentAdminService } from '../../../core/content-admin.service';
+import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
+import { formatPriceLabel, Product } from '../../../core/product.model';
+import { CollectionSlug } from '../../../core/routes';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
 import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-engine/camera-guide';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
+  findHanger,
   mapAtelierToScene,
+  omitHanger,
   removeHangerFromLayout,
   removeUnitFromLayout,
   replaceHanger,
@@ -72,7 +82,14 @@ import {
   collectionsFromLabels,
 } from './admin-3d.fixtures';
 import { Admin3dPrefetchService } from './admin-3d-prefetch';
-import { blankAtelierJoia, blankAtelierProduct, collectionSlugFromUnitId } from './atelier-blank';
+import { blankAtelierJoia, blankAtelierProduct, collectionSlugFromUnitId, uniqueJoiaSlug } from './atelier-blank';
+import {
+  CollectionAddPiecePanel,
+  buildAddPieceCandidates,
+  type AddPieceCandidate,
+  type AddPieceCreatePayload,
+  type AddPieceItemError,
+} from './collection-add-piece-panel';
 import { CollectionCreatePanel } from './collection-create-panel';
 import { JoiaEditModal, JoiaEditModalData } from './joia-edit-modal';
 import {
@@ -122,19 +139,22 @@ export function clampCreatePanel(
 @Component({
   selector: 'lc-admin-3d-page',
   standalone: true,
-  imports: [CollectionCreatePanel],
+  imports: [CollectionCreatePanel, CollectionAddPiecePanel],
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
 export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
   @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild(CollectionAddPiecePanel) private addPanel?: CollectionAddPiecePanel;
 
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dialog = inject(Dialog);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly collectionsApi = inject(AdminCollectionsApiService);
+  private readonly collectionProducts = inject(AdminCollectionProductsService);
+  private readonly contentAdmin = inject(ContentAdminService);
   private readonly joiasAdmin = inject(AdminJoiasCatalogService);
   private readonly viewMode = inject(AdminViewModeService);
   private readonly boot = inject(Admin3dBootService);
@@ -183,24 +203,36 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly createSaving = signal(false);
   readonly createPanel = signal<{ x: number; y: number }>({ x: 24, y: 24 });
   readonly createSheet = signal(isCreateSheetViewport());
+  readonly activeUnit = computed(() => {
+    this.layoutRev();
+    if (this.creating()) return null;
+    const id = this.focusedId();
+    if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID) return null;
+    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+    const unit = unitsOfKind(this.layout, kind).find((r) => r.id === id);
+    if (!unit) return null;
+    return { id: unit.id, name: unit.name, kind: unit.kind, hangers: unit.hangers.length };
+  });
+  readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
+  readonly adding = signal(false);
   readonly canArchiveFocused = computed(() => {
-    if (this.creating()) return false;
+    if (this.creating() || this.adding()) return false;
     const id = this.focusedId();
     if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID || id === UNCOLLECTED_RACK_ID) {
       return false;
     }
     return Boolean(collectionSlugFromUnitId(id));
   });
-
-  readonly emptyUnit = computed(() => {
-    if (this.creating() || this.modalOpen) return null;
-    const id = this.focusedId();
-    if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID) return null;
-    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
-    const unit = unitsOfKind(this.layout, kind).find((r) => r.id === id);
-    if (!unit || unit.hangers.length > 0) return null;
-    return { id: unit.id, name: unit.name, kind: unit.kind };
-  });
+  readonly addSaving = signal(false);
+  readonly addCandidates = signal<AddPieceCandidate[]>([]);
+  readonly addUnitName = signal('');
+  readonly addSheet = signal(isCreateSheetViewport());
+  readonly addCount = signal(0);
+  readonly addErrors = signal<AddPieceItemError[]>([]);
+  readonly addCreateError = signal('');
+  readonly addAnchor = signal<{ x: number; y: number } | null>(null);
+  readonly addCanUpload = true;
+  readonly addPriceRequired = computed(() => this.line() !== 'joias');
 
   private engine: SceneEngine | null = null;
   private layout: SceneLayout = { racks: [] };
@@ -214,6 +246,9 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private hintTimer = 0;
   private bootFadeTimer = 0;
   private modalOpen = false;
+  private readonly layoutRev = signal(0);
+  private addTimers: number[] = [];
+  private readonly addingSlugs = new Set<string>();
 
   ngOnInit(): void {
     this.load();
@@ -227,7 +262,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.boot.markFirstFrame();
       return;
     }
-    this.engine = createSceneEngine(canvas, { reducedMotion: this.reducedMotion });
+    this.engine = createSceneEngine(canvas, {
+      reducedMotion: this.reducedMotion,
+      host: this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas,
+    });
     if (!this.engine) {
       this.webglUnavailable.set(true);
       this.loading.set(false);
@@ -235,9 +273,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.engine.onClick((slug) => this.openEditor(slug));
-    this.engine.onEmptyUnit((id) => this.openAddPiece(id));
+    this.engine.onEmptyUnit((id) => this.openAddPanel(id));
     this.engine.onHover((slug, pointer) => this.setHoverTip(slug, pointer));
-    this.engine.onFocusChange((id) => this.focusedId.set(id));
+    this.engine.onFocusChange((id) => {
+      this.focusedId.set(id);
+      this.refreshAddAnchor();
+    });
     this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.onSceneComplete(() => this.markSceneComplete());
     this.engine.onDraftAnchor((point) => {
@@ -255,24 +296,34 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.hintTimer) window.clearTimeout(this.hintTimer);
     if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
+    this.clearAddTimers();
     this.engine?.dispose();
     this.engine = null;
   }
 
   @HostListener('window:resize')
+  @HostListener('window:orientationchange')
   onViewport(): void {
     this.createSheet.set(isCreateSheetViewport());
+    this.addSheet.set(isCreateSheetViewport());
+    this.engine?.resize();
+    this.refreshAddAnchor();
   }
 
   @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.adding() && !this.modalOpen) {
+      event.preventDefault();
+      this.cancelAddPiece();
+      return;
+    }
     if (event.key === 'Escape' && this.creating() && !this.modalOpen) {
       event.preventDefault();
       this.cancelCreate();
       return;
     }
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    if (this.creating()) return;
+    if (this.creating() || this.adding()) return;
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.error()) return;
     const target = event.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
@@ -284,23 +335,23 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   focusRack(id: string): void {
-    if (this.creating()) return;
+    if (this.creating() || this.adding()) return;
     this.engine?.focusRack(id, this.reducedMotion);
   }
 
   focusOverview(): void {
-    if (this.creating()) return;
+    if (this.creating() || this.adding()) return;
     this.engine?.focusOverview(this.reducedMotion);
   }
 
   setLine(line: AtelierLine): void {
-    if (this.creating() || this.line() === line) return;
+    if (this.creating() || this.adding() || this.line() === line) return;
     this.line.set(line);
     this.syncVisibleLayout();
   }
 
   startCreate(): void {
-    if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.modalOpen) return;
+    if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.modalOpen || this.adding()) return;
     this.hoverTip.set(null);
     this.createError.set('');
     this.createSaving.set(false);
@@ -385,8 +436,45 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   addPieceToFocused(): void {
-    const unit = this.emptyUnit();
-    if (unit) this.openAddPiece(unit.id);
+    const unit = this.activeUnit();
+    if (unit) this.openAddPanel(unit.id);
+  }
+
+  confirmAddPieces(slugs: string[]): void {
+    const unit = this.focusedUnit();
+    if (!unit || !slugs.length) return;
+    const incoming = slugs.filter(
+      (slug) => !unit.hangers.some((h) => h.slug === slug) && !this.addingSlugs.has(slug),
+    );
+    if (!incoming.length) return;
+    this.addErrors.update((errors) => errors.filter((item) => !incoming.includes(item.slug)));
+    this.addPanel?.finishAdd(incoming);
+    incoming.forEach((slug, index) => {
+      this.addingSlugs.add(slug);
+      const timer = window.setTimeout(() => this.addOneOptimistic(unit.id, slug), addPieceStaggerDelay(index));
+      this.addTimers.push(timer);
+    });
+  }
+
+  createAndAdd(draft: AddPieceCreatePayload): void {
+    const unit = this.focusedUnit();
+    if (!unit || this.addSaving()) return;
+    this.addCreateError.set('');
+    this.addSaving.set(true);
+    if (unit.kind === 'vitrine') {
+      this.createAndAddJoia(unit, draft);
+      return;
+    }
+    this.createAndAddProduct(unit, draft);
+  }
+
+  cancelAddPiece(): void {
+    this.adding.set(false);
+    this.addCandidates.set([]);
+    this.addErrors.set([]);
+    this.addCreateError.set('');
+    this.addCount.set(0);
+    this.addPanel?.resetCreate();
   }
 
   stepRack(delta: -1 | 1): void {
@@ -514,6 +602,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.collections = collections;
     this.knownRackIds = new Set(collections.map((c) => c.slug));
     this.layout = mapAtelierToScene(collections, products, joias);
+    this.rememberCollectionProducts();
+    this.bumpLayout();
     this.loading.set(false);
     this.syncVisibleLayout();
   }
@@ -528,6 +618,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     } else {
       this.pendingLayout = visible;
     }
+    this.refreshAddAnchor();
   }
 
   private showDraftOutline(): void {
@@ -556,6 +647,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       { slug: created.slug, name: created.name, sortOrder: created.sortOrder },
     ];
     this.layout = { racks: [...this.layout.racks, unit] };
+    this.collectionProducts.remember(created.slug, []);
     this.line.set(kind === 'vitrine' ? 'joias' : 'roupas');
     this.creating.set(false);
     this.createError.set('');
@@ -564,62 +656,30 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.commitDraft(unit, this.reducedMotion);
     this.focusedId.set(unit.id);
     this.toast.success('Coleção criada.');
+    this.refreshAddAnchor();
   }
 
-  private openAddPiece(unitId: string): void {
-    if (this.creating() || this.modalOpen) return;
+  private openAddPanel(unitId: string): void {
+    if (this.creating() || this.modalOpen || this.addSaving()) return;
     const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
     const unit = unitsOfKind(this.layout, kind).find((r) => r.id === unitId);
     if (!unit) return;
-    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    if (this.focusedId() !== unit.id) this.engine?.focusRack(unit.id, this.reducedMotion);
     this.hoverTip.set(null);
-    this.modalOpen = true;
-    if (unit.kind === 'vitrine') {
-      const ref = this.dialog.open<JoiaPiece | undefined, JoiaEditModalData, JoiaEditModal>(JoiaEditModal, {
-        data: {
-          slug: 'nova',
-          isNew: true,
-          piece: blankAtelierJoia(collectionSlug),
-        },
-        panelClass: 'lc-product-edit-dialog',
-        backdropClass: 'lc-product-edit-backdrop',
-        autoFocus: 'first-tabbable',
-        restoreFocus: false,
-        ariaLabelledBy: PRODUCT_EDIT_MODAL_TITLE_ID,
-      });
-      ref.closed.subscribe((saved) => {
-        this.modalOpen = false;
-        if (saved && isArchivedAt(saved.archivedAt)) this.onJoiaArchived(saved);
-        else if (saved) this.applySavedJoia(saved);
-        queueMicrotask(() => this.focusScene());
-      });
-      return;
-    }
-    const ref = this.dialog.open<Product | undefined, ProductEditModalData, ProductEditModal>(
-      ProductEditModal,
-      {
-        data: {
-          slug: 'novo',
-          isNew: true,
-          product: blankAtelierProduct(collectionSlug),
-        },
-        panelClass: 'lc-product-edit-dialog',
-        backdropClass: 'lc-product-edit-backdrop',
-        autoFocus: 'first-tabbable',
-        restoreFocus: false,
-        ariaLabelledBy: PRODUCT_EDIT_MODAL_TITLE_ID,
-      },
-    );
-    ref.closed.subscribe((saved) => {
-      this.modalOpen = false;
-      if (saved && isArchivedAt(saved.archivedAt)) this.onProductArchived(saved);
-      else if (saved) this.applySaved(saved);
-      queueMicrotask(() => this.focusScene());
-    });
+    this.addUnitName.set(unit.name);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+    this.addSheet.set(isCreateSheetViewport());
+    this.addSaving.set(false);
+    this.addErrors.set([]);
+    this.addCreateError.set('');
+    this.addCount.set(0);
+    this.addPanel?.resetCreate();
+    this.adding.set(true);
+    this.refreshAddAnchor();
   }
 
   private openEditor(slug: string): void {
-    if (this.creating()) return;
+    if (this.creating() || this.adding()) return;
     this.hoverTip.set(null);
     this.modalOpen = true;
     const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
@@ -760,6 +820,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.productsBySlug.delete(product.slug);
     this.engine?.removeHanger(product.slug, this.reducedMotion);
     this.hoverTip.set(null);
+    this.bumpLayout();
+    this.refreshAddAnchor();
     showArchiveUndo(this.toast, () => {
       this.adminCatalog.restoreViaApi(product.slug).subscribe({
         next: (restored) => this.applySaved(restored),
@@ -776,6 +838,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.joiasBySlug.delete(piece.slug);
     this.engine?.removeHanger(piece.slug, this.reducedMotion);
     this.hoverTip.set(null);
+    this.bumpLayout();
+    this.refreshAddAnchor();
     showArchiveUndo(this.toast, () => {
       this.joiasAdmin.restore(piece.slug).subscribe({
         next: (restored) => this.applySavedJoia(restored),
@@ -787,24 +851,322 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     });
   }
 
-  private applySaved(product: Product): void {
+  private applySaved(product: Product, ontoRackId?: string, animate = false): void {
     this.productsBySlug.set(product.slug, product);
     const input = productToSceneInput(product);
-    const rackId = resolveProductRackId(input, this.knownRackIds);
+    const rackId = ontoRackId ?? resolveProductRackId(input, this.knownRackIds);
+    const existed = this.layout.racks.some((rack) => rack.hangers.some((h) => h.slug === product.slug));
     const hanger = toSceneHanger(input, rackId);
     this.layout = replaceHanger(this.layout, hanger);
-    this.engine?.updateHanger(hanger);
+    this.bumpLayout();
+    const collectionSlug = collectionSlugFromUnitId(hanger.rackId);
+    if (collectionSlug) {
+      this.collectionProducts.remember(
+        collectionSlug,
+        appendCollectionProductSlugs(this.collectionProducts.current(collectionSlug), [hanger.slug]),
+      );
+    }
+    if (animate && !existed) this.engine?.addHanger(hanger, this.reducedMotion);
+    else this.engine?.updateHanger(hanger);
     this.refreshTip(hanger);
+    this.refreshAddAnchor();
   }
 
-  private applySavedJoia(piece: JoiaPiece): void {
+  private focusedUnit(): SceneRack | null {
+    const id = this.focusedId();
+    if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID) return null;
+    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+    return unitsOfKind(this.layout, kind).find((r) => r.id === id) ?? null;
+  }
+
+  private listAddCandidates(unitId: string): AddPieceCandidate[] {
+    const unit = this.layout.racks.find((r) => r.id === unitId);
+    if (!unit) return [];
+    const hangers = this.layout.racks.flatMap((rack) => rack.hangers.map((h) => ({ slug: h.slug, rackId: h.rackId })));
+    const units = this.layout.racks.map((rack) => ({ id: rack.id, name: rack.name }));
+    const collections = this.collections.map((c) => ({ slug: c.slug, name: c.name }));
+    const ctx = {
+      unitId,
+      unitCollectionSlug: collectionSlugFromUnitId(unit.id),
+      hangers,
+      units,
+      collections,
+    };
+    if (unit.kind === 'vitrine') {
+      return buildAddPieceCandidates(
+        [...this.joiasBySlug.values()].map((piece) => ({
+          slug: piece.slug,
+          name: piece.title,
+          thumb: piece.image || joiaGallery(piece)[0],
+          collectionSlug: piece.collectionSlug,
+          archivedAt: piece.archivedAt,
+        })),
+        ctx,
+      );
+    }
+    return buildAddPieceCandidates(
+      [...this.productsBySlug.values()].map((product) => ({
+        slug: product.slug,
+        name: product.name,
+        thumb: product.thumb || product.gallery?.[0],
+        collectionSlug: product.collectionSlug,
+        collectionName: product.collection,
+        archivedAt: product.archivedAt,
+      })),
+      ctx,
+    );
+  }
+
+  private rememberCollectionProducts(): void {
+    for (const rack of this.layout.racks) {
+      if (rack.kind !== 'rack') continue;
+      const slug = collectionSlugFromUnitId(rack.id);
+      if (slug) this.collectionProducts.remember(slug, rack.hangers.map((h) => h.slug));
+    }
+  }
+
+  private bumpLayout(): void {
+    this.layoutRev.update((n) => n + 1);
+  }
+
+  private clearAddTimers(): void {
+    for (const timer of this.addTimers) window.clearTimeout(timer);
+    this.addTimers = [];
+  }
+
+  private applySavedJoia(piece: JoiaPiece, ontoRackId?: string, animate = false): void {
     this.joiasBySlug.set(piece.slug, piece);
     const input = joiaToSceneInput(piece);
     const current = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === piece.slug);
-    const hanger = toSceneHanger(input, current?.rackId ?? `vitrine:${input.collectionSlug || 'gioielli'}`);
+    const existed = Boolean(current);
+    const hanger = toSceneHanger(
+      input,
+      ontoRackId ?? current?.rackId ?? `vitrine:${input.collectionSlug || 'gioielli'}`,
+    );
     this.layout = replaceHanger(this.layout, hanger);
-    this.engine?.updateHanger(hanger);
+    this.bumpLayout();
+    if (animate && !existed) this.engine?.addHanger(hanger, this.reducedMotion);
+    else this.engine?.updateHanger(hanger);
     this.refreshTip(hanger);
+    this.refreshAddAnchor();
+  }
+
+  private addOneOptimistic(unitId: string, slug: string): void {
+    const unit = this.layout.racks.find((rack) => rack.id === unitId);
+    if (!unit) {
+      this.addingSlugs.delete(slug);
+      return;
+    }
+    if (unit.kind === 'vitrine') {
+      this.addOneJoiaOptimistic(unit, slug);
+      return;
+    }
+    this.addOneProductOptimistic(unit, slug);
+  }
+
+  private addOneProductOptimistic(unit: SceneRack, slug: string): void {
+    const product = this.productsBySlug.get(slug);
+    if (!product) {
+      this.markAddPieceFailed(slug, 'Peça não encontrada.');
+      return;
+    }
+    const previous = findHanger(this.layout, slug);
+    this.applySaved(product, unit.id, true);
+    this.addCount.update((n) => n + 1);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    if (this.usesLocalCatalog()) {
+      this.addingSlugs.delete(slug);
+      return;
+    }
+    this.collectionProducts.append(collectionSlug, [slug]).subscribe({
+      next: () => this.addingSlugs.delete(slug),
+      error: (err) =>
+        this.failAddPiece(
+          unit,
+          slug,
+          adminHttpErrorMessage(err, 'Não foi possível adicionar esta peça.'),
+          previous?.rackId ?? null,
+        ),
+    });
+  }
+
+  private addOneJoiaOptimistic(unit: SceneRack, slug: string): void {
+    const piece = this.joiasBySlug.get(slug);
+    if (!piece) {
+      this.markAddPieceFailed(slug, 'Peça não encontrada.');
+      return;
+    }
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    const next: JoiaPiece = { ...piece, collectionSlug: collectionSlug as CollectionSlug };
+    this.joiasAdmin.save(next);
+    this.applySavedJoia(next, unit.id, true);
+    this.addCount.update((n) => n + 1);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+    this.contentAdmin.patchContentField('joia', next.slug, 'collectionSlug', collectionSlug).subscribe({
+      next: () => this.addingSlugs.delete(slug),
+      error: () => this.addingSlugs.delete(slug),
+    });
+    if (this.usesLocalCatalog()) this.addingSlugs.delete(slug);
+  }
+
+  private failAddPiece(unit: SceneRack, slug: string, message: string, previousRackId: string | null): void {
+    this.revertAddedPiece(unit, slug, previousRackId);
+    this.addCount.update((n) => Math.max(0, n - 1));
+    this.markAddPieceFailed(slug, message);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+  }
+
+  private markAddPieceFailed(slug: string, message: string): void {
+    this.addingSlugs.delete(slug);
+    this.addErrors.update((errors) => [...errors.filter((item) => item.slug !== slug), { slug, message }]);
+    this.addPanel?.selected.add(slug);
+  }
+
+  private revertAddedPiece(unit: SceneRack, slug: string, previousRackId: string | null): void {
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    this.layout = omitHanger(this.layout, slug);
+    this.bumpLayout();
+    this.engine?.removeHanger(slug, true);
+    if (unit.kind !== 'vitrine') {
+      this.collectionProducts.remember(
+        collectionSlug,
+        this.collectionProducts.current(collectionSlug).filter((item) => item !== slug),
+      );
+    }
+    if (previousRackId && previousRackId !== unit.id) {
+      const product = this.productsBySlug.get(slug);
+      const piece = this.joiasBySlug.get(slug);
+      if (unit.kind === 'vitrine' && piece) this.applySavedJoia(piece, previousRackId, false);
+      else if (product) this.applySaved(product, previousRackId, false);
+    }
+    this.refreshAddAnchor();
+  }
+
+  private createAndAddProduct(unit: SceneRack, draft: AddPieceCreatePayload): void {
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    const price = draft.price ?? 0;
+    const product: Product = {
+      ...blankAtelierProduct(collectionSlug),
+      name: draft.name,
+      slug: uniqueAdminSlug(draft.name, (slug) => this.adminCatalog.slugExists(slug) || this.productsBySlug.has(slug)),
+      price,
+      priceCents: Math.round(price * 100),
+      priceLabel: formatPriceLabel(price),
+      stockQty: draft.stock,
+    };
+
+    const afterCreate = (created: Product) => {
+      this.productsBySlug.set(created.slug, created);
+      if (this.usesLocalCatalog()) {
+        this.collectionProducts.remember(
+          collectionSlug,
+          appendCollectionProductSlugs(this.collectionProducts.current(collectionSlug), [created.slug]),
+        );
+        this.finishCreatePiece(unit, created);
+        return;
+      }
+      this.collectionProducts.append(collectionSlug, [created.slug]).subscribe({
+        next: () => this.finishCreatePiece(unit, created),
+        error: () => {
+          this.collectionProducts.remember(
+            collectionSlug,
+            appendCollectionProductSlugs(this.collectionProducts.current(collectionSlug), [created.slug]),
+          );
+          this.finishCreatePiece(unit, created);
+        },
+      });
+    };
+
+    this.adminCatalog.saveProduct$(product, { isNew: true, details: [] }).pipe(
+      switchMap((created) => this.attachCreatedPhoto$(created, draft.photo)),
+    ).subscribe({
+      next: afterCreate,
+      error: (err) => {
+        this.addSaving.set(false);
+        this.addCreateError.set(adminHttpErrorMessage(err, 'Não foi possível criar a peça.'));
+      },
+    });
+  }
+
+  private createAndAddJoia(unit: SceneRack, draft: AddPieceCreatePayload): void {
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    const slug = uniqueJoiaSlug(draft.name, (value) => this.joiasAdmin.slugExists(value) || this.joiasBySlug.has(value));
+    const piece: JoiaPiece = {
+      ...blankAtelierJoia(collectionSlug),
+      id: slug,
+      slug,
+      title: draft.name,
+      price: draft.price,
+      priceLabel: draft.price != null ? formatPriceLabel(draft.price) : 'Sob consulta',
+    };
+
+    const finish = (next: JoiaPiece) => {
+      this.joiasAdmin.create(next);
+      this.joiasBySlug.set(next.slug, next);
+      this.contentAdmin.patchContentField('joia', next.slug, 'collectionSlug', collectionSlug).subscribe({
+        error: () => undefined,
+      });
+      this.applySavedJoia(next, unit.id, true);
+      this.addSaving.set(false);
+      this.addCreateError.set('');
+      this.addCount.update((n) => n + 1);
+      this.addCandidates.set(this.listAddCandidates(unit.id));
+      this.addPanel?.resetCreate();
+    };
+
+    if (!draft.photo) {
+      finish(piece);
+      return;
+    }
+    this.contentAdmin.uploadImage$(draft.photo, draft.name).subscribe({
+      next: (uploaded) => finish({ ...piece, image: uploaded.cdnUrl, images: [uploaded.cdnUrl] }),
+      error: (err) => {
+        this.addSaving.set(false);
+        this.addCreateError.set(adminHttpErrorMessage(err, 'Não foi possível enviar a foto.'));
+      },
+    });
+  }
+
+  private attachCreatedPhoto$(product: Product, photo: File | null) {
+    if (!photo) return of(product);
+    if (this.adminCatalog.useApi) {
+      return this.adminCatalog.uploadAndAttach$(product.slug, [photo]).pipe(
+        catchError(() => of(product)),
+      );
+    }
+    const url = URL.createObjectURL(photo);
+    const withPhoto: Product = { ...product, thumb: url, gallery: [url, ...(product.gallery ?? [])] };
+    this.adminCatalog.save(withPhoto);
+    return of(withPhoto);
+  }
+
+  private finishCreatePiece(unit: SceneRack, product: Product): void {
+    this.applySaved(product, unit.id, true);
+    this.addSaving.set(false);
+    this.addCreateError.set('');
+    this.addCount.update((n) => n + 1);
+    this.addCandidates.set(this.listAddCandidates(unit.id));
+    this.addPanel?.resetCreate();
+  }
+
+  private usesLocalCatalog(): boolean {
+    return (
+      this.usingMock() ||
+      shouldUseLocalAdmin3dCatalog({
+        production: environment.production,
+        useApi: this.adminCatalog.useApi,
+      })
+    );
+  }
+
+  private refreshAddAnchor(): void {
+    const unit = this.activeUnit();
+    if (!unit || !this.engine) {
+      this.addAnchor.set(null);
+      return;
+    }
+    this.addAnchor.set(this.engine.unitScreenPoint(unit.id));
   }
 
   private refreshTip(hanger: { slug: string; name: string; priceLabel: string }): void {

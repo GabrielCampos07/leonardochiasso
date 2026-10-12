@@ -48,6 +48,7 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
   readonly piece = signal<JoiaPiece | null>(null);
   readonly missing = signal(false);
   readonly loading = signal(true);
+  readonly saving = signal(false);
 
   readonly imagesText = computed(() => {
     const p = this.piece();
@@ -108,7 +109,7 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
 
   async archive(): Promise<void> {
     const cur = this.piece();
-    if (!cur || this.data.isNew) return;
+    if (!cur || this.data.isNew || this.saving()) return;
     const ok = await confirmArchivePiece(this.confirm);
     if (!ok) return;
     this.catalog.archive(cur.slug).subscribe({
@@ -122,6 +123,7 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
   }
 
   save(): void {
+    if (this.saving()) return;
     const cur = this.piece();
     if (!cur?.title.trim()) {
       this.toast.info('Informe o título.');
@@ -141,13 +143,16 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
       image: cur.image?.trim() || joiaGallery(cur)[0],
       images: joiaGallery(cur),
     };
+    this.saving.set(true);
     if (this.data.isNew) this.catalog.create(next);
     else this.catalog.save(next);
     this.toast.success(this.data.isNew ? 'Joia criada.' : 'Joia salva.');
+    this.saving.set(false);
     this.ref.close(next);
   }
 
   close(): void {
+    if (this.saving()) return;
     this.ref.close(undefined);
   }
 }
