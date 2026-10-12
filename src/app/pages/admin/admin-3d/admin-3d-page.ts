@@ -12,11 +12,11 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { forkJoin } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
-import { mapApiProduct } from '../../../core/catalog.service';
+import { ApiProductDto, mapApiProduct } from '../../../core/catalog.service';
 import { Product } from '../../../core/product.model';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
@@ -26,8 +26,9 @@ import {
   rackNavItems,
   stepRackIndex,
 } from '../../../scene-engine/camera-guide';
-import { mapCatalogToScene, resolveProductRackId, toSceneHanger } from '../../../scene-engine/mapping';
+import { mapCatalogToScene, replaceHanger, resolveProductRackId, toSceneHanger } from '../../../scene-engine/mapping';
 import { apiProductToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
+import { clampTooltip, mergeProductPhotos } from '../../../scene-engine/photo-url';
 import { createSceneEngine, SceneEngine } from '../../../scene-engine/scene-engine';
 import type { SceneCollectionInput, SceneLayout, SceneProductInput } from '../../../scene-engine/types';
 import {
@@ -83,13 +84,22 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly viewMode = inject(AdminViewModeService);
 
   readonly loading = signal(true);
+  readonly firstFrame = signal(false);
+  readonly bootFading = signal(false);
   readonly error = signal('');
   readonly empty = signal(false);
   readonly usingMock = signal(false);
   readonly allowMock = !environment.production;
-  readonly hoverTip = signal<{ name: string; stock: string } | null>(null);
+  readonly hoverTip = signal<{ name: string; stock: string; x: number; y: number } | null>(null);
   readonly showHint = signal(true);
   readonly webglUnavailable = signal(false);
+  readonly showBoot = computed(
+    () =>
+      !this.webglUnavailable() &&
+      !this.error() &&
+      !this.empty() &&
+      (this.loading() || !this.firstFrame() || this.bootFading()),
+  );
   readonly reducedMotion = prefersReducedMotion();
   readonly webglTitle = WEBGL_UNAVAILABLE_TITLE;
   readonly webglHint = WEBGL_UNAVAILABLE_HINT;
@@ -116,6 +126,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private pendingLayout: SceneLayout | null = null;
   private loadGen = 0;
   private hintTimer = 0;
+  private bootFadeTimer = 0;
 
   ngOnInit(): void {
     this.load();
@@ -135,11 +146,9 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
     this.engine.onClick((slug) => this.openEditor(slug));
-    this.engine.onHover((slug) => {
-      const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
-      this.hoverTip.set(hanger ? { name: hanger.name, stock: formatStockLabel(hanger.stockQty) } : null);
-    });
+    this.engine.onHover((slug, pointer) => this.setHoverTip(slug, pointer));
     this.engine.onFocusChange((id) => this.focusedId.set(id));
+    this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.start();
     this.canvasReady = true;
     if (this.pendingLayout) {
@@ -151,6 +160,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.hintTimer) window.clearTimeout(this.hintTimer);
+    if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
     this.engine?.dispose();
     this.engine = null;
   }
@@ -158,7 +168,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-    if (this.webglUnavailable() || this.loading() || this.empty() || this.error()) return;
+    if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.empty() || this.error()) return;
     const target = event.target as HTMLElement | null;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
       return;
@@ -216,6 +226,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private load(): void {
     const gen = ++this.loadGen;
     this.loading.set(true);
+    this.firstFrame.set(false);
+    this.bootFading.set(false);
     this.error.set('');
     this.empty.set(false);
 
@@ -246,17 +258,20 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     forkJoin({
       collections: this.collectionsApi.list(),
       products: this.collectionsApi.listAdminProducts(),
+      storefront: this.collectionsApi.listPublicProducts().pipe(catchError(() => of([] as ApiProductDto[]))),
     }).subscribe({
-      next: ({ collections, products }) => {
+      next: ({ collections, products, storefront }) => {
         if (gen !== this.loadGen) return;
-        this.cacheProducts(products.map(mapApiProduct));
+        const storefrontBySlug = new Map(storefront.map((p) => [p.slug, p]));
+        const merged = products.map((dto) => mergeProductPhotos(dto, storefrontBySlug.get(dto.slug)));
+        this.cacheProducts(merged.map(mapApiProduct));
         this.applyInputs(
           collections.map((c) => ({
             slug: c.slug,
             name: c.name,
             sortOrder: c.sortOrder,
           })),
-          products.map(apiProductToSceneInput),
+          merged.map(apiProductToSceneInput),
           false,
           gen,
         );
@@ -315,11 +330,37 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.productsBySlug = new Map(products.map((p) => [p.slug, p]));
   }
 
+  private setHoverTip(slug: string | null, pointer?: { x: number; y: number }): void {
+    if (!slug || !pointer) {
+      this.hoverTip.set(null);
+      return;
+    }
+    const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
+    if (!hanger) {
+      this.hoverTip.set(null);
+      return;
+    }
+    const pos = clampTooltip(pointer.x, pointer.y, { width: 228, height: 68 });
+    this.hoverTip.set({ name: hanger.name, stock: formatStockLabel(hanger.stockQty), x: pos.x, y: pos.y });
+  }
+
+  private markFirstFrame(): void {
+    this.firstFrame.set(true);
+    if (this.reducedMotion) {
+      this.bootFading.set(false);
+      return;
+    }
+    this.bootFading.set(true);
+    if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
+    this.bootFadeTimer = window.setTimeout(() => this.bootFading.set(false), 420);
+  }
+
   private applySaved(product: Product): void {
     this.productsBySlug.set(product.slug, product);
     const input = productToSceneInput(product);
     const rackId = resolveProductRackId(input, this.knownRackIds);
     const hanger = toSceneHanger(input, rackId);
+    this.layout = replaceHanger(this.layout, hanger);
     this.engine?.updateHanger(hanger);
     const tip = this.hoverTip();
     if (tip && tip.name !== hanger.name) {
@@ -327,7 +368,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
         .flatMap((r) => r.hangers)
         .find((h) => h.name === tip.name)?.slug;
       if (currentSlug === hanger.slug) {
-        this.hoverTip.set({ name: hanger.name, stock: formatStockLabel(hanger.stockQty) });
+        this.hoverTip.set({
+          name: hanger.name,
+          stock: formatStockLabel(hanger.stockQty),
+          x: tip.x,
+          y: tip.y,
+        });
       }
     }
   }

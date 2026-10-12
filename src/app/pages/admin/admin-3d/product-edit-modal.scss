@@ -9,7 +9,7 @@
 
 .product-edit-modal {
   padding: var(--lc-space-24);
-  padding-bottom: var(--lc-space-40);
+  padding-bottom: max(56px, env(safe-area-inset-bottom, 0px));
 }
 
 .product-edit-modal__head {

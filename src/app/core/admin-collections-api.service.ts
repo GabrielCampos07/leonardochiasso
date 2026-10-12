@@ -76,4 +76,12 @@ export class AdminCollectionsApiService {
       withCredentials: true,
     });
   }
+
+  /**
+   * Public catalog — same `mapProduct` shape as admin (`thumb`, `media[].cdnUrl`,
+   * `role`, `isPrimary`). Used to fill hanger photos when the admin list omits them.
+   */
+  listPublicProducts(): Observable<ApiProductDto[]> {
+    return this.http.get<ApiProductDto[]>(`${this.base}/api/products`);
+  }
 }
