@@ -14,6 +14,9 @@
         <a class="admin-edit__back" [routerLink]="listPath">← Voltar</a>
         <h1>{{ isNew() ? 'Nova coleção' : 'Editar coleção' }}</h1>
         <p>{{ isNew() ? 'Defina slug, nome e publicação.' : slug() }}</p>
+        @if (!isNew()) {
+          <lc-collection-cover class="admin-edit__cover" [src]="coverUrl()" [alt]="name" />
+        }
       </div>
     </header>
 
@@ -118,9 +121,7 @@
           @for (p of products(); track p.slug) {
             <li class="admin-row admin-col-products__row" cdkDrag>
               <span class="admin-col-products__handle" cdkDragHandle aria-hidden="true">⋮⋮</span>
-              @if (p.thumb) {
-                <img [src]="p.thumb" [alt]="p.name" width="72" height="96" />
-              }
+              <lc-collection-cover class="admin-col-products__thumb" [src]="p.thumb" [alt]="p.name" />
               <div class="admin-row__info">
                 <strong>{{ p.name }}</strong>
                 <span>{{ p.slug }} · {{ p.category }}</span>

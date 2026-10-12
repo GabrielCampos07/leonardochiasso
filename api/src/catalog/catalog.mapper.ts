@@ -49,6 +49,7 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
     slug: pc.collection.slug,
     name: pc.collection.name,
     archivedAt: pc.collection.archivedAt?.toISOString() ?? null,
+    sortOrder: pc.sortOrder,
   }));
   const liveCollections = collections.filter((c) => !c.archivedAt);
 

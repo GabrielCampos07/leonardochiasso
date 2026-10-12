@@ -80,7 +80,7 @@
               />
               <span class="add-piece__thumb" aria-hidden="true">
                 @if (item.thumb) {
-                  <img [src]="item.thumb" alt="" />
+                  <img [src]="item.thumb" alt="" (error)="onThumbError($event)" />
                 }
               </span>
               <span class="add-piece__meta">

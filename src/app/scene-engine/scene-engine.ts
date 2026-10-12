@@ -60,6 +60,7 @@ import {
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
+import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
 import {
@@ -1312,7 +1313,7 @@ export class SceneEngine {
       piece ?? { imageUrl: url ?? null, thumbUrl: this.findHangerGroup(slug)?.userData?.['data']?.thumbUrl },
     );
     if (!candidates.length) {
-      apply(makeFallbackTexture('#c8c2b8', label));
+      apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
       this.loadedPhotos.add(slug);
       this.markPhotoFinished();
       return;
@@ -1322,7 +1323,7 @@ export class SceneEngine {
       texture?.dispose();
       return;
     }
-    apply(texture ?? makeFallbackTexture('#c8c2b8', label));
+    apply(texture ?? makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
     this.loadedPhotos.add(slug);
     this.markPhotoFinished();
   }

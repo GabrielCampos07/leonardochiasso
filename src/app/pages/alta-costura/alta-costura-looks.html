@@ -36,12 +36,12 @@
             @if (look.productSlug; as slug) {
               <a class="acl-look__link" [routerLink]="productHref(slug)">
                 <figure class="acl-look__media">
-                  <img [src]="look.cover" [alt]="look.name" />
+                  <lc-collection-cover [src]="look.cover" [alt]="look.name" />
                 </figure>
               </a>
             } @else {
               <figure class="acl-look__media">
-                <img [src]="look.cover" [alt]="look.name" />
+                <lc-collection-cover [src]="look.cover" [alt]="look.name" />
               </figure>
             }
           </article>
@@ -58,16 +58,12 @@
           @for (tile of relatedCats(); track tile.label) {
             @if (tile.route; as href) {
               <a class="acl-related__cat" [routerLink]="href">
-                <span class="acl-related__cat-media">
-                  <img [src]="tile.image" [alt]="tile.label" />
-                </span>
+                <lc-collection-cover class="acl-related__cat-media" [src]="tile.image" [alt]="tile.label" />
                 <span class="acl-related__cat-label">{{ tile.label }}</span>
               </a>
             } @else {
               <div class="acl-related__cat acl-related__cat--static">
-                <span class="acl-related__cat-media">
-                  <img [src]="tile.image" [alt]="tile.label" />
-                </span>
+                <lc-collection-cover class="acl-related__cat-media" [src]="tile.image" [alt]="tile.label" />
                 <span class="acl-related__cat-label">{{ tile.label }}</span>
               </div>
             }

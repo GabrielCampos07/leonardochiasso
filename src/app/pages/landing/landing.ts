@@ -8,8 +8,11 @@ import { LcProductCard } from '../../shared/components/product-card/product-card
 import { brandLineForGender } from '../../core/brand-lines';
 import { CatalogService } from '../../core/catalog.service';
 import { ChromeService } from '../../core/chrome.service';
+import { isArchivedAt } from '../../core/admin-archive';
+import { collectionCoverUrl, collectionMembershipSortOrder } from '../../core/collection-cover';
 import { COLLECTION_NAV } from '../../core/nav.config';
 import { Product } from '../../core/product.model';
+import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import { GenderSlug, collectionPath } from '../../core/routes';
 import { sortByRecommendOrder } from '../../core/recommend-order';
 import { AltaCosturaFilms } from '../alta-costura/alta-costura-films';
@@ -18,7 +21,7 @@ import { resolveMediaUrl } from '../../core/media-url';
 @Component({
   selector: 'lc-landing-page',
   standalone: true,
-  imports: [LcNewsletter, AltaCosturaFilms, LcProductCard, RouterLink],
+  imports: [LcNewsletter, AltaCosturaFilms, LcProductCard, CollectionCover, RouterLink],
   templateUrl: './landing.html',
   styleUrl: './landing.scss',
 })
@@ -45,10 +48,25 @@ export class LandingPage implements OnInit {
   readonly collectionTiles = computed(() => {
     const g = this.categoria();
     if (!g) return [];
+    const products = this.catalog.products();
     return COLLECTION_NAV.map((c) => ({
       label: c.label,
       route: collectionPath(c.slug),
       queryParams: { categoria: g },
+      cover: collectionCoverUrl(
+        products
+          .filter(
+            (p) =>
+              !isArchivedAt(p.archivedAt) &&
+              (p.collectionSlug === c.slug ||
+                p.collection === c.label ||
+                (p.collections ?? []).some((item) => item.slug === c.slug)),
+          )
+          .map((p) => ({
+            ...p,
+            sortOrder: collectionMembershipSortOrder(p.collections, c.slug),
+          })),
+      ),
     }));
   });
 

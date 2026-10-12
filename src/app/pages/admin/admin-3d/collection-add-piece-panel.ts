@@ -253,6 +253,11 @@ export class CollectionAddPiecePanel implements OnChanges {
     return this.itemErrors.find((item) => item.slug === slug)?.message ?? '';
   }
 
+  onThumbError(event: Event): void {
+    const img = event.target;
+    if (img instanceof HTMLImageElement) img.remove();
+  }
+
   isOnRack(slug: string): boolean {
     return Boolean(this.candidates.find((item) => item.slug === slug)?.onRack);
   }

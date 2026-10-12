@@ -9,6 +9,8 @@ import {
 } from '../../core/admin-collections-api.service';
 import { AdminCollectionProductsService } from '../../core/admin-collection-products';
 import { ApiProductDto } from '../../core/catalog.service';
+import { collectionCoverUrl } from '../../core/collection-cover';
+import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import {
   ADMIN_NEW_COLLECTION_SLUG,
   ADMIN_NEW_PRODUCT_SLUG,
@@ -43,7 +45,7 @@ function slugify(value: string): string {
 @Component({
   selector: 'lc-admin-collection-edit',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule],
+  imports: [FormsModule, RouterLink, DragDropModule, CollectionCover],
   templateUrl: './admin-collection-edit.html',
   styleUrls: ['./admin-product-edit.scss', './admin-products.scss', './admin-collection-edit.scss'],
 })
@@ -74,6 +76,17 @@ export class AdminCollectionEditPage implements OnInit {
   private slugLocked = false;
 
   readonly products = signal<ApiProductDto[]>([]);
+  readonly coverUrl = computed(() =>
+    collectionCoverUrl(
+      this.products().map((p, index) => ({
+        archivedAt: p.archivedAt,
+        sortOrder: index,
+        thumb: p.thumb,
+        gallery: p.gallery,
+        media: p.media,
+      })),
+    ),
+  );
   readonly savingOrder = signal(false);
   private loadGen = 0;
 
@@ -129,7 +142,10 @@ export class AdminCollectionEditPage implements OnInit {
   async archive(): Promise<void> {
     const slug = this.slug();
     if (!slug || this.isNew()) return;
-    const ok = await confirmArchiveCollection(this.confirm, this.products().length);
+    const ok = await confirmArchiveCollection(
+      this.confirm,
+      this.products().filter((p) => !isArchivedAt(p.archivedAt)).length,
+    );
     if (!ok) return;
     this.api.archive(slug).subscribe({
       next: () => {

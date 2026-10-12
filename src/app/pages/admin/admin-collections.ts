@@ -7,8 +7,10 @@ import {
   AdminCollectionDto,
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
+import { coversByCollectionSlug } from '../../core/collection-cover';
 import { adminCollectionPath, adminNewCollectionPath } from '../../core/routes';
 import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
+import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import {
   adminLoadErrorMessage,
   archiveAwareError,
@@ -26,7 +28,7 @@ import { ToastService } from '../../core/feedback/toast.service';
 @Component({
   selector: 'lc-admin-collections',
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, CollectionCover],
   templateUrl: './admin-collections.html',
   styleUrl: './admin-products.scss',
 })
@@ -43,6 +45,7 @@ export class AdminCollectionsPage implements OnInit {
   readonly error = signal('');
   readonly restoringSlug = signal<string | null>(null);
   readonly collections = signal<AdminCollectionDto[]>([]);
+  readonly covers = signal<Record<string, string | null>>({});
   readonly newPath = adminNewCollectionPath();
 
   readonly filtered = computed(() => {
@@ -71,6 +74,7 @@ export class AdminCollectionsPage implements OnInit {
         this.loading.set(false);
         if (result.ok) {
           this.collections.set(result.value);
+          this.refreshCovers();
           return;
         }
         this.error.set(
@@ -88,6 +92,10 @@ export class AdminCollectionsPage implements OnInit {
 
   editPath(slug: string): string {
     return adminCollectionPath(slug);
+  }
+
+  coverOf(slug: string): string | null {
+    return this.covers()[slug] ?? null;
   }
 
   publishedLabel(c: AdminCollectionDto): string {
@@ -159,6 +167,13 @@ export class AdminCollectionsPage implements OnInit {
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
         );
       },
+    });
+  }
+
+  private refreshCovers(): void {
+    this.api.listAdminProducts().subscribe({
+      next: (products) => this.covers.set(coversByCollectionSlug(products)),
+      error: () => this.covers.set({}),
     });
   }
 }

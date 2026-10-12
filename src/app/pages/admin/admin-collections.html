@@ -38,7 +38,8 @@
 
     <ul class="admin-list__rows">
       @for (c of filtered(); track c.slug) {
-        <li class="admin-row admin-row--text">
+        <li class="admin-row admin-row--collection">
+          <lc-collection-cover class="admin-row__cover" [src]="coverOf(c.slug)" [alt]="c.name" />
           <div class="admin-row__info">
             <strong>{{ c.name }}</strong>
             <span>{{ c.slug }} · {{ publishedLabel(c) }}</span>

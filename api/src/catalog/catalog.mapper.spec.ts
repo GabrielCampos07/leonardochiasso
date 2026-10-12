@@ -38,6 +38,7 @@ describe('mapProduct collection badges', () => {
       product({
         collections: [
           {
+            sortOrder: 1,
             collection: {
               slug: 'teste-col-ux-r',
               name: 'TESTE-COL-UX-R',
@@ -45,6 +46,7 @@ describe('mapProduct collection badges', () => {
             },
           },
           {
+            sortOrder: 0,
             collection: {
               slug: 'organic-dreams',
               name: 'Organic Dreams',
@@ -60,5 +62,6 @@ describe('mapProduct collection badges', () => {
       'organic-dreams',
     ]);
     expect(dto.collections[0]?.archivedAt).toBe('2026-10-12T12:00:00.000Z');
+    expect(dto.collections.map((c) => c.sortOrder)).toEqual([1, 0]);
   });
 });

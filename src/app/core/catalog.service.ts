@@ -7,7 +7,7 @@ import { CollectionSlug } from './routes';
 import { environment } from '../../environments/environment';
 import { sortByRecommendOrder } from './recommend-order';
 import { AdminCatalogService } from './admin-catalog.service';
-import { primaryCollectionLabel } from './admin-archive';
+import { isArchivedAt, primaryCollectionLabel } from './admin-archive';
 import { withCdnUrls } from './media-url';
 
 /** API catalog DTO (subset used by the storefront). */
@@ -28,7 +28,7 @@ export interface ApiProductDto {
   stockQty?: number;
   category: string;
   collection: string;
-  collections?: { slug: string; name: string; archivedAt?: string | null }[];
+  collections?: { slug: string; name: string; archivedAt?: string | null; sortOrder?: number }[];
   thumb: string;
   gallery: string[];
   pieces?: Product['pieces'];
@@ -82,6 +82,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
       '') as Collection,
     collectionSlug: (primaryCollectionLabel(dto.collections).slug ||
       (!dto.collections?.length ? collectionNameToSlug(dto.collection || '') : '')) as CollectionSlug,
+    collections: dto.collections,
     pieces: (dto.pieces as Product['pieces']) ?? local?.pieces,
     colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
     imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,
@@ -109,7 +110,7 @@ export class CatalogService {
   /** Prefer API; fall back to local PRODUCTS if the API is unreachable. */
   loadProducts(): Observable<Product[]> {
     if (environment.demoMode) {
-      const merged = this.adminCatalog.applyTo(PRODUCTS);
+      const merged = liveCatalogProducts(this.adminCatalog.applyTo(PRODUCTS));
       this.products.set(merged);
       this.usingFallback.set(true);
       this.loaded.set(true);
@@ -119,7 +120,7 @@ export class CatalogService {
 
     if (!this.products$) {
       this.products$ = this.http.get<ApiProductDto[]>(`${this.baseUrl}/api/products`).pipe(
-        map((list) => list.map(mapApiProduct)),
+        map((list) => liveCatalogProducts(list.map(mapApiProduct))),
         tap((list) => {
           this.products.set(list);
           this.usingFallback.set(false);
@@ -130,7 +131,7 @@ export class CatalogService {
         }),
         catchError((err) => {
           console.warn('[CatalogService] API unavailable — using local PRODUCTS fallback', err);
-          const fallback = this.adminCatalog.applyTo(PRODUCTS);
+          const fallback = liveCatalogProducts(this.adminCatalog.applyTo(PRODUCTS));
           this.products.set(fallback);
           this.usingFallback.set(true);
           this.loaded.set(true);
@@ -144,7 +145,7 @@ export class CatalogService {
 
   /** Re-read admin overlay into the live catalog signal (after save/reset/reorder). */
   refreshLocalCatalog(): Product[] {
-    const merged = this.adminCatalog.applyTo(PRODUCTS);
+    const merged = liveCatalogProducts(this.adminCatalog.applyTo(PRODUCTS));
     this.products.set(merged);
     this.usingFallback.set(true);
     this.loaded.set(true);
@@ -168,7 +169,9 @@ export class CatalogService {
     const fromLive = () =>
       sortByRecommendOrder(
         this.products().filter(
-          (p) => p.collection === collection || p.collectionSlug === collection,
+          (p) =>
+            !isArchivedAt(p.archivedAt) &&
+            (p.collection === collection || p.collectionSlug === collection),
         ),
       );
 
@@ -176,13 +179,21 @@ export class CatalogService {
       return of(
         this.adminCatalog
           .applyTo(PRODUCTS)
-          .filter((p) => p.collection === collection || p.collectionSlug === collection),
+          .filter(
+            (p) =>
+              !isArchivedAt(p.archivedAt) &&
+              (p.collection === collection || p.collectionSlug === collection),
+          ),
       );
     }
     const slug = collectionNameToSlug(collection);
     return this.http.get<ApiCollectionDto>(`${this.baseUrl}/api/collections/${slug}`).pipe(
       map((col) => {
-        const api = (col.products ?? []).map(mapApiProduct);
+        // Public API already omits archived products; keep a front filter if an old
+        // payload still embeds them (GET /api/collections/:slug).
+        const api = (col.products ?? [])
+          .map(mapApiProduct)
+          .filter((p) => !isArchivedAt(p.archivedAt));
         return sortByRecommendOrder(api.length > 0 ? api : fromLive());
       }),
       catchError(() => of(fromLive())),
@@ -220,6 +231,10 @@ export class CatalogService {
       PRODUCTS.find((p) => p.id === productId || p.slug === productId)
     );
   }
+}
+
+function liveCatalogProducts(products: Product[]): Product[] {
+  return products.filter((p) => !isArchivedAt(p.archivedAt));
 }
 
 function collectionNameToSlug(nameOrSlug: string): string {
