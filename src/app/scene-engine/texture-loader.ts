@@ -85,22 +85,19 @@ export function makeLabelTexture(
   return makeCanvasTexture(canvas);
 }
 
-export function makeBadgeTexture(qty: number, fill: string): CanvasTexture {
+export function makeSoldOutTexture(): CanvasTexture {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = 256;
+  canvas.height = 80;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.clearRect(0, 0, 128, 128);
-    ctx.beginPath();
-    ctx.arc(64, 64, 56, 0, Math.PI * 2);
-    ctx.fillStyle = fill;
-    ctx.fill();
+    ctx.fillStyle = '#8B1E2D';
+    ctx.fillRect(0, 0, 256, 80);
     ctx.fillStyle = '#ffffff';
-    ctx.font = '700 64px "Quicksand", "Helvetica Neue", sans-serif';
+    ctx.font = '700 36px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(String(Math.min(qty, 99)), 64, 68);
+    ctx.fillText('ESGOTADO', 128, 42, 230);
   }
   return makeCanvasTexture(canvas);
 }

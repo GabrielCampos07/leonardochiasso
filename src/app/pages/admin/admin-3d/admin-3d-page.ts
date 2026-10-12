@@ -12,22 +12,27 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, forkJoin, of } from 'rxjs';
+import { catchError, forkJoin, map, of } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
+import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
 import { ApiProductDto, mapApiProduct } from '../../../core/catalog.service';
+import { ContentService } from '../../../core/content.service';
+import { JoiaPiece } from '../../../core/joias.data';
 import { Product } from '../../../core/product.model';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
+import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-engine/camera-guide';
 import {
-  OVERVIEW_FOCUS_ID,
-  formatStockLabel,
-  rackNavItems,
-  stepRackIndex,
-} from '../../../scene-engine/camera-guide';
-import { mapCatalogToScene, replaceHanger, resolveProductRackId, toSceneHanger } from '../../../scene-engine/mapping';
-import { apiProductToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
+  mapAtelierToScene,
+  replaceHanger,
+  resolveProductRackId,
+  toSceneHanger,
+  unitsOfKind,
+} from '../../../scene-engine/mapping';
+import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
+import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
 import { clampTooltip, mergeProductPhotos } from '../../../scene-engine/photo-url';
 import { createSceneEngine, SceneEngine } from '../../../scene-engine/scene-engine';
 import type { SceneCollectionInput, SceneLayout, SceneProductInput } from '../../../scene-engine/types';
@@ -48,11 +53,14 @@ import {
   admin3dFixtureSceneProducts,
   collectionsFromLabels,
 } from './admin-3d.fixtures';
+import { JoiaEditModal, JoiaEditModalData } from './joia-edit-modal';
 import {
   PRODUCT_EDIT_MODAL_TITLE_ID,
   ProductEditModal,
   ProductEditModalData,
 } from './product-edit-modal';
+
+export type AtelierLine = 'roupas' | 'joias';
 
 export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
@@ -81,6 +89,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly dialog = inject(Dialog);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly collectionsApi = inject(AdminCollectionsApiService);
+  private readonly content = inject(ContentService);
+  private readonly joiasAdmin = inject(AdminJoiasCatalogService);
   private readonly viewMode = inject(AdminViewModeService);
 
   readonly loading = signal(true);
@@ -90,7 +100,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly empty = signal(false);
   readonly usingMock = signal(false);
   readonly allowMock = !environment.production;
-  readonly hoverTip = signal<{ name: string; stock: string; x: number; y: number } | null>(null);
+  readonly hoverTip = signal<{ text: string; x: number; y: number } | null>(null);
+  readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
@@ -121,11 +132,13 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private layout: SceneLayout = { racks: [] };
   private knownRackIds = new Set<string>();
   private productsBySlug = new Map<string, Product>();
+  private joiasBySlug = new Map<string, JoiaPiece>();
   private canvasReady = false;
   private pendingLayout: SceneLayout | null = null;
   private loadGen = 0;
   private hintTimer = 0;
   private bootFadeTimer = 0;
+  private modalOpen = false;
 
   ngOnInit(): void {
     this.load();
@@ -185,6 +198,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.focusOverview(this.reducedMotion);
   }
 
+  setLine(line: AtelierLine): void {
+    if (this.line() === line) return;
+    this.line.set(line);
+    this.syncVisibleLayout();
+  }
+
   stepRack(delta: -1 | 1): void {
     const items = this.racks();
     if (!items.length) return;
@@ -238,7 +257,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     });
     if (mock) {
       this.cacheProducts(admin3dFixtureProducts());
-      this.applyInputs(admin3dFixtureSceneCollections(), admin3dFixtureSceneProducts(), true, gen);
+      this.cacheJoias(this.joiasAdmin.list());
+      this.applyInputs(
+        admin3dFixtureSceneCollections(),
+        admin3dFixtureSceneProducts(),
+        this.joiasAdmin.list().map(joiaToSceneInput),
+        true,
+        gen,
+      );
       return;
     }
 
@@ -250,7 +276,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     ) {
       const list = this.adminCatalog.list();
       this.cacheProducts(list);
-      this.applyInputs(collectionsFromLabels(), list.map(productToSceneInput), false, gen);
+      this.cacheJoias(this.joiasAdmin.list());
+      this.applyInputs(
+        collectionsFromLabels(),
+        list.map(productToSceneInput),
+        this.joiasAdmin.list().map(joiaToSceneInput),
+        false,
+        gen,
+      );
       return;
     }
 
@@ -258,12 +291,17 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       collections: this.collectionsApi.list(),
       products: this.collectionsApi.listAdminProducts(),
       storefront: this.collectionsApi.listPublicProducts().pipe(catchError(() => of([] as ApiProductDto[]))),
+      joias: this.content.loadJoias().pipe(
+        map((list) => this.joiasAdmin.applyTo(list)),
+        catchError(() => of(this.joiasAdmin.list())),
+      ),
     }).subscribe({
-      next: ({ collections, products, storefront }) => {
+      next: ({ collections, products, storefront, joias }) => {
         if (gen !== this.loadGen) return;
         const storefrontBySlug = new Map(storefront.map((p) => [p.slug, p]));
         const merged = products.map((dto) => mergeProductPhotos(dto, storefrontBySlug.get(dto.slug)));
         this.cacheProducts(merged.map(mapApiProduct));
+        this.cacheJoias(joias);
         this.applyInputs(
           collections.map((c) => ({
             slug: c.slug,
@@ -271,6 +309,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
             sortOrder: c.sortOrder,
           })),
           merged.map(apiProductToSceneInput),
+          joias.map(joiaToSceneInput),
           false,
           gen,
         );
@@ -288,26 +327,52 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private applyInputs(
     collections: SceneCollectionInput[],
     products: SceneProductInput[],
+    joias: SceneProductInput[],
     mock: boolean,
     gen: number,
   ): void {
     if (gen !== this.loadGen) return;
     this.usingMock.set(mock);
     this.knownRackIds = new Set(collections.map((c) => c.slug));
-    this.layout = mapCatalogToScene(collections, products);
-    this.racks.set(rackNavItems(this.layout.racks));
-    const hangerCount = this.layout.racks.reduce((n, r) => n + r.hangers.length, 0);
-    this.empty.set(hangerCount === 0);
+    this.layout = mapAtelierToScene(collections, products, joias);
     this.loading.set(false);
+    this.syncVisibleLayout();
+  }
+
+  private syncVisibleLayout(): void {
+    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+    const visible: SceneLayout = { racks: unitsOfKind(this.layout, kind) };
+    this.racks.set(rackNavItems(visible.racks));
+    const hangerCount = visible.racks.reduce((n, r) => n + r.hangers.length, 0);
+    this.empty.set(hangerCount === 0);
     if (this.canvasReady && this.engine) {
-      this.engine.setLayout(this.layout);
+      this.engine.setLayout(visible);
     } else {
-      this.pendingLayout = this.layout;
+      this.pendingLayout = visible;
     }
   }
 
   private openEditor(slug: string): void {
     this.focusScene();
+    this.hoverTip.set(null);
+    this.modalOpen = true;
+    const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
+    if (hanger?.kind === 'jewelry') {
+      const ref = this.dialog.open<JoiaPiece | undefined, JoiaEditModalData, JoiaEditModal>(JoiaEditModal, {
+        data: { slug, piece: this.joiasBySlug.get(slug) },
+        panelClass: 'lc-product-edit-dialog',
+        backdropClass: 'lc-product-edit-backdrop',
+        autoFocus: 'first-tabbable',
+        restoreFocus: false,
+        ariaLabelledBy: PRODUCT_EDIT_MODAL_TITLE_ID,
+      });
+      ref.closed.subscribe((saved) => {
+        this.modalOpen = false;
+        if (saved) this.applySavedJoia(saved);
+        queueMicrotask(() => this.focusScene());
+      });
+      return;
+    }
     const ref = this.dialog.open<Product | undefined, ProductEditModalData, ProductEditModal>(
       ProductEditModal,
       {
@@ -320,6 +385,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       },
     );
     ref.closed.subscribe((saved) => {
+      this.modalOpen = false;
       if (saved) this.applySaved(saved);
       queueMicrotask(() => this.focusScene());
     });
@@ -329,8 +395,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.productsBySlug = new Map(products.map((p) => [p.slug, p]));
   }
 
+  private cacheJoias(pieces: JoiaPiece[]): void {
+    this.joiasBySlug = new Map(pieces.map((p) => [p.slug, p]));
+  }
+
   private setHoverTip(slug: string | null, pointer?: { x: number; y: number }): void {
-    if (!slug || !pointer) {
+    if (this.modalOpen || !slug || !pointer) {
       this.hoverTip.set(null);
       return;
     }
@@ -339,8 +409,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.hoverTip.set(null);
       return;
     }
-    const pos = clampTooltip(pointer.x, pointer.y, { width: 228, height: 68 });
-    this.hoverTip.set({ name: hanger.name, stock: formatStockLabel(hanger.stockQty), x: pos.x, y: pos.y });
+    const pos = clampTooltip(pointer.x, pointer.y, { width: 320, height: 48 });
+    this.hoverTip.set({
+      text: formatHangerTooltip(hanger.name, hanger.priceLabel),
+      x: pos.x,
+      y: pos.y,
+    });
   }
 
   private markFirstFrame(): void {
@@ -361,19 +435,26 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     const hanger = toSceneHanger(input, rackId);
     this.layout = replaceHanger(this.layout, hanger);
     this.engine?.updateHanger(hanger);
+    this.refreshTip(hanger);
+  }
+
+  private applySavedJoia(piece: JoiaPiece): void {
+    this.joiasBySlug.set(piece.slug, piece);
+    const input = joiaToSceneInput(piece);
+    const current = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === piece.slug);
+    const hanger = toSceneHanger(input, current?.rackId ?? `vitrine:${input.collectionSlug || 'gioielli'}`);
+    this.layout = replaceHanger(this.layout, hanger);
+    this.engine?.updateHanger(hanger);
+    this.refreshTip(hanger);
+  }
+
+  private refreshTip(hanger: { slug: string; name: string; priceLabel: string }): void {
     const tip = this.hoverTip();
-    if (tip && tip.name !== hanger.name) {
-      const currentSlug = this.layout.racks
-        .flatMap((r) => r.hangers)
-        .find((h) => h.name === tip.name)?.slug;
-      if (currentSlug === hanger.slug) {
-        this.hoverTip.set({
-          name: hanger.name,
-          stock: formatStockLabel(hanger.stockQty),
-          x: tip.x,
-          y: tip.y,
-        });
-      }
-    }
+    if (!tip) return;
+    this.hoverTip.set({
+      text: formatHangerTooltip(hanger.name, hanger.priceLabel),
+      x: tip.x,
+      y: tip.y,
+    });
   }
 }

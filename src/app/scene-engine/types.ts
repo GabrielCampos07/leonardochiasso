@@ -16,6 +16,9 @@ export interface SceneCollectionInput {
 
 export type SceneMediaInput = LooseMedia;
 
+export type SceneUnitKind = 'rack' | 'vitrine';
+export type ScenePieceKind = 'garment' | 'jewelry';
+
 export interface SceneProductInput extends LooseProductPhotos {
   slug: string;
   name: string;
@@ -25,6 +28,12 @@ export interface SceneProductInput extends LooseProductPhotos {
   collectionSlugs?: string[] | null;
   status?: string | null;
   stockQty?: number | null;
+  price?: number | null;
+  currentPrice?: number | null;
+  promoPrice?: number | null;
+  priceCents?: number | null;
+  priceLabel?: string | null;
+  pieceKind?: ScenePieceKind;
 }
 
 export interface SceneHanger {
@@ -33,8 +42,10 @@ export interface SceneHanger {
   name: string;
   imageUrl: string | null;
   stockQty: number;
+  priceLabel: string;
   status: string;
   rackId: string;
+  kind: ScenePieceKind;
 }
 
 export interface SceneRack {
@@ -42,16 +53,15 @@ export interface SceneRack {
   name: string;
   sortOrder: number;
   hangers: SceneHanger[];
+  kind: SceneUnitKind;
 }
 
 export interface SceneLayout {
   racks: SceneRack[];
 }
 
-export function stockBadgeColor(stockQty: number): string {
-  if (stockQty <= 0) return '#8B1E2D';
-  if (stockQty <= 2) return '#B8963E';
-  return '#4A7C59';
+export function isSoldOut(stockQty: number | null | undefined): boolean {
+  return (stockQty ?? 1) <= 0;
 }
 
 export function isDraftStatus(status: string | null | undefined): boolean {

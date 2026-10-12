@@ -4,8 +4,7 @@ import {
   Group,
   Mesh,
   MeshStandardMaterial,
-  Sprite,
-  SpriteMaterial,
+  PlaneGeometry,
 } from 'three';
 import { disposeObject3D } from './dispose';
 import { createGarmentHanger } from './garment-hanger';
@@ -21,6 +20,7 @@ export const FLOOR_Y = -0.7;
 /** Name plate + photo sit this far below the hanger origin. */
 export const HANGER_BELOW_ORIGIN = 0.38;
 const MIN_HANGER_Y = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.08;
+const MIN_HANGER_Y_TALL = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.32;
 
 export function rackWidth(hangerCount: number): number {
   const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
@@ -34,7 +34,8 @@ export function rackRowCount(hangerCount: number): number {
 /** Raise the top bar so the lowest hanger (photo + label) stays above the floor. */
 export function rackBarTop(rows: number): number {
   const lastRow = Math.max(0, rows - 1);
-  return Math.max(RACK_BAR_TOP, MIN_HANGER_Y + HANGER_HOOK_OFFSET + lastRow * RACK_ROW_PITCH);
+  const floorClear = rows >= 3 ? MIN_HANGER_Y_TALL : MIN_HANGER_Y;
+  return Math.max(RACK_BAR_TOP, floorClear + HANGER_HOOK_OFFSET + lastRow * RACK_ROW_PITCH);
 }
 
 export function hangerLocalY(row: number, barTop = RACK_BAR_TOP): number {
@@ -94,18 +95,16 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   plate.position.set(0, barTop + 0.28, 0.02);
   group.add(plate);
 
-  const plateLabel = new Sprite(
-    new SpriteMaterial({
+  const plateLabel = new Mesh(
+    new PlaneGeometry(1, 1),
+    new MeshStandardMaterial({
       map: makeLabelTexture(rack.name, { width: 1408, height: 224, fill: '#1c1814', size: 72 }),
-      transparent: true,
-      depthTest: true,
-      sizeAttenuation: true,
+      roughness: 0.55,
     }),
   );
-  plateLabel.scale.set(Math.min(width * 0.78, 2.8), 0.3, 1);
-  plateLabel.position.set(0, barTop + 0.28, 0.08);
+  plateLabel.scale.set(Math.min(width * 0.78, 2.8), 0.22, 1);
+  plateLabel.position.set(0, barTop + 0.28, 0.05);
   plateLabel.name = 'plate';
-  plateLabel.center.set(0.5, 0.5);
   group.add(plateLabel);
 
   layoutHangers(hangersRoot, rack.hangers, width, barTop);

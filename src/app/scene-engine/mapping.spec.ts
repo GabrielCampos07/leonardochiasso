@@ -1,4 +1,11 @@
-import { mapCatalogToScene, replaceHanger, resolveProductRackId, toSceneHanger } from './mapping';
+import {
+  VITRINE_CAPACITY,
+  mapCatalogToScene,
+  mapJoiasToVitrines,
+  replaceHanger,
+  resolveProductRackId,
+  toSceneHanger,
+} from './mapping';
 import { UNCOLLECTED_RACK_ID, UNCOLLECTED_RACK_NAME, primaryImageUrl } from './types';
 
 describe('mapCatalogToScene', () => {
@@ -75,10 +82,39 @@ describe('mapCatalogToScene', () => {
     expect(jaqueta?.imageUrl).toBe('https://cdn.example/jaqueta.jpg');
   });
 
-  it('always includes Sem coleção even when every product has a collection', () => {
+  it('omits Sem coleção when it would be empty', () => {
     const layout = mapCatalogToScene(collections, [products[0]!]);
-    expect(layout.racks.some((r) => r.id === UNCOLLECTED_RACK_ID)).toBeTrue();
-    expect(layout.racks.find((r) => r.id === UNCOLLECTED_RACK_ID)?.hangers).toEqual([]);
+    expect(layout.racks.some((r) => r.id === UNCOLLECTED_RACK_ID)).toBeFalse();
+  });
+
+  it('maps the current BRL price onto hangers', () => {
+    const layout = mapCatalogToScene(collections, [
+      { slug: 'vestido', name: 'Vestido', collectionSlug: 'organic-dreams', price: 289, stockQty: 2 },
+    ]);
+    expect(layout.racks[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*289,00/);
+  });
+
+  it('prefers promo/current price over the list price', () => {
+    const layout = mapCatalogToScene(collections, [
+      {
+        slug: 'blusa',
+        name: 'Blusa laço / calça cetim',
+        collectionSlug: 'organic-dreams',
+        price: 400,
+        promoPrice: 289,
+        stockQty: 6,
+      },
+    ]);
+    expect(layout.racks[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*289,00/);
+    expect(layout.racks[0]?.hangers[0]?.stockQty).toBe(6);
+  });
+
+  it('never hangs jewelry on clothing racks', () => {
+    const layout = mapCatalogToScene(collections, [
+      { slug: 'anel', name: 'Anel', collectionSlug: 'organic-dreams', pieceKind: 'jewelry', price: 180 },
+      { slug: 'vestido', name: 'Vestido', collectionSlug: 'organic-dreams', stockQty: 1 },
+    ]);
+    expect(layout.racks[0]?.hangers.map((h) => h.slug)).toEqual(['vestido']);
   });
 });
 
@@ -147,5 +183,27 @@ describe('replaceHanger', () => {
     expect(updated.racks[0]?.hangers.find((h) => h.slug === 'a')?.name).toBe('A editada');
     expect(updated.racks[0]?.hangers.find((h) => h.slug === 'a')?.stockQty).toBe(9);
     expect(updated.racks[0]?.hangers.find((h) => h.slug === 'b')?.name).toBe('B');
+  });
+});
+
+describe('mapJoiasToVitrines', () => {
+  it('puts jewelry on glass vitrines, never on clothing racks, and splits after 3 shelves', () => {
+    const pieces = Array.from({ length: VITRINE_CAPACITY + 2 }, (_, i) => ({
+      slug: `joia-${i}`,
+      name: `Joia ${i}`,
+      collectionSlug: 'organic-dreams',
+      pieceKind: 'jewelry' as const,
+      price: 180,
+    }));
+    const vitrines = mapJoiasToVitrines(
+      [{ slug: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1 }],
+      pieces,
+    );
+    expect(vitrines.every((u) => u.kind === 'vitrine')).toBeTrue();
+    expect(vitrines.length).toBe(2);
+    expect(vitrines[0]?.hangers).toHaveSize(VITRINE_CAPACITY);
+    expect(vitrines[1]?.hangers).toHaveSize(2);
+    expect(vitrines[0]?.hangers[0]?.kind).toBe('jewelry');
+    expect(vitrines[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*180,00/);
   });
 });

@@ -12,6 +12,55 @@
   padding-bottom: max(56px, env(safe-area-inset-bottom, 0px));
 }
 
+.admin-edit__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-edit__form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.95rem;
+}
+
+.admin-edit__form input,
+.admin-edit__form textarea {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 45%, transparent);
+  font: inherit;
+}
+
+.admin-edit__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 28px;
+  margin-top: 8px;
+}
+
+.admin-edit__save,
+.admin-edit__cancel {
+  min-height: 52px;
+  padding: 0 22px;
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-edit__save {
+  border: none;
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.admin-edit__cancel {
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  background: var(--lc-white);
+}
+
 .product-edit-modal__head {
   display: flex;
   align-items: flex-start;
