@@ -14,6 +14,8 @@
   } @else if (product(); as p) {
     <lc-admin-product-form
       [product]="p"
+      [isNew]="creating"
+      [collectionFromContext]="creating"
       [showSiteLink]="false"
       (saved)="onSaved($event)"
       (cancelled)="close()"

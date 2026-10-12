@@ -29,6 +29,7 @@ import {
   CAMERA_POLAR_MAX,
   CAMERA_POLAR_MIN,
   CAMERA_TWEEN_MS,
+  CREATE_TWEEN_MS,
   CameraFocusMode,
   CameraPose,
   OVERVIEW_FOCUS_ID,
@@ -36,6 +37,7 @@ import {
   computeEyeLevelFit,
   computeVitrineFit,
   easeInOutCubic,
+  easeOutBack,
   isCompactAtelierViewport,
 } from './camera-guide';
 import {
@@ -53,13 +55,15 @@ import {
   layoutTrays,
   vitrineWidth,
 } from './jewelry-vitrine';
+import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
 import { racksForFirstFrame, replaceHanger } from './mapping';
+import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls } from './photo-url';
-import type { SceneHanger, SceneLayout, SceneRack } from './types';
+import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
 export type HangerPickHandler = (slug: string) => void;
@@ -70,6 +74,8 @@ export type HangerHoverHandler = (
 export type FocusChangeHandler = (id: string) => void;
 export type FirstFrameHandler = () => void;
 export type SceneCompleteHandler = () => void;
+export type DraftAnchorHandler = (point: { x: number; y: number } | null) => void;
+export type EmptyUnitHandler = (rackId: string) => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
@@ -77,6 +83,41 @@ export interface SceneEngineOptions {
 
 const DRAG_SLOP_SQ = 36;
 const CLEAR = 0xefe8dc;
+const NON_PASSIVE: AddEventListenerOptions = { passive: false };
+
+const NON_PASSIVE_TYPES = new Set([
+  'pointerdown',
+  'pointermove',
+  'pointerup',
+  'pointercancel',
+  'touchstart',
+  'touchmove',
+  'touchend',
+  'touchcancel',
+  'wheel',
+]);
+
+/** OrbitControls calls preventDefault; Chrome defaults touch/wheel to passive. */
+export function forceNonPassiveCanvasListeners(canvas: HTMLCanvasElement): () => void {
+  const original = canvas.addEventListener.bind(canvas);
+  canvas.addEventListener = ((
+    type: string,
+    listener: EventListenerOrEventListenerObject,
+    options?: boolean | AddEventListenerOptions,
+  ) => {
+    if (NON_PASSIVE_TYPES.has(type)) {
+      const next: AddEventListenerOptions =
+        typeof options === 'object' && options
+          ? { ...options, passive: false }
+          : { capture: options === true, passive: false };
+      return original(type, listener, next);
+    }
+    return original(type, listener, options);
+  }) as HTMLCanvasElement['addEventListener'];
+  return () => {
+    canvas.addEventListener = original;
+  };
+}
 
 /**
  * Framework-agnostic WebGL atelier: eye-level first rack, guided focus tween,
@@ -116,6 +157,8 @@ export class SceneEngine {
   private onFocusCb: FocusChangeHandler | null = null;
   private onFirstFrameCb: FirstFrameHandler | null = null;
   private onSceneCompleteCb: SceneCompleteHandler | null = null;
+  private onDraftAnchorCb: DraftAnchorHandler | null = null;
+  private onEmptyUnitCb: EmptyUnitHandler | null = null;
   private firstFrameSent = false;
   private sceneCompleteSent = false;
   private expectedPhotos = 0;
@@ -138,6 +181,15 @@ export class SceneEngine {
     start: number;
     duration: number;
   } | null = null;
+  private draft: Group | null = null;
+  private draftKind: SceneUnitKind = 'rack';
+  private draftX = 0;
+  private draftFade: { start: number; duration: number; dir: 1 | -1 } | null = null;
+  private rise: { group: Group; start: number; duration: number; fromY: number; toY: number } | null =
+    null;
+  private plateGlow: { mesh: Mesh; start: number; duration: number } | null = null;
+  private readonly projectScratch = new Vector3();
+  private restoreAddEventListener: (() => void) | null = null;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -177,6 +229,9 @@ export class SceneEngine {
   };
   private readonly onWindowBlur = () => this.endOrbit();
   private readonly onPointerLeave = () => this.setHover(null);
+  private readonly noopTouch = (event: Event) => {
+    if (event.cancelable) event.preventDefault();
+  };
   private readonly onControlsStart = () => {
     this.interacting = true;
     this.dampingFrames = this.reducedMotion ? 0 : 24;
@@ -194,12 +249,13 @@ export class SceneEngine {
     this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
     this.camera.position.set(0, 1.15, 3.2);
 
-    this.renderer = new WebGLRenderer({ canvas, antialias: !this.reducedMotion, alpha: false });
+    this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false });
     this.renderer.setPixelRatio(this.reducedMotion ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setClearColor(CLEAR, 1);
     this.renderer.shadowMap.enabled = false;
     this.renderer.shadowMap.type = PCFShadowMap;
 
+    this.restoreAddEventListener = forceNonPassiveCanvasListeners(canvas);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !this.reducedMotion;
     this.controls.dampingFactor = 0.08;
@@ -263,12 +319,15 @@ export class SceneEngine {
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
 
-    canvas.addEventListener('pointerdown', this.onPointerDown);
-    canvas.addEventListener('pointermove', this.onPointerMove);
-    canvas.addEventListener('pointerup', this.onPointerUp);
-    canvas.addEventListener('pointercancel', this.onPointerCancel);
-    canvas.addEventListener('lostpointercapture', this.onLostPointerCapture);
-    canvas.addEventListener('pointerleave', this.onPointerLeave);
+    canvas.addEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
+    canvas.addEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
+    canvas.addEventListener('pointerup', this.onPointerUp, NON_PASSIVE);
+    canvas.addEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
+    canvas.addEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
+    canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
+    canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('wheel', this.noopTouch, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
     this.resize();
@@ -296,6 +355,14 @@ export class SceneEngine {
     this.onSceneCompleteCb = handler;
   }
 
+  onDraftAnchor(handler: DraftAnchorHandler): void {
+    this.onDraftAnchorCb = handler;
+  }
+
+  onEmptyUnit(handler: EmptyUnitHandler): void {
+    this.onEmptyUnitCb = handler;
+  }
+
   start(): void {
     this.requestRender();
   }
@@ -307,6 +374,7 @@ export class SceneEngine {
   setLayout(layout: SceneLayout): void {
     this.layout = layout;
     this.cancelDeferredRacks();
+    this.removeDraft(true);
     while (this.racksRoot.children.length) {
       const child = this.racksRoot.children[0]!;
       this.racksRoot.remove(child);
@@ -339,6 +407,10 @@ export class SceneEngine {
       this.focusOverview(immediate);
       return;
     }
+    if (id === DRAFT_UNIT_ID) {
+      this.focusDraft(immediate);
+      return;
+    }
     this.ensureRackMounted(id);
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
@@ -363,7 +435,10 @@ export class SceneEngine {
   updateHanger(next: SceneHanger): void {
     this.layout = replaceHanger(this.layout, next);
     const group = this.findHangerGroup(next.slug);
-    if (!group) return;
+    if (!group) {
+      this.remountUnit(next.rackId);
+      return;
+    }
     const prev = group.userData['data'] as SceneHanger | undefined;
     if (next.kind === 'jewelry') applyTrayData(group, next);
     else applyHangerData(group, next);
@@ -381,6 +456,78 @@ export class SceneEngine {
     this.requestRender();
   }
 
+  showDraft(kind: SceneUnitKind, name: string, immediate = this.reducedMotion): { x: number; y: number } {
+    this.flushDeferredRacks();
+    this.removeDraft(true);
+    const slot = nextDraftSlot(this.layout.racks, kind);
+    this.draftKind = kind;
+    this.draftX = slot.x;
+    this.draft = createDraftOutline(kind, name, slot.x);
+    this.racksRoot.add(this.draft);
+    if (!immediate) {
+      setGroupOpacity(this.draft, 0);
+      this.draftFade = { start: performance.now(), duration: CREATE_TWEEN_MS, dir: 1 };
+    }
+    this.focusedId = DRAFT_UNIT_ID;
+    this.focusDraft(immediate);
+    this.requestRender();
+    return this.draftScreenPoint() ?? { x: 24, y: 24 };
+  }
+
+  setDraftName(name: string): void {
+    if (!this.draft) return;
+    setDraftPlateName(this.draft, name);
+    this.requestRender();
+  }
+
+  clearDraft(immediate = this.reducedMotion): void {
+    if (!this.draft) {
+      this.onDraftAnchorCb?.(null);
+      return;
+    }
+    if (immediate) {
+      this.removeDraft(true);
+      this.onDraftAnchorCb?.(null);
+      this.requestRender();
+      return;
+    }
+    this.draftFade = { start: performance.now(), duration: CREATE_TWEEN_MS, dir: -1 };
+    this.requestRender();
+  }
+
+  commitDraft(unit: SceneRack, immediate = this.reducedMotion): void {
+    this.removeDraft(true);
+    const group =
+      unit.kind === 'vitrine' ? createJewelryVitrine(unit, this.draftX) : createCollectionRack(unit, this.draftX);
+    this.racksRoot.add(group);
+    this.layout = { racks: [...this.layout.racks, unit] };
+    this.focusedId = unit.id;
+    const mode: CameraFocusMode = unit.kind === 'vitrine' ? 'vitrine' : 'rack';
+    this.applyOrbitLimits(mode);
+    this.moveCamera(this.poseFor(group, mode), immediate, CREATE_TWEEN_MS);
+    this.onFocusCb?.(unit.id);
+    if (!immediate) {
+      group.position.y = -1.15;
+      this.rise = { group, start: performance.now(), duration: CREATE_TWEEN_MS, fromY: -1.15, toY: 0 };
+      const plate = group.getObjectByName('plate') as Mesh | undefined;
+      if (plate) {
+        lightPlate(plate, 0.95);
+        this.plateGlow = { mesh: plate, start: performance.now(), duration: CREATE_TWEEN_MS };
+      }
+    }
+    this.onDraftAnchorCb?.(null);
+    this.requestRender();
+  }
+
+  draftScreenPoint(): { x: number; y: number } | null {
+    if (!this.draft) return null;
+    const plate = this.draft.getObjectByName('plate');
+    if (plate) plate.getWorldPosition(this.projectScratch);
+    else this.projectScratch.set(this.draftX, 0.6, 0.2);
+    this.projectScratch.x += unitWidth(this.draftKind, 0) * 0.42;
+    return this.worldToClient(this.projectScratch);
+  }
+
   resize(): void {
     if (this.disposed) return;
     const parent = this.canvas.parentElement ?? this.canvas;
@@ -389,8 +536,9 @@ export class SceneEngine {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
-    if (this.racksRoot.children.length) {
+    if (this.racksRoot.children.length || this.draft) {
       if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
+      else if (this.focusedId === DRAFT_UNIT_ID) this.focusDraft(true);
       else this.focusRack(this.focusedId, true);
     }
     this.requestRender();
@@ -403,17 +551,23 @@ export class SceneEngine {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.cancelDeferredRacks();
-    this.canvas.removeEventListener('pointerdown', this.onPointerDown);
-    this.canvas.removeEventListener('pointermove', this.onPointerMove);
-    this.canvas.removeEventListener('pointerup', this.onPointerUp);
-    this.canvas.removeEventListener('pointercancel', this.onPointerCancel);
-    this.canvas.removeEventListener('lostpointercapture', this.onLostPointerCapture);
-    this.canvas.removeEventListener('pointerleave', this.onPointerLeave);
+    this.removeDraft(true);
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
+    this.canvas.removeEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
+    this.canvas.removeEventListener('pointerup', this.onPointerUp, NON_PASSIVE);
+    this.canvas.removeEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
+    this.canvas.removeEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
+    this.canvas.removeEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
+    this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('wheel', this.noopTouch, NON_PASSIVE);
     window.removeEventListener('blur', this.onWindowBlur);
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);
     this.controls.removeEventListener('change', this.onControlsChange);
     this.controls.dispose();
+    this.restoreAddEventListener?.();
+    this.restoreAddEventListener = null;
     disposeObject3D(this.scene);
     disposeRenderer(this.renderer);
     this.onClickCb = null;
@@ -421,6 +575,8 @@ export class SceneEngine {
     this.onFocusCb = null;
     this.onFirstFrameCb = null;
     this.onSceneCompleteCb = null;
+    this.onDraftAnchorCb = null;
+    this.onEmptyUnitCb = null;
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     this.keyLight = null;
@@ -469,10 +625,14 @@ export class SceneEngine {
       this.focusOverview(this.reducedMotion);
       return;
     }
+    if (this.focusedId === DRAFT_UNIT_ID) {
+      this.focusDraft(this.reducedMotion);
+      return;
+    }
     this.focusRack(this.focusedId, this.reducedMotion);
   }
 
-  private moveCamera(pose: CameraPose, immediate: boolean): void {
+  private moveCamera(pose: CameraPose, immediate: boolean, duration = CAMERA_TWEEN_MS): void {
     const toPos = new Vector3(pose.position.x, pose.position.y, pose.position.z);
     const toTarget = new Vector3(pose.target.x, pose.target.y, pose.target.z);
     if (immediate) {
@@ -493,7 +653,7 @@ export class SceneEngine {
       fromTarget: this.controls.target.clone(),
       toTarget,
       start: performance.now(),
-      duration: CAMERA_TWEEN_MS,
+      duration,
     };
     this.requestRender();
   }
@@ -504,17 +664,19 @@ export class SceneEngine {
     this.raf = requestAnimationFrame(() => {
       this.renderQueued = false;
       if (this.disposed) return;
-      const animating = this.stepTween() || this.stepLift();
+      const animating =
+        this.stepTween() || this.stepLift() || this.stepDraft() || this.stepRise() || this.stepGlow();
       if (!this.tween && !this.reducedMotion) this.controls.update();
       this.clampCamera();
       this.faceLabels();
       this.renderer.render(this.scene, this.camera);
+      if (this.draft) this.onDraftAnchorCb?.(this.draftScreenPoint());
       if (this.hasLayout && !this.firstFrameSent) {
         this.firstFrameSent = true;
         this.onFirstFrameCb?.();
         this.armShadows();
       }
-      if (animating || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
+      if (animating || this.draft || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
         if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
         this.requestRender();
       }
@@ -534,6 +696,73 @@ export class SceneEngine {
     this.camera.position.copy(this.controls.target).add(this.orbitOffset);
     if (this.camera.position.y < CAMERA_MIN_Y) this.camera.position.y = CAMERA_MIN_Y;
     this.camera.lookAt(this.controls.target);
+  }
+
+  private focusDraft(immediate = this.reducedMotion): void {
+    if (!this.draft) return;
+    this.focusedId = DRAFT_UNIT_ID;
+    const mode: CameraFocusMode = this.draftKind === 'vitrine' ? 'vitrine' : 'rack';
+    this.applyOrbitLimits(mode);
+    this.moveCamera(this.poseFor(this.draft, mode), immediate, CREATE_TWEEN_MS);
+    this.onFocusCb?.(DRAFT_UNIT_ID);
+  }
+
+  private worldToClient(world: Vector3): { x: number; y: number } {
+    this.projectScratch.copy(world).project(this.camera);
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + (this.projectScratch.x * 0.5 + 0.5) * rect.width,
+      y: rect.top + (-this.projectScratch.y * 0.5 + 0.5) * rect.height,
+    };
+  }
+
+  private removeDraft(silent = false): void {
+    this.draftFade = null;
+    if (!this.draft) return;
+    this.draft.removeFromParent();
+    disposeObject3D(this.draft);
+    this.draft = null;
+    if (!silent) this.onDraftAnchorCb?.(null);
+  }
+
+  private stepDraft(): boolean {
+    if (!this.draft || !this.draftFade) return false;
+    const t = Math.min(1, (performance.now() - this.draftFade.start) / this.draftFade.duration);
+    const e = easeInOutCubic(t);
+    const opacity = this.draftFade.dir === 1 ? e : 1 - e;
+    setGroupOpacity(this.draft, opacity);
+    if (t >= 1) {
+      const fadingOut = this.draftFade.dir === -1;
+      this.draftFade = null;
+      if (fadingOut) this.removeDraft();
+      return false;
+    }
+    return true;
+  }
+
+  private stepRise(): boolean {
+    if (!this.rise) return false;
+    const t = Math.min(1, (performance.now() - this.rise.start) / this.rise.duration);
+    const e = easeOutBack(t);
+    this.rise.group.position.y = this.rise.fromY + (this.rise.toY - this.rise.fromY) * e;
+    if (t >= 1) {
+      this.rise.group.position.y = this.rise.toY;
+      this.rise = null;
+      return false;
+    }
+    return true;
+  }
+
+  private stepGlow(): boolean {
+    if (!this.plateGlow) return false;
+    const t = Math.min(1, (performance.now() - this.plateGlow.start) / this.plateGlow.duration);
+    lightPlate(this.plateGlow.mesh, 0.95 * (1 - easeInOutCubic(t)));
+    if (t >= 1) {
+      lightPlate(this.plateGlow.mesh, 0);
+      this.plateGlow = null;
+      return false;
+    }
+    return true;
   }
 
   /** Keep plates and name tags facing the lens so they do not overlap when orbiting. */
@@ -615,13 +844,42 @@ export class SceneEngine {
 
   private computeRackSlots(layout: SceneLayout): Array<{ id: string; rack: SceneRack; x: number }> {
     let cursor = 0;
-    const gap = 1.35;
     return layout.racks.map((rack) => {
-      const width = rack.kind === 'vitrine' ? vitrineWidth(rack.hangers.length) : rackWidth(rack.hangers.length);
+      const width = unitWidth(rack.kind, rack.hangers.length);
       const x = cursor + width / 2;
-      cursor += width + gap;
+      cursor += width + UNIT_GAP;
       return { id: rack.id, rack, x };
     });
+  }
+
+  private remountUnit(id: string): void {
+    const existing = this.racksRoot.getObjectByName(`rack:${id}`);
+    const x = existing?.position.x ?? this.computeRackSlots(this.layout).find((s) => s.id === id)?.x;
+    if (existing) {
+      existing.removeFromParent();
+      disposeObject3D(existing);
+    }
+    const rack = this.layout.racks.find((r) => r.id === id);
+    if (!rack || x == null) return;
+    this.mountRack({ rack, x });
+    this.enqueueHangerTextures();
+    this.requestRender();
+  }
+
+  private emptyUnitIdFromHits(hits: Array<{ object: Object3D }>): string | null {
+    for (const hit of hits) {
+      let obj: Object3D | null = hit.object;
+      while (obj) {
+        const rackId = String(obj.userData?.['rackId'] ?? '');
+        const kind = String(obj.userData?.['kind'] ?? '');
+        if (rackId && kind !== 'draft' && kind !== HANGER_USER_DATA) {
+          const unit = this.layout.racks.find((r) => r.id === rackId);
+          if (unit && unit.hangers.length === 0) return rackId;
+        }
+        obj = obj.parent;
+      }
+    }
+    return null;
   }
 
   private mountRack(slot: { rack: SceneRack; x: number }): void {
@@ -798,7 +1056,12 @@ export class SceneEngine {
       (h) => !h.object.userData?.['ignorePick'] && h.object.userData?.['kind'] === HANGER_USER_DATA,
     )?.object.userData?.['slug'] as string | undefined;
     if (isClick) {
-      if (slug) this.onClickCb?.(slug);
+      if (slug) {
+        this.onClickCb?.(slug);
+        return;
+      }
+      const emptyId = this.emptyUnitIdFromHits(hits);
+      if (emptyId) this.onEmptyUnitCb?.(emptyId);
       return;
     }
     this.setHover(slug ?? null, { x: event.clientX, y: event.clientY });

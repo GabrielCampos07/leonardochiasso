@@ -14,6 +14,8 @@ import { PRODUCT_EDIT_MODAL_TITLE_ID, ProductEditModal, productEditModalTitle } 
 })
 class StubAdminProductForm {
   readonly product = input.required<Product>();
+  readonly isNew = input(false);
+  readonly collectionFromContext = input(false);
   readonly showSiteLink = input(true);
   readonly saved = output<Product>();
   readonly cancelled = output<void>();
@@ -47,6 +49,10 @@ describe('productEditModalTitle', () => {
   it('falls back when the name is empty', () => {
     expect(productEditModalTitle('')).toBe('Editar produto');
     expect(productEditModalTitle(null)).toBe('Editar produto');
+  });
+
+  it('uses Adicionar produto for the create flow', () => {
+    expect(productEditModalTitle('Vestido', true)).toBe('Adicionar produto');
   });
 });
 

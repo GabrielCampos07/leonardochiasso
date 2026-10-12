@@ -117,6 +117,11 @@
   border-style: dashed;
 }
 
+.admin-3d__rack--new {
+  margin-left: 4px;
+  border-style: dashed;
+}
+
 .admin-3d__arrow:disabled {
   opacity: 1;
   color: color-mix(in srgb, var(--lc-void) 42%, white);
@@ -234,6 +239,25 @@
   font-size: 0.72rem;
 }
 
+.admin-3d__add-piece {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  z-index: 7;
+  transform: translate(-50%, -50%);
+  min-height: 48px;
+  min-width: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--lc-void);
+  background: rgb(255 255 255 / 94%);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
 .admin-3d__hover {
   position: fixed;
   z-index: 6;
@@ -260,6 +284,11 @@
   margin: 0 0 16px;
   font-size: 1.05rem;
   line-height: 1.45;
+}
+
+.admin-3d__panel--soft {
+  pointer-events: none;
+  background: rgb(255 255 255 / 88%);
 }
 
 .admin-3d__panel p:last-child {
@@ -351,6 +380,19 @@
 
   .admin-3d__rack--all {
     display: none;
+  }
+
+  .admin-3d__rack.admin-3d__rack--new,
+  .admin-3d__rack.admin-3d__rack--new:not(.is-on) {
+    position: relative;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    flex: 0 0 auto;
+    min-width: 44px;
+    max-width: none;
+    white-space: nowrap;
   }
 
   .admin-3d__chrome {

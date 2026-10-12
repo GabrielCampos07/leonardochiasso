@@ -1,0 +1,63 @@
+<form
+  class="create-col"
+  [class.create-col--sheet]="sheet"
+  role="form"
+  aria-label="Nova coleção"
+  [style.left.px]="sheet ? null : x"
+  [style.top.px]="sheet ? null : y"
+  (submit)="$event.preventDefault(); save.emit()"
+>
+  <p class="create-col__kicker">Nova coleção</p>
+  <label class="create-col__field" (click)="focusName()">
+    Nome
+    <span
+      #nameField
+      class="create-col__editor"
+      role="textbox"
+      aria-label="Nome da coleção"
+      aria-multiline="false"
+      [attr.aria-invalid]="error ? 'true' : 'false'"
+      contenteditable="true"
+      (input)="onName($event)"
+      (keydown)="onNameKey($event)"
+    ></span>
+  </label>
+  <div class="create-col__plate" aria-hidden="true">
+    <span>{{ plateLabel }}</span>
+  </div>
+  <div class="create-col__lines" role="radiogroup" aria-label="Tipo da estrutura">
+    <button
+      type="button"
+      class="create-col__line"
+      role="radio"
+      [attr.aria-checked]="line === 'roupas'"
+      [class.is-on]="line === 'roupas'"
+      [disabled]="saving"
+      (click)="lineChange.emit('roupas')"
+    >
+      Roupas
+    </button>
+    <button
+      type="button"
+      class="create-col__line"
+      role="radio"
+      [attr.aria-checked]="line === 'joias'"
+      [class.is-on]="line === 'joias'"
+      [disabled]="saving"
+      (click)="lineChange.emit('joias')"
+    >
+      Joias
+    </button>
+  </div>
+  @if (error) {
+    <p class="create-col__error" role="alert">{{ error }}</p>
+  }
+  <div class="create-col__actions">
+    <button type="submit" class="create-col__save" [disabled]="saving" [attr.aria-busy]="saving">
+      {{ saving ? 'Salvando…' : 'Criar' }}
+    </button>
+    <button type="button" class="create-col__cancel" (click)="cancel.emit()" [disabled]="saving">
+      Cancelar
+    </button>
+  </div>
+</form>
