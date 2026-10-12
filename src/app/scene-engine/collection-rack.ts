@@ -17,14 +17,28 @@ export const HANGER_ROW_LIMIT = 8;
 export const RACK_ROW_PITCH = 1.12;
 export const RACK_BAR_TOP = 0.96;
 export const HANGER_HOOK_OFFSET = 0.48;
+export const FLOOR_Y = -0.7;
+/** Name plate + photo sit this far below the hanger origin. */
+export const HANGER_BELOW_ORIGIN = 0.38;
+const MIN_HANGER_Y = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.08;
 
 export function rackWidth(hangerCount: number): number {
   const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
   return Math.max(2.6, perRow * HANGER_SPACING + 0.7);
 }
 
-export function hangerLocalY(row: number): number {
-  return RACK_BAR_TOP - HANGER_HOOK_OFFSET - row * RACK_ROW_PITCH;
+export function rackRowCount(hangerCount: number): number {
+  return Math.max(1, Math.ceil(hangerCount / HANGER_ROW_LIMIT) || 1);
+}
+
+/** Raise the top bar so the lowest hanger (photo + label) stays above the floor. */
+export function rackBarTop(rows: number): number {
+  const lastRow = Math.max(0, rows - 1);
+  return Math.max(RACK_BAR_TOP, MIN_HANGER_Y + HANGER_HOOK_OFFSET + lastRow * RACK_ROW_PITCH);
+}
+
+export function hangerLocalY(row: number, barTop = RACK_BAR_TOP): number {
+  return barTop - HANGER_HOOK_OFFSET - row * RACK_ROW_PITCH;
 }
 
 export function createCollectionRack(rack: SceneRack, x: number): Group {
@@ -34,13 +48,15 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   group.position.x = x;
 
   const count = rack.hangers.length;
-  const rows = Math.max(1, Math.ceil(count / HANGER_ROW_LIMIT) || 1);
+  const rows = rackRowCount(count);
+  const barTop = rackBarTop(rows);
   const width = rackWidth(count);
   const metal = new MeshStandardMaterial({ color: 0xb7b1a8, roughness: 0.32, metalness: 0.68 });
 
-  const extra = (rows - 1) * RACK_ROW_PITCH;
-  const postHeight = 1.95 + extra;
-  const postY = 0.22 - extra / 2;
+  const topY = barTop + 0.38;
+  const bottomY = FLOOR_Y + 0.02;
+  const postHeight = Math.max(1.2, topY - bottomY);
+  const postY = (topY + bottomY) / 2;
   const postGeo = new CylinderGeometry(0.012, 0.014, postHeight, 10);
   const left = new Mesh(postGeo, metal);
   left.position.set(-width / 2, postY, 0);
@@ -52,9 +68,9 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
 
   const footGeo = new CylinderGeometry(0.04, 0.045, 0.02, 12);
   const footL = new Mesh(footGeo, metal);
-  footL.position.set(-width / 2, -0.69, 0);
+  footL.position.set(-width / 2, FLOOR_Y + 0.02, 0);
   const footR = new Mesh(footGeo.clone(), metal);
-  footR.position.set(width / 2, -0.69, 0);
+  footR.position.set(width / 2, FLOOR_Y + 0.02, 0);
   group.add(footL, footR);
 
   const hangersRoot = new Group();
@@ -62,7 +78,7 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   group.add(hangersRoot);
 
   for (let row = 0; row < rows; row += 1) {
-    const barY = RACK_BAR_TOP - row * RACK_ROW_PITCH;
+    const barY = barTop - row * RACK_ROW_PITCH;
     const bar = new Mesh(new CylinderGeometry(0.007, 0.007, width - 0.06, 10), metal);
     bar.rotation.z = Math.PI / 2;
     bar.position.y = barY;
@@ -75,7 +91,7 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
     new BoxGeometry(plateW, 0.2, 0.03),
     new MeshStandardMaterial({ color: 0x1c1814, roughness: 0.5 }),
   );
-  plate.position.set(0, RACK_BAR_TOP + 0.28, 0.02);
+  plate.position.set(0, barTop + 0.28, 0.02);
   group.add(plate);
 
   const plateLabel = new Sprite(
@@ -87,16 +103,21 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
     }),
   );
   plateLabel.scale.set(Math.min(width * 0.78, 2.8), 0.3, 1);
-  plateLabel.position.set(0, RACK_BAR_TOP + 0.28, 0.08);
+  plateLabel.position.set(0, barTop + 0.28, 0.08);
   plateLabel.name = 'plate';
   plateLabel.center.set(0.5, 0.5);
   group.add(plateLabel);
 
-  layoutHangers(hangersRoot, rack.hangers, width);
+  layoutHangers(hangersRoot, rack.hangers, width, barTop);
   return group;
 }
 
-export function layoutHangers(root: Group, hangers: SceneHanger[], width: number): void {
+export function layoutHangers(
+  root: Group,
+  hangers: SceneHanger[],
+  width: number,
+  barTop = RACK_BAR_TOP,
+): void {
   const existing = new Map<string, Group>();
   for (const child of [...root.children]) {
     const slug = String(child.userData?.['slug'] ?? '');
@@ -115,7 +136,7 @@ export function layoutHangers(root: Group, hangers: SceneHanger[], width: number
       root.add(group);
     }
     existing.delete(hanger.slug);
-    const restY = hangerLocalY(row);
+    const restY = hangerLocalY(row, barTop);
     group.userData['restY'] = restY;
     group.position.set(startX + col * HANGER_SPACING, restY, 0.04);
   });

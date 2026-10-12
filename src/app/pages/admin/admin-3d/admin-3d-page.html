@@ -9,7 +9,7 @@
     <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
   }
 
-  @if (!webglUnavailable() && !empty() && !error() && !loading()) {
+  @if (!webglUnavailable() && !empty() && !error() && !loading() && firstFrame()) {
     <nav class="admin-3d__guide" aria-label="Navegação das araras">
       <button
         type="button"
@@ -54,7 +54,7 @@
     </nav>
   }
 
-  @if (!webglUnavailable()) {
+  @if (!webglUnavailable() && firstFrame()) {
     <div class="admin-3d__chrome">
       @if (showHint()) {
         <p class="admin-3d__hint">
@@ -65,12 +65,30 @@
       @if (usingMock()) {
         <p class="admin-3d__badge" role="status">Dados de exemplo</p>
       }
-      @if (hoverTip(); as tip) {
-        <p class="admin-3d__hover" role="status">
-          <strong>{{ tip.name }}</strong>
-          <span>{{ tip.stock }}</span>
-        </p>
-      }
+    </div>
+  }
+
+  @if (hoverTip(); as tip) {
+    <p
+      class="admin-3d__hover"
+      role="status"
+      [style.left.px]="tip.x"
+      [style.top.px]="tip.y"
+    >
+      <strong>{{ tip.name }}</strong>
+      <span>{{ tip.stock }}</span>
+    </p>
+  }
+
+  @if (showBoot()) {
+    <div class="admin-3d__boot" [class.is-out]="bootFading() && firstFrame() && !loading()" role="status">
+      <div class="admin-3d__spinner" aria-hidden="true"></div>
+      <div class="admin-3d__skel" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+      <p>Montando o ateliê…</p>
     </div>
   }
 
@@ -82,10 +100,6 @@
         <button type="button" (click)="backToList()">{{ webglAction }}</button>
       </div>
     </div>
-  } @else if (loading()) {
-    <div class="admin-3d__panel" role="status">
-      <p>Montando o ateliê…</p>
-    </div>
   } @else if (error()) {
     <div class="admin-3d__panel" role="alert">
       <p>{{ error() }}</p>
@@ -96,7 +110,7 @@
         }
       </div>
     </div>
-  } @else if (empty()) {
+  } @else if (empty() && !loading()) {
     <div class="admin-3d__panel" role="status">
       <p>
         @if (allowMock) {

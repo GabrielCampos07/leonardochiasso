@@ -41,15 +41,29 @@ describe('easeInOutCubic', () => {
 });
 
 describe('computeEyeLevelFit', () => {
-  const box = { minX: 0, maxX: 3, minY: -0.6, maxY: 1.2, minZ: -0.1, maxZ: 0.1 };
+  const box = { minX: 0, maxX: 3, minY: -0.2, maxY: 1.4, minZ: -0.1, maxZ: 0.1 };
 
-  it('places the rack camera at eye level, closer than overview', () => {
+  it('places the rack camera closer than overview and above the floor', () => {
     const rack = computeEyeLevelFit(box, 16 / 9, 38, 'rack');
     const all = computeEyeLevelFit(box, 16 / 9, 38, 'overview');
-    expect(rack.position.y).toBeLessThan(all.position.y + 0.4);
     expect(rack.distance).toBeLessThan(all.distance);
-    expect(rack.target.y).toBeLessThan((box.minY + box.maxY) / 2);
+    expect(rack.target.y).toBeCloseTo((box.minY + box.maxY) / 2, 1);
     expect(rack.position.z).toBeGreaterThan(rack.target.z);
+    expect(rack.position.y).toBeGreaterThan(-0.45);
+  });
+
+  it('fits a tall 3-row rack without the old 4.6 distance cap', () => {
+    const tall = { minX: -1.6, maxX: 1.6, minY: -0.2, maxY: 3.2, minZ: -0.1, maxZ: 0.1 };
+    const rack = computeEyeLevelFit(tall, 16 / 9, 38, 'rack');
+    expect(rack.distance).toBeGreaterThan(4.6);
+    expect(rack.target.y).toBeCloseTo((tall.minY + tall.maxY) / 2, 1);
+  });
+
+  it('pulls back for a wide overview so every rack stays in frame', () => {
+    const wide = { minX: -1, maxX: 16, minY: -0.2, maxY: 3.2, minZ: -0.1, maxZ: 0.1 };
+    const all = computeEyeLevelFit(wide, 16 / 9, 38, 'overview');
+    expect(all.distance).toBeGreaterThan(8);
+    expect(all.distance).toBeLessThan(28);
   });
 });
 

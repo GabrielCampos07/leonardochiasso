@@ -1,6 +1,7 @@
 import {
   AmbientLight,
   Box3,
+  BoxGeometry,
   Color,
   DirectionalLight,
   Fog,
@@ -9,7 +10,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
-  PCFSoftShadowMap,
+  PCFShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
   Raycaster,
@@ -21,6 +22,7 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { makePlasterTexture, makeWoodFloorTexture } from './atelier-materials';
 import {
+  CAMERA_MIN_Y,
   CAMERA_TWEEN_MS,
   CameraFocusMode,
   CameraPose,
@@ -28,7 +30,14 @@ import {
   computeEyeLevelFit,
   easeInOutCubic,
 } from './camera-guide';
-import { createCollectionRack, layoutHangers, rackWidth } from './collection-rack';
+import {
+  FLOOR_Y,
+  createCollectionRack,
+  layoutHangers,
+  rackBarTop,
+  rackRowCount,
+  rackWidth,
+} from './collection-rack';
 import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { loadTextureSafe, makeFallbackTexture } from './texture-loader';
@@ -37,8 +46,12 @@ import type { SceneHanger, SceneLayout } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
 export type HangerPickHandler = (slug: string) => void;
-export type HangerHoverHandler = (slug: string | null) => void;
+export type HangerHoverHandler = (
+  slug: string | null,
+  pointer?: { x: number; y: number },
+) => void;
 export type FocusChangeHandler = (id: string) => void;
+export type FirstFrameHandler = () => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
@@ -81,6 +94,9 @@ export class SceneEngine {
   private onClickCb: HangerPickHandler | null = null;
   private onHoverCb: HangerHoverHandler | null = null;
   private onFocusCb: FocusChangeHandler | null = null;
+  private onFirstFrameCb: FirstFrameHandler | null = null;
+  private firstFrameSent = false;
+  private hasLayout = false;
   private resizeObserver: ResizeObserver | null = null;
   private tween: {
     fromPos: Vector3;
@@ -128,7 +144,7 @@ export class SceneEngine {
     this.canvas = canvas;
     this.reducedMotion = Boolean(options.reducedMotion);
     this.scene.background = new Color(CLEAR);
-    this.scene.fog = new Fog(CLEAR, 7, 20);
+    this.scene.fog = new Fog(CLEAR, 22, 48);
 
     this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
     this.camera.position.set(0, 1.15, 3.2);
@@ -137,7 +153,7 @@ export class SceneEngine {
     this.renderer.setPixelRatio(this.reducedMotion ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setClearColor(CLEAR, 1);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    this.renderer.shadowMap.type = PCFShadowMap;
 
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !this.reducedMotion;
@@ -159,11 +175,11 @@ export class SceneEngine {
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.near = 1;
-    key.shadow.camera.far = 22;
-    key.shadow.camera.left = -8;
-    key.shadow.camera.right = 8;
-    key.shadow.camera.top = 6;
-    key.shadow.camera.bottom = -4;
+    key.shadow.camera.far = 36;
+    key.shadow.camera.left = -16;
+    key.shadow.camera.right = 16;
+    key.shadow.camera.top = 12;
+    key.shadow.camera.bottom = -6;
     key.shadow.radius = 2.2;
     key.shadow.bias = -0.00025;
     this.scene.add(key);
@@ -173,7 +189,7 @@ export class SceneEngine {
     this.scene.add(fill);
 
     const floor = new Mesh(
-      new PlaneGeometry(36, 22),
+      new BoxGeometry(96, 0.1, 64),
       new MeshStandardMaterial({
         color: 0xffffff,
         map: makeWoodFloorTexture(),
@@ -181,13 +197,12 @@ export class SceneEngine {
         metalness: 0,
       }),
     );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -0.7;
+    floor.position.y = FLOOR_Y - 0.05;
     floor.receiveShadow = true;
     this.scene.add(floor);
 
     const wall = new Mesh(
-      new PlaneGeometry(40, 8),
+      new PlaneGeometry(110, 18),
       new MeshStandardMaterial({
         color: 0xffffff,
         map: makePlasterTexture(),
@@ -195,7 +210,7 @@ export class SceneEngine {
         metalness: 0,
       }),
     );
-    wall.position.set(8, 3.1, -1.55);
+    wall.position.set(10, 6.4, -2.4);
     wall.receiveShadow = true;
     this.scene.add(wall);
 
@@ -222,6 +237,10 @@ export class SceneEngine {
 
   onFocusChange(handler: FocusChangeHandler): void {
     this.onFocusCb = handler;
+  }
+
+  onFirstFrame(handler: FirstFrameHandler): void {
+    this.onFirstFrameCb = handler;
   }
 
   start(): void {
@@ -253,6 +272,8 @@ export class SceneEngine {
       }
     }
 
+    this.hasLayout = true;
+    this.firstFrameSent = false;
     const first = layout.racks[0]?.id;
     if (first) this.focusRack(first, true);
     else this.focusOverview(true);
@@ -328,21 +349,22 @@ export class SceneEngine {
     this.onClickCb = null;
     this.onHoverCb = null;
     this.onFocusCb = null;
+    this.onFirstFrameCb = null;
   }
 
   private applyOrbitLimits(mode: CameraFocusMode): void {
     if (mode === 'rack') {
-      this.controls.minDistance = 1.7;
-      this.controls.maxDistance = 5.4;
-      this.controls.minPolarAngle = Math.PI * 0.3;
-      this.controls.maxPolarAngle = Math.PI * 0.52;
+      this.controls.minDistance = 1.8;
+      this.controls.maxDistance = 12;
+      this.controls.minPolarAngle = Math.PI * 0.28;
+      this.controls.maxPolarAngle = Math.PI * 0.48;
       this.controls.minAzimuthAngle = -0.7;
       this.controls.maxAzimuthAngle = 0.7;
     } else {
-      this.controls.minDistance = 3.4;
-      this.controls.maxDistance = 16;
-      this.controls.minPolarAngle = Math.PI * 0.28;
-      this.controls.maxPolarAngle = Math.PI * 0.5;
+      this.controls.minDistance = 4;
+      this.controls.maxDistance = 28;
+      this.controls.minPolarAngle = Math.PI * 0.26;
+      this.controls.maxPolarAngle = Math.PI * 0.48;
       this.controls.minAzimuthAngle = -0.55;
       this.controls.maxAzimuthAngle = 0.55;
     }
@@ -382,6 +404,7 @@ export class SceneEngine {
       this.camera.far = Math.max(80, pose.distance * 10);
       this.camera.updateProjectionMatrix();
       this.controls.update();
+      this.clampCamera();
       this.requestRender();
       return;
     }
@@ -404,12 +427,22 @@ export class SceneEngine {
       if (this.disposed) return;
       const animating = this.stepTween() || this.stepLift();
       if (!this.reducedMotion) this.controls.update();
+      this.clampCamera();
       this.renderer.render(this.scene, this.camera);
+      if (this.hasLayout && !this.firstFrameSent) {
+        this.firstFrameSent = true;
+        this.onFirstFrameCb?.();
+      }
       if (animating || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
         if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
         this.requestRender();
       }
     });
+  }
+
+  private clampCamera(): void {
+    if (this.camera.position.y < CAMERA_MIN_Y) this.camera.position.y = CAMERA_MIN_Y;
+    if (this.controls.target.y < FLOOR_Y + 0.12) this.controls.target.y = FLOOR_Y + 0.12;
   }
 
   private stepTween(): boolean {
@@ -449,7 +482,8 @@ export class SceneEngine {
     hangersRoot.add(group);
     const rack = this.layout.racks.find((r) => r.id === next.rackId);
     if (rack) {
-      layoutHangers(hangersRoot, rack.hangers, rackWidth(rack.hangers.length));
+      const barTop = rackBarTop(rackRowCount(rack.hangers.length));
+      layoutHangers(hangersRoot, rack.hangers, rackWidth(rack.hangers.length), barTop);
     }
   }
 
@@ -517,31 +551,33 @@ export class SceneEngine {
       if (slug) this.onClickCb?.(slug);
       return;
     }
-    this.setHover(slug ?? null);
+    this.setHover(slug ?? null, { x: event.clientX, y: event.clientY });
     this.canvas.style.cursor = slug ? 'pointer' : 'grab';
   }
 
-  private setHover(slug: string | null): void {
-    if (this.hoverSlug === slug) return;
-    if (this.hoverSlug) {
-      const prev = this.findHangerGroup(this.hoverSlug);
-      const rest = Number(prev?.userData['restY'] ?? prev?.position.y ?? 0);
-      if (prev) prev.position.y = rest;
-      this.tintHanger(this.hoverSlug, false);
-    }
-    this.hoverSlug = slug;
-    this.lift = 0;
-    this.liftTarget = slug && !this.reducedMotion ? HANGER_LIFT : 0;
-    if (slug) {
-      this.tintHanger(slug, true);
-      if (this.reducedMotion) {
-        const group = this.findHangerGroup(slug);
-        const rest = Number(group?.userData['restY'] ?? group?.position.y ?? 0);
-        if (group) group.position.y = rest;
+  private setHover(slug: string | null, pointer?: { x: number; y: number }): void {
+    const changed = this.hoverSlug !== slug;
+    if (changed) {
+      if (this.hoverSlug) {
+        const prev = this.findHangerGroup(this.hoverSlug);
+        const rest = Number(prev?.userData['restY'] ?? prev?.position.y ?? 0);
+        if (prev) prev.position.y = rest;
+        this.tintHanger(this.hoverSlug, false);
+      }
+      this.hoverSlug = slug;
+      this.lift = 0;
+      this.liftTarget = slug && !this.reducedMotion ? HANGER_LIFT : 0;
+      if (slug) {
+        this.tintHanger(slug, true);
+        if (this.reducedMotion) {
+          const group = this.findHangerGroup(slug);
+          const rest = Number(group?.userData['restY'] ?? group?.position.y ?? 0);
+          if (group) group.position.y = rest;
+        }
       }
     }
-    this.onHoverCb?.(slug);
-    this.requestRender();
+    if (changed || slug) this.onHoverCb?.(slug, pointer);
+    if (changed) this.requestRender();
   }
 
   private tintHanger(slug: string, on: boolean): void {

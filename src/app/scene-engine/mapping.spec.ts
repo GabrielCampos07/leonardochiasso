@@ -97,18 +97,29 @@ describe('resolveProductRackId', () => {
 });
 
 describe('toSceneHanger / primaryImageUrl', () => {
-  it('prefers the lowest sortOrder media url', () => {
+  it('prefers isPrimary media over sortOrder and thumb', () => {
     expect(
       primaryImageUrl({
         slug: 'a',
         name: 'A',
         media: [
-          { cdnUrl: 'second.jpg', sortOrder: 2 },
-          { cdnUrl: 'first.jpg', sortOrder: 0 },
+          { cdnUrl: 'second.jpg', sortOrder: 0 },
+          { cdnUrl: 'primary.jpg', sortOrder: 2, isPrimary: true },
         ],
         thumb: 'thumb.jpg',
       }),
-    ).toBe('first.jpg');
+    ).toBe('primary.jpg');
+  });
+
+  it('uses thumb when media has no primary or thumb role', () => {
+    expect(
+      primaryImageUrl({
+        slug: 'a',
+        name: 'A',
+        media: [{ cdnUrl: 'gallery.jpg', role: 'gallery', sortOrder: 0 }],
+        thumb: 'thumb.jpg',
+      }),
+    ).toBe('thumb.jpg');
   });
 
   it('clamps stock and defaults status', () => {
