@@ -17,6 +17,8 @@ export const HANGER_USER_DATA = 'hanger';
 export const PHOTO_MAX_W = 0.48;
 export const PHOTO_MAX_H = 0.64;
 export const HANGER_LIFT = 0.055;
+export const SOLD_OUT_BADGE_W = 0.3;
+export const SOLD_OUT_BADGE_H = 0.105;
 
 function hangerLabelMap(name: string) {
   return makeLabelTexture(name, { width: 512, height: 80, fill: '#2a241c', size: 32 });
@@ -96,7 +98,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
   group.add(garment);
 
   const badge = new Mesh(
-    new PlaneGeometry(0.16, 0.055),
+    new PlaneGeometry(SOLD_OUT_BADGE_W, SOLD_OUT_BADGE_H),
     new MeshStandardMaterial({
       map: makeSoldOutTexture(),
       transparent: true,

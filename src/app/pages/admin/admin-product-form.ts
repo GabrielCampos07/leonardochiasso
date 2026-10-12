@@ -27,9 +27,16 @@ import {
 import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { ToastService } from '../../core/feedback/toast.service';
+import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
+
+/** Inteiro ≥ 0 para o campo de estoque do admin. */
+export function parseStockQty(raw: string | number | null | undefined): number {
+  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(/[^\d-]/g, ''));
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.round(n));
+}
 
 function collectionLabelForSlug(slug: string): Collection {
   if (KNOWN_COLLECTION_SLUGS.has(slug)) {
@@ -141,6 +148,12 @@ export class AdminProductForm implements OnInit {
     if (!p) return;
     const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/\D/g, '')) || 0;
     this.draft.set({ ...p, ...syncPriceFields(n) });
+  }
+
+  onStockQtyChange(raw: string | number): void {
+    const p = this.draft();
+    if (!p) return;
+    this.draft.set({ ...p, stockQty: parseStockQty(raw) });
   }
 
   toggleSwatch(swatch: ProductColor): void {
@@ -369,6 +382,7 @@ export class AdminProductForm implements OnInit {
       thumb: p.thumb.trim() || galleryUrls[0] || p.thumb,
       pieces: pieces.length ? pieces : undefined,
       media: this.galleryItems(),
+      stockQty: parseStockQty(p.stockQty),
       ...syncPriceFields(p.price),
     };
 
@@ -379,7 +393,10 @@ export class AdminProductForm implements OnInit {
         if (!this.useApi) this.catalog.refreshLocalCatalog();
         if (this.isNew()) this.slugLocked = true;
         this.loadDraft(structuredClone(saved));
-        this.toast.success(this.isNew() ? 'Produto criado.' : 'Salvo.');
+        this.toast.success(this.isNew() ? 'Produto criado.' : 'Salvo.', {
+          durationMs: SAVE_TOAST_MS,
+        });
+        this.settleAfterSave();
         this.saved.emit(saved);
       },
       error: (err) => {
@@ -391,6 +408,13 @@ export class AdminProductForm implements OnInit {
 
   cancel(): void {
     this.cancelled.emit();
+  }
+
+  /** After create, stay at the top so the toast does not sit over the form. */
+  private settleAfterSave(): void {
+    (document.activeElement as HTMLElement | null)?.blur();
+    if (!this.isNew()) return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }
 
   sitePath(): string {
