@@ -7,6 +7,32 @@
   font-family: var(--lc-font-body);
 }
 
+:host.admin-shell--banner {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.admin-staging-banner {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 10px var(--lc-space-24);
+  padding-left: max(var(--lc-space-24), env(safe-area-inset-left));
+  padding-right: max(var(--lc-space-24), env(safe-area-inset-right));
+  padding-top: max(10px, env(safe-area-inset-top));
+  background: var(--lc-void);
+  color: var(--lc-white);
+  font-family: var(--lc-font-display);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
 .admin-bar {
   display: flex;
   flex-wrap: wrap;
@@ -19,6 +45,17 @@
   padding-right: max(var(--lc-space-40), env(safe-area-inset-right));
   border-bottom: 1px solid color-mix(in srgb, var(--lc-ash) 45%, transparent);
   background: var(--lc-white);
+}
+
+:host.admin-shell--banner .admin-bar {
+  flex: 0 0 auto;
+  padding-top: var(--lc-space-24);
+}
+
+:host.admin-shell--banner .admin-main,
+:host.admin-shell--banner .admin-main--scene {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .admin-bar__brand {
@@ -134,12 +171,24 @@
 }
 
 @media (max-width: 768px) {
+  .admin-staging-banner {
+    font-size: 0.7rem;
+    padding-inline: max(var(--lc-space-16), env(safe-area-inset-left))
+      max(var(--lc-space-16), env(safe-area-inset-right));
+  }
+
   .admin-bar {
     flex-direction: column;
     align-items: stretch;
     gap: var(--lc-space-8);
     padding: var(--lc-space-16);
     padding-top: max(var(--lc-space-16), env(safe-area-inset-top));
+    padding-left: max(var(--lc-space-16), env(safe-area-inset-left));
+    padding-right: max(var(--lc-space-16), env(safe-area-inset-right));
+  }
+
+  :host.admin-shell--banner .admin-bar {
+    padding-top: var(--lc-space-16);
     padding-left: max(var(--lc-space-16), env(safe-area-inset-left));
     padding-right: max(var(--lc-space-16), env(safe-area-inset-right));
   }

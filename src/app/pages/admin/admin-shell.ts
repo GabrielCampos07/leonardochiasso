@@ -1,9 +1,11 @@
 import { Component, HostBinding, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
+import { environment } from '../../../environments/environment';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { AdminViewMode, AdminViewModeService } from '../../core/admin-view-mode.service';
 import { ROUTES } from '../../core/routes';
+import { readStagingBannerStorage, resolveStagingBannerText } from '../../core/staging-banner';
 import { LcConfirmDialog } from '../../shared/components/feedback/confirm-dialog';
 import { LcToastHost } from '../../shared/components/feedback/toast-host';
 
@@ -24,6 +26,13 @@ export class AdminShell {
   readonly collections = ROUTES.adminCollections;
   readonly joias = ROUTES.adminJoias;
   readonly loggedIn = this.session.isLoggedIn;
+  readonly stagingBanner = resolveStagingBannerText({
+    env: environment,
+    hostname: typeof window === 'undefined' ? '' : window.location.hostname,
+    queryPreview:
+      typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('stagingBanner'),
+    storagePreview: readStagingBannerStorage(),
+  });
 
   private readonly url = signal(this.router.url);
 
@@ -37,6 +46,11 @@ export class AdminShell {
   @HostBinding('class.admin-shell--scene')
   get sceneHost(): boolean {
     return (this.url().split('?')[0] ?? '').startsWith(ROUTES.admin3d);
+  }
+
+  @HostBinding('class.admin-shell--banner')
+  get bannerHost(): boolean {
+    return Boolean(this.stagingBanner);
   }
 
   constructor() {
