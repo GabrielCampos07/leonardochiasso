@@ -6,6 +6,13 @@ import {
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
 import { adminCollectionPath, adminNewCollectionPath } from '../../core/routes';
+import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
+import {
+  confirmArchiveCollection,
+  showArchiveUndo,
+} from '../../core/admin-archive';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
 
 @Component({
   selector: 'lc-admin-collections',
@@ -16,8 +23,11 @@ import { adminCollectionPath, adminNewCollectionPath } from '../../core/routes';
 })
 export class AdminCollectionsPage implements OnInit {
   private readonly api = inject(AdminCollectionsApiService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
 
   readonly query = signal('');
+  readonly showArchived = signal(false);
   readonly loading = signal(true);
   readonly error = signal('');
   readonly collections = signal<AdminCollectionDto[]>([]);
@@ -47,10 +57,41 @@ export class AdminCollectionsPage implements OnInit {
     return c.publishedAt ? 'Publicada' : 'Rascunho';
   }
 
+  onArchivedFilter(show: boolean): void {
+    this.showArchived.set(show);
+    this.reload();
+  }
+
+  async archive(c: AdminCollectionDto): Promise<void> {
+    const ok = await confirmArchiveCollection(this.confirm, c.productCount ?? 0);
+    if (!ok) return;
+    this.api.archive(c.slug).subscribe({
+      next: () => {
+        this.reload();
+        showArchiveUndo(this.toast, () => this.restore(c.slug));
+      },
+      error: (err) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+      },
+    });
+  }
+
+  restore(slug: string): void {
+    this.api.restore(slug).subscribe({
+      next: () => {
+        this.reload();
+        this.toast.success('Restaurado.');
+      },
+      error: (err) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.'));
+      },
+    });
+  }
+
   reload(): void {
     this.loading.set(true);
     this.error.set('');
-    this.api.list().subscribe({
+    this.api.list(this.showArchived()).subscribe({
       next: (list) => {
         this.collections.set(list);
         this.loading.set(false);

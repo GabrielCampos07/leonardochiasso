@@ -217,6 +217,8 @@ export interface Product {
   status?: string;
   /** Units on hand from Admin / catalog API. */
   stockQty?: number;
+  /** Soft-archive timestamp from Admin / catalog API. */
+  archivedAt?: string | null;
 }
 
 export interface CartItem {

@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  mapProduct,
-  publishedProductInclude,
-} from './catalog.mapper';
+import { mapProduct, publicProductInclude } from './catalog.mapper';
 import {
   CollectionDetailDto,
   CollectionDto,
@@ -17,8 +14,8 @@ export class CatalogService {
 
   async listProducts(): Promise<ProductDto[]> {
     const products = await this.prisma.product.findMany({
-      where: { status: ProductStatus.published },
-      include: publishedProductInclude,
+      where: { status: ProductStatus.published, archivedAt: null },
+      include: publicProductInclude,
       orderBy: [{ recommendOrder: 'asc' }, { createdAt: 'asc' }],
     });
     return products.map(mapProduct);
@@ -26,8 +23,8 @@ export class CatalogService {
 
   async getProductBySlug(slug: string): Promise<ProductDto> {
     const product = await this.prisma.product.findFirst({
-      where: { slug, status: ProductStatus.published },
-      include: publishedProductInclude,
+      where: { slug, status: ProductStatus.published, archivedAt: null },
+      include: publicProductInclude,
     });
     if (!product) {
       throw new NotFoundException(`Product not found: ${slug}`);
@@ -37,6 +34,7 @@ export class CatalogService {
 
   async listCollections(): Promise<CollectionDto[]> {
     const collections = await this.prisma.collection.findMany({
+      where: { archivedAt: null },
       orderBy: { sortOrder: 'asc' },
     });
     return collections.map((c) => ({
@@ -46,18 +44,21 @@ export class CatalogService {
       description: c.description,
       sortOrder: c.sortOrder,
       publishedAt: c.publishedAt?.toISOString() ?? null,
+      archivedAt: null,
     }));
   }
 
   async getCollectionBySlug(slug: string): Promise<CollectionDetailDto> {
-    const collection = await this.prisma.collection.findUnique({
-      where: { slug },
+    const collection = await this.prisma.collection.findFirst({
+      where: { slug, archivedAt: null },
       include: {
         products: {
-          where: { product: { status: ProductStatus.published } },
+          where: {
+            product: { status: ProductStatus.published, archivedAt: null },
+          },
           orderBy: { sortOrder: 'asc' },
           include: {
-            product: { include: publishedProductInclude },
+            product: { include: publicProductInclude },
           },
         },
       },
@@ -72,6 +73,7 @@ export class CatalogService {
       description: collection.description,
       sortOrder: collection.sortOrder,
       publishedAt: collection.publishedAt?.toISOString() ?? null,
+      archivedAt: null,
       products: collection.products.map((pc) => mapProduct(pc.product)),
     };
   }

@@ -154,21 +154,64 @@ export class AdminCatalogService {
   }
 
   /** Seed + patches, sorted by admin order (or recommend order). Sync / demo. */
-  list(): Product[] {
+  list(archived = false): Product[] {
     if (this.useApi && this.apiCache()) return this.apiCache()!;
-    return this.merge(PRODUCTS, this.store());
+    return this.merge(PRODUCTS, this.store()).filter((p) =>
+      archived ? Boolean(p.archivedAt) : !p.archivedAt,
+    );
   }
 
-  list$(): Observable<Product[]> {
-    if (!this.useApi) return of(this.list());
+  list$(archived = false): Observable<Product[]> {
+    if (!this.useApi) return of(this.list(archived));
     return this.http
       .get<ApiProductDto[]>(`${this.baseUrl}/api/admin/products`, {
         withCredentials: true,
+        params: archived ? { archived: 'true' } : {},
       })
       .pipe(
         map((list) => list.map(mapApiProduct)),
         tap((list) => this.apiCache.set(list)),
         catchError((err) => throwError(() => err)),
+      );
+  }
+
+  archiveViaApi(slug: string): Observable<Product> {
+    if (!this.useApi) {
+      const current = this.get(slug);
+      if (!current) return throwError(() => new Error('Produto não encontrado.'));
+      const next = { ...current, archivedAt: new Date().toISOString() };
+      this.save(next);
+      return of(next);
+    }
+    return this.http
+      .post<ApiProductDto>(
+        `${this.baseUrl}/api/admin/products/${encodeURIComponent(slug)}/archive`,
+        {},
+        { withCredentials: true },
+      )
+      .pipe(
+        map(mapApiProduct),
+        tap((p) => this.patchApiCache(p, false, slug)),
+      );
+  }
+
+  restoreViaApi(slug: string): Observable<Product> {
+    if (!this.useApi) {
+      const current = this.list(true).find((p) => p.slug === slug) ?? this.get(slug);
+      if (!current) return throwError(() => new Error('Produto não encontrado.'));
+      const next = { ...current, archivedAt: null };
+      this.save(next);
+      return of(next);
+    }
+    return this.http
+      .post<ApiProductDto>(
+        `${this.baseUrl}/api/admin/products/${encodeURIComponent(slug)}/restore`,
+        {},
+        { withCredentials: true },
+      )
+      .pipe(
+        map(mapApiProduct),
+        tap((p) => this.patchApiCache(p, false, slug)),
       );
   }
 

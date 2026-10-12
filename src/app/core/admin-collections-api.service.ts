@@ -11,6 +11,8 @@ export interface AdminCollectionDto {
   description: string | null;
   sortOrder: number;
   publishedAt: string | null;
+  archivedAt?: string | null;
+  productCount?: number;
 }
 
 export interface CreateCollectionPayload {
@@ -41,8 +43,27 @@ export class AdminCollectionsApiService {
     return `${this.base}/api/admin/collections`;
   }
 
-  list(): Observable<AdminCollectionDto[]> {
-    return this.http.get<AdminCollectionDto[]>(this.url, { withCredentials: true });
+  list(archived = false): Observable<AdminCollectionDto[]> {
+    return this.http.get<AdminCollectionDto[]>(this.url, {
+      withCredentials: true,
+      params: archived ? { archived: 'true' } : {},
+    });
+  }
+
+  archive(slug: string): Observable<AdminCollectionDto> {
+    return this.http.post<AdminCollectionDto>(
+      `${this.url}/${encodeURIComponent(slug)}/archive`,
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  restore(slug: string): Observable<AdminCollectionDto> {
+    return this.http.post<AdminCollectionDto>(
+      `${this.url}/${encodeURIComponent(slug)}/restore`,
+      {},
+      { withCredentials: true },
+    );
   }
 
   create(payload: CreateCollectionPayload): Observable<AdminCollectionDto> {

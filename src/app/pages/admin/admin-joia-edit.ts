@@ -9,6 +9,9 @@ import {
   ROUTES,
   adminJoiaPath,
 } from '../../core/routes';
+import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
+import { confirmArchivePiece, showArchiveUndo } from '../../core/admin-archive';
+import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 
 function blankJoia(): JoiaPiece {
@@ -36,6 +39,7 @@ export class AdminJoiaEditPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly catalog = inject(AdminJoiasCatalogService);
+  private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
 
   readonly listPath = ROUTES.adminJoias;
@@ -100,6 +104,28 @@ export class AdminJoiaEditPage implements OnInit {
       ...cur,
       images,
       image: images[0] ?? cur.image,
+    });
+  }
+
+  async archive(): Promise<void> {
+    const cur = this.draft();
+    if (!cur || this.isNew()) return;
+    const ok = await confirmArchivePiece(this.confirm);
+    if (!ok) return;
+    this.catalog.archive(cur.slug).subscribe({
+      next: () => {
+        showArchiveUndo(this.toast, () => {
+          this.catalog.restore(cur.slug).subscribe({
+            next: () => this.toast.success('Restaurado.'),
+            error: (err) =>
+              this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          });
+        });
+        void this.router.navigateByUrl(this.listPath);
+      },
+      error: (err) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+      },
     });
   }
 

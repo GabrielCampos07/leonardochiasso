@@ -15,7 +15,12 @@ import { ToastService } from '../../../core/feedback/toast.service';
         role="status"
         aria-live="polite"
       >
-        {{ msg.text }}
+        <span>{{ msg.text }}</span>
+        @if (msg.action; as action) {
+          <button type="button" class="lc-toast__action" (click)="toast.runAction()">
+            {{ action.label }}
+          </button>
+        }
       </div>
     }
   `,
@@ -26,6 +31,10 @@ import { ToastService } from '../../../core/feedback/toast.service';
       bottom: calc(72px + env(safe-area-inset-bottom, 0px));
       z-index: 1200;
       transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
       max-width: min(92vw, 420px);
       padding: 12px 18px;
       font-family: var(--lc-font-body);
@@ -37,6 +46,21 @@ import { ToastService } from '../../../core/feedback/toast.service';
       color: var(--lc-void);
       box-shadow: 0 8px 32px rgb(14 12 14 / 12%);
       pointer-events: none;
+    }
+    .lc-toast:has(.lc-toast__action) {
+      pointer-events: auto;
+    }
+    .lc-toast__action {
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--lc-void);
+      font-family: var(--lc-font-display);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      text-decoration: underline;
+      cursor: pointer;
     }
     .lc-toast--top {
       top: calc(16px + env(safe-area-inset-top, 0px));

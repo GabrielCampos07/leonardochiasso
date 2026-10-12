@@ -18,6 +18,14 @@
       Buscar
       <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
     </label>
+    <label class="admin-list__check">
+      <input
+        type="checkbox"
+        [ngModel]="showArchived()"
+        (ngModelChange)="onArchivedFilter($event)"
+      />
+      Arquivados
+    </label>
   </div>
 
   @if (loading()) {
@@ -37,6 +45,15 @@
           </div>
           <div class="admin-row__actions">
             <a class="admin-row__edit" [routerLink]="editPath(c.slug)">Abrir</a>
+            @if (showArchived()) {
+              <button type="button" class="admin-row__order-btn" (click)="restore(c.slug)">
+                Restaurar
+              </button>
+            } @else {
+              <button type="button" class="admin-row__archive" (click)="archive(c)">
+                Arquivar
+              </button>
+            }
           </div>
         </li>
       } @empty {

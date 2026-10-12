@@ -1,5 +1,16 @@
-import { Body, Controller, Get, Header, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminGuard } from '../admin/admin.guard';
+import { parseArchivedFlag } from '../admin/archive-query';
 import { ContentService } from './content.service';
 import { PatchContentDto } from './dto/patch-content.dto';
 
@@ -10,7 +21,9 @@ export class ContentController {
   @Get('joias')
   @Header('Cache-Control', 'public, max-age=60')
   listJoias() {
-    return this.content.list('joia').then((rows) => rows.map((r) => ({ slug: r.slug, ...asRecord(r.data) })));
+    return this.content.list('joia').then((rows) =>
+      rows.map((r) => ({ slug: r.slug, ...asRecord(r.data) })),
+    );
   }
 
   @Get('joias/:slug')
@@ -20,6 +33,38 @@ export class ContentController {
       if (!row) return null;
       return { slug: row.slug, ...asRecord(row.data) };
     });
+  }
+
+  @Get('admin/joias')
+  @UseGuards(AdminGuard)
+  listAdminJoias(@Query('archived') archived?: string) {
+    return this.content.list('joia', parseArchivedFlag(archived)).then((rows) =>
+      rows.map((r) => ({
+        slug: r.slug,
+        archivedAt: r.archivedAt?.toISOString() ?? null,
+        ...asRecord(r.data),
+      })),
+    );
+  }
+
+  @Post('admin/joias/:slug/archive')
+  @UseGuards(AdminGuard)
+  archiveJoia(@Param('slug') slug: string) {
+    return this.content.archive('joia', slug).then((row) => ({
+      slug: row.slug,
+      archivedAt: row.archivedAt?.toISOString() ?? null,
+      ...asRecord(row.data),
+    }));
+  }
+
+  @Post('admin/joias/:slug/restore')
+  @UseGuards(AdminGuard)
+  restoreJoia(@Param('slug') slug: string) {
+    return this.content.restore('joia', slug).then((row) => ({
+      slug: row.slug,
+      archivedAt: row.archivedAt?.toISOString() ?? null,
+      ...asRecord(row.data),
+    }));
   }
 
   @Get('arte')

@@ -7,9 +7,11 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AdminGuard } from './admin.guard';
+import { parseArchivedFlag } from './archive-query';
 import { AdminProductsService } from './admin-products.service';
 import {
   AttachProductMediaDto,
@@ -26,8 +28,8 @@ export class AdminProductsController {
   constructor(private readonly products: AdminProductsService) {}
 
   @Get()
-  list() {
-    return this.products.list();
+  list(@Query('archived') archived?: string) {
+    return this.products.list(parseArchivedFlag(archived));
   }
 
   @Post()
@@ -38,6 +40,16 @@ export class AdminProductsController {
   @Put('reorder')
   reorder(@Body() dto: ReorderProductsDto) {
     return this.products.reorder(dto.orderedSlugs);
+  }
+
+  @Post(':slug/archive')
+  archive(@Param('slug') slug: string) {
+    return this.products.archive(slug);
+  }
+
+  @Post(':slug/restore')
+  restore(@Param('slug') slug: string) {
+    return this.products.restore(slug);
   }
 
   @Patch(':slug')

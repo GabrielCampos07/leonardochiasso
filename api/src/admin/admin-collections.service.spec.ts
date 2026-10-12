@@ -1,0 +1,91 @@
+import { NotFoundException } from '@nestjs/common';
+import { AdminCollectionsService } from './admin-collections.service';
+
+function collectionRow(over: Record<string, unknown> = {}) {
+  return {
+    id: 'col-1',
+    slug: 'organic-dreams',
+    name: 'Organic Dreams',
+    description: null,
+    sortOrder: 1,
+    publishedAt: new Date('2026-01-01T00:00:00Z'),
+    archivedAt: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...over,
+  };
+}
+
+describe('AdminCollectionsService archive', () => {
+  const prisma = {
+    collection: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    productCollection: {
+      count: jest.fn(),
+      deleteMany: jest.fn(),
+      createMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  };
+  const service = new AdminCollectionsService(prisma as never);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('lists live collections by default', async () => {
+    prisma.collection.findMany.mockResolvedValue([
+      { ...collectionRow(), _count: { products: 3 } },
+    ]);
+    const list = await service.list(false);
+    expect(prisma.collection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { archivedAt: null } }),
+    );
+    expect(list[0]?.productCount).toBe(3);
+    expect(list[0]?.archivedAt).toBeNull();
+  });
+
+  it('archives the collection and leaves product_collections untouched', async () => {
+    const now = new Date('2026-10-12T16:00:00Z');
+    jest.useFakeTimers().setSystemTime(now);
+    prisma.collection.findUnique.mockResolvedValue(collectionRow());
+    prisma.productCollection.count.mockResolvedValue(4);
+    prisma.collection.update.mockResolvedValue(
+      collectionRow({ archivedAt: now }),
+    );
+
+    const dto = await service.archive('organic-dreams');
+    expect(dto.archivedAt).toBe(now.toISOString());
+    expect(dto.productCount).toBe(4);
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.productCollection.createMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.collection.update).toHaveBeenCalledWith({
+      where: { slug: 'organic-dreams' },
+      data: { archivedAt: now },
+    });
+    jest.useRealTimers();
+  });
+
+  it('restores without rewriting the junction', async () => {
+    prisma.collection.findUnique.mockResolvedValue(
+      collectionRow({ archivedAt: new Date() }),
+    );
+    prisma.productCollection.count.mockResolvedValue(4);
+    prisma.collection.update.mockResolvedValue(collectionRow({ archivedAt: null }));
+
+    const dto = await service.restore('organic-dreams');
+    expect(dto.archivedAt).toBeNull();
+    expect(dto.productCount).toBe(4);
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('404s when the collection is missing', async () => {
+    prisma.collection.findUnique.mockResolvedValue(null);
+    await expect(service.archive('sumiu')).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.collection.update).not.toHaveBeenCalled();
+  });
+});

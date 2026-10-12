@@ -1,22 +1,50 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { archivedAtWhere } from '../admin/archive-query';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ContentService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(kind: string) {
+  list(kind: string, archived = false) {
     return this.prisma.contentDocument.findMany({
-      where: { kind },
+      where: { kind, ...archivedAtWhere(archived) },
       orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
     });
   }
 
-  get(kind: string, slug: string) {
-    return this.prisma.contentDocument.findUnique({
+  async get(kind: string, slug: string, opts?: { includeArchived?: boolean }) {
+    const row = await this.prisma.contentDocument.findUnique({
       where: { kind_slug: { kind, slug } },
     });
+    if (!row) return null;
+    if (!opts?.includeArchived && row.archivedAt) return null;
+    return row;
+  }
+
+  async archive(kind: string, slug: string) {
+    await this.requireDoc(kind, slug);
+    return this.prisma.contentDocument.update({
+      where: { kind_slug: { kind, slug } },
+      data: { archivedAt: new Date() },
+    });
+  }
+
+  async restore(kind: string, slug: string) {
+    await this.requireDoc(kind, slug);
+    return this.prisma.contentDocument.update({
+      where: { kind_slug: { kind, slug } },
+      data: { archivedAt: null },
+    });
+  }
+
+  private async requireDoc(kind: string, slug: string) {
+    const doc = await this.prisma.contentDocument.findUnique({
+      where: { kind_slug: { kind, slug } },
+    });
+    if (!doc) throw new NotFoundException(`${kind}/${slug} not found`);
+    return doc;
   }
 
   async patch(kind: string, slug: string, path: string, value: unknown) {
