@@ -165,6 +165,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine.onHover((slug, pointer) => this.setHoverTip(slug, pointer));
     this.engine.onFocusChange((id) => this.focusedId.set(id));
     this.engine.onFirstFrame(() => this.markFirstFrame());
+    this.engine.onSceneComplete(() => this.markSceneComplete());
     this.engine.start();
     this.canvasReady = true;
     if (this.pendingLayout) {
@@ -189,7 +190,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
       return;
     }
-    if (document.querySelector('.lc-product-edit-dialog')) return;
+    if (this.modalOpen || document.querySelector('.lc-product-edit-dialog')) return;
     event.preventDefault();
     this.stepRack(event.key === 'ArrowLeft' ? -1 : 1);
   }
@@ -358,7 +359,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private openEditor(slug: string): void {
-    this.focusScene();
     this.hoverTip.set(null);
     this.modalOpen = true;
     const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
@@ -420,6 +420,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       x: pos.x,
       y: pos.y,
     });
+  }
+
+  private markSceneComplete(): void {
+    this.boot.markSceneComplete();
   }
 
   private markFirstFrame(): void {

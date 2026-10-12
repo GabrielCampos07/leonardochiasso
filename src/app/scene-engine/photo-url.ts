@@ -74,6 +74,27 @@ export function primaryImageUrl(product: LooseProductPhotos): string | null {
   return raw ? resolveMediaUrl(raw) : null;
 }
 
+/** Dedicated thumb URL (`pdp/*-thumb.webp`) when it differs from the primary photo. */
+export function thumbImageUrl(product: LooseProductPhotos): string | null {
+  const raw = asText(product.thumb);
+  return raw ? resolveMediaUrl(raw) : null;
+}
+
+/** Unique photo URLs for a hanger: primary first, then the storefront thumb. */
+export function hangerTextureUrls(hanger: {
+  imageUrl?: string | null;
+  thumbUrl?: string | null;
+}): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+  for (const url of [hanger.imageUrl, hanger.thumbUrl]) {
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+  }
+  return urls;
+}
+
 export function mergeProductPhotos<T extends LooseProductPhotos>(admin: T, storefront?: LooseProductPhotos | null): T {
   if (primaryImageUrl(admin) || !storefront) return admin;
   return {

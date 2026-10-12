@@ -2,6 +2,7 @@ import {
   VITRINE_CAPACITY,
   mapCatalogToScene,
   mapJoiasToVitrines,
+  racksForFirstFrame,
   replaceHanger,
   resolveProductRackId,
   toSceneHanger,
@@ -183,6 +184,19 @@ describe('replaceHanger', () => {
     expect(updated.racks[0]?.hangers.find((h) => h.slug === 'a')?.name).toBe('A editada');
     expect(updated.racks[0]?.hangers.find((h) => h.slug === 'a')?.stockQty).toBe(9);
     expect(updated.racks[0]?.hangers.find((h) => h.slug === 'b')?.name).toBe('B');
+  });
+});
+
+describe('racksForFirstFrame', () => {
+  it('builds only the focused collection first', () => {
+    const racks = [
+      { id: 'organic-dreams', name: 'Organic Dreams' },
+      { id: 'niponic-dreams', name: 'Niponic Dreams' },
+      { id: 'sem-colecao', name: 'Sem coleção' },
+    ];
+    const split = racksForFirstFrame(racks, 'organic-dreams');
+    expect(split.immediate.map((r) => r.id)).toEqual(['organic-dreams']);
+    expect(split.deferred.map((r) => r.id)).toEqual(['niponic-dreams', 'sem-colecao']);
   });
 });
 

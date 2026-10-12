@@ -1,9 +1,19 @@
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  HostBinding,
+  OnDestroy,
+  OnInit,
+  inject,
+  signal,
+} from '@angular/core';
 import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
 import { Product } from '../../../core/product.model';
 import { ToastService } from '../../../core/feedback/toast.service';
 import { AdminProductForm } from '../admin-product-form';
+import { focusEditModal, listenDialogEscape } from './dialog-escape';
 
 export interface ProductEditModalData {
   slug: string;
@@ -24,12 +34,15 @@ export function productEditModalTitle(name: string | null | undefined): string {
   templateUrl: './product-edit-modal.html',
   styleUrl: './product-edit-modal.scss',
 })
-export class ProductEditModal implements OnInit {
+export class ProductEditModal implements OnInit, AfterViewInit, OnDestroy {
   private readonly data = inject<ProductEditModalData>(DIALOG_DATA);
   private readonly ref = inject(DialogRef<Product | undefined>);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly toast = inject(ToastService);
+  private readonly host = inject(ElementRef<HTMLElement>);
+  private detachEscape: (() => void) | null = null;
 
+  @HostBinding('attr.tabindex') readonly hostTabIndex = -1;
   readonly titleId = PRODUCT_EDIT_MODAL_TITLE_ID;
   readonly product = signal<Product | null>(null);
   readonly missing = signal(false);
@@ -40,6 +53,7 @@ export class ProductEditModal implements OnInit {
   }
 
   ngOnInit(): void {
+    this.detachEscape = listenDialogEscape(() => this.close());
     if (this.data.product) {
       this.loading.set(false);
       this.product.set(structuredClone(this.data.product));
@@ -60,6 +74,15 @@ export class ProductEditModal implements OnInit {
         this.toast.error(adminHttpErrorMessage(err, 'Produto não encontrado.'));
       },
     });
+  }
+
+  ngAfterViewInit(): void {
+    focusEditModal(this.host.nativeElement);
+  }
+
+  ngOnDestroy(): void {
+    this.detachEscape?.();
+    this.detachEscape = null;
   }
 
   onSaved(saved: Product): void {

@@ -6,6 +6,7 @@ import {
   makeFallbackTexture,
   makeLabelTexture,
   makePlaceholderTexture,
+  TEXTURE_BITMAP_ORIENTATION,
   TEXTURE_CROSS_ORIGIN,
   textureCacheUrl,
 } from './texture-loader';
@@ -14,6 +15,13 @@ describe('textureCacheUrl', () => {
   it('appends tex=1 on a bare CDN url', () => {
     expect(textureCacheUrl('https://pub-example.r2.dev/pdp/plp-bateau-thumb.webp')).toBe(
       'https://pub-example.r2.dev/pdp/plp-bateau-thumb.webp?tex=1',
+    );
+  });
+
+  it('applies tex=1 to the pdp thumb fallback the same way as the primary', () => {
+    expect(textureCacheUrl('https://cdn.example/pdp/plp-organic-thumb.webp')).toContain('tex=1');
+    expect(textureCacheUrl('https://cdn.example/pdp/plp-organic-thumb.webp?w=400')).toBe(
+      'https://cdn.example/pdp/plp-organic-thumb.webp?w=400&tex=1',
     );
   });
 
@@ -30,6 +38,12 @@ describe('textureCacheUrl', () => {
   it('keeps a hash and leaves data URLs alone', () => {
     expect(textureCacheUrl('https://cdn.example/p.webp#hero')).toBe('https://cdn.example/p.webp?tex=1#hero');
     expect(textureCacheUrl('data:image/png;base64,aaa')).toBe('data:image/png;base64,aaa');
+  });
+});
+
+describe('ImageBitmap orientation', () => {
+  it('flips Y in createImageBitmap so hangers and trays stay upright', () => {
+    expect(TEXTURE_BITMAP_ORIENTATION).toBe('flipY');
   });
 });
 

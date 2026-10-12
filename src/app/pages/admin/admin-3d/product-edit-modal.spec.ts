@@ -52,13 +52,15 @@ describe('productEditModalTitle', () => {
 
 describe('ProductEditModal', () => {
   let fixture: ComponentFixture<ProductEditModal>;
+  let close: jasmine.Spy;
 
   beforeEach(async () => {
+    close = jasmine.createSpy('close');
     await TestBed.configureTestingModule({
       imports: [ProductEditModal],
       providers: [
         { provide: DIALOG_DATA, useValue: { slug: piece.slug, product: piece } },
-        { provide: DialogRef, useValue: { close: () => undefined } },
+        { provide: DialogRef, useValue: { close } },
         { provide: AdminCatalogService, useValue: { get$: () => of(piece) } },
         { provide: ToastService, useValue: { error: () => undefined } },
       ],
@@ -70,6 +72,8 @@ describe('ProductEditModal', () => {
     fixture.detectChanges();
   });
 
+  afterEach(() => fixture.destroy());
+
   it('renders the title with the piece name', () => {
     const heading = fixture.nativeElement.querySelector(`#${PRODUCT_EDIT_MODAL_TITLE_ID}`) as HTMLElement;
     expect(heading.textContent?.trim()).toBe('Editar produto · Vestido Longo Radial');
@@ -80,5 +84,10 @@ describe('ProductEditModal', () => {
     expect(root.querySelectorAll('[role="dialog"]').length).toBe(0);
     expect(root.querySelectorAll('[aria-modal]').length).toBe(0);
     expect(root.querySelector(`#${PRODUCT_EDIT_MODAL_TITLE_ID}`)).toBeTruthy();
+  });
+
+  it('closes on Escape even when the canvas would have kept focus', () => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(close).toHaveBeenCalledWith(undefined);
   });
 });
