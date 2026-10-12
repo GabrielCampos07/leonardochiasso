@@ -29,6 +29,7 @@ export class AdminShell {
   readonly stagingBanner = resolveStagingBannerText({
     env: environment,
     hostname: typeof window === 'undefined' ? '' : window.location.hostname,
+    production: environment.production,
     queryPreview:
       typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('stagingBanner'),
     storagePreview: readStagingBannerStorage(),
