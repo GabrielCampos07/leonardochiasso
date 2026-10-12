@@ -66,6 +66,18 @@ describe('resolveStagingBannerText', () => {
     expect(isProductionAdminHost('www.leonardochiasso.com')).toBeTrue();
   });
 
+  it('ignores ?stagingBanner=1 and localStorage preview in production builds', () => {
+    expect(
+      resolveStagingBannerText({
+        env: { stagingBanner: '', production: true },
+        hostname: 'localhost',
+        production: true,
+        queryPreview: '1',
+        storagePreview: '1',
+      }),
+    ).toBeNull();
+  });
+
   it('stays hidden on localhost unless a preview override is set', () => {
     expect(
       resolveStagingBannerText({

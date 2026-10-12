@@ -21,6 +21,12 @@ import { apiProductToSceneInput, productToSceneInput } from '../../../scene-engi
 import { SceneEngine } from '../../../scene-engine/scene-engine';
 import type { SceneCollectionInput, SceneLayout, SceneProductInput } from '../../../scene-engine/types';
 import {
+  ADMIN_3D_MOCK_KEY,
+  isAdmin3dMockEnabled,
+  readAdmin3dMockStorage,
+  shouldUseLocalAdmin3dCatalog,
+} from './admin-3d-guards';
+import {
   admin3dFixtureProducts,
   admin3dFixtureSceneCollections,
   admin3dFixtureSceneProducts,
@@ -28,21 +34,11 @@ import {
 } from './admin-3d.fixtures';
 import { ProductEditModal, ProductEditModalData } from './product-edit-modal';
 
-export const ADMIN_3D_MOCK_KEY = 'lc.admin.3d.mock';
+export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
 export function prefersReducedMotion(): boolean {
   try {
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
-}
-
-export function isAdmin3dMockEnabled(queryMock?: string | null): boolean {
-  if (environment.admin3dMock) return true;
-  if (queryMock === '1' || queryMock === 'true') return true;
-  try {
-    return localStorage.getItem(ADMIN_3D_MOCK_KEY) === '1';
   } catch {
     return false;
   }
@@ -66,6 +62,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly error = signal('');
   readonly empty = signal(false);
   readonly usingMock = signal(false);
+  readonly allowMock = !environment.production;
   readonly hoverName = signal<string | null>(null);
   readonly reducedMotion = prefersReducedMotion();
 
@@ -107,6 +104,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   useMock(): void {
+    if (environment.production) return;
     try {
       localStorage.setItem(ADMIN_3D_MOCK_KEY, '1');
     } catch {
@@ -121,14 +119,24 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.error.set('');
     this.empty.set(false);
 
-    const mock = isAdmin3dMockEnabled(this.route.snapshot.queryParamMap.get('mock'));
+    const mock = isAdmin3dMockEnabled({
+      production: environment.production,
+      envMock: environment.admin3dMock,
+      queryMock: this.route.snapshot.queryParamMap.get('mock'),
+      storageMock: readAdmin3dMockStorage(),
+    });
     if (mock) {
       this.cacheProducts(admin3dFixtureProducts());
       this.applyInputs(admin3dFixtureSceneCollections(), admin3dFixtureSceneProducts(), true, gen);
       return;
     }
 
-    if (!this.adminCatalog.useApi) {
+    if (
+      shouldUseLocalAdmin3dCatalog({
+        production: environment.production,
+        useApi: this.adminCatalog.useApi,
+      })
+    ) {
       const list = this.adminCatalog.list();
       this.cacheProducts(list);
       this.applyInputs(collectionsFromLabels(), list.map(productToSceneInput), false, gen);

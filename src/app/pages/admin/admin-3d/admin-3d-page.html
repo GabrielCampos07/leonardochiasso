@@ -22,15 +22,25 @@
       <p>{{ error() }}</p>
       <div class="admin-3d__actions">
         <button type="button" (click)="retry()">Tentar de novo</button>
-        <button type="button" (click)="useMock()">Usar dados de exemplo</button>
+        @if (allowMock) {
+          <button type="button" (click)="useMock()">Usar dados de exemplo</button>
+        }
       </div>
     </div>
   } @else if (empty()) {
     <div class="admin-3d__panel" role="status">
-      <p>Nenhuma peça para pendurar. Cadastre produtos ou carregue os exemplos.</p>
-      <div class="admin-3d__actions">
-        <button type="button" (click)="useMock()">Usar dados de exemplo</button>
-      </div>
+      <p>
+        @if (allowMock) {
+          Nenhuma peça para pendurar. Cadastre produtos ou carregue os exemplos.
+        } @else {
+          Nenhuma peça para pendurar. Cadastre produtos no admin.
+        }
+      </p>
+      @if (allowMock) {
+        <div class="admin-3d__actions">
+          <button type="button" (click)="useMock()">Usar dados de exemplo</button>
+        </div>
+      }
     </div>
   }
 </section>
