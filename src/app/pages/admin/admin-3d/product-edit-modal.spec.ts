@@ -1,15 +1,23 @@
-import { Component } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
-import { PRODUCT_EDIT_MODAL_TITLE_ID, ProductEditModal, productEditModalTitle } from './product-edit-modal';
+import { of } from 'rxjs';
+import { AdminCatalogService } from '../../../core/admin-catalog.service';
+import { ToastService } from '../../../core/feedback/toast.service';
 import { Product } from '../../../core/product.model';
+import { PRODUCT_EDIT_MODAL_TITLE_ID, ProductEditModal, productEditModalTitle } from './product-edit-modal';
 
 @Component({
   selector: 'lc-admin-product-form',
   standalone: true,
   template: '',
 })
-class StubAdminProductForm {}
+class StubAdminProductForm {
+  readonly product = input.required<Product>();
+  readonly showSiteLink = input(true);
+  readonly saved = output<Product>();
+  readonly cancelled = output<void>();
+}
 
 const piece: Product = {
   id: '1',
@@ -51,6 +59,8 @@ describe('ProductEditModal', () => {
       providers: [
         { provide: DIALOG_DATA, useValue: { slug: piece.slug, product: piece } },
         { provide: DialogRef, useValue: { close: () => undefined } },
+        { provide: AdminCatalogService, useValue: { get$: () => of(piece) } },
+        { provide: ToastService, useValue: { error: () => undefined } },
       ],
     })
       .overrideComponent(ProductEditModal, { set: { imports: [StubAdminProductForm] } })

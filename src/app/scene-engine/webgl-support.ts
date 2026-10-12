@@ -1,7 +1,9 @@
+type WebGLProbe = {
+  getContext: (contextId: string, options?: unknown) => unknown;
+};
+
 /** Detect WebGL on a *throwaway* canvas so we never bind a context on the scene canvas. */
-export function isWebGLAvailable(
-  factory: () => Pick<HTMLCanvasElement, 'getContext'> = () => document.createElement('canvas'),
-): boolean {
+export function isWebGLAvailable(factory: () => WebGLProbe = () => document.createElement('canvas')): boolean {
   try {
     const canvas = factory();
     const gl =
