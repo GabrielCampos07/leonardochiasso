@@ -1,0 +1,36 @@
+<section class="admin-3d" [class.admin-3d--reduced]="reducedMotion">
+  <canvas #canvas class="admin-3d__canvas" aria-label="Ateliê 3D de produtos"></canvas>
+
+  <div class="admin-3d__chrome">
+    <p class="admin-3d__hint">
+      Clique num cabide para editar · arraste para orbitar · scroll para aproximar
+    </p>
+    @if (usingMock()) {
+      <p class="admin-3d__badge" role="status">Dados de exemplo</p>
+    }
+    @if (hoverName()) {
+      <p class="admin-3d__hover" role="status">{{ hoverName() }}</p>
+    }
+  </div>
+
+  @if (loading()) {
+    <div class="admin-3d__panel" role="status">
+      <p>Montando o ateliê…</p>
+    </div>
+  } @else if (error()) {
+    <div class="admin-3d__panel" role="alert">
+      <p>{{ error() }}</p>
+      <div class="admin-3d__actions">
+        <button type="button" (click)="retry()">Tentar de novo</button>
+        <button type="button" (click)="useMock()">Usar dados de exemplo</button>
+      </div>
+    </div>
+  } @else if (empty()) {
+    <div class="admin-3d__panel" role="status">
+      <p>Nenhuma peça para pendurar. Cadastre produtos ou carregue os exemplos.</p>
+      <div class="admin-3d__actions">
+        <button type="button" (click)="useMock()">Usar dados de exemplo</button>
+      </div>
+    </div>
+  }
+</section>

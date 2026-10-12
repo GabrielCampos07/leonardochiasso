@@ -5,6 +5,37 @@
   </div>
   <nav class="admin-bar__nav">
     @if (loggedIn()) {
+      <div
+        class="admin-view-toggle"
+        role="radiogroup"
+        aria-label="Modo de visualização"
+        (keydown)="onViewKeydown($event)"
+      >
+        <button
+          type="button"
+          id="admin-view-list"
+          class="admin-view-toggle__btn"
+          role="radio"
+          [attr.aria-checked]="selectedView() === 'list'"
+          [attr.aria-pressed]="selectedView() === 'list'"
+          [class.is-on]="selectedView() === 'list'"
+          (click)="setViewMode('list')"
+        >
+          Lista
+        </button>
+        <button
+          type="button"
+          id="admin-view-3d"
+          class="admin-view-toggle__btn"
+          role="radio"
+          [attr.aria-checked]="selectedView() === '3d'"
+          [attr.aria-pressed]="selectedView() === '3d'"
+          [class.is-on]="selectedView() === '3d'"
+          (click)="setViewMode('3d')"
+        >
+          3D
+        </button>
+      </div>
       <a [routerLink]="products">Produtos</a>
       <a [routerLink]="collections">Coleções</a>
       <a [routerLink]="joias">Joias</a>
@@ -13,7 +44,7 @@
     }
   </nav>
 </header>
-<main class="admin-main">
+<main class="admin-main" [class.admin-main--scene]="sceneHost">
   <router-outlet />
 </main>
 <lc-toast-host />

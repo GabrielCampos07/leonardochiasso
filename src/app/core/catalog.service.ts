@@ -24,6 +24,7 @@ export interface ApiProductDto {
   fabric: string | null;
   season: string | null;
   status?: string;
+  stockQty?: number;
   category: string;
   collection: string;
   collections?: { slug: string; name: string }[];
@@ -81,6 +82,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     artCouture: dto.artCouture ?? local?.artCouture,
     media: dto.media,
     status: dto.status,
+    stockQty: dto.stockQty,
   });
 }
 
