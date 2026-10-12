@@ -1,0 +1,38 @@
+<form
+  class="add-piece"
+  [class.add-piece--sheet]="sheet"
+  role="form"
+  aria-label="Adicionar peça"
+  (submit)="$event.preventDefault(); confirm()"
+>
+  <p class="add-piece__kicker">Adicionar peça</p>
+  <p class="add-piece__name">{{ unitName }}</p>
+  <p class="add-piece__hint">A lista enviada é a coleção inteira. As novas entram no fim.</p>
+  <ul class="add-piece__list" role="listbox" aria-multiselectable="true" aria-label="Peças disponíveis">
+    @for (item of candidates; track item.slug) {
+      <li>
+        <label class="add-piece__row">
+          <input
+            type="checkbox"
+            [checked]="selected.has(item.slug)"
+            (change)="toggle(item.slug)"
+          />
+          <span>{{ item.name }}</span>
+        </label>
+      </li>
+    } @empty {
+      <li class="add-piece__empty">Nenhuma peça fora desta coleção.</li>
+    }
+  </ul>
+  <div class="add-piece__actions">
+    <button type="submit" class="add-piece__save" [disabled]="!selected.size || saving">
+      {{ saving ? 'Adicionando…' : 'Adicionar' }}
+    </button>
+    <button type="button" class="add-piece__create" (click)="create.emit()" [disabled]="saving">
+      Criar nova
+    </button>
+    <button type="button" class="add-piece__cancel" (click)="cancel.emit()" [disabled]="saving">
+      Cancelar
+    </button>
+  </div>
+</form>

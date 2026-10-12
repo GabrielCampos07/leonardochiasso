@@ -7,6 +7,7 @@ import {
   AdminCollectionDto,
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
+import { AdminCollectionProductsService } from '../../core/admin-collection-products';
 import { ApiProductDto } from '../../core/catalog.service';
 import {
   ADMIN_NEW_COLLECTION_SLUG,
@@ -42,6 +43,7 @@ export class AdminCollectionEditPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(AdminCollectionsApiService);
+  private readonly collectionProducts = inject(AdminCollectionProductsService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
 
@@ -189,10 +191,9 @@ export class AdminCollectionEditPage implements OnInit {
     const collectionSlug = this.slug();
     if (!collectionSlug || this.isNew()) return;
     this.savingOrder.set(true);
-    this.api.setProducts(
-      collectionSlug,
-      this.products().map((p) => p.slug),
-    ).subscribe({
+    const slugs = this.products().map((p) => p.slug);
+    this.collectionProducts.remember(collectionSlug, slugs);
+    this.collectionProducts.replace(collectionSlug, slugs).subscribe({
       next: () => {
         this.savingOrder.set(false);
         this.flash('Ordem dos produtos atualizada.');
@@ -232,6 +233,10 @@ export class AdminCollectionEditPage implements OnInit {
         const extras = inCollection.filter((p) => !seen.has(p.slug));
         // Prefer public order (collection sortOrder); append drafts / unpublished from admin list.
         this.products.set([...orderedPublic, ...extras]);
+        this.collectionProducts.remember(
+          slug,
+          this.products().map((p) => p.slug),
+        );
         this.loading.set(false);
       },
       error: () => {

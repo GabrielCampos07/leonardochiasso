@@ -1,0 +1,118 @@
+:host {
+  display: contents;
+}
+
+.add-piece {
+  position: fixed;
+  z-index: 8;
+  left: 16px;
+  top: 16px;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(70vh, 520px);
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
+  box-shadow: 0 12px 32px rgb(20 16 12 / 12%);
+  color: var(--lc-void);
+}
+
+.add-piece__kicker,
+.add-piece__name,
+.add-piece__hint {
+  margin: 0 0 8px;
+}
+
+.add-piece__kicker {
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lc-ash);
+}
+
+.add-piece__name {
+  font-family: var(--lc-font-display);
+  font-size: 1.05rem;
+}
+
+.add-piece__hint {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--lc-ash);
+}
+
+.add-piece__list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  overflow: auto;
+  min-height: 0;
+  max-height: 240px;
+}
+
+.add-piece__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.add-piece__row input {
+  width: 18px;
+  height: 18px;
+}
+
+.add-piece__empty {
+  padding: 12px 0;
+  color: var(--lc-ash);
+}
+
+.add-piece__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.add-piece__save,
+.add-piece__create,
+.add-piece__cancel {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.add-piece__save {
+  border: none;
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.add-piece__save:disabled {
+  opacity: 0.55;
+}
+
+.add-piece__create,
+.add-piece__cancel {
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  background: var(--lc-white);
+}
+
+.add-piece--sheet {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: 100%;
+  max-width: none;
+  max-height: min(78vh, 640px);
+  padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -12px 32px rgb(20 16 12 / 16%);
+}

@@ -14,6 +14,11 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
 import { formatCollectionCreateError, validateCreateCollection } from '../../../core/admin-collection-create';
+import {
+  AdminCollectionProductsService,
+  addPieceStaggerDelay,
+  appendCollectionProductSlugs,
+} from '../../../core/admin-collection-products';
 import { AdminCollectionDto, AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
 import { ToastService } from '../../../core/feedback/toast.service';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
@@ -63,6 +68,7 @@ import {
 } from './admin-3d.fixtures';
 import { Admin3dPrefetchService } from './admin-3d-prefetch';
 import { blankAtelierJoia, blankAtelierProduct, collectionSlugFromUnitId } from './atelier-blank';
+import { CollectionAddPiecePanel } from './collection-add-piece-panel';
 import { CollectionCreatePanel } from './collection-create-panel';
 import { JoiaEditModal, JoiaEditModalData } from './joia-edit-modal';
 import {
@@ -112,7 +118,7 @@ export function clampCreatePanel(
 @Component({
   selector: 'lc-admin-3d-page',
   standalone: true,
-  imports: [CollectionCreatePanel],
+  imports: [CollectionCreatePanel, CollectionAddPiecePanel],
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
@@ -125,6 +131,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly dialog = inject(Dialog);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly collectionsApi = inject(AdminCollectionsApiService);
+  private readonly collectionProducts = inject(AdminCollectionProductsService);
   private readonly joiasAdmin = inject(AdminJoiasCatalogService);
   private readonly viewMode = inject(AdminViewModeService);
   private readonly boot = inject(Admin3dBootService);
@@ -173,14 +180,25 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly createPanel = signal<{ x: number; y: number }>({ x: 24, y: 24 });
   readonly createSheet = signal(isCreateSheetViewport());
   readonly emptyUnit = computed(() => {
-    if (this.creating() || this.modalOpen) return null;
+    const unit = this.addTarget();
+    if (!unit || unit.hangers > 0) return null;
+    return unit;
+  });
+  readonly addTarget = computed(() => {
+    this.layoutRev();
+    if (this.creating() || this.adding() || this.modalOpen) return null;
     const id = this.focusedId();
     if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID) return null;
     const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
     const unit = unitsOfKind(this.layout, kind).find((r) => r.id === id);
-    if (!unit || unit.hangers.length > 0) return null;
-    return { id: unit.id, name: unit.name, kind: unit.kind };
+    if (!unit) return null;
+    return { id: unit.id, name: unit.name, kind: unit.kind, hangers: unit.hangers.length };
   });
+  readonly adding = signal(false);
+  readonly addSaving = signal(false);
+  readonly addCandidates = signal<{ slug: string; name: string }[]>([]);
+  readonly addUnitName = signal('');
+  readonly addSheet = signal(isCreateSheetViewport());
 
   private engine: SceneEngine | null = null;
   private layout: SceneLayout = { racks: [] };
@@ -194,6 +212,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private hintTimer = 0;
   private bootFadeTimer = 0;
   private modalOpen = false;
+  private readonly layoutRev = signal(0);
+  private addTimers: number[] = [];
 
   ngOnInit(): void {
     this.load();
@@ -238,6 +258,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.hintTimer) window.clearTimeout(this.hintTimer);
     if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
+    this.clearAddTimers();
     this.engine?.dispose();
     this.engine = null;
   }
@@ -246,11 +267,17 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   @HostListener('window:orientationchange')
   onViewport(): void {
     this.createSheet.set(isCreateSheetViewport());
+    this.addSheet.set(isCreateSheetViewport());
     this.engine?.resize();
   }
 
   @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.adding() && !this.modalOpen) {
+      event.preventDefault();
+      this.cancelAddPiece();
+      return;
+    }
     if (event.key === 'Escape' && this.creating() && !this.modalOpen) {
       event.preventDefault();
       this.cancelCreate();
@@ -370,7 +397,73 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   addPieceToFocused(): void {
-    const unit = this.emptyUnit();
+    const unit = this.addTarget();
+    if (!unit || this.adding()) return;
+    if (unit.kind === 'vitrine') {
+      this.openAddPiece(unit.id);
+      return;
+    }
+    const candidates = this.productsOutside(unit.id);
+    if (!candidates.length) {
+      this.openAddPiece(unit.id);
+      return;
+    }
+    this.hoverTip.set(null);
+    this.addUnitName.set(unit.name);
+    this.addCandidates.set(candidates);
+    this.addSheet.set(isCreateSheetViewport());
+    this.addSaving.set(false);
+    this.adding.set(true);
+  }
+
+  confirmAddPieces(slugs: string[]): void {
+    const unit = this.focusedUnit();
+    if (!unit || unit.kind === 'vitrine' || !slugs.length || this.addSaving()) return;
+    const collectionSlug = collectionSlugFromUnitId(unit.id);
+    const current = unit.hangers.map((h) => h.slug);
+    this.collectionProducts.remember(collectionSlug, current);
+    this.addSaving.set(true);
+
+    const finish = () => {
+      this.collectionProducts.remember(
+        collectionSlug,
+        appendCollectionProductSlugs(current, slugs),
+      );
+      this.addSaving.set(false);
+      this.adding.set(false);
+      this.staggerAddedPieces(slugs);
+    };
+
+    if (
+      this.usingMock() ||
+      shouldUseLocalAdmin3dCatalog({
+        production: environment.production,
+        useApi: this.adminCatalog.useApi,
+      })
+    ) {
+      finish();
+      return;
+    }
+
+    this.collectionProducts.append(collectionSlug, slugs).subscribe({
+      next: () => finish(),
+      error: (err) => {
+        this.addSaving.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível adicionar as peças.'));
+      },
+    });
+  }
+
+  cancelAddPiece(): void {
+    if (this.addSaving()) return;
+    this.adding.set(false);
+    this.addCandidates.set([]);
+  }
+
+  createFromAddPanel(): void {
+    if (this.addSaving()) return;
+    const unit = this.addTarget() ?? this.focusedUnit();
+    this.adding.set(false);
     if (unit) this.openAddPiece(unit.id);
   }
 
@@ -499,6 +592,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.collections = collections;
     this.knownRackIds = new Set(collections.map((c) => c.slug));
     this.layout = mapAtelierToScene(collections, products, joias);
+    this.rememberCollectionProducts();
+    this.bumpLayout();
     this.loading.set(false);
     this.syncVisibleLayout();
   }
@@ -541,6 +636,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       { slug: created.slug, name: created.name, sortOrder: created.sortOrder },
     ];
     this.layout = { racks: [...this.layout.racks, unit] };
+    this.collectionProducts.remember(created.slug, []);
     this.line.set(kind === 'vitrine' ? 'joias' : 'roupas');
     this.creating.set(false);
     this.createError.set('');
@@ -682,14 +778,68 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.bootFadeTimer = window.setTimeout(() => this.bootFading.set(false), 420);
   }
 
-  private applySaved(product: Product): void {
+  private applySaved(product: Product, ontoRackId?: string): void {
     this.productsBySlug.set(product.slug, product);
     const input = productToSceneInput(product);
-    const rackId = resolveProductRackId(input, this.knownRackIds);
+    const rackId = ontoRackId ?? resolveProductRackId(input, this.knownRackIds);
     const hanger = toSceneHanger(input, rackId);
     this.layout = replaceHanger(this.layout, hanger);
+    this.bumpLayout();
+    const collectionSlug = collectionSlugFromUnitId(hanger.rackId);
+    if (collectionSlug) {
+      this.collectionProducts.remember(
+        collectionSlug,
+        appendCollectionProductSlugs(this.collectionProducts.current(collectionSlug), [hanger.slug]),
+      );
+    }
     this.engine?.updateHanger(hanger);
     this.refreshTip(hanger);
+  }
+
+  private focusedUnit(): SceneRack | null {
+    const id = this.focusedId();
+    if (id === OVERVIEW_FOCUS_ID || id === DRAFT_UNIT_ID) return null;
+    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+    return unitsOfKind(this.layout, kind).find((r) => r.id === id) ?? null;
+  }
+
+  private productsOutside(unitId: string): { slug: string; name: string }[] {
+    const taken = new Set(
+      this.layout.racks.find((r) => r.id === unitId)?.hangers.map((h) => h.slug) ?? [],
+    );
+    return [...this.productsBySlug.values()]
+      .filter((p) => !taken.has(p.slug))
+      .map((p) => ({ slug: p.slug, name: p.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }
+
+  private staggerAddedPieces(slugs: string[]): void {
+    this.clearAddTimers();
+    const rackId = this.focusedUnit()?.id;
+    slugs.forEach((slug, index) => {
+      const product = this.productsBySlug.get(slug);
+      if (!product) return;
+      const wait = addPieceStaggerDelay(index);
+      const timer = window.setTimeout(() => this.applySaved(product, rackId), wait);
+      this.addTimers.push(timer);
+    });
+  }
+
+  private rememberCollectionProducts(): void {
+    for (const rack of this.layout.racks) {
+      if (rack.kind !== 'rack') continue;
+      const slug = collectionSlugFromUnitId(rack.id);
+      if (slug) this.collectionProducts.remember(slug, rack.hangers.map((h) => h.slug));
+    }
+  }
+
+  private bumpLayout(): void {
+    this.layoutRev.update((n) => n + 1);
+  }
+
+  private clearAddTimers(): void {
+    for (const timer of this.addTimers) window.clearTimeout(timer);
+    this.addTimers = [];
   }
 
   private applySavedJoia(piece: JoiaPiece): void {
@@ -698,6 +848,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     const current = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === piece.slug);
     const hanger = toSceneHanger(input, current?.rackId ?? `vitrine:${input.collectionSlug || 'gioielli'}`);
     this.layout = replaceHanger(this.layout, hanger);
+    this.bumpLayout();
     this.engine?.updateHanger(hanger);
     this.refreshTip(hanger);
   }

@@ -118,10 +118,22 @@
     />
   }
 
-  @if (emptyUnit(); as emptyRack) {
+  @if (addTarget(); as target) {
     <button type="button" class="admin-3d__add-piece" (click)="addPieceToFocused()">
       Adicionar peça
     </button>
+  }
+
+  @if (adding()) {
+    <lc-collection-add-piece-panel
+      [unitName]="addUnitName()"
+      [candidates]="addCandidates()"
+      [sheet]="addSheet()"
+      [saving]="addSaving()"
+      (add)="confirmAddPieces($event)"
+      (create)="createFromAddPanel()"
+      (cancel)="cancelAddPiece()"
+    />
   }
 
   @if (hoverTip(); as tip) {
