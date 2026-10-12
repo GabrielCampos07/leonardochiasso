@@ -2,6 +2,24 @@ import { CanvasTexture, SRGBColorSpace, Texture } from 'three';
 
 /** Must be assigned on the Image *before* `src` so R2 (`pub-…r2.dev`) sends CORS headers. */
 export const TEXTURE_CROSS_ORIGIN = 'anonymous';
+export const TEXTURE_CACHE_PARAM = 'tex';
+export const TEXTURE_CACHE_VALUE = '1';
+
+/**
+ * Distinct URL for WebGL textures so Chrome does not reuse the non-CORS
+ * `<img>` cache (R2 omits `Vary: Origin`).
+ */
+export function textureCacheUrl(url: string): string {
+  if (!url || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  const hashAt = url.indexOf('#');
+  const hash = hashAt >= 0 ? url.slice(hashAt) : '';
+  const withoutHash = hashAt >= 0 ? url.slice(0, hashAt) : url;
+  const queryAt = withoutHash.indexOf('?');
+  const base = queryAt >= 0 ? withoutHash.slice(0, queryAt) : withoutHash;
+  const params = new URLSearchParams(queryAt >= 0 ? withoutHash.slice(queryAt + 1) : '');
+  if (!params.has(TEXTURE_CACHE_PARAM)) params.set(TEXTURE_CACHE_PARAM, TEXTURE_CACHE_VALUE);
+  return `${base}?${params.toString()}${hash}`;
+}
 
 export function applyCorsBeforeSrc(image: { crossOrigin: string | null }): void {
   image.crossOrigin = TEXTURE_CROSS_ORIGIN;
@@ -103,6 +121,6 @@ export function loadTextureSafe(url: string): Promise<Texture | null> {
       resolve(texture);
     };
     image.onerror = () => resolve(null);
-    image.src = url;
+    image.src = textureCacheUrl(url);
   });
 }
