@@ -14,9 +14,10 @@ import {
   adminNewProductPath,
   adminProductPath,
 } from '../../core/routes';
-import { displayPriceLabel } from '../../core/pricing';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
+import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
+import { isSoldOut } from '../../scene-engine/types';
 
 @Component({
   selector: 'lc-admin-products',
@@ -71,7 +72,11 @@ export class AdminProductsPage implements OnInit {
   }
 
   priceLabel(p: Product): string {
-    return displayPriceLabel(p.priceLabel);
+    return hangerPriceFromFields(p);
+  }
+
+  soldOut(p: Product): boolean {
+    return isSoldOut(p.stockQty);
   }
 
   refresh(): void {

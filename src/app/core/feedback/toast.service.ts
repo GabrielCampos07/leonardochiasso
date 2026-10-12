@@ -9,6 +9,11 @@ export interface ToastMessage {
 }
 
 const DISMISS_MS = 3200;
+export const SAVE_TOAST_MS = 4000;
+
+export interface ToastOptions {
+  durationMs?: number;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ToastService {
@@ -17,16 +22,16 @@ export class ToastService {
 
   readonly message = signal<ToastMessage | null>(null);
 
-  success(text: string): void {
-    this.show('success', text);
+  success(text: string, opts?: ToastOptions): void {
+    this.show('success', text, opts?.durationMs);
   }
 
-  error(text: string): void {
-    this.show('error', text);
+  error(text: string, opts?: ToastOptions): void {
+    this.show('error', text, opts?.durationMs);
   }
 
-  info(text: string): void {
-    this.show('info', text);
+  info(text: string, opts?: ToastOptions): void {
+    this.show('info', text, opts?.durationMs);
   }
 
   dismiss(): void {
@@ -37,16 +42,17 @@ export class ToastService {
     this.message.set(null);
   }
 
-  private show(kind: ToastKind, text: string): void {
+  private show(kind: ToastKind, text: string, durationMs = DISMISS_MS): void {
     const trimmed = text.trim();
     if (!trimmed) return;
 
     if (this.timer) clearTimeout(this.timer);
 
+    const ms = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DISMISS_MS;
     this.message.set({ id: ++this.seq, kind, text: trimmed });
     this.timer = setTimeout(() => {
       this.message.set(null);
       this.timer = null;
-    }, DISMISS_MS);
+    }, ms);
   }
 }

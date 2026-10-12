@@ -47,6 +47,7 @@ function blankProduct(collectionSlug: string | null): Product {
     collection: hasCollection ? collectionLabelForSlug(collectionSlug) : ('' as Collection),
     collectionSlug: (collectionSlug ?? '') as CollectionSlug,
     pieces: [],
+    stockQty: 1,
   };
 }
 
@@ -96,11 +97,16 @@ export class AdminProductEditPage implements OnInit {
   }
 
   onSaved(saved: Product): void {
+    this.draft.set(structuredClone(saved));
     if (!this.isNew()) return;
     this.isNew.set(false);
-    void this.router.navigateByUrl(`${ROUTES.adminProducts}/${saved.slug}`, {
-      replaceUrl: true,
-    });
+    void this.router
+      .navigateByUrl(`${ROUTES.adminProducts}/${saved.slug}`, {
+        replaceUrl: true,
+      })
+      .then(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      });
   }
 
   cancel(): void {

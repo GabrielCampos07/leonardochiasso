@@ -23,6 +23,8 @@ export const TRAY_DEPTH = 0.36;
 export const VITRINE_DEPTH = 0.58;
 export const VITRINE_SHELF_PITCH = 0.58;
 export const TRAY_PHOTO_Y = 0.28;
+export const TRAY_SOLD_OUT_BADGE_W = 0.28;
+export const TRAY_SOLD_OUT_BADGE_H = 0.1;
 
 export function vitrineWidth(count: number): number {
   const perShelf = Math.min(Math.max(count, 1), VITRINE_TRAYS_PER_SHELF);
@@ -210,7 +212,7 @@ export function createJewelryTray(data: SceneHanger): Group {
   group.add(garment);
 
   const badge = new Mesh(
-    new PlaneGeometry(0.16, 0.055),
+    new PlaneGeometry(TRAY_SOLD_OUT_BADGE_W, TRAY_SOLD_OUT_BADGE_H),
     new MeshStandardMaterial({
       map: makeSoldOutTexture(),
       transparent: true,
