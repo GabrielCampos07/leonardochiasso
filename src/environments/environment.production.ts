@@ -7,4 +7,7 @@ export const environment = {
   cdnBaseUrl: 'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev',
   /** Removed from bundle — admin auth is server-side only. */
   adminPassword: '',
+  stagingBanner: '',
+  /** Production never ships the 3D fixture catalog. */
+  admin3dMock: false,
 };

@@ -8,4 +8,10 @@ export const environment = {
   cdnBaseUrl: '',
   /** Empty = admin panel disabled. */
   adminPassword: '',
+  stagingBanner: '',
+  /**
+   * When true, `/admin/3d` uses in-repo fixtures instead of the Nest API.
+   * Also enabled by `?mock=1` or localStorage `lc.admin.3d.mock=1`.
+   */
+  admin3dMock: true,
 };
