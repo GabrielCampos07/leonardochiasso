@@ -19,6 +19,8 @@ export function isProductionAdminHost(hostname: string): boolean {
 export interface StagingBannerContext {
   env: unknown;
   hostname: string;
+  /** When true (`environment.production`), query/storage preview is ignored. */
+  production?: boolean;
   queryPreview?: string | null;
   storagePreview?: string | null;
 }
@@ -36,7 +38,10 @@ export function resolveStagingBannerText(ctx: StagingBannerContext): string | nu
 
   const host = ctx.hostname.trim().toLowerCase();
   if (host === STAGING_HOST) return STAGING_BANNER_DEFAULT;
-  if (isProductionAdminHost(host)) return null;
+
+  const production =
+    ctx.production === true || (ctx.env as { production?: boolean } | undefined)?.production === true;
+  if (production || isProductionAdminHost(host)) return null;
 
   const preview =
     ctx.queryPreview === '1' ||
