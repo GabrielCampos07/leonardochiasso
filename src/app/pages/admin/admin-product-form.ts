@@ -1,0 +1,414 @@
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { Component, OnInit, inject, input, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
+import {
+  ADMIN_SWATCH_OPTIONS,
+  AdminCatalogService,
+  adminHttpErrorMessage,
+  collectionFromSlug,
+  slugFromCollection,
+  slugifyName,
+  syncPiecePrice,
+  syncPriceFields,
+  uniqueAdminSlug,
+} from '../../core/admin-catalog.service';
+import { parseCollectionSlugParam } from '../../core/admin-collection-context';
+import { CatalogService } from '../../core/catalog.service';
+import {
+  COLLECTION_LABELS,
+  Collection,
+  Product,
+  ProductColor,
+  ProductMedia,
+  ProductPiece,
+  formatPriceLabel,
+} from '../../core/product.model';
+import { PRICES_ON_REQUEST } from '../../core/pricing';
+import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
+
+const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
+
+function collectionLabelForSlug(slug: string): Collection {
+  if (KNOWN_COLLECTION_SLUGS.has(slug)) {
+    return collectionFromSlug(slug as CollectionSlug);
+  }
+  return slug as Collection;
+}
+
+@Component({
+  selector: 'lc-admin-product-form',
+  standalone: true,
+  imports: [FormsModule, RouterLink, DragDropModule],
+  templateUrl: './admin-product-form.html',
+  styleUrl: './admin-product-form.scss',
+})
+export class AdminProductForm implements OnInit {
+  private readonly adminCatalog = inject(AdminCatalogService);
+  private readonly catalog = inject(CatalogService);
+  private readonly confirm = inject(ConfirmService);
+  private readonly toast = inject(ToastService);
+
+  readonly product = input.required<Product>();
+  readonly isNew = input(false);
+  readonly collectionFromContext = input(false);
+  readonly collectionRequired = input(false);
+  readonly showSiteLink = input(true);
+
+  readonly saved = output<Product>();
+  readonly cancelled = output<void>();
+
+  readonly collectionOptions = (
+    Object.entries(COLLECTION_LABELS) as [CollectionSlug, Collection][]
+  ).map(([slug, label]) => ({ slug, label }));
+  readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
+  readonly pricesOnRequest = PRICES_ON_REQUEST;
+  readonly useApi = this.adminCatalog.useApi;
+
+  readonly draft = signal<Product | null>(null);
+  readonly galleryItems = signal<ProductMedia[]>([]);
+  readonly saving = signal(false);
+  readonly uploading = signal(false);
+
+  detailsText = '';
+  selectedSwatchIds: string[] = [];
+  private slugLocked = false;
+
+  ngOnInit(): void {
+    this.loadDraft(structuredClone(this.product()));
+  }
+
+  loadDraft(p: Product): void {
+    this.draft.set(p);
+    this.detailsText = (p.details ?? []).join('\n');
+    this.selectedSwatchIds = (p.colors ?? []).map((c) => c.id);
+    this.galleryItems.set(this.adminCatalog.mediaOf(p));
+  }
+
+  onNameChange(name: string): void {
+    const p = this.draft();
+    if (!p) return;
+    if (this.isNew() && !this.slugLocked) {
+      const slug = slugifyName(name);
+      this.draft.set({ ...p, name, slug, id: slug || p.id });
+      return;
+    }
+    this.draft.set({ ...p, name });
+  }
+
+  onSlugChange(slug: string): void {
+    const p = this.draft();
+    if (!p || !this.isNew()) return;
+    this.slugLocked = true;
+    const clean = slugifyName(slug) || slug.trim().toLowerCase();
+    this.draft.set({ ...p, slug: clean, id: clean });
+  }
+
+  onCollectionSlugChange(raw: string): void {
+    const p = this.draft();
+    if (!p) return;
+    const parsed = parseCollectionSlugParam(raw);
+    if (!parsed) {
+      this.draft.set({
+        ...p,
+        collection: '' as Collection,
+        collectionSlug: '' as CollectionSlug,
+      });
+      return;
+    }
+    this.draft.set({
+      ...p,
+      collectionSlug: parsed as CollectionSlug,
+      collection: collectionLabelForSlug(parsed),
+    });
+  }
+
+  hasCollectionSelected(): boolean {
+    return parseCollectionSlugParam(this.draft()?.collectionSlug) != null;
+  }
+
+  extraCollectionOption(): { slug: string; label: string } | null {
+    const slug = this.draft()?.collectionSlug;
+    if (!slug || KNOWN_COLLECTION_SLUGS.has(slug)) return null;
+    if (!parseCollectionSlugParam(slug)) return null;
+    return { slug, label: slug };
+  }
+
+  onPriceChange(raw: string | number): void {
+    const p = this.draft();
+    if (!p) return;
+    const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/\D/g, '')) || 0;
+    this.draft.set({ ...p, ...syncPriceFields(n) });
+  }
+
+  toggleSwatch(swatch: ProductColor): void {
+    const ids = new Set(this.selectedSwatchIds);
+    if (ids.has(swatch.id)) ids.delete(swatch.id);
+    else ids.add(swatch.id);
+    this.selectedSwatchIds = [...ids];
+    const colors = this.swatchOptions.filter((s) => ids.has(s.id));
+    const p = this.draft();
+    if (!p) return;
+    this.draft.set({
+      ...p,
+      colors,
+      color: colors.length ? colors.map((c) => c.name).join(' / ') : p.color,
+    });
+  }
+
+  isSwatchSelected(id: string): boolean {
+    return this.selectedSwatchIds.includes(id);
+  }
+
+  updatePiece(index: number, patch: Partial<ProductPiece>): void {
+    const p = this.draft();
+    if (!p?.pieces) return;
+    const pieces = p.pieces.map((piece, i) => {
+      if (i !== index) return piece;
+      let next = { ...piece, ...patch };
+      if (patch.price != null) next = syncPiecePrice(next, patch.price);
+      if (patch.name != null && this.isNew()) {
+        const id = slugifyName(patch.name) || piece.id;
+        next = { ...next, id };
+      }
+      return next;
+    });
+    this.draft.set({ ...p, pieces });
+  }
+
+  addPiece(): void {
+    const p = this.draft();
+    if (!p) return;
+    const n = (p.pieces?.length ?? 0) + 1;
+    const id = `peca-${n}-${Date.now().toString(36)}`;
+    const piece = syncPiecePrice(
+      {
+        id,
+        name: `Peça ${n}`,
+        price: 0,
+        priceLabel: formatPriceLabel(0),
+      },
+      0,
+    );
+    this.draft.set({ ...p, pieces: [...(p.pieces ?? []), piece] });
+  }
+
+  async removePiece(index: number): Promise<void> {
+    const ok = await this.confirm.confirm({
+      title: 'Remover peça',
+      message: 'Remover esta peça do look?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+    const p = this.draft();
+    if (!p?.pieces) return;
+    const pieces = p.pieces.filter((_, i) => i !== index);
+    this.draft.set({ ...p, pieces });
+  }
+
+  onFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    input.value = '';
+    if (!files.length) return;
+
+    const p = this.draft();
+    if (!p) return;
+
+    if (!this.useApi) {
+      const urls = files.map((f) => URL.createObjectURL(f));
+      const gallery = [...(p.gallery ?? []), ...urls];
+      const thumb = p.thumb || urls[0] || '';
+      this.draft.set({ ...p, thumb, gallery });
+      this.galleryItems.set(this.adminCatalog.mediaOf({ ...p, thumb, gallery }));
+      this.toast.info('Fotos adicionadas localmente (demo).');
+      return;
+    }
+
+    if (this.isNew() || !p.slug) {
+      this.toast.info('Salve o produto antes de enviar fotos.');
+      return;
+    }
+
+    this.uploading.set(true);
+    this.adminCatalog.uploadAndAttach$(p.slug, files).subscribe({
+      next: (updated) => {
+        this.uploading.set(false);
+        this.loadDraft(structuredClone(updated));
+        this.toast.success('Fotos enviadas.');
+      },
+      error: (err) => {
+        this.uploading.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Falha no upload.'));
+      },
+    });
+  }
+
+  dropGallery(event: CdkDragDrop<ProductMedia[]>): void {
+    if (event.previousIndex === event.currentIndex) return;
+    const items = [...this.galleryItems()];
+    moveItemInArray(items, event.previousIndex, event.currentIndex);
+    this.galleryItems.set(items);
+
+    const p = this.draft();
+    if (!p) return;
+
+    const urls = items.map((m) => m.cdnUrl);
+    this.draft.set({
+      ...p,
+      media: items.map((m, i) => ({ ...m, sortOrder: i })),
+      gallery: urls,
+      thumb: urls[0] ?? p.thumb,
+    });
+
+    if (!this.useApi || this.isNew() || items.some((m) => m.id.startsWith('local-'))) {
+      this.toast.success('Ordem da galeria atualizada.');
+      return;
+    }
+
+    this.adminCatalog.reorderMediaViaApi(
+      p.slug,
+      items.map((m) => m.id),
+    ).subscribe({
+      next: (updated) => {
+        this.loadDraft(structuredClone(updated));
+        this.toast.success('Ordem das fotos salva.');
+      },
+      error: (err) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível reordenar as fotos.'));
+        this.refreshFromApi(p.slug);
+      },
+    });
+  }
+
+  async removeGalleryItem(index: number): Promise<void> {
+    const items = [...this.galleryItems()];
+    const target = items[index];
+    if (!target) return;
+
+    const ok = await this.confirm.confirm({
+      title: 'Remover foto',
+      message: 'Remover esta foto?',
+      confirmLabel: 'Remover',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const p = this.draft();
+    if (!p) return;
+
+    if (!this.useApi || target.id.startsWith('local-') || this.isNew()) {
+      items.splice(index, 1);
+      const urls = items.map((m) => m.cdnUrl);
+      this.galleryItems.set(items);
+      this.draft.set({
+        ...p,
+        media: items,
+        gallery: urls,
+        thumb: urls[0] ?? '',
+      });
+      return;
+    }
+
+    this.adminCatalog.detachMediaViaApi(p.slug, target.id).subscribe({
+      next: (updated) => {
+        this.loadDraft(structuredClone(updated));
+        this.toast.success('Foto removida.');
+      },
+      error: (err) => {
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível remover a foto.'));
+      },
+    });
+  }
+
+  save(): void {
+    const p = this.draft();
+    if (!p) return;
+    if (!p.name.trim()) {
+      this.toast.info('Informe o nome do produto.');
+      return;
+    }
+    if (this.isNew() ? !this.hasCollectionSelected() : !p.collectionSlug) {
+      this.toast.info(this.isNew() ? 'Selecione a coleção do produto.' : 'Selecione uma coleção.');
+      return;
+    }
+
+    const details = this.detailsText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    let slug = p.slug.trim();
+    if (this.isNew()) {
+      slug = uniqueAdminSlug(
+        slug || p.name,
+        (s) => s === ADMIN_NEW_PRODUCT_SLUG || this.adminCatalog.slugExists(s),
+      );
+    }
+
+    const pieces = (p.pieces ?? [])
+      .map((piece) => ({
+        ...piece,
+        id: piece.id || slugifyName(piece.name) || `peca-${Date.now().toString(36)}`,
+        name: piece.name.trim() || 'Peça',
+      }))
+      .filter((piece) => piece.name);
+
+    const galleryUrls = this.galleryItems().map((m) => m.cdnUrl);
+    const next: Product = {
+      ...p,
+      id: slug,
+      slug,
+      name: p.name.trim(),
+      collectionSlug: p.collectionSlug || slugFromCollection(p.collection),
+      gallery: galleryUrls.length ? galleryUrls : p.gallery,
+      details,
+      thumb: p.thumb.trim() || galleryUrls[0] || p.thumb,
+      pieces: pieces.length ? pieces : undefined,
+      media: this.galleryItems(),
+      ...syncPriceFields(p.price),
+    };
+
+    this.saving.set(true);
+    this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
+      next: (saved) => {
+        this.saving.set(false);
+        if (!this.useApi) this.catalog.refreshLocalCatalog();
+        if (this.isNew()) this.slugLocked = true;
+        this.loadDraft(structuredClone(saved));
+        this.toast.success(this.isNew() ? 'Produto criado.' : 'Salvo.');
+        this.saved.emit(saved);
+      },
+      error: (err) => {
+        this.saving.set(false);
+        this.toast.error(adminHttpErrorMessage(err));
+      },
+    });
+  }
+
+  cancel(): void {
+    this.cancelled.emit();
+  }
+
+  sitePath(): string {
+    const p = this.draft();
+    return p?.slug ? productPath(p.slug) : '/';
+  }
+
+  patchField<K extends keyof Product>(key: K, value: Product[K]): void {
+    const p = this.draft();
+    if (!p) return;
+    this.draft.set({ ...p, [key]: value });
+  }
+
+  private refreshFromApi(slug: string): void {
+    this.adminCatalog.get$(slug).subscribe({
+      next: (product) => {
+        if (product) this.loadDraft(structuredClone(product));
+      },
+    });
+  }
+}

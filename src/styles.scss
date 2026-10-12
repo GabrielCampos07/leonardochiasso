@@ -1,6 +1,7 @@
 @use './styles/tokens';
 @use './styles/typography';
 @use './styles/overlays';
+@use '@angular/cdk/overlay-prebuilt.css';
 
 *,
 *::before,
@@ -73,6 +74,20 @@ p {
   max-width: var(--lc-max);
   margin-inline: auto;
   padding-inline: var(--lc-space-24);
+}
+
+.cdk-overlay-container {
+  z-index: 1200;
+}
+
+.lc-product-edit-backdrop {
+  background: rgb(14 12 14 / 48%);
+}
+
+.lc-product-edit-dialog {
+  max-height: 92vh;
+  overflow: auto;
+  box-shadow: 0 16px 48px rgb(14 12 14 / 18%);
 }
 
 @media (min-width: 768px) {

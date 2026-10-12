@@ -88,6 +88,7 @@ export const ROUTES = {
   register: `/${PATH.register}`,
   admin: `/${PATH.admin}`,
   adminProducts: `/${PATH.admin}/produtos`,
+  admin3d: `/${PATH.admin}/3d`,
   adminJoias: `/${PATH.admin}/joias`,
   adminCollections: `/${PATH.admin}/colecoes`,
 } as const;

@@ -11,4 +11,10 @@ export const environment = {
   /** Local admin panel password (`/admin`). Not for production security. */
   adminPassword: '123',
   stagingBanner: '',
+  /**
+   * Force `/admin/3d` fixtures (no Nest). Leave false to hit the real admin API
+   * when `apiBaseUrl` is up. Override anytime with `?mock=1` or
+   * `localStorage.setItem('lc.admin.3d.mock','1')`.
+   */
+  admin3dMock: false,
 };

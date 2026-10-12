@@ -8,4 +8,6 @@ export const environment = {
   /** Removed from bundle — admin auth is server-side only. */
   adminPassword: '',
   stagingBanner: '',
+  /** Production never ships the 3D fixture catalog. */
+  admin3dMock: false,
 };

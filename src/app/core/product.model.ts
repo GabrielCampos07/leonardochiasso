@@ -215,6 +215,8 @@ export interface Product {
   media?: ProductMedia[];
   /** Product status from API (draft | published | …). */
   status?: string;
+  /** Units on hand from Admin / catalog API. */
+  stockQty?: number;
 }
 
 export interface CartItem {

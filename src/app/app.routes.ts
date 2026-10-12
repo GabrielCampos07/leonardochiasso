@@ -213,6 +213,12 @@ export const routes: Routes = [
           import('./pages/admin/admin-products').then((m) => m.AdminProductsPage),
       },
       {
+        path: '3d',
+        canActivate: [adminAuthGuard],
+        loadComponent: () =>
+          import('./pages/admin/admin-3d/admin-3d-page').then((m) => m.Admin3dPage),
+      },
+      {
         path: 'produtos/:slug',
         canActivate: [adminAuthGuard],
         loadComponent: () =>

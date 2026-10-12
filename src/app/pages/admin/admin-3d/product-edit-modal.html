@@ -1,0 +1,22 @@
+<div class="product-edit-modal" role="dialog" aria-modal="true" aria-labelledby="product-edit-modal-title">
+  <header class="product-edit-modal__head">
+    <div>
+      <p class="product-edit-modal__kicker">Ateliê · 3D</p>
+      <h2 id="product-edit-modal-title">Editar produto</h2>
+    </div>
+    <button type="button" class="product-edit-modal__close" (click)="close()">Fechar</button>
+  </header>
+
+  @if (loading()) {
+    <p class="product-edit-modal__status">Carregando peça…</p>
+  } @else if (missing()) {
+    <p class="product-edit-modal__status">Produto não encontrado.</p>
+  } @else if (product(); as p) {
+    <lc-admin-product-form
+      [product]="p"
+      [showSiteLink]="false"
+      (saved)="onSaved($event)"
+      (cancelled)="close()"
+    />
+  }
+</div>
