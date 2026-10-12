@@ -1,7 +1,8 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { filterArchivedList } from './admin-archive';
 import { ApiCollectionDto, ApiProductDto } from './catalog.service';
 
 export interface AdminCollectionDto {
@@ -44,10 +45,12 @@ export class AdminCollectionsApiService {
   }
 
   list(archived = false): Observable<AdminCollectionDto[]> {
-    return this.http.get<AdminCollectionDto[]>(this.url, {
-      withCredentials: true,
-      params: archived ? { archived: 'true' } : {},
-    });
+    return this.http
+      .get<AdminCollectionDto[]>(this.url, {
+        withCredentials: true,
+        params: archived ? { archived: 'true' } : {},
+      })
+      .pipe(map((list) => filterArchivedList(list, archived)));
   }
 
   archive(slug: string): Observable<AdminCollectionDto> {

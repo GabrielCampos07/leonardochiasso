@@ -26,7 +26,7 @@ import {
 } from '../../core/product.model';
 import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
-import { confirmArchivePiece } from '../../core/admin-archive';
+import { archiveAwareError, confirmArchivePiece } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 
@@ -423,7 +423,9 @@ export class AdminProductForm implements OnInit {
       },
       error: (err) => {
         this.archiving.set(false);
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }

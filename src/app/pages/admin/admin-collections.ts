@@ -8,6 +8,7 @@ import {
 import { adminCollectionPath, adminNewCollectionPath } from '../../core/routes';
 import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
 import {
+  archiveAwareError,
   confirmArchiveCollection,
   showArchiveUndo,
 } from '../../core/admin-archive';
@@ -71,7 +72,9 @@ export class AdminCollectionsPage implements OnInit {
         showArchiveUndo(this.toast, () => this.restore(c.slug));
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }
@@ -83,7 +86,9 @@ export class AdminCollectionsPage implements OnInit {
         this.toast.success('Restaurado.');
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        );
       },
     });
   }

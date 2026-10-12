@@ -13,7 +13,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { uniqueJoiaSlug } from './atelier-blank';
 import { adminHttpErrorMessage } from '../../../core/admin-catalog.service';
-import { confirmArchivePiece } from '../../../core/admin-archive';
+import { archiveAwareError, confirmArchivePiece } from '../../../core/admin-archive';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { ConfirmService } from '../../../core/feedback/confirm.service';
@@ -114,7 +114,9 @@ export class JoiaEditModal implements OnInit, AfterViewInit, OnDestroy {
     this.catalog.archive(cur.slug).subscribe({
       next: (saved) => this.ref.close({ ...saved, archivedAt: saved.archivedAt ?? new Date().toISOString() }),
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }

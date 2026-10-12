@@ -5,7 +5,11 @@ import { AdminJoiasCatalogService } from '../../core/admin-joias-catalog.service
 import { JoiaPiece } from '../../core/joias.data';
 import { adminJoiaPath, adminNewJoiaPath, ROUTES } from '../../core/routes';
 import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
-import { confirmArchivePiece, showArchiveUndo } from '../../core/admin-archive';
+import {
+  archiveAwareError,
+  confirmArchivePiece,
+  showArchiveUndo,
+} from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 
@@ -65,7 +69,9 @@ export class AdminJoiasPage implements OnInit {
         showArchiveUndo(this.toast, () => this.restore(slug));
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }
@@ -77,7 +83,9 @@ export class AdminJoiasPage implements OnInit {
         this.toast.success('Restaurado.');
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        );
       },
     });
   }

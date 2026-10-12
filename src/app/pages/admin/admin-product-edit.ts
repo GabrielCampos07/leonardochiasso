@@ -9,7 +9,7 @@ import {
   CollectionSlug,
   ROUTES,
 } from '../../core/routes';
-import { showArchiveUndo } from '../../core/admin-archive';
+import { archiveAwareError, showArchiveUndo } from '../../core/admin-archive';
 import { ToastService } from '../../core/feedback/toast.service';
 import { AdminProductForm } from './admin-product-form';
 
@@ -101,7 +101,10 @@ export class AdminProductEditPage implements OnInit {
     showArchiveUndo(this.toast, () => {
       this.adminCatalog.restoreViaApi(saved.slug).subscribe({
         next: () => this.toast.success('Restaurado.'),
-        error: (err) => this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        error: (err) =>
+          this.toast.error(
+            archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          ),
       });
     });
     void this.router.navigateByUrl(ROUTES.adminProducts);

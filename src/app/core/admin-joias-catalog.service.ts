@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { filterArchivedList } from './admin-archive';
 import { JOIAS_PIECES, JoiaPiece, joiaGallery } from './joias.data';
 
 const STORAGE_KEY = 'lc-admin-joias';
@@ -64,7 +65,10 @@ export class AdminJoiasCatalogService {
         withCredentials: true,
         params: archived ? { archived: 'true' } : {},
       })
-      .pipe(tap((list) => this.apiCache.set(list)));
+      .pipe(
+        map((list) => filterArchivedList(list, archived)),
+        tap((list) => this.apiCache.set(list)),
+      );
   }
 
   get(slug: string): JoiaPiece | undefined {

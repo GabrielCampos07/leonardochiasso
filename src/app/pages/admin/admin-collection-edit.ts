@@ -16,7 +16,11 @@ import {
   adminCollectionPath,
   adminProductPath,
 } from '../../core/routes';
-import { confirmArchiveCollection, showArchiveUndo } from '../../core/admin-archive';
+import {
+  archiveAwareError,
+  confirmArchiveCollection,
+  showArchiveUndo,
+} from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { isSoldOut } from '../../scene-engine/types';
@@ -121,13 +125,16 @@ export class AdminCollectionEditPage implements OnInit {
         showArchiveUndo(this.toast, () => {
           this.api.restore(slug).subscribe({
             next: () => this.toast.success('Restaurado.'),
-            error: (err) => this.error.set(this.formatError(err, 'Não foi possível restaurar.')),
+            error: (err) =>
+              this.error.set(
+                archiveAwareError(err, this.formatError(err, 'Não foi possível restaurar.')),
+              ),
           });
         });
         void this.router.navigateByUrl(this.listPath);
       },
       error: (err) => {
-        this.error.set(this.formatError(err, 'Não foi possível arquivar.'));
+        this.error.set(archiveAwareError(err, this.formatError(err, 'Não foi possível arquivar.')));
       },
     });
   }

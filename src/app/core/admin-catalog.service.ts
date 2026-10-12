@@ -13,6 +13,7 @@ import {
   throwError,
 } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { filterArchivedList } from './admin-archive';
 import { ApiProductDto, mapApiProduct } from './catalog.service';
 import {
   COLLECTION_LABELS,
@@ -169,7 +170,7 @@ export class AdminCatalogService {
         params: archived ? { archived: 'true' } : {},
       })
       .pipe(
-        map((list) => list.map(mapApiProduct)),
+        map((list) => filterArchivedList(list.map(mapApiProduct), archived)),
         tap((list) => this.apiCache.set(list)),
         catchError((err) => throwError(() => err)),
       );

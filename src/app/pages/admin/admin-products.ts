@@ -15,6 +15,7 @@ import {
   adminProductPath,
 } from '../../core/routes';
 import {
+  archiveAwareError,
   confirmArchivePiece,
   showArchiveUndo,
 } from '../../core/admin-archive';
@@ -98,7 +99,9 @@ export class AdminProductsPage implements OnInit {
         showArchiveUndo(this.toast, () => this.restore(slug));
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }
@@ -110,7 +113,9 @@ export class AdminProductsPage implements OnInit {
         this.toast.success('Restaurado.');
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        );
       },
     });
   }

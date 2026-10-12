@@ -8,13 +8,16 @@ import {
   Post,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AdminGuard } from '../admin/admin.guard';
 import { parseArchivedFlag } from '../admin/archive-query';
+import { CacheInvalidationInterceptor } from '../cache/cache-invalidation.interceptor';
 import { ContentService } from './content.service';
 import { PatchContentDto } from './dto/patch-content.dto';
 
 @Controller('api')
+@UseInterceptors(CacheInvalidationInterceptor)
 export class ContentController {
   constructor(private readonly content: ContentService) {}
 

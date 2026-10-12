@@ -10,7 +10,11 @@ import {
   adminJoiaPath,
 } from '../../core/routes';
 import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
-import { confirmArchivePiece, showArchiveUndo } from '../../core/admin-archive';
+import {
+  archiveAwareError,
+  confirmArchivePiece,
+  showArchiveUndo,
+} from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 
@@ -118,13 +122,17 @@ export class AdminJoiaEditPage implements OnInit {
           this.catalog.restore(cur.slug).subscribe({
             next: () => this.toast.success('Restaurado.'),
             error: (err) =>
-              this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+              this.toast.error(
+                archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+              ),
           });
         });
         void this.router.navigateByUrl(this.listPath);
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }

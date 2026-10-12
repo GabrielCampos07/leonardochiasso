@@ -14,6 +14,7 @@ import {
 import { ActivatedRoute, Router } from '@angular/router';
 import { AdminCatalogService, adminHttpErrorMessage } from '../../../core/admin-catalog.service';
 import {
+  archiveAwareError,
   confirmArchiveCollection,
   isArchivedAt,
   showArchiveUndo,
@@ -739,13 +740,17 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
               this.toast.success('Restaurado.');
             },
             error: (err) => {
-              this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.'));
+              this.toast.error(
+                archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+              );
             },
           });
         });
       },
       error: (err) => {
-        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível arquivar.'));
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
       },
     });
   }
@@ -758,7 +763,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     showArchiveUndo(this.toast, () => {
       this.adminCatalog.restoreViaApi(product.slug).subscribe({
         next: (restored) => this.applySaved(restored),
-        error: (err) => this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        error: (err) =>
+          this.toast.error(
+            archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          ),
       });
     });
   }
@@ -771,7 +779,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     showArchiveUndo(this.toast, () => {
       this.joiasAdmin.restore(piece.slug).subscribe({
         next: (restored) => this.applySavedJoia(restored),
-        error: (err) => this.toast.error(adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        error: (err) =>
+          this.toast.error(
+            archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          ),
       });
     });
   }
