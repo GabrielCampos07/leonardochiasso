@@ -14,6 +14,11 @@ import {
   adminNewProductPath,
   adminProductPath,
 } from '../../core/routes';
+import {
+  archiveAwareError,
+  confirmArchivePiece,
+  showArchiveUndo,
+} from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
@@ -35,6 +40,7 @@ export class AdminProductsPage implements OnInit {
   readonly query = signal('');
   readonly category = signal<'todos' | 'feminino' | 'masculino'>('todos');
   readonly collection = signal<'todas' | string>('todas');
+  readonly showArchived = signal(false);
   readonly loading = signal(true);
   readonly savingOrder = signal(false);
   readonly useApi = this.adminCatalog.useApi;
@@ -79,9 +85,44 @@ export class AdminProductsPage implements OnInit {
     return isSoldOut(p.stockQty);
   }
 
+  onArchivedFilter(show: boolean): void {
+    this.showArchived.set(show);
+    this.refresh();
+  }
+
+  async archive(slug: string): Promise<void> {
+    const ok = await confirmArchivePiece(this.confirm);
+    if (!ok) return;
+    this.adminCatalog.archiveViaApi(slug).subscribe({
+      next: () => {
+        this.refresh();
+        showArchiveUndo(this.toast, () => this.restore(slug));
+      },
+      error: (err) => {
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
+        );
+      },
+    });
+  }
+
+  restore(slug: string): void {
+    this.adminCatalog.restoreViaApi(slug).subscribe({
+      next: () => {
+        this.refresh();
+        this.toast.success('Restaurado.');
+      },
+      error: (err) => {
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        );
+      },
+    });
+  }
+
   refresh(): void {
     this.loading.set(true);
-    this.adminCatalog.list$().subscribe({
+    this.adminCatalog.list$(this.showArchived()).subscribe({
       next: (list) => {
         this.products.set(list);
         this.loading.set(false);

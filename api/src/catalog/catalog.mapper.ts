@@ -13,6 +13,15 @@ export const publishedProductInclude = {
   },
 } satisfies Prisma.ProductInclude;
 
+/** Public catalog: hide archived collections on the product, keep the junction. */
+export const publicProductInclude = {
+  ...publishedProductInclude,
+  collections: {
+    ...publishedProductInclude.collections,
+    where: { collection: { archivedAt: null } },
+  },
+} satisfies Prisma.ProductInclude;
+
 export type ProductWithRelations = Prisma.ProductGetPayload<{
   include: typeof publishedProductInclude;
 }>;
@@ -77,6 +86,7 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
     imageBindings,
     artCouture: product.artCouture,
     recommendOrder: product.recommendOrder,
+    archivedAt: product.archivedAt?.toISOString() ?? null,
     media,
   };
 }

@@ -12,6 +12,7 @@ export interface SceneCollectionInput {
   slug: string;
   name: string;
   sortOrder: number;
+  archivedAt?: string | null;
 }
 
 export type SceneMediaInput = LooseMedia;
@@ -34,6 +35,7 @@ export interface SceneProductInput extends LooseProductPhotos {
   priceCents?: number | null;
   priceLabel?: string | null;
   pieceKind?: ScenePieceKind;
+  archivedAt?: string | null;
 }
 
 export interface SceneHanger {

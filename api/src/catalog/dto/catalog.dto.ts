@@ -27,6 +27,7 @@ export interface ProductDto {
   imageBindings?: unknown[];
   artCouture?: boolean;
   recommendOrder?: number;
+  archivedAt?: string | null;
   media: {
     id: string;
     cdnUrl: string;
@@ -44,6 +45,8 @@ export interface CollectionDto {
   description: string | null;
   sortOrder: number;
   publishedAt: string | null;
+  archivedAt?: string | null;
+  productCount?: number;
 }
 
 export interface CollectionDetailDto extends CollectionDto {

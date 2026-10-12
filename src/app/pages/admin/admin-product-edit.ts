@@ -9,6 +9,7 @@ import {
   CollectionSlug,
   ROUTES,
 } from '../../core/routes';
+import { archiveAwareError, showArchiveUndo } from '../../core/admin-archive';
 import { ToastService } from '../../core/feedback/toast.service';
 import { AdminProductForm } from './admin-product-form';
 
@@ -94,6 +95,19 @@ export class AdminProductEditPage implements OnInit {
         this.toast.error(adminHttpErrorMessage(err, 'Produto não encontrado.'));
       },
     });
+  }
+
+  onArchived(saved: Product): void {
+    showArchiveUndo(this.toast, () => {
+      this.adminCatalog.restoreViaApi(saved.slug).subscribe({
+        next: () => this.toast.success('Restaurado.'),
+        error: (err) =>
+          this.toast.error(
+            archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+          ),
+      });
+    });
+    void this.router.navigateByUrl(ROUTES.adminProducts);
   }
 
   onSaved(saved: Product): void {

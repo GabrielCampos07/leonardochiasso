@@ -124,6 +124,12 @@
     </button>
   }
 
+  @if (canArchiveFocused()) {
+    <button type="button" class="admin-3d__archive-col" (click)="archiveFocusedCollection()">
+      Arquivar
+    </button>
+  }
+
   @if (hoverTip(); as tip) {
     <p
       class="admin-3d__hover"

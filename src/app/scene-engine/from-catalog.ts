@@ -20,6 +20,7 @@ export function productToSceneInput(product: Product): SceneProductInput {
     thumb: product.thumb,
     gallery: product.gallery,
     imageUrl: product.thumb || null,
+    archivedAt: product.archivedAt ?? null,
   };
 }
 
@@ -59,6 +60,7 @@ export function apiProductToSceneInput(dto: ApiProductDto): SceneProductInput {
     thumb: dto.thumb,
     gallery: dto.gallery,
     imageUrl: dto.thumb || null,
+    archivedAt: dto.archivedAt ?? null,
   };
 }
 
@@ -78,5 +80,6 @@ export function joiaToSceneInput(piece: JoiaPiece): SceneProductInput {
     thumb: piece.image ?? gallery[0] ?? '',
     gallery,
     imageUrl: piece.image ?? gallery[0] ?? null,
+    archivedAt: piece.archivedAt ?? null,
   };
 }
