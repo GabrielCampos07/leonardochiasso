@@ -114,7 +114,7 @@ import {
 } from './mapping';
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls, textureJobId, type HangerTextureQuality } from './photo-url';
-import { hangerInVisibleWindow } from './rack-pan';
+import { inFocusUpgradeSlugs } from './photo-lod';
 import { soldOutBadgeScale } from './sold-out-scale';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
@@ -1599,6 +1599,11 @@ export class SceneEngine {
     const focusedIndex = this.layout.racks.findIndex((r) => r.id === focused);
     const rackCount = this.layout.racks.length;
     const upgrade = new Set(this.inFocusUpgradeSlugs());
+    for (const rack of this.layout.racks) {
+      for (const hanger of rack.hangers) {
+        if (!upgrade.has(hanger.slug)) this.texQueue.cancel(textureJobId(hanger.slug, 'full'));
+      }
+    }
     this.layout.racks.forEach((rack, rackIndex) => {
       if (!this.racksRoot.getObjectByName(`rack:${rack.id}`)) return;
       const perRow = hangersPerRow(Math.max(1, rack.hangers.length));
@@ -1629,19 +1634,7 @@ export class SceneEngine {
   }
 
   private inFocusUpgradeSlugs(): string[] {
-    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return [];
-    const unit = this.layout.racks.find((r) => r.id === this.focusedId);
-    if (!unit) return [];
-    if (this.focusedHangerSlug) {
-      const index = unit.hangers.findIndex((h) => h.slug === this.focusedHangerSlug);
-      if (index < 0) return [this.focusedHangerSlug];
-      return [unit.hangers[index - 1], unit.hangers[index], unit.hangers[index + 1]]
-        .filter(Boolean)
-        .map((h) => h!.slug);
-    }
-    return unit.hangers
-      .filter((_, index) => hangerInVisibleWindow(index, unit.hangers.length, this.rackPanX))
-      .map((h) => h.slug);
+    return inFocusUpgradeSlugs(this.layout, this.focusedId, this.focusedHangerSlug, this.rackPanX);
   }
 
   private armShadows(): void {
@@ -1668,23 +1661,32 @@ export class SceneEngine {
       return;
     }
     const previous = garment.material.map;
-    const apply = (texture: Texture) => {
+    const apply = (texture: Texture): boolean => {
       if (quality === 'thumb' && this.photoQuality.get(slug) === 'full') {
         disposeOwnedTexture(texture);
-        return;
+        return false;
+      }
+      const liveHanger = findHanger(this.layout, slug) ?? hanger;
+      if (quality === 'full' && !this.shouldUpgradeHanger(liveHanger)) {
+        disposeOwnedTexture(texture);
+        return false;
       }
       const live = this.findHangerGroup(slug);
       const liveGarment = live?.getObjectByName('garment') as Mesh | undefined;
-      if (!live || !liveGarment || !isPhotoMaterial(liveGarment.material)) return;
+      if (!live || !liveGarment || !isPhotoMaterial(liveGarment.material)) {
+        disposeOwnedTexture(texture);
+        return false;
+      }
       applyPhotoMap(liveGarment.material, texture);
       this.applyPiecePhoto(live, texture);
       if (previous && previous !== texture) disposeOwnedTexture(previous);
       this.requestRender();
+      return true;
     };
     const candidates = hangerTextureUrls(hanger, quality);
     if (!candidates.length) {
       if (quality === 'full') return;
-      apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
+      if (!apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label))) return;
       this.loadedPhotos.add(slug);
       this.photoQuality.set(slug, 'thumb');
       this.markPhotoFinished();
@@ -1700,14 +1702,13 @@ export class SceneEngine {
     }
     if (!texture) {
       if (quality === 'full') return;
-      apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
+      if (!apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label))) return;
       this.loadedPhotos.add(slug);
       this.photoQuality.set(slug, 'thumb');
       this.markPhotoFinished();
       return;
     }
-    apply(texture);
-    if (quality === 'thumb' && this.photoQuality.get(slug) === 'full') return;
+    if (!apply(texture)) return;
     this.loadedPhotos.add(slug);
     this.photoQuality.set(slug, quality === 'full' || !hanger.thumbUrl ? 'full' : 'thumb');
     this.markPhotoFinished();

@@ -70,6 +70,90 @@ describe('SceneEngine photo LOD', () => {
     });
   });
 
+  it('binds the thumb first, not the pdp photo', async () => {
+    const thumbC = 'https://cdn.example/pdp/plp-c-thumb.webp';
+    const fullC = 'https://cdn.example/pdp/pdp-c-01.webp';
+    seed(THUMB, 'thumb');
+    seed(FULL, 'full', true);
+    seed(thumbC, 'thumb-c');
+    seed(fullC, 'full-c', true);
+    const host = document.createElement('div');
+    host.style.cssText = 'width:800px;height:450px;';
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 450;
+    host.appendChild(canvas);
+    document.body.appendChild(host);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true, host });
+    if (!engine) {
+      host.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engines.push(engine);
+    engine.start();
+    engine.setLayout({
+      racks: [
+        {
+          id: RACK_ID,
+          name: 'Niponic Dreams',
+          sortOrder: 0,
+          kind: 'rack',
+          hangers: [piece('vestido-a'), piece('vestido-b')],
+        },
+        {
+          id: 'organic-dreams',
+          name: 'Organic Dreams',
+          sortOrder: 1,
+          kind: 'rack',
+          hangers: [piece('vestido-c', thumbC, fullC)],
+        },
+      ],
+    });
+    engine.focusOverview(true);
+    await until(() => cacheKey(engine, 'vestido-a').includes('plp-a-thumb'));
+    await until(() => cacheKey(engine, 'vestido-c').includes('plp-c-thumb'));
+    expect(cacheKey(engine, 'vestido-a')).toContain('plp-a-thumb');
+    expect(cacheKey(engine, 'vestido-a')).not.toContain('pdp-a-01');
+    engine.focusHanger('vestido-a', true);
+    await until(() => cacheKey(engine, 'vestido-a').includes('pdp-a-01'));
+    expect(cacheKey(engine, 'vestido-c')).toContain('plp-c-thumb');
+    expect(cacheKey(engine, 'vestido-c')).not.toContain('pdp-c-01');
+  });
+
+  it('falls back to the full pdp photo when thumb is missing', async () => {
+    seed(FULL, 'full');
+    seed(FULL, 'full-hi', true);
+    const host = document.createElement('div');
+    host.style.cssText = 'width:800px;height:450px;';
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 450;
+    host.appendChild(canvas);
+    document.body.appendChild(host);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true, host });
+    if (!engine) {
+      host.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engines.push(engine);
+    engine.start();
+    engine.setLayout({
+      racks: [
+        {
+          id: RACK_ID,
+          name: 'Niponic Dreams',
+          sortOrder: 0,
+          kind: 'rack',
+          hangers: [piece('vestido-a', '', FULL)],
+        },
+      ],
+    });
+    await until(() => cacheKey(engine, 'vestido-a').includes('pdp-a-01'));
+    expect(hangerPhoto(engine, 'vestido-a')).toBeTruthy();
+  });
+
   it('upgrades in-focus pieces to the pdp photo and keeps the thumb cached', async () => {
     const thumbTex = seed(THUMB, 'thumb');
     const fullTex = seed(FULL, 'full', true);
