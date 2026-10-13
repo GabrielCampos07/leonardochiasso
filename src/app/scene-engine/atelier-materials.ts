@@ -77,9 +77,9 @@ export function makeRugTexture(): CanvasTexture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#6e5648';
+    ctx.fillStyle = '#8a4e3e';
     ctx.fillRect(0, 0, 256, 256);
-    ctx.strokeStyle = 'rgba(196, 176, 138, 0.28)';
+    ctx.strokeStyle = 'rgba(232, 208, 176, 0.38)';
     ctx.lineWidth = 6;
     ctx.strokeRect(14, 14, 228, 228);
     ctx.strokeStyle = 'rgba(232, 220, 200, 0.08)';
@@ -172,7 +172,7 @@ export function ceilingMaterial(): MeshStandardMaterial {
 
 export function floorMaterial(lite = false, map: Texture | null = null): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: map ? 0xf4e8d4 : 0xffffff,
+    color: map ? 0xfff6ea : 0xffffff,
     map,
     roughness: lite ? 0.84 : 0.58,
     metalness: lite ? 0 : 0.04,

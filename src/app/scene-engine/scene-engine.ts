@@ -1466,7 +1466,7 @@ export class SceneEngine {
     if (floor?.material instanceof MeshStandardMaterial && floorMap) {
       const prev = floor.material.map;
       floor.material.map = floorMap;
-      floor.material.color.setHex(0xf4e8d4);
+      floor.material.color.setHex(0xfff6ea);
       floor.material.needsUpdate = true;
       if (prev && !isSharedTexture(prev)) prev.dispose();
     } else {
