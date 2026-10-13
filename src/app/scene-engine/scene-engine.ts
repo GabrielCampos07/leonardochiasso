@@ -70,11 +70,18 @@ import {
   hangersPerRow,
   layoutHangers,
   rackBarTop,
-  rackFrameWidth,
   rackPanRange,
   rackRowCount,
   rackWidth,
 } from './collection-rack';
+import {
+  EMPTY_RACK_PAN,
+  rackLookFrame,
+  rackPanProgress,
+  rackStartPanX,
+  wheelPanPixels,
+  type RackPanProgress,
+} from './rack-pan';
 import {
   applyTrayData,
   applyTrayPhoto,
@@ -381,9 +388,7 @@ export class SceneEngine {
   private readonly onWheel = (event: WheelEvent) => {
     if (event.cancelable) event.preventDefault();
     if (this.focusedPanRange() <= 0) return;
-    const raw = Math.abs(event.deltaX) >= Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    const pixels = event.deltaMode === 1 ? raw * 16 : event.deltaMode === 2 ? raw * 800 : raw;
-    this.nudgePan(pixels * this.panPixelsToWorld());
+    this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
@@ -543,13 +548,24 @@ export class SceneEngine {
 
   /** Nudge the framed window one column. Returns false when the rack edge is reached. */
   panRack(delta: -1 | 1): boolean {
-    return this.nudgePan(delta * HANGER_SPACING);
+    const moved = this.nudgePan(delta * HANGER_SPACING);
+    if (moved) this.refocusPannedRack();
+    return moved;
   }
 
   canPan(delta: -1 | 1): boolean {
     const range = this.focusedPanRange();
     if (range <= 0.001) return false;
     return delta < 0 ? this.rackPanX > -range + 0.001 : this.rackPanX < range - 0.001;
+  }
+
+  rackPanState(): RackPanProgress {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) {
+      return { ...EMPTY_RACK_PAN };
+    }
+    const unit = this.layout.racks.find((r) => r.id === this.focusedId);
+    if (!unit || unit.kind === 'vitrine') return { ...EMPTY_RACK_PAN };
+    return rackPanProgress(unit.hangers.length, this.rackPanX);
   }
 
   start(): void {
@@ -607,13 +623,14 @@ export class SceneEngine {
     this.ensureRackMounted(id);
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
-    if (this.focusedId !== id) this.rackPanX = 0;
+    if (this.focusedId !== id) this.resetPanForUnit(id);
     this.focusedId = id;
     const unit = this.layout.racks.find((r) => r.id === id);
     const mode: CameraFocusMode = unit?.kind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
     this.moveCamera(this.poseFor(group as Group, mode), immediate);
     this.onFocusCb?.(id);
+    this.onPanCb?.();
     this.layoutDeferredProps();
     if (this.hasLayout) this.enqueueHangerTextures();
   }
@@ -1010,6 +1027,18 @@ export class SceneEngine {
     fog.far = this.lite ? 70 : 64;
   }
 
+  private resetPanForUnit(id: string): void {
+    const unit = this.layout.racks.find((r) => r.id === id);
+    this.rackPanX = unit && unit.kind !== 'vitrine' ? rackStartPanX(unit.hangers.length) : 0;
+  }
+
+  private refocusPannedRack(): void {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return;
+    const group = this.racksRoot.getObjectByName(`rack:${this.focusedId}`);
+    if (!group) return;
+    this.moveCamera(this.poseFor(group as Group, 'rack'), true);
+  }
+
   private focusedPanRange(): number {
     if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return 0;
     const unit = this.layout.racks.find((r) => r.id === this.focusedId);
@@ -1084,12 +1113,13 @@ export class SceneEngine {
     object.getWorldPosition(origin);
     const rackId = String(object.userData?.['rackId'] ?? '');
     const unit = rackId ? this.layout.racks.find((r) => r.id === rackId) : undefined;
-    const frameW = unit && mode === 'rack' ? rackFrameWidth(unit.hangers.length) : 0;
+    const look =
+      unit && mode === 'rack' ? rackLookFrame(unit.hangers.length, this.rackPanX) : null;
     const halfW =
-      frameW > 0
-        ? frameW / 2
+      look != null
+        ? look.halfW
         : Math.max(origin.x - this.bounds.min.x, this.bounds.max.x - origin.x, this.fitSize.x / 2);
-    const lookX = mode === 'rack' ? origin.x + this.rackPanX : this.fitCenter.x;
+    const lookX = look != null ? origin.x + look.offset : this.fitCenter.x;
     const box = {
       minX: mode === 'rack' ? lookX - halfW : this.bounds.min.x,
       maxX: mode === 'rack' ? lookX + halfW : this.bounds.max.x,

@@ -1,4 +1,5 @@
 import { clampCreatePanel, isCreateSheetViewport, pieceModalFromHangerClick } from './admin-3d-page';
+import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
 
 describe('clampCreatePanel', () => {
   it('keeps the floating panel on a desktop viewport', () => {
@@ -21,6 +22,14 @@ describe('isCreateSheetViewport', () => {
   it('treats 768px and below as a bottom sheet', () => {
     expect(isCreateSheetViewport(768)).toBeTrue();
     expect(isCreateSheetViewport(1280)).toBeFalse();
+  });
+});
+
+describe('rack pan chrome', () => {
+  it('exposes a discreet X de N label and custom arrow deltas', () => {
+    expect(rackPanProgress(19, rackStartPanX(19)).label).toBe('8 de 19');
+    expect(rackArrowDelta('ArrowLeft')).toBe(-1);
+    expect(rackArrowDelta('ArrowRight')).toBe(1);
   });
 });
 
