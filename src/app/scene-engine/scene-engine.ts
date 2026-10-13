@@ -550,14 +550,11 @@ export class SceneEngine {
       this.applyOrbitLimits('rack');
     }
     const pose = this.poseFor(group, 'rack');
-    const cx = pose.target.x;
-    const cy = pose.target.y;
-    const cz = pose.target.z;
-    const closer = Math.max(1.15, pose.distance * 0.52);
+    const closer = Math.max(1.55, pose.distance * 0.92);
     pose.distance = closer;
-    pose.position.x = cx;
-    pose.position.y = cy + Math.sin(0.14) * closer;
-    pose.position.z = cz + Math.cos(0.14) * closer;
+    pose.position.x = pose.target.x;
+    pose.position.y = pose.target.y + Math.sin(0.12) * closer;
+    pose.position.z = pose.target.z + Math.cos(0.12) * closer;
     this.moveCamera(pose, immediate);
     this.layoutDeferredProps();
     if (hanger) this.onFocusCb?.(hanger.rackId);
