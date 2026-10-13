@@ -34,8 +34,8 @@ export const FIT_PAD_BOTTOM = 0.16;
 export const FIT_PAD_SIDE = 0.075;
 /** Extra pixels of air between the 3D content and overlaid chrome. */
 export const CHROME_MARGIN_PX = 20;
-/** Slight outer bias so the piece sits as the subject without walking into the next rack. */
-export const PIECE_FOCUS_SHIFT = 0.16;
+/** Keep the piece as the look-at subject; a large shift walks the lens into the next rack. */
+export const PIECE_FOCUS_SHIFT = 0.08;
 
 export interface ChromeInsets {
   /** Fraction of canvas height reserved at the top (header / badges). */
