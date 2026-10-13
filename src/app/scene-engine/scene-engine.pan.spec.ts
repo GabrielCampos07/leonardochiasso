@@ -93,16 +93,19 @@ describe('SceneEngine lateral pan', () => {
     engine.focusRack('niponic-dreams', true);
     const beforePan = engine.rackPanState().last;
     const beforeDist = engine.orbitDistance();
+    const rect = canvas.getBoundingClientRect();
     canvas.dispatchEvent(
       new WheelEvent('wheel', {
-        deltaY: 240,
+        deltaY: -400,
         ctrlKey: true,
+        clientX: rect.left + 200,
+        clientY: rect.top + 180,
         bubbles: true,
         cancelable: true,
       }),
     );
     expect(engine.rackPanState().last).toBe(beforePan);
-    expect(engine.orbitDistance()).not.toBeCloseTo(beforeDist, 3);
+    expect(engine.orbitDistance()).toBeLessThan(beforeDist);
     engine.dispose();
     canvas.remove();
   });

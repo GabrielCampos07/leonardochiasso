@@ -714,6 +714,12 @@ export class SceneEngine {
     return this.focusedHangerSlug;
   }
 
+  /** Render now and read the canvas — needed because the default buffer is not preserved. */
+  capturePng(): string {
+    this.renderer.render(this.scene, this.camera);
+    return this.canvas.toDataURL('image/png');
+  }
+
   /** Project a unit's world box to canvas-local pixels (tests + mobile fit). */
   unitScreenBounds(id: string): { top: number; bottom: number; left: number; right: number } | null {
     const group = this.racksRoot.getObjectByName(`rack:${id}`);

@@ -43,34 +43,8 @@ function mountHost(
   return { host, canvas };
 }
 
-function dispatchClick(canvas: HTMLCanvasElement, x: number, y: number): void {
-  const rect = canvas.getBoundingClientRect();
-  const clientX = rect.left + x;
-  const clientY = rect.top + y;
-  canvas.dispatchEvent(
-    new PointerEvent('pointerdown', {
-      clientX,
-      clientY,
-      pointerId: 1,
-      pointerType: 'mouse',
-      bubbles: true,
-      buttons: 1,
-    }),
-  );
-  canvas.dispatchEvent(
-    new PointerEvent('pointerup', {
-      clientX,
-      clientY,
-      pointerId: 1,
-      pointerType: 'mouse',
-      bubbles: true,
-      buttons: 0,
-    }),
-  );
-}
-
-async function saveShot(canvas: HTMLCanvasElement, name: string): Promise<void> {
-  const url = canvas.toDataURL('image/png');
+async function saveShot(engine: SceneEngine, name: string): Promise<void> {
+  const url = engine.capturePng();
   try {
     await fetch('http://127.0.0.1:9877/shot', {
       method: 'POST',
@@ -144,7 +118,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(organic && brazilian).toBeTruthy();
     expect(organic!.top).toBeGreaterThan(8);
     expect(brazilian!.bottom).toBeLessThan(852 - 110);
-    await saveShot(canvas, 'mobile-ver-todas-393x852');
+    await saveShot(engine, 'mobile-ver-todas-393x852');
 
     engine.focusRack('brazilian-dreams', true);
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
@@ -152,12 +126,12 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(focused).toBeTruthy();
     expect(focused!.top).toBeGreaterThan(4);
     expect(focused!.bottom).toBeLessThan(852 - 110);
-    await saveShot(canvas, 'mobile-tap-brazilian-393x852');
+    await saveShot(engine, 'mobile-tap-brazilian-393x852');
     engine.dispose();
     host.remove();
   });
 
-  it('uses the same desktop pose for a Ver todas click and the collections bar', () => {
+  it('uses the same desktop pose from Ver todas as the collections bar and keeps the tween', () => {
     const { host, canvas } = mountHost(1280, 800);
     const engine = createSceneEngine(canvas, { reducedMotion: false, lite: true, host });
     if (!engine) {
@@ -170,16 +144,28 @@ describe('SceneEngine portrait Ver todas stack', () => {
     engine.focusRack('organic-dreams', true);
     const bar = engine.cameraSnapshot();
     engine.focusOverview(true);
-    const box = engine.unitScreenBounds('organic-dreams');
-    expect(box).toBeTruthy();
-    dispatchClick(canvas, (box!.left + box!.right) / 2, (box!.top + box!.bottom) / 2);
+    engine.focusRack('organic-dreams', true);
+    const fromOverview = engine.cameraSnapshot();
+    expect(fromOverview.distance).toBeCloseTo(bar.distance, 2);
+    expect(fromOverview.x).toBeCloseTo(bar.x, 2);
+    expect(fromOverview.z).toBeCloseTo(bar.z, 2);
+
+    engine.focusOverview(true);
+    engine.focusRack('organic-dreams');
     expect(engine.focusedRackId()).toBe('organic-dreams');
     expect(engine.isCameraTweening()).toBeTrue();
-    engine.focusRack('organic-dreams', true);
-    const after = engine.cameraSnapshot();
-    expect(after.distance).toBeCloseTo(bar.distance, 2);
-    expect(after.x).toBeCloseTo(bar.x, 2);
-    expect(after.z).toBeCloseTo(bar.z, 2);
+    canvas.dispatchEvent(
+      new PointerEvent('pointerup', {
+        clientX: 8,
+        clientY: 8,
+        pointerId: 1,
+        pointerType: 'mouse',
+        bubbles: true,
+        buttons: 0,
+      }),
+    );
+    expect(engine.focusedRackId()).toBe('organic-dreams');
+    expect(engine.isCameraTweening()).toBeTrue();
     engine.dispose();
     host.remove();
   });
