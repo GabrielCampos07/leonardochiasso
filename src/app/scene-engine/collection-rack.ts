@@ -14,7 +14,12 @@ import { makeLabelTexture } from './texture-loader';
 import type { SceneHanger, SceneRack } from './types';
 
 export const HANGER_SPACING = 0.64;
+/** Preferred columns on a single rail before a second row is added. */
 export const HANGER_ROW_LIMIT = 8;
+/** Hard cap — 15–19 piece racks grow sideways instead of a third row of tiny photos. */
+export const HANGER_ROW_MAX = 2;
+/** Camera frames at most this many columns so name plates stay readable. */
+export const RACK_FRAME_COLUMNS = 8;
 export const RACK_ROW_PITCH = 1.12;
 export const RACK_BAR_TOP = 0.96;
 export const HANGER_HOOK_OFFSET = 0.48;
@@ -24,17 +29,38 @@ export const HANGER_BELOW_ORIGIN = 0.38;
 const MIN_HANGER_Y = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.08;
 const MIN_HANGER_Y_TALL = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.32;
 
+/** Columns on each rail. Past 8 pieces we use two rows and lengthen the bar. */
+export function hangersPerRow(hangerCount: number): number {
+  const n = Math.max(1, hangerCount);
+  if (n <= HANGER_ROW_LIMIT) return n;
+  return Math.ceil(n / HANGER_ROW_MAX);
+}
+
+export function rackWidthFromColumns(columns: number): number {
+  return Math.max(1.72, Math.max(1, columns) * HANGER_SPACING + 0.52);
+}
+
 function markRackDecor(mesh: Mesh): void {
   mesh.userData = { ...mesh.userData, ignorePick: true, kind: 'rack-decor' };
 }
 
 export function rackWidth(hangerCount: number): number {
-  const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
-  return Math.max(1.72, perRow * HANGER_SPACING + 0.52);
+  return rackWidthFromColumns(hangersPerRow(hangerCount));
 }
 
 export function rackRowCount(hangerCount: number): number {
-  return Math.max(1, Math.ceil(hangerCount / HANGER_ROW_LIMIT) || 1);
+  if (hangerCount <= 0) return 1;
+  return Math.min(HANGER_ROW_MAX, Math.max(1, Math.ceil(hangerCount / hangersPerRow(hangerCount))));
+}
+
+/** Width the lens actually frames — long racks pan instead of shrinking photos. */
+export function rackFrameWidth(hangerCount: number): number {
+  return rackWidthFromColumns(Math.min(hangersPerRow(hangerCount), RACK_FRAME_COLUMNS));
+}
+
+/** Half the extra length beyond the framed window. 0 when the rack fits. */
+export function rackPanRange(hangerCount: number): number {
+  return Math.max(0, (rackWidth(hangerCount) - rackFrameWidth(hangerCount)) / 2);
 }
 
 /** Raise the top bar so the lowest hanger (photo + label) stays above the floor. */
@@ -151,10 +177,11 @@ export function layoutHangers(
     if (slug) existing.set(slug, child as Group);
   }
 
+  const perRow = hangersPerRow(hangers.length);
   hangers.forEach((hanger, index) => {
-    const row = Math.floor(index / HANGER_ROW_LIMIT);
-    const col = index % HANGER_ROW_LIMIT;
-    const inRow = Math.min(HANGER_ROW_LIMIT, hangers.length - row * HANGER_ROW_LIMIT);
+    const row = Math.floor(index / perRow);
+    const col = index % perRow;
+    const inRow = Math.min(perRow, hangers.length - row * perRow);
     const rowWidth = Math.min(width - 0.45, inRow * HANGER_SPACING);
     const startX = -rowWidth / 2 + HANGER_SPACING / 2;
     let group = existing.get(hanger.slug);

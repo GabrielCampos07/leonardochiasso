@@ -155,6 +155,89 @@
   cursor: not-allowed;
 }
 
+.admin-3d__rail {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
+.admin-3d__rail-fade {
+  position: absolute;
+  top: 16%;
+  bottom: 30%;
+  width: min(120px, 18vw);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.admin-3d__rail-fade.is-on {
+  opacity: 1;
+}
+
+.admin-3d__rail-fade--prev {
+  left: 0;
+  background: linear-gradient(90deg, rgb(239 232 220 / 90%) 0%, rgb(239 232 220 / 0%) 100%);
+}
+
+.admin-3d__rail-fade--next {
+  right: 0;
+  background: linear-gradient(270deg, rgb(239 232 220 / 90%) 0%, rgb(239 232 220 / 0%) 100%);
+}
+
+.admin-3d__rail-btn {
+  pointer-events: auto;
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  top: 44%;
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 20%, transparent);
+  background: rgb(255 255 255 / 88%);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-3d__rail-btn--prev {
+  left: 16px;
+}
+
+.admin-3d__rail-btn--next {
+  right: 16px;
+}
+
+.admin-3d__rail-btn:not(:disabled):hover {
+  background: var(--lc-void);
+  color: var(--lc-white);
+  border-color: var(--lc-void);
+}
+
+.admin-3d__rail-btn:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.admin-3d__rail-count {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  margin: 0;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: rgb(255 255 255 / 72%);
+  color: color-mix(in srgb, var(--lc-void) 78%, white);
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
 .admin-3d__chrome {
   pointer-events: none;
   position: absolute;
@@ -483,6 +566,18 @@
     right: 8px;
     max-width: min(240px, calc(100% - 16px));
   }
+
+  .admin-3d__rail-count {
+    bottom: 118px;
+  }
+
+  .admin-3d__rail-btn--prev {
+    left: 8px;
+  }
+
+  .admin-3d__rail-btn--next {
+    right: 8px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -491,7 +586,8 @@
   .admin-3d__badge,
   .admin-3d__hover,
   .admin-3d__rack,
-  .admin-3d__boot {
+  .admin-3d__boot,
+  .admin-3d__rail-fade {
     transition: none;
   }
 }

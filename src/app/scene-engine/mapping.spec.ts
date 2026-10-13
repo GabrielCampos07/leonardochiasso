@@ -70,6 +70,25 @@ describe('mapCatalogToScene', () => {
     expect(layout.racks[2]?.hangers.map((h) => h.slug)).toEqual(['avulsa', 'orfao']);
   });
 
+  it('uses product.thumb for 3D and keeps the pdp gallery as the full upgrade', () => {
+    const hanger = toSceneHanger(
+      {
+        slug: 'vestido-longo-bateau',
+        name: 'Vestido Lg Bateau',
+        collectionSlug: 'organic-dreams',
+        thumb: 'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-bateau-thumb.webp',
+        gallery: ['https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/pdp-bateau-01.webp'],
+      },
+      'organic-dreams',
+    );
+    expect(hanger.thumbUrl).toBe(
+      'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-bateau-thumb.webp',
+    );
+    expect(hanger.imageUrl).toBe(
+      'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/pdp-bateau-01.webp',
+    );
+  });
+
   it('maps name, media[0], stock and draft status onto hangers', () => {
     const layout = mapCatalogToScene(collections, products);
     const vestido = layout.racks[0]?.hangers[0];

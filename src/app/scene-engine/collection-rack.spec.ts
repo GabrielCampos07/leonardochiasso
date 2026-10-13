@@ -1,9 +1,14 @@
 import {
   FLOOR_Y,
   HANGER_BELOW_ORIGIN,
+  HANGER_ROW_MAX,
   createCollectionRack,
   hangerLocalY,
+  hangersPerRow,
   rackBarTop,
+  rackFrameWidth,
+  rackPanRange,
+  rackRowCount,
   rackWidth,
   RACK_BAR_TOP,
   RACK_ROW_PITCH,
@@ -32,6 +37,18 @@ describe('rackWidth', () => {
     expect(rackWidth(2)).toBeLessThan(2.2);
     expect(rackWidth(8)).toBeGreaterThan(5);
   });
+
+  it('keeps 15–19 hangers on at most two rows and lengthens the bar', () => {
+    expect(HANGER_ROW_MAX).toBe(2);
+    expect(rackRowCount(8)).toBe(1);
+    expect(rackRowCount(15)).toBe(2);
+    expect(rackRowCount(19)).toBe(2);
+    expect(hangersPerRow(19)).toBe(10);
+    expect(rackWidth(19)).toBeGreaterThan(rackWidth(8));
+    expect(rackFrameWidth(19)).toBe(rackWidth(8));
+    expect(rackPanRange(8)).toBe(0);
+    expect(rackPanRange(19)).toBeGreaterThan(0);
+  });
 });
 
 describe('createCollectionRack first paint', () => {
@@ -55,5 +72,27 @@ describe('createCollectionRack first paint', () => {
     const ms = performance.now() - started;
     expect(group.children.length).toBeGreaterThan(0);
     expect(ms).toBeLessThan(400);
+  });
+
+  it('lays 19 hangers on two rails instead of shrinking to three rows', () => {
+    const hangers: SceneHanger[] = Array.from({ length: 19 }, (_, i) => ({
+      productId: `p${i}`,
+      slug: `peca-${i}`,
+      name: `Peça ${i}`,
+      imageUrl: null,
+      stockQty: 1,
+      priceLabel: 'R$ 1,00',
+      status: 'published',
+      rackId: 'niponic-dreams',
+      kind: 'garment',
+    }));
+    const group = createCollectionRack(
+      { id: 'niponic-dreams', name: 'Niponic Dreams', sortOrder: 1, hangers, kind: 'rack' },
+      0,
+    );
+    const hangersRoot = group.getObjectByName('hangers');
+    const ys = [...new Set((hangersRoot?.children ?? []).map((child) => Number(child.position.y.toFixed(3))))];
+    expect(ys.length).toBe(2);
+    expect(group.userData['unitWidth']).toBeGreaterThan(rackWidth(8));
   });
 });

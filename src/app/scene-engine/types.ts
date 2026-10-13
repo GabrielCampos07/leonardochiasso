@@ -3,7 +3,17 @@
 import type { LooseMedia, LooseProductPhotos } from './photo-url';
 
 export type { LooseMedia, LooseProductPhotos } from './photo-url';
-export { hangerTextureUrls, mediaItemUrl, mergeProductPhotos, primaryImageUrl, thumbImageUrl } from './photo-url';
+export {
+  derivedThumbUrl,
+  fullImageUrl,
+  hangerTextureUrls,
+  mediaItemUrl,
+  mergeProductPhotos,
+  primaryImageUrl,
+  textureJobId,
+  thumbImageUrl,
+} from './photo-url';
+export type { HangerTextureQuality } from './photo-url';
 
 export const UNCOLLECTED_RACK_ID = '__none__';
 export const UNCOLLECTED_RACK_NAME = 'Sem coleção';

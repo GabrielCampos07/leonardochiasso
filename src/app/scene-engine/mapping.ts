@@ -7,6 +7,7 @@ import {
   SceneRack,
   UNCOLLECTED_RACK_ID,
   UNCOLLECTED_RACK_NAME,
+  fullImageUrl,
   primaryImageUrl,
   thumbImageUrl,
 } from './types';
@@ -38,7 +39,7 @@ export function toSceneHanger(product: SceneProductInput, rackId: string): Scene
     productId: product.slug,
     slug: product.slug,
     name: product.name.trim() || product.slug,
-    imageUrl: primaryImageUrl(product),
+    imageUrl: fullImageUrl(product) ?? primaryImageUrl(product),
     thumbUrl: thumbImageUrl(product),
     stockQty: Math.max(0, Math.round(product.stockQty ?? 1)),
     priceLabel: hangerPriceFromFields(product),

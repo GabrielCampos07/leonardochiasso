@@ -15,6 +15,7 @@ import { hangerOpacity, isSoldOut } from './types';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { brassMaterial, darkWoodMaterial } from './atelier-materials';
 import { applyPhotoMap, isPhotoMaterial, makePhotoMaterial } from './photo-material';
+import { disposeOwnedTexture } from './dispose';
 import { makeFallbackTexture, makeLabelTexture, makePlaceholderTexture, makeSoldOutTexture } from './texture-loader';
 
 export const HANGER_USER_DATA = 'hanger';
@@ -233,7 +234,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     label.material.fog = false;
     pullLabelForward(label.material);
     label.material.needsUpdate = true;
-    prev?.dispose();
+    disposeOwnedTexture(prev);
   }
   if (labelBack && isPhotoMaterial(labelBack.material)) {
     labelBack.material.opacity = opacity;
