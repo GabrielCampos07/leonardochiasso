@@ -91,26 +91,7 @@
       >
         →
       </button>
-      <div class="admin-3d__pager">
-        <button
-          type="button"
-          class="admin-3d__arrow"
-          [disabled]="atFirst() || creating() || adding() || !racks().length"
-          (click)="stepRack(-1)"
-          aria-label="Anterior"
-        >
-          ‹
-        </button>
-        <p class="admin-3d__pager-name">{{ focusedName() }}</p>
-        <button
-          type="button"
-          class="admin-3d__arrow"
-          [disabled]="atLast() || creating() || adding() || !racks().length"
-          (click)="stepRack(1)"
-          aria-label="Próxima"
-        >
-          ›
-        </button>
+      <div class="admin-3d__pager-actions">
         @if (activeUnit()) {
           <button type="button" class="admin-3d__peca" [disabled]="adding()" (click)="addPieceToFocused()">
             + Peça
@@ -136,6 +117,27 @@
             }
           </div>
         }
+      </div>
+      <div class="admin-3d__pager">
+        <button
+          type="button"
+          class="admin-3d__arrow"
+          [disabled]="atFirst() || creating() || adding() || !racks().length"
+          (click)="stepRack(-1)"
+          aria-label="Anterior"
+        >
+          ‹
+        </button>
+        <p class="admin-3d__pager-name">{{ focusedName() }}</p>
+        <button
+          type="button"
+          class="admin-3d__arrow"
+          [disabled]="atLast() || creating() || adding() || !racks().length"
+          (click)="stepRack(1)"
+          aria-label="Próxima"
+        >
+          ›
+        </button>
       </div>
     </nav>
   }

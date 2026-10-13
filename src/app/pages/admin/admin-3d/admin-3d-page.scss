@@ -142,7 +142,8 @@
   color: #8b1e2d;
 }
 
-.admin-3d__pager {
+.admin-3d__pager,
+.admin-3d__pager-actions {
   display: none;
 }
 
@@ -439,17 +440,17 @@
     right: 8px;
     bottom: 8px;
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     grid-template-areas:
-      'lines'
-      'pager';
+      'lines actions'
+      'pager pager';
     align-items: center;
     gap: 6px;
   }
 
   .admin-3d__lines {
     grid-area: lines;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .admin-3d__arrow--desktop,
@@ -457,9 +458,16 @@
     display: none;
   }
 
+  .admin-3d__pager-actions {
+    grid-area: actions;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .admin-3d__pager {
     grid-area: pager;
-    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;

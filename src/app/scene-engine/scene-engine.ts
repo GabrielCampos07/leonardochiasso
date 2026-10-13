@@ -921,6 +921,7 @@ export class SceneEngine {
   }
 
   private poseFor(object: Object3D, mode: CameraFocusMode): CameraPose {
+    object.updateWorldMatrix(true, true);
     this.bounds.makeEmpty();
     if (mode === 'rack' && object instanceof Group) {
       const plate = object.getObjectByName('plate');
@@ -934,9 +935,12 @@ export class SceneEngine {
     }
     this.bounds.getSize(this.fitSize);
     this.bounds.getCenter(this.fitCenter);
+    const origin = new Vector3();
+    object.getWorldPosition(origin);
+    const halfW = Math.max(origin.x - this.bounds.min.x, this.bounds.max.x - origin.x, this.fitSize.x / 2);
     const box = {
-      minX: this.bounds.min.x,
-      maxX: this.bounds.max.x,
+      minX: mode === 'rack' ? origin.x - halfW : this.bounds.min.x,
+      maxX: mode === 'rack' ? origin.x + halfW : this.bounds.max.x,
       minY: this.bounds.min.y,
       maxY: this.bounds.max.y + (mode === 'rack' ? 0.1 : 0),
       minZ: this.bounds.min.z,
