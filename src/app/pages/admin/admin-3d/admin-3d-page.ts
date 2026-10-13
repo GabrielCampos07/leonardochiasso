@@ -759,7 +759,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.firstFrame.set(true);
     const piece = this.route.snapshot.queryParamMap.get('piece');
     if (piece) {
-      window.setTimeout(() => this.engine?.focusHanger(piece, true), 80);
+      const aim = () => this.engine?.focusHanger(piece, true);
+      window.setTimeout(() => {
+        if (!aim()) window.setTimeout(aim, 400);
+      }, 480);
     }
     if (this.reducedMotion) {
       this.bootFading.set(false);

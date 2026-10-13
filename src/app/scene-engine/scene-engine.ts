@@ -549,13 +549,19 @@ export class SceneEngine {
       this.focusedId = hanger.rackId;
       this.applyOrbitLimits('rack');
     }
-    const pose = this.poseFor(group, 'rack');
-    const closer = Math.max(1.55, pose.distance * 0.92);
-    pose.distance = closer;
-    pose.position.x = pose.target.x;
-    pose.position.y = pose.target.y + Math.sin(0.12) * closer;
-    pose.position.z = pose.target.z + Math.cos(0.12) * closer;
-    this.moveCamera(pose, immediate);
+    group.updateWorldMatrix(true, true);
+    const garment = group.getObjectByName('garment');
+    const target = new Vector3();
+    (garment ?? group).getWorldPosition(target);
+    const distance = 2.48;
+    this.moveCamera(
+      {
+        position: { x: target.x, y: target.y + 0.16, z: target.z + distance },
+        target: { x: target.x, y: target.y, z: target.z },
+        distance,
+      },
+      immediate,
+    );
     this.layoutDeferredProps();
     if (hanger) this.onFocusCb?.(hanger.rackId);
     return true;
