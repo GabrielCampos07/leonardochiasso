@@ -28,7 +28,7 @@ export interface SegmentedOption {
   styles: `
     .seg {
       display: inline-flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 0;
       border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
       background: var(--lc-white);

@@ -88,7 +88,7 @@
 
 .admin-list__filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: minmax(200px, 1fr) minmax(320px, 1.2fr) minmax(200px, 1fr) auto;
   gap: var(--lc-space-16);
   margin-bottom: var(--lc-space-16);
 }
@@ -99,6 +99,10 @@
   flex-direction: column;
   gap: 8px;
   font-size: 1.1rem;
+}
+
+.admin-list__filter-block {
+  min-width: 280px;
 }
 
 .admin-list__hint,
