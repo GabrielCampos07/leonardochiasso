@@ -24,7 +24,7 @@ export const SOLD_OUT_BADGE_W = 0.3;
 export const SOLD_OUT_BADGE_H = 0.105;
 
 function hangerLabelMap(name: string) {
-  return makeLabelTexture(name, { width: 512, height: 80, fill: '#2a241c', size: 32 });
+  return makeLabelTexture(name, { width: 512, height: 80, fill: '#1c1814', size: 32 });
 }
 
 function attachSoldOutBadge(parent: Group, x: number, y: number, z: number, w: number, h: number, opacity: number): Group {
@@ -138,15 +138,27 @@ export function createGarmentHanger(data: SceneHanger): Group {
   );
   badge.visible = isSoldOut(data.stockQty);
 
+  const labelY = -photo.height * 0.5 - 0.06;
+  const labelBack = new Mesh(
+    new PlaneGeometry(1, 1),
+    makePhotoMaterial(null, { color: 0x1c1814, opacity, transparent: opacity < 1 }),
+  );
+  labelBack.scale.set(0.52, 0.09, 1);
+  labelBack.position.set(0, labelY, 0.035);
+  labelBack.name = 'labelBack';
+  labelBack.userData = group.userData;
+  labelBack.renderOrder = 2;
+  group.add(labelBack);
+
   const label = new Mesh(
     new PlaneGeometry(1, 1),
     makePhotoMaterial(hangerLabelMap(data.name), { opacity, transparent: opacity < 1 }),
   );
   label.scale.set(0.5, 0.08, 1);
-  label.position.set(0, -photo.height * 0.5 - 0.06, 0.04);
+  label.position.set(0, labelY, 0.05);
   label.name = 'label';
   label.userData = group.userData;
-  label.renderOrder = 2;
+  label.renderOrder = 3;
   group.add(label);
 
   return group;
@@ -163,6 +175,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
   const garment = group.getObjectByName('garment') as Mesh | undefined;
   const frame = group.getObjectByName('frame') as Mesh | undefined;
   const label = group.getObjectByName('label') as Mesh | undefined;
+  const labelBack = group.getObjectByName('labelBack') as Mesh | undefined;
 
   if (garment && isPhotoMaterial(garment.material)) {
     garment.material.opacity = opacity;
@@ -187,6 +200,12 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     label.material.fog = false;
     label.material.needsUpdate = true;
     prev?.dispose();
+  }
+  if (labelBack && isPhotoMaterial(labelBack.material)) {
+    labelBack.material.opacity = opacity;
+    labelBack.material.transparent = opacity < 1;
+    labelBack.material.depthWrite = true;
+    labelBack.material.fog = false;
   }
 }
 

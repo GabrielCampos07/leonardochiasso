@@ -117,7 +117,7 @@ export function mannequinOffset(
   hangerCount = 1,
 ): { x: number; z: number; rotY: number } | null {
   const photos = hangerPhotoSpan(hangerCount, unitWidth);
-  const x = unitWidth / 2 + 0.28;
+  const x = unitWidth / 2 + 0.4;
   const left = x - MANNEQUIN_HALF_W;
   const right = x + MANNEQUIN_HALF_W;
   if (left < photos.maxX + 0.08) return null;
