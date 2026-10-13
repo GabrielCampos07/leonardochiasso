@@ -49,6 +49,31 @@ export function worldBoxCorners(box: WorldBox): Array<{ x: number; y: number; z:
   return out;
 }
 
+/** Few extra pixels around the focused rack silhouette + rug. Open floor must zoom. */
+export const FOCUS_WHEEL_PAD_PX = 8;
+
+/** Front face of a world box (camera looks from +Z). Avoids depth-inflated AABBs. */
+export function worldBoxFrontCorners(box: WorldBox): Array<{ x: number; y: number; z: number }> {
+  const z = box.maxZ;
+  return [
+    { x: box.minX, y: box.minY, z },
+    { x: box.maxX, y: box.minY, z },
+    { x: box.minX, y: box.maxY, z },
+    { x: box.maxX, y: box.maxY, z },
+  ];
+}
+
+export function unionScreenRects(a: ScreenRect | null, b: ScreenRect | null): ScreenRect | null {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    left: Math.min(a.left, b.left),
+    right: Math.max(a.right, b.right),
+    top: Math.min(a.top, b.top),
+    bottom: Math.max(a.bottom, b.bottom),
+  };
+}
+
 /** Wheel is over a rack when the pointer is inside any projected AABB. */
 export function wheelOverRackRects(
   clientX: number,

@@ -124,20 +124,51 @@
           class="admin-3d__arrow"
           [disabled]="atFirst() || creating() || adding() || !racks().length"
           (click)="stepRack(-1)"
-          aria-label="Anterior"
+          aria-label="Peças anteriores"
         >
           ‹
         </button>
-        <p class="admin-3d__pager-name">{{ focusedName() }}</p>
+        <button
+          type="button"
+          class="admin-3d__pager-name"
+          [attr.aria-expanded]="switcherOpen()"
+          aria-haspopup="listbox"
+          aria-controls="atelier-collection-switcher"
+          [disabled]="creating() || adding() || !racks().length"
+          (click)="toggleSwitcher($event)"
+        >
+          {{ focusedName() }}
+        </button>
         <button
           type="button"
           class="admin-3d__arrow"
           [disabled]="atLast() || creating() || adding() || !racks().length"
           (click)="stepRack(1)"
-          aria-label="Próxima"
+          aria-label="Próximas peças"
         >
           ›
         </button>
+        @if (switcherOpen()) {
+          <div
+            id="atelier-collection-switcher"
+            class="admin-3d__switcher"
+            role="listbox"
+            aria-label="Coleções"
+            (click)="$event.stopPropagation()"
+          >
+            @for (item of switcherItems(); track item.id) {
+              <button
+                type="button"
+                role="option"
+                [attr.aria-selected]="focusedId() === item.id"
+                [class.is-on]="focusedId() === item.id"
+                (click)="pickCollection(item.id)"
+              >
+                {{ item.name }}
+              </button>
+            }
+          </div>
+        }
       </div>
     </nav>
   }

@@ -227,6 +227,45 @@ describe('SceneEngine lateral pan', () => {
     canvas.remove();
   });
 
+  it('zooms the open floor beside a focused rack instead of capturing the wheel', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 450;
+    document.body.appendChild(canvas);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true });
+    if (!engine) {
+      canvas.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(longRackLayout());
+    engine.focusRack('niponic-dreams', true);
+    const tight = engine.focusWheelBounds();
+    const inflated = engine.unitScreenBounds('niponic-dreams');
+    expect(tight && inflated).toBeTruthy();
+    expect(tight!.right - tight!.left).toBeLessThan(inflated!.right - inflated!.left + 1);
+    const rect = canvas.getBoundingClientRect();
+    const floorX = rect.left + Math.min(rect.width - 12, tight!.right + 48);
+    const floorY = rect.top + Math.min(rect.height - 12, tight!.bottom + 36);
+    expect(engine.wheelHitsAt(floorX, floorY)).toBeFalse();
+    const beforePan = engine.rackPanState().last;
+    const beforeDist = engine.orbitDistance();
+    canvas.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: -280,
+        clientX: floorX,
+        clientY: floorY,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(engine.rackPanState().last).toBe(beforePan);
+    expect(engine.orbitDistance()).toBeLessThan(beforeDist);
+    engine.dispose();
+    canvas.remove();
+  });
+
   it('moves the Niponic counter down and back up from the pan offset', () => {
     const canvas = document.createElement('canvas');
     canvas.width = 800;

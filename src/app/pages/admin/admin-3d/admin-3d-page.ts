@@ -41,7 +41,12 @@ import { afterOverlayPaint } from '../../../core/after-overlay-paint';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
-import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-engine/camera-guide';
+import {
+  OVERVIEW_FOCUS_ID,
+  collectionSwitcherItems,
+  rackNavItems,
+  stepRackIndex,
+} from '../../../scene-engine/camera-guide';
 import { EMPTY_RACK_PAN, rackArrowDelta } from '../../../scene-engine/rack-pan';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
@@ -243,11 +248,13 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   });
   readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
   readonly moreOpen = signal(false);
+  readonly switcherOpen = signal(false);
   readonly focusedName = computed(() => {
     const id = this.focusedId();
     if (id === OVERVIEW_FOCUS_ID) return 'Todas';
     return this.racks().find((rack) => rack.id === id)?.name ?? 'Coleção';
   });
+  readonly switcherItems = computed(() => collectionSwitcherItems(this.racks()));
   readonly adding = signal(false);
   readonly canArchiveFocused = computed(() => {
     if (this.creating() || this.adding()) return false;
@@ -361,6 +368,11 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && this.switcherOpen()) {
+      event.preventDefault();
+      this.switcherOpen.set(false);
+      return;
+    }
     if (event.key === 'Escape' && this.adding() && !this.modalOpen) {
       event.preventDefault();
       this.cancelAddPiece();
@@ -386,27 +398,47 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   focusRack(id: string): void {
     if (this.creating() || this.adding()) return;
+    this.switcherOpen.set(false);
+    this.moreOpen.set(false);
     this.engine?.focusRack(id, this.reducedMotion);
   }
 
   focusOverview(): void {
     if (this.creating() || this.adding()) return;
     this.moreOpen.set(false);
+    this.switcherOpen.set(false);
     this.engine?.focusOverview(this.reducedMotion);
   }
 
   toggleMore(event?: Event): void {
     event?.stopPropagation();
+    this.switcherOpen.set(false);
     this.moreOpen.update((open) => !open);
   }
 
   closeMore(): void {
     this.moreOpen.set(false);
+    this.switcherOpen.set(false);
+  }
+
+  toggleSwitcher(event?: Event): void {
+    event?.stopPropagation();
+    if (this.creating() || this.adding() || !this.racks().length) return;
+    this.moreOpen.set(false);
+    this.switcherOpen.update((open) => !open);
+  }
+
+  pickCollection(id: string): void {
+    this.switcherOpen.set(false);
+    this.moreOpen.set(false);
+    if (id === OVERVIEW_FOCUS_ID) this.focusOverview();
+    else this.focusRack(id);
   }
 
   @HostListener('document:click')
   onDocumentClick(): void {
     if (this.moreOpen()) this.moreOpen.set(false);
+    if (this.switcherOpen()) this.switcherOpen.set(false);
   }
 
   setLine(line: AtelierLine): void {
@@ -418,6 +450,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   startCreate(): void {
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.modalOpen || this.adding()) return;
     this.moreOpen.set(false);
+    this.switcherOpen.set(false);
     this.hoverTip.set(null);
     this.createError.set('');
     this.createSaving.set(false);
@@ -503,6 +536,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   addPieceToFocused(): void {
     this.moreOpen.set(false);
+    this.switcherOpen.set(false);
     const unit = this.activeUnit();
     if (unit) this.openAddPanel(unit.id);
   }

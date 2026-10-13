@@ -101,7 +101,15 @@ import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { hangerSlugFromHits, isTap, isRoomSurface, resolveHangerClick } from './hanger-pick';
 import { rackFocusIdAfterPointer, rackIdFromHits } from './rack-pick';
-import { screenRectFromPoints, wheelOverRackRects, worldBoxCorners, type ScreenRect } from './rack-screen';
+import {
+  FOCUS_WHEEL_PAD_PX,
+  screenRectFromPoints,
+  unionScreenRects,
+  wheelOverRackRects,
+  worldBoxCorners,
+  worldBoxFrontCorners,
+  type ScreenRect,
+} from './rack-screen';
 import {
   ORBIT_DAMPING_FACTOR,
   ORBIT_DAMPING_MAX_MS,
@@ -462,7 +470,8 @@ export class SceneEngine {
   };
   /**
    * Capture runs before OrbitControls.
-   * Wheel over any rack → never zoom (stop the event). Elsewhere / pinch → zoom.
+   * Wheel over the focused rack (or any rack in Ver todas) → never zoom.
+   * Open floor / wall → zoom. Pinch always zooms.
    */
   private readonly onWheelCapture = (event: WheelEvent) => {
     const pinch = isPinchZoomEvent(event);
@@ -741,6 +750,23 @@ export class SceneEngine {
       top: client.top - rect.top,
       bottom: client.bottom - rect.top,
     };
+  }
+
+  /** Focus-view wheel silhouette: rack front + rug, canvas-local pixels. */
+  focusWheelBounds(): ScreenRect | null {
+    const client = this.focusedWheelRect();
+    if (!client) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      left: client.left - rect.left,
+      right: client.right - rect.left,
+      top: client.top - rect.top,
+      bottom: client.bottom - rect.top,
+    };
+  }
+
+  wheelHitsAt(clientX: number, clientY: number): boolean {
+    return this.wheelOverAnyRack({ clientX, clientY } as WheelEvent);
   }
 
   unitLocalPosition(id: string): { x: number; y: number; z: number } | null {
@@ -2075,12 +2101,67 @@ export class SceneEngine {
     return screenRectFromPoints(corners);
   }
 
+  private objectFrontScreenRect(object: Object3D): ScreenRect | null {
+    object.updateWorldMatrix(true, true);
+    this.bounds.makeEmpty();
+    this.bounds.expandByObject(object);
+    if (this.bounds.isEmpty()) return null;
+    const box = {
+      minX: this.bounds.min.x,
+      maxX: this.bounds.max.x,
+      minY: this.bounds.min.y,
+      maxY: this.bounds.max.y,
+      minZ: this.bounds.min.z,
+      maxZ: this.bounds.max.z,
+    };
+    const corners = worldBoxFrontCorners(box).map((c) =>
+      this.worldToClient(this.projectScratch.set(c.x, c.y, c.z)),
+    );
+    return screenRectFromPoints(corners);
+  }
+
+  private rugScreenRect(rackId: string): ScreenRect | null {
+    if (!rackId || !this.room) return null;
+    const rugs = this.room.getObjectByName('rugs');
+    if (!rugs) return null;
+    this.bounds.makeEmpty();
+    this.expandBoundsByRackRug(rackId);
+    if (this.bounds.isEmpty()) return null;
+    const corners = worldBoxFrontCorners({
+      minX: this.bounds.min.x,
+      maxX: this.bounds.max.x,
+      minY: this.bounds.min.y,
+      maxY: this.bounds.max.y,
+      minZ: this.bounds.min.z,
+      maxZ: this.bounds.max.z,
+    }).map((c) => this.worldToClient(this.projectScratch.set(c.x, c.y, c.z)));
+    return screenRectFromPoints(corners);
+  }
+
+  private focusedWheelRect(): ScreenRect | null {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return null;
+    const group = this.racksRoot.getObjectByName(`rack:${this.focusedId}`);
+    if (!group) return null;
+    const rackId = String(group.userData?.['rackId'] ?? this.focusedId);
+    return unionScreenRects(this.objectFrontScreenRect(group), this.rugScreenRect(rackId));
+  }
+
+  private wheelCaptureRects(): Array<ScreenRect | null> {
+    if (this.focusedId !== OVERVIEW_FOCUS_ID && this.focusedId !== DRAFT_UNIT_ID) {
+      return [this.focusedWheelRect()];
+    }
+    return this.racksRoot.children.map((child) => this.objectScreenRect(child, true));
+  }
+
   private wheelOverAnyRack(event: WheelEvent): boolean {
     if (!event.clientX && !event.clientY) return this.racksRoot.children.length > 0;
-    const rects: Array<ScreenRect | null> = this.racksRoot.children.map((child) =>
-      this.objectScreenRect(child, true),
+    const focused = this.focusedId !== OVERVIEW_FOCUS_ID && this.focusedId !== DRAFT_UNIT_ID;
+    return wheelOverRackRects(
+      event.clientX,
+      event.clientY,
+      this.wheelCaptureRects(),
+      focused ? FOCUS_WHEEL_PAD_PX : 4,
     );
-    return wheelOverRackRects(event.clientX, event.clientY, rects);
   }
 
   private rememberPointer(event: PointerEvent): void {
