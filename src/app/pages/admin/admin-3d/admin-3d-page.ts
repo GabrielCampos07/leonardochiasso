@@ -200,15 +200,18 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly focusedId = signal<string>(OVERVIEW_FOCUS_ID);
   readonly overviewId = OVERVIEW_FOCUS_ID;
   readonly racks = signal<{ id: string; name: string; index: number }[]>([]);
+  private readonly panTick = signal(0);
   readonly atFirst = computed(() => {
+    this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id;
+    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id && !this.engine?.canPan(-1);
   });
   readonly atLast = computed(() => {
+    this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id;
+    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id && !this.engine?.canPan(1);
   });
   readonly creating = signal(false);
   readonly createName = signal('');
@@ -303,6 +306,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     });
     this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.onSceneComplete(() => this.markSceneComplete());
+    this.engine.onPanChange(() => this.panTick.update((n) => n + 1));
     this.engine.onLoadProgress((loaded, total) => {
       this.sceneProgress.set(total > 0 ? Math.min(1, loaded / total) : 0);
     });
@@ -524,6 +528,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   stepRack(delta: -1 | 1): void {
+    if (this.engine?.panRack(delta)) {
+      this.panTick.update((n) => n + 1);
+      return;
+    }
     const items = this.racks();
     if (!items.length) return;
     const current = items.findIndex((r) => r.id === this.focusedId());

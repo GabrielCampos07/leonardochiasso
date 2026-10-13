@@ -4,6 +4,7 @@ import {
   CAMERA_POLAR_MIN,
   CREATE_TWEEN_MS,
   computeEyeLevelFit,
+  OVERVIEW_MAX_DISTANCE,
   clampOrbitSpherical,
   computeVitrineFit,
   defaultChromeInsets,
@@ -125,11 +126,13 @@ describe('computeEyeLevelFit', () => {
     expect(rack.distance).toBeGreaterThan(4.6);
   });
 
-  it('keeps Ver todas closer so plates stay legible', () => {
-    const wide = { minX: -1, maxX: 16, minY: -0.2, maxY: 3.2, minZ: -0.1, maxZ: 0.1 };
-    const all = computeEyeLevelFit(wide, 16 / 9, 38, 'overview');
-    expect(all.distance).toBeGreaterThan(6);
-    expect(all.distance).toBeLessThanOrEqual(16);
+  it('fits a four-rack aisle so Organic and Sem coleção stay in frame', () => {
+    const aisle = { minX: -14, maxX: 14, minY: -0.2, maxY: 2.2, minZ: -0.1, maxZ: 0.1 };
+    const all = computeEyeLevelFit(aisle, 16 / 9, 38, 'overview');
+    const visible = 2 * Math.tan((38 * Math.PI) / 360) * all.distance * (16 / 9);
+    expect(28 / visible).toBeLessThan(1.02);
+    expect(all.distance).toBeGreaterThan(16);
+    expect(all.distance).toBeLessThanOrEqual(OVERVIEW_MAX_DISTANCE);
   });
 
   it('backs off when the collections bar reserves more of the viewport', () => {

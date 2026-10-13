@@ -1,6 +1,13 @@
 import { apiProductToSceneInput } from './from-catalog';
 import { toSceneHanger } from './mapping';
-import { clampTooltip, hangerTextureUrls, mergeProductPhotos, primaryImageUrl, thumbImageUrl } from './photo-url';
+import {
+  clampTooltip,
+  derivedThumbUrl,
+  hangerTextureUrls,
+  mergeProductPhotos,
+  primaryImageUrl,
+  thumbImageUrl,
+} from './photo-url';
 import { textureCacheUrl } from './texture-loader';
 
 /** Shape taken from live `GET https://api.leonardochiasso.com/api/products` (2026-10-12). */
@@ -134,21 +141,39 @@ describe('primaryImageUrl (prod catalog shape)', () => {
 });
 
 describe('hangerTextureUrls', () => {
-  it('falls back to the pdp thumb and still busts the poisoned cache with tex=1', () => {
+  it('loads the storefront thumb first and still busts the poisoned cache with tex=1', () => {
     const urls = hangerTextureUrls({
       imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp',
       thumbUrl: 'https://cdn.example/pdp/plp-bateau-thumb.webp',
     });
     expect(urls).toEqual([
-      'https://cdn.example/pdp/pdp-bateau-01.webp',
       'https://cdn.example/pdp/plp-bateau-thumb.webp',
+      'https://cdn.example/pdp/pdp-bateau-01.webp',
     ]);
-    expect(textureCacheUrl(urls[1]!)).toBe('https://cdn.example/pdp/plp-bateau-thumb.webp?tex=1');
+    expect(textureCacheUrl(urls[0]!)).toBe('https://cdn.example/pdp/plp-bateau-thumb.webp?tex=1');
+  });
+
+  it('derives a plp thumb variant from a pdp gallery path', () => {
+    expect(derivedThumbUrl('https://cdn.example/pdp/pdp-bateau-01.webp')).toBe(
+      'https://cdn.example/pdp/plp-bateau-thumb.webp',
+    );
+    expect(hangerTextureUrls({ imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp' })[0]).toBe(
+      'https://cdn.example/pdp/plp-bateau-thumb.webp',
+    );
   });
 
   it('does not duplicate when the primary already is the thumb', () => {
     expect(thumbImageUrl(PROD_BATEAU)).toBe(PROD_THUMB);
     expect(hangerTextureUrls({ imageUrl: PROD_THUMB, thumbUrl: PROD_THUMB })).toEqual([PROD_THUMB]);
+  });
+
+  it('reads role thumb from media when product.thumb is empty', () => {
+    expect(
+      thumbImageUrl({
+        thumb: '',
+        media: [{ cdnUrl: 'https://cdn.example/pdp/plp-role-thumb.webp', role: 'thumb' }],
+      }),
+    ).toBe('https://cdn.example/pdp/plp-role-thumb.webp');
   });
 });
 

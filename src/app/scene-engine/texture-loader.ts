@@ -8,8 +8,8 @@ export { SHARED_TEXTURE_FLAG, isSharedTexture, isTextureLive, photoTextureCache 
 export const TEXTURE_CROSS_ORIGIN = 'anonymous';
 export const TEXTURE_CACHE_PARAM = 'tex';
 export const TEXTURE_CACHE_VALUE = '1';
-export const TEXTURE_BITMAP_MAX_W = 512;
-export const TEXTURE_BITMAP_MAX_H = 640;
+export const TEXTURE_BITMAP_MAX_W = 256;
+export const TEXTURE_BITMAP_MAX_H = 320;
 /** ImageBitmap ignores `texture.flipY`; flip here so hangers and trays stay upright. */
 export const TEXTURE_BITMAP_ORIENTATION = 'flipY' as const;
 export const LABEL_DEFAULT_WIDTH = 768;

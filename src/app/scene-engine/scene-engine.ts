@@ -52,6 +52,8 @@ import {
   CameraFocusMode,
   CameraPose,
   OVERVIEW_FOCUS_ID,
+  OVERVIEW_MAX_DISTANCE,
+  OVERVIEW_MAX_DISTANCE_COMPACT,
   clampOrbitSpherical,
   computeEyeLevelFit,
   computeVitrineFit,
@@ -63,9 +65,13 @@ import {
 } from './camera-guide';
 import {
   FLOOR_Y,
+  HANGER_SPACING,
   createCollectionRack,
+  hangersPerRow,
   layoutHangers,
   rackBarTop,
+  rackFrameWidth,
+  rackPanRange,
   rackRowCount,
   rackWidth,
 } from './collection-rack';
@@ -81,6 +87,7 @@ import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } fr
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
 import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
+import { rackIdFromHits } from './rack-pick';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { isTextureLive, loadTextureCandidates, makeFallbackTexture, photoTextureCache } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
@@ -108,6 +115,7 @@ export type SceneCompleteHandler = () => void;
 export type LoadProgressCb = LoadProgressHandler;
 export type DraftAnchorHandler = (point: { x: number; y: number } | null) => void;
 export type EmptyUnitHandler = (rackId: string) => void;
+export type PanChangeHandler = () => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
@@ -223,6 +231,7 @@ export class SceneEngine {
   private onSceneCompleteCb: SceneCompleteHandler | null = null;
   private onDraftAnchorCb: DraftAnchorHandler | null = null;
   private onEmptyUnitCb: EmptyUnitHandler | null = null;
+  private onPanCb: PanChangeHandler | null = null;
   private firstFrameSent = false;
   private sceneCompleteSent = false;
   private expectedPhotos = 0;
@@ -237,6 +246,9 @@ export class SceneEngine {
   private idleRic = 0;
   private capturedPointerId: number | null = null;
   private pointerDownSlug: string | null = null;
+  private rackPanX = 0;
+  private rackPanning = false;
+  private lastDragX = 0;
   private resizeObserver: ResizeObserver | null = null;
   private contextLost = false;
   private lastWidth = 0;
@@ -287,6 +299,8 @@ export class SceneEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.lastDragX = event.clientX;
+    this.rackPanning = false;
     this.pointerDownSlug = this.pickHangerSlug(event);
     try {
       this.canvas.setPointerCapture(event.pointerId);
@@ -296,6 +310,19 @@ export class SceneEngine {
     }
   };
   private readonly onPointerMove = (event: PointerEvent) => {
+    if (event.buttons && this.focusedPanRange() > 0) {
+      const totalDx = event.clientX - this.pointerDown.x;
+      const totalDy = event.clientY - this.pointerDown.y;
+      if (!this.rackPanning && Math.abs(totalDx) > 10 && Math.abs(totalDx) > Math.abs(totalDy) * 1.15) {
+        this.rackPanning = true;
+        this.controls.enableRotate = false;
+      }
+      if (this.rackPanning) {
+        const dx = event.clientX - this.lastDragX;
+        this.lastDragX = event.clientX;
+        this.nudgePan(-dx * this.panPixelsToWorld());
+      }
+    }
     this.pendingHover = event;
     if (this.hoverQueued) return;
     this.hoverQueued = true;
@@ -309,6 +336,8 @@ export class SceneEngine {
   private readonly onPointerUp = (event: PointerEvent) => {
     const dx = event.clientX - this.pointerDown.x;
     const dy = event.clientY - this.pointerDown.y;
+    const wasPanning = this.rackPanning;
+    this.stopRackPan();
     this.releasePointer(event.pointerId);
     const slug = resolveHangerClick({
       pointerDownSlug: this.pointerDownSlug,
@@ -319,14 +348,24 @@ export class SceneEngine {
     });
     this.pointerDownSlug = null;
     if (slug) this.onClickCb?.(slug);
-    else if (isPointerClick(dx, dy)) {
-      const emptyId = this.emptyUnitIdFromHits(this.raycastPointer(event));
+    else if (!wasPanning && isPointerClick(dx, dy)) {
+      const hits = this.raycastPointer(event);
+      if (this.focusedId === OVERVIEW_FOCUS_ID) {
+        const rackId = rackIdFromHits(hits);
+        if (rackId) {
+          this.focusRack(rackId);
+          this.endOrbit();
+          return;
+        }
+      }
+      const emptyId = this.emptyUnitIdFromHits(hits);
       if (emptyId) this.onEmptyUnitCb?.(emptyId);
     }
     this.endOrbit();
   };
   private readonly onPointerCancel = (event: PointerEvent) => {
     this.pointerDownSlug = null;
+    this.stopRackPan();
     this.releasePointer(event.pointerId);
     this.endOrbit();
   };
@@ -338,6 +377,13 @@ export class SceneEngine {
   private readonly onPointerLeave = () => this.setHover(null);
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
+  };
+  private readonly onWheel = (event: WheelEvent) => {
+    if (event.cancelable) event.preventDefault();
+    if (this.focusedPanRange() <= 0) return;
+    const raw = Math.abs(event.deltaX) >= Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    const pixels = event.deltaMode === 1 ? raw * 16 : event.deltaMode === 2 ? raw * 800 : raw;
+    this.nudgePan(pixels * this.panPixelsToWorld());
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
@@ -372,7 +418,7 @@ export class SceneEngine {
     this.scene.background = new Color(CLEAR);
     this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 32 : 28, this.lite ? 70 : 64);
 
-    this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
+    this.camera = new PerspectiveCamera(38, 1, 0.1, 160);
     this.camera.position.set(0, 1.15, 3.2);
 
     this.renderer = new WebGLRenderer({ canvas, antialias: !this.lite, alpha: false });
@@ -442,7 +488,7 @@ export class SceneEngine {
     canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
     canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
-    canvas.addEventListener('wheel', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('wheel', this.onWheel, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
     canvas.addEventListener('webglcontextlost', this.onContextLost, false);
@@ -491,6 +537,21 @@ export class SceneEngine {
     this.onEmptyUnitCb = handler;
   }
 
+  onPanChange(handler: PanChangeHandler): void {
+    this.onPanCb = handler;
+  }
+
+  /** Nudge the framed window one column. Returns false when the rack edge is reached. */
+  panRack(delta: -1 | 1): boolean {
+    return this.nudgePan(delta * HANGER_SPACING);
+  }
+
+  canPan(delta: -1 | 1): boolean {
+    const range = this.focusedPanRange();
+    if (range <= 0.001) return false;
+    return delta < 0 ? this.rackPanX > -range + 0.001 : this.rackPanX < range - 0.001;
+  }
+
   start(): void {
     this.requestRender();
   }
@@ -516,6 +577,7 @@ export class SceneEngine {
     for (const slot of split.immediate) this.mountRack(slot);
 
     this.hasLayout = true;
+    this.rackPanX = 0;
     this.firstFrameSent = false;
     this.sceneCompleteSent = false;
     this.propsArmed = false;
@@ -545,6 +607,7 @@ export class SceneEngine {
     this.ensureRackMounted(id);
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
+    if (this.focusedId !== id) this.rackPanX = 0;
     this.focusedId = id;
     const unit = this.layout.racks.find((r) => r.id === id);
     const mode: CameraFocusMode = unit?.kind === 'vitrine' ? 'vitrine' : 'rack';
@@ -866,7 +929,7 @@ export class SceneEngine {
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
     this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
-    this.canvas.removeEventListener('wheel', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('wheel', this.onWheel, NON_PASSIVE);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost, false);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored, false);
     window.removeEventListener('resize', this.onHostResize);
@@ -887,6 +950,7 @@ export class SceneEngine {
     this.onSceneCompleteCb = null;
     this.onDraftAnchorCb = null;
     this.onEmptyUnitCb = null;
+    this.onPanCb = null;
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     photoTextureCache.clear();
@@ -934,14 +998,64 @@ export class SceneEngine {
     });
   }
 
+  private applyFog(mode: CameraFocusMode): void {
+    const fog = this.scene.fog;
+    if (!(fog instanceof Fog)) return;
+    if (mode === 'overview') {
+      fog.near = 36;
+      fog.far = 140;
+      return;
+    }
+    fog.near = this.lite ? 32 : 28;
+    fog.far = this.lite ? 70 : 64;
+  }
+
+  private focusedPanRange(): number {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return 0;
+    const unit = this.layout.racks.find((r) => r.id === this.focusedId);
+    if (!unit || unit.kind === 'vitrine') return 0;
+    return rackPanRange(unit.hangers.length);
+  }
+
+  private panPixelsToWorld(): number {
+    const fov = (this.camera.fov * Math.PI) / 180;
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    const visibleH = 2 * Math.tan(fov / 2) * Math.max(0.4, dist);
+    const visibleW = visibleH * Math.max(this.camera.aspect, 0.2);
+    return visibleW / Math.max(1, this.canvas.clientWidth || this.lastWidth || 1);
+  }
+
+  private stopRackPan(): void {
+    this.rackPanning = false;
+    this.controls.enableRotate = true;
+  }
+
+  private nudgePan(worldDx: number): boolean {
+    const range = this.focusedPanRange();
+    if (range <= 0) return false;
+    const next = Math.min(range, Math.max(-range, this.rackPanX + worldDx));
+    if (Math.abs(next - this.rackPanX) < 0.0001) return false;
+    const applied = next - this.rackPanX;
+    this.rackPanX = next;
+    this.camera.position.x += applied;
+    this.controls.target.x += applied;
+    this.onPanCb?.();
+    this.enqueueHangerTextures();
+    this.requestRender();
+    return true;
+  }
+
   private applyOrbitLimits(mode: CameraFocusMode): void {
     this.controls.minPolarAngle = CAMERA_POLAR_MIN;
     this.controls.maxPolarAngle = CAMERA_POLAR_MAX;
     this.controls.minAzimuthAngle = -CAMERA_AZIMUTH_LIMIT;
     this.controls.maxAzimuthAngle = CAMERA_AZIMUTH_LIMIT;
+    this.applyFog(mode);
     if (mode === 'overview') {
       this.controls.minDistance = 3.6;
-      this.controls.maxDistance = 16;
+      this.controls.maxDistance = isCompactAtelierViewport()
+        ? OVERVIEW_MAX_DISTANCE_COMPACT
+        : OVERVIEW_MAX_DISTANCE;
     } else if (mode === 'vitrine') {
       this.controls.minDistance = 1.4;
       this.controls.maxDistance = 6;
@@ -968,10 +1082,17 @@ export class SceneEngine {
     this.bounds.getCenter(this.fitCenter);
     const origin = new Vector3();
     object.getWorldPosition(origin);
-    const halfW = Math.max(origin.x - this.bounds.min.x, this.bounds.max.x - origin.x, this.fitSize.x / 2);
+    const rackId = String(object.userData?.['rackId'] ?? '');
+    const unit = rackId ? this.layout.racks.find((r) => r.id === rackId) : undefined;
+    const frameW = unit && mode === 'rack' ? rackFrameWidth(unit.hangers.length) : 0;
+    const halfW =
+      frameW > 0
+        ? frameW / 2
+        : Math.max(origin.x - this.bounds.min.x, this.bounds.max.x - origin.x, this.fitSize.x / 2);
+    const lookX = mode === 'rack' ? origin.x + this.rackPanX : this.fitCenter.x;
     const box = {
-      minX: mode === 'rack' ? origin.x - halfW : this.bounds.min.x,
-      maxX: mode === 'rack' ? origin.x + halfW : this.bounds.max.x,
+      minX: mode === 'rack' ? lookX - halfW : this.bounds.min.x,
+      maxX: mode === 'rack' ? lookX + halfW : this.bounds.max.x,
       minY: this.bounds.min.y - (mode === 'rack' ? 0.04 : 0),
       maxY: this.bounds.max.y + (mode === 'rack' ? 0.1 : 0),
       minZ: this.bounds.min.z,
@@ -1042,6 +1163,7 @@ export class SceneEngine {
       if (this.hasLayout && !this.firstFrameSent) {
         this.firstFrameSent = true;
         this.onFirstFrameCb?.();
+        this.maybeSceneComplete();
         this.armShadows();
         this.scheduleDeferredProps();
       }
@@ -1421,12 +1543,20 @@ export class SceneEngine {
   private enqueueHangerTextures(): void {
     const focused = this.focusedId;
     const focusedIndex = this.layout.racks.findIndex((r) => r.id === focused);
+    const rackCount = this.layout.racks.length;
     this.layout.racks.forEach((rack, rackIndex) => {
       if (!this.racksRoot.getObjectByName(`rack:${rack.id}`)) return;
+      const perRow = hangersPerRow(Math.max(1, rack.hangers.length));
+      const focusColumn =
+        rack.id === focused ? (perRow - 1) / 2 + this.rackPanX / HANGER_SPACING : (perRow - 1) / 2;
       rack.hangers.forEach((hanger, hangerIndex) => {
         this.texQueue.enqueue({
           id: hanger.slug,
-          priority: hangerPhotoPriority(rack.id, focused, rackIndex, focusedIndex, hangerIndex),
+          priority: hangerPhotoPriority(rack.id, focused, rackIndex, focusedIndex, hangerIndex, {
+            hangerCount: rack.hangers.length,
+            focusColumn,
+            rackCount,
+          }),
           run: () => this.loadHangerTexture(hanger),
         });
       });
@@ -1492,8 +1622,7 @@ export class SceneEngine {
 
   private maybeSceneComplete(): void {
     if (this.sceneCompleteSent || this.disposed) return;
-    if (this.deferredSlots.length) return;
-    if (this.finishedPhotos < this.expectedPhotos) return;
+    if (!this.firstFrameSent) return;
     this.sceneCompleteSent = true;
     this.onSceneCompleteCb?.();
   }
@@ -1518,7 +1647,9 @@ export class SceneEngine {
   private handlePointer(event: PointerEvent): void {
     const slug = this.pickHangerSlug(event);
     this.setHover(slug, { x: event.clientX, y: event.clientY });
-    this.canvas.style.cursor = slug ? 'pointer' : 'grab';
+    const zoomRack =
+      !slug && this.focusedId === OVERVIEW_FOCUS_ID ? rackIdFromHits(this.raycastPointer(event)) : null;
+    this.canvas.style.cursor = slug || zoomRack ? 'pointer' : 'grab';
   }
 
   private setHover(slug: string | null, pointer?: { x: number; y: number }): void {

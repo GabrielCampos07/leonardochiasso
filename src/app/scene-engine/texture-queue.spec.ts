@@ -40,11 +40,14 @@ describe('texturePriority', () => {
 });
 
 describe('hangerPhotoPriority', () => {
-  it('queues visible hangers on the focused rack ahead of the rest', () => {
+  it('queues hangers nearest the framed column first', () => {
     expect(TEXTURE_LOAD_CONCURRENCY).toBeGreaterThanOrEqual(4);
     expect(TEXTURE_LOAD_CONCURRENCY).toBeLessThanOrEqual(6);
-    expect(hangerPhotoPriority('a', 'a', 0, 0, 0)).toBe(0);
-    expect(hangerPhotoPriority('a', 'a', 0, 0, 3)).toBe(3);
-    expect(hangerPhotoPriority('b', 'a', 1, 0, 0)).toBeGreaterThan(hangerPhotoPriority('a', 'a', 0, 0, 7));
+    expect(hangerPhotoPriority('a', 'a', 0, 0, 0, { hangerCount: 8, focusColumn: 0 })).toBe(0);
+    expect(hangerPhotoPriority('a', 'a', 0, 0, 3, { hangerCount: 8, focusColumn: 0 })).toBe(3);
+    expect(hangerPhotoPriority('a', 'a', 0, 0, 3, { hangerCount: 8, focusColumn: 3 })).toBe(0);
+    expect(hangerPhotoPriority('b', 'a', 1, 0, 0, { hangerCount: 8 })).toBeGreaterThan(
+      hangerPhotoPriority('a', 'a', 0, 0, 7, { hangerCount: 8 }),
+    );
   });
 });

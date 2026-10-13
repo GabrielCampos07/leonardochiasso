@@ -107,6 +107,11 @@ export function pieceFocusBox(
 /** Side inset so hangers fill ~85% of the viewport width. */
 export const FIT_WIDTH_MARGIN = 0.075;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
+/** Ver todas must back up far enough to keep Organic / Sem coleção in frame. */
+export const OVERVIEW_MAX_DISTANCE = 48;
+export const OVERVIEW_MAX_DISTANCE_COMPACT = 22;
+export const OVERVIEW_FILL = 1.02;
+export const OVERVIEW_FILL_COMPACT = 1;
 
 /** ±25° around the front of the active unit. */
 export const CAMERA_AZIMUTH_LIMIT = (25 * Math.PI) / 180;
@@ -214,13 +219,18 @@ export function computeEyeLevelFit(
   const padBottom = pads.bottom;
   const visibleH = Math.max(0.38, 1 - padTop - padBottom);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : mode === 'piece' ? 0.84 : 1;
+  const fill =
+    mode === 'overview' ? (compact ? OVERVIEW_FILL_COMPACT : OVERVIEW_FILL) : mode === 'piece' ? 0.84 : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   const fitted = Math.max(fitH, fitW);
   let distance = fitted * fill + depth * (compact ? 0.08 : 0.1);
-  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 2.6 : 3.8), compact ? 9 : 16);
-  else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
+  if (mode === 'overview') {
+    distance = Math.min(
+      Math.max(distance, compact ? 2.6 : 3.8),
+      compact ? OVERVIEW_MAX_DISTANCE_COMPACT : OVERVIEW_MAX_DISTANCE,
+    );
+  } else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
 
   const bandCenter = padBottom + visibleH / 2;
   const targetY = cy + ((0.5 - bandCenter) / visibleH) * height - (mode === 'piece' ? 0.08 : 0);

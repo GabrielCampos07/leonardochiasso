@@ -74,20 +74,39 @@ export function primaryImageUrl(product: LooseProductPhotos): string | null {
   return raw ? resolveMediaUrl(raw) : null;
 }
 
-/** Dedicated thumb URL (`pdp/*-thumb.webp`) when it differs from the primary photo. */
+/** Dedicated thumb URL (`pdp/*-thumb.webp` or `media.role === "thumb"`). */
 export function thumbImageUrl(product: LooseProductPhotos): string | null {
-  const raw = asText(product.thumb);
+  const media = [...(product.media ?? [])];
+  const thumbRole = media.find((m) => isThumbRole(m));
+  const raw = asText(product.thumb) ?? mediaItemUrl(thumbRole);
   return raw ? resolveMediaUrl(raw) : null;
 }
 
-/** Unique photo URLs for a hanger: primary first, then the storefront thumb. */
+/**
+ * Storefront PLP thumb derived from a PDP gallery path
+ * (`pdp/pdp-bateau-01.webp` → `pdp/plp-bateau-thumb.webp`).
+ */
+export function derivedThumbUrl(url: string | null | undefined): string | null {
+  if (!url || /thumb/i.test(url)) return null;
+  const hashAt = url.indexOf('#');
+  const hash = hashAt >= 0 ? url.slice(hashAt) : '';
+  const withoutHash = hashAt >= 0 ? url.slice(0, hashAt) : url;
+  const queryAt = withoutHash.indexOf('?');
+  const query = queryAt >= 0 ? withoutHash.slice(queryAt) : '';
+  const path = queryAt >= 0 ? withoutHash.slice(0, queryAt) : withoutHash;
+  const match = path.match(/^(.*\/pdp\/)pdp-([^/?#]+?)(?:-\d+)?(\.(?:webp|jpe?g|png))$/i);
+  if (!match) return null;
+  return `${match[1]}plp-${match[2]}-thumb${match[3]}${query}${hash}`;
+}
+
+/** Unique photo URLs for a hanger: thumb / variant first, then the full photo. */
 export function hangerTextureUrls(hanger: {
   imageUrl?: string | null;
   thumbUrl?: string | null;
 }): string[] {
   const urls: string[] = [];
   const seen = new Set<string>();
-  for (const url of [hanger.imageUrl, hanger.thumbUrl]) {
+  for (const url of [hanger.thumbUrl, derivedThumbUrl(hanger.imageUrl), hanger.imageUrl]) {
     if (!url || seen.has(url)) continue;
     seen.add(url);
     urls.push(url);

@@ -11,6 +11,8 @@ import {
   makeSoldOutTexture,
   SOLD_OUT_TEXTURE_HEIGHT,
   SOLD_OUT_TEXTURE_WIDTH,
+  TEXTURE_BITMAP_MAX_H,
+  TEXTURE_BITMAP_MAX_W,
   TEXTURE_BITMAP_ORIENTATION,
   TEXTURE_CROSS_ORIGIN,
   textureCacheUrl,
@@ -49,6 +51,11 @@ describe('textureCacheUrl', () => {
 describe('ImageBitmap orientation', () => {
   it('flips Y in createImageBitmap so hangers and trays stay upright', () => {
     expect(TEXTURE_BITMAP_ORIENTATION).toBe('flipY');
+  });
+
+  it('downscales hanger photos to a 3D-thumb size', () => {
+    expect(TEXTURE_BITMAP_MAX_W).toBeLessThanOrEqual(320);
+    expect(TEXTURE_BITMAP_MAX_H).toBeLessThanOrEqual(400);
   });
 });
 
