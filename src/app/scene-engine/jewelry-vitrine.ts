@@ -25,8 +25,11 @@ export const TRAY_DEPTH = 0.36;
 export const VITRINE_DEPTH = 0.58;
 export const VITRINE_SHELF_PITCH = 0.58;
 export const TRAY_PHOTO_Y = 0.28;
-export const TRAY_SOLD_OUT_BADGE_W = 0.28;
-export const TRAY_SOLD_OUT_BADGE_H = 0.1;
+export const TRAY_SOLD_OUT_BADGE_W = 0.1;
+export const TRAY_SOLD_OUT_BADGE_H = 0.034;
+export const TRAY_SOLD_OUT_X = 0.26;
+export const TRAY_SOLD_OUT_Y = 0.1;
+export const TRAY_SOLD_OUT_Z = TRAY_DEPTH / 2 + 0.012;
 
 export function vitrineWidth(count: number): number {
   const perShelf = Math.min(Math.max(count, 1), VITRINE_TRAYS_PER_SHELF);
@@ -203,9 +206,9 @@ export function createJewelryTray(data: SceneHanger): Group {
 
   const badge = attachSoldOutBadge(
     group,
-    0,
-    TRAY_PHOTO_Y + TRAY_PHOTO * 0.62,
-    0.02,
+    TRAY_SOLD_OUT_X,
+    TRAY_SOLD_OUT_Y,
+    TRAY_SOLD_OUT_Z,
     TRAY_SOLD_OUT_BADGE_W,
     TRAY_SOLD_OUT_BADGE_H,
     opacity,
