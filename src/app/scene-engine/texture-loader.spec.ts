@@ -1,6 +1,7 @@
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import {
   applyCorsBeforeSrc,
+  FALLBACK_HEIGHT,
   FALLBACK_WIDTH,
   fitLabelText,
   isSharedTexture,
@@ -8,6 +9,8 @@ import {
   makeFallbackTexture,
   makeLabelTexture,
   makePlaceholderTexture,
+  makeUnavailableTexture,
+  UNAVAILABLE_ICON_SIZE,
   makeSoldOutTexture,
   SOLD_OUT_TEXTURE_HEIGHT,
   SOLD_OUT_TEXTURE_WIDTH,
@@ -77,6 +80,20 @@ describe('makeFallbackTexture', () => {
     expect(texture.image.width).toBe(FALLBACK_WIDTH);
     expect(texture.image.height).toBeGreaterThanOrEqual(128);
     texture.dispose();
+  });
+});
+
+describe('makeUnavailableTexture', () => {
+  it('keeps the piece name under a small dedicated unavailable icon', () => {
+    const texture = makeUnavailableTexture('Vestido Longo Radial');
+    expect(texture.image.width).toBe(FALLBACK_WIDTH);
+    expect(texture.image.height).toBe(FALLBACK_HEIGHT);
+    expect(UNAVAILABLE_ICON_SIZE).toBeLessThanOrEqual(40);
+    expect(UNAVAILABLE_ICON_SIZE).toBeGreaterThan(20);
+    const again = makeUnavailableTexture('Vestido Longo Radial');
+    expect(again.image).toBe(texture.image);
+    texture.dispose();
+    again.dispose();
   });
 });
 

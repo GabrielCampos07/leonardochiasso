@@ -53,12 +53,15 @@ import {
   OVERVIEW_MAX_DISTANCE_COMPACT,
   clampOrbitSpherical,
   computeEyeLevelFit,
+  computePortraitOverviewFit,
   computeVitrineFit,
   easeInOutCubic,
   easeOutBack,
   isCompactAtelierViewport,
+  isPortraitAtelierViewport,
   measureAtelierChrome,
   pieceFocusBox,
+  portraitStackOffset,
 } from './camera-guide';
 import {
   FLOOR_Y,
@@ -103,11 +106,10 @@ import {
   stopOrbitInertia,
   stopPanZoomInertia,
 } from './orbit-damping';
-import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import {
   isTextureLive,
   loadTextureCandidates,
-  makeFallbackTexture,
+  makeUnavailableTexture,
   photoTextureCache,
   TEXTURE_BITMAP_FULL_H,
   TEXTURE_BITMAP_FULL_W,
@@ -276,6 +278,7 @@ export class SceneEngine {
   private rackPanX = 0;
   private rackPanning = false;
   private lastDragX = 0;
+  private rackLayoutMode: 'aisle' | 'stack' = 'aisle';
   private resizeObserver: ResizeObserver | null = null;
   private contextLost = false;
   private lastWidth = 0;
@@ -609,6 +612,11 @@ export class SceneEngine {
     return this.focusedId;
   }
 
+  unitLocalPosition(id: string): { x: number; y: number; z: number } | null {
+    const group = this.racksRoot.getObjectByName(`rack:${id}`);
+    return group ? { x: group.position.x, y: group.position.y, z: group.position.z } : null;
+  }
+
   setLayout(layout: SceneLayout): void {
     this.layout = layout;
     this.cancelDeferredRacks();
@@ -656,6 +664,7 @@ export class SceneEngine {
       return;
     }
     this.ensureRackMounted(id);
+    this.applyRackLayout('aisle');
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
     if (this.focusedId !== id) this.resetPanForUnit(id);
@@ -674,7 +683,10 @@ export class SceneEngine {
   /** Tight frame on a single hanger — used for Esgotado close-ups. */
   focusHanger(slug: string, immediate = this.reducedMotion): boolean {
     const hanger = findHanger(this.layout, slug);
-    if (hanger) this.ensureRackMounted(hanger.rackId);
+    if (hanger) {
+      this.ensureRackMounted(hanger.rackId);
+      this.applyRackLayout('aisle');
+    }
     const group = this.findHangerGroup(slug);
     if (!group) return false;
     if (hanger) {
@@ -729,6 +741,7 @@ export class SceneEngine {
     this.flushDeferredRacks();
     this.focusedId = OVERVIEW_FOCUS_ID;
     this.focusedHangerSlug = null;
+    this.applyRackLayout(this.shouldStackOverview() ? 'stack' : 'aisle');
     this.applyOrbitLimits('overview');
     this.moveCamera(this.poseFor(this.racksRoot, 'overview'), immediate);
     this.onFocusCb?.(OVERVIEW_FOCUS_ID);
@@ -1118,10 +1131,11 @@ export class SceneEngine {
     this.controls.maxAzimuthAngle = CAMERA_AZIMUTH_LIMIT;
     this.applyFog(mode);
     if (mode === 'overview') {
-      this.controls.minDistance = 3.6;
-      this.controls.maxDistance = isCompactAtelierViewport()
-        ? OVERVIEW_MAX_DISTANCE_COMPACT
-        : OVERVIEW_MAX_DISTANCE;
+      this.controls.minDistance = this.rackLayoutMode === 'stack' ? 2.2 : 3.6;
+      this.controls.maxDistance =
+        this.rackLayoutMode === 'stack' || !isCompactAtelierViewport()
+          ? OVERVIEW_MAX_DISTANCE
+          : OVERVIEW_MAX_DISTANCE_COMPACT;
     } else if (mode === 'vitrine') {
       this.controls.minDistance = 1.4;
       this.controls.maxDistance = 6;
@@ -1168,6 +1182,9 @@ export class SceneEngine {
     const compact = isCompactAtelierViewport();
     const chrome = measureAtelierChrome(this.host);
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
+    if (mode === 'overview' && this.rackLayoutMode === 'stack') {
+      return computePortraitOverviewFit(box, this.camera.aspect, this.camera.fov, chrome);
+    }
     return computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, mode, compact, chrome);
   }
 
@@ -1484,8 +1501,33 @@ export class SceneEngine {
     const rack = this.layout.racks.find((r) => r.id === id);
     if (!rack || x == null) return;
     this.mountRack({ rack, x });
+    this.applyRackLayout(this.rackLayoutMode);
     this.enqueueHangerTextures();
     this.requestRender();
+  }
+
+  private shouldStackOverview(): boolean {
+    const size = hostDrawingSize(this.host);
+    const width = size?.width || this.lastWidth || this.canvas.clientWidth;
+    const height = size?.height || this.lastHeight || this.canvas.clientHeight;
+    return isPortraitAtelierViewport(width, height);
+  }
+
+  private applyRackLayout(mode: 'aisle' | 'stack'): void {
+    this.rackLayoutMode = mode;
+    const slots = this.computeRackSlots(this.layout);
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i]!;
+      const group = this.racksRoot.getObjectByName(`rack:${slot.id}`);
+      if (!group) continue;
+      if (mode === 'stack') {
+        const off = portraitStackOffset(i, slots.length);
+        group.position.set(off.x, off.y, 0);
+      } else {
+        group.position.set(slot.x, 0, 0);
+      }
+    }
+    this.layoutDeferredProps();
   }
 
   /** Rack rebuilds create new meshes; drop the "already loaded" flag so photos rebind. */
@@ -1721,7 +1763,7 @@ export class SceneEngine {
     const candidates = hangerTextureUrls(hanger, quality);
     if (!candidates.length) {
       if (quality === 'full') return;
-      if (!apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label))) return;
+      if (!apply(makeUnavailableTexture(label))) return;
       this.loadedPhotos.add(slug);
       this.photoQuality.set(slug, 'thumb');
       this.markPhotoFinished();
@@ -1737,7 +1779,7 @@ export class SceneEngine {
     }
     if (!texture) {
       if (quality === 'full') return;
-      if (!apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label))) return;
+      if (!apply(makeUnavailableTexture(label))) return;
       this.loadedPhotos.add(slug);
       this.photoQuality.set(slug, 'thumb');
       this.markPhotoFinished();
@@ -1934,6 +1976,7 @@ export class SceneEngine {
   private layoutDeferredProps(): void {
     if (!this.propsRoot || this.disposed) return;
     this.clearDeferredProps();
+    if (this.rackLayoutMode === 'stack') return;
     const focused =
       this.focusedId === OVERVIEW_FOCUS_ID
         ? this.layout.racks

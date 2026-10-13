@@ -89,6 +89,8 @@ export function makePlaceholderTexture(hex = COLLECTION_COVER_FALLBACK_HEX): Can
   return sharedCanvasTexture(`placeholder|${hex}`, placeholderCanvas);
 }
 
+export const UNAVAILABLE_ICON_SIZE = 36;
+
 /** Gray garment plane when the CDN image is missing or blocked. Shows name + initial. */
 export function makeFallbackTexture(hex = COLLECTION_COVER_FALLBACK_HEX, name = ''): CanvasTexture {
   const trimmed = name.trim();
@@ -113,6 +115,53 @@ export function makeFallbackTexture(hex = COLLECTION_COVER_FALLBACK_HEX, name = 
     }
   });
   return sharedCanvasTexture(`fallback|${hex}|${trimmed}`, canvas);
+}
+
+/**
+ * Failed CDN photo: small “image unavailable” glyph, name kept on the plate.
+ * Distinct from the gray-initial fallback used by tests and empty seeds.
+ */
+export function makeUnavailableTexture(name = ''): CanvasTexture {
+  const trimmed = name.trim();
+  const canvas = cachedCanvas(`unavailable|${trimmed}`, FALLBACK_WIDTH, FALLBACK_HEIGHT, (ctx) => {
+    ctx.fillStyle = '#d9d3c9';
+    ctx.fillRect(0, 0, FALLBACK_WIDTH, FALLBACK_HEIGHT);
+    ctx.fillStyle = '#cfc7bb';
+    ctx.fillRect(8, 8, FALLBACK_WIDTH - 16, FALLBACK_HEIGHT - 16);
+
+    const cx = FALLBACK_WIDTH / 2;
+    const cy = FALLBACK_HEIGHT / 2 - (trimmed ? 10 : 0);
+    const w = UNAVAILABLE_ICON_SIZE;
+    const h = Math.round(UNAVAILABLE_ICON_SIZE * 0.78);
+    ctx.strokeStyle = '#5c564e';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(cx - w / 2, cy - h / 2, w, h);
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 + 5, cy + h / 2 - 5);
+    ctx.lineTo(cx - 4, cy - 2);
+    ctx.lineTo(cx + 3, cy + 6);
+    ctx.lineTo(cx + w / 2 - 5, cy + h / 2 - 5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx + 8, cy - 5, 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 - 5, cy + h / 2 + 4);
+    ctx.lineTo(cx + w / 2 + 5, cy - h / 2 - 4);
+    ctx.strokeStyle = '#6b2a2a';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    if (trimmed) {
+      ctx.fillStyle = '#2f2c28';
+      ctx.font = '600 14px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = trimmed.length > 22 ? `${trimmed.slice(0, 21)}…` : trimmed;
+      ctx.fillText(label.toUpperCase(), FALLBACK_WIDTH / 2, FALLBACK_HEIGHT - 18, FALLBACK_WIDTH - 16);
+    }
+  });
+  return sharedCanvasTexture(`unavailable|${trimmed}`, canvas);
 }
 
 /** Trim a name so it fits the painted label plate, with a real ellipsis. */

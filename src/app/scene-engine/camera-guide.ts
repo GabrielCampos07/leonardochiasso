@@ -128,6 +128,27 @@ export function isCompactAtelierViewport(
   return width <= 768;
 }
 
+/** Phone portrait — stack racks instead of a side-by-side aisle. */
+export function isPortraitAtelierViewport(
+  width = typeof window === 'undefined' ? 1280 : window.innerWidth,
+  height = typeof window === 'undefined' ? 800 : window.innerHeight,
+): boolean {
+  return isCompactAtelierViewport(width) && height > width;
+}
+
+/** World-Y gap between stacked racks in Ver todas (one rack tall + air). */
+export const PORTRAIT_STACK_PITCH = 2.55;
+export const PORTRAIT_OVERVIEW_FILL = 1;
+/** Drop the look-at so the stack sits in the lower usable band, not the wall. */
+export const PORTRAIT_OVERVIEW_TARGET_DROP = 0.12;
+
+/** Same X, first collection on top. Centered on y = 0. */
+export function portraitStackOffset(index: number, count: number): { x: number; y: number } {
+  if (count <= 1) return { x: 0, y: 0 };
+  const mid = (count - 1) / 2;
+  return { x: 0, y: (mid - index) * PORTRAIT_STACK_PITCH };
+}
+
 export function easeInOutCubic(t: number): number {
   const x = Math.min(1, Math.max(0, t));
   return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
@@ -236,6 +257,35 @@ export function computeEyeLevelFit(
   const targetY = cy + ((0.5 - bandCenter) / visibleH) * height - (mode === 'piece' ? 0.08 : 0);
   const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
+}
+
+/**
+ * Portrait Ver todas: frame a vertical stack (one rack wide) in the lower
+ * usable band. Does not clamp to the compact aisle max of 22.
+ */
+export function computePortraitOverviewFit(
+  box: FitBox,
+  aspect: number,
+  fovDeg: number,
+  chrome?: ChromeInsets,
+): CameraPose {
+  const width = Math.max(box.maxX - box.minX, 0.4);
+  const height = Math.max(box.maxY - box.minY, 0.4);
+  const depth = Math.max(box.maxZ - box.minZ, 0.2);
+  const cx = (box.minX + box.maxX) / 2;
+  const cy = (box.minY + box.maxY) / 2;
+  const cz = (box.minZ + box.maxZ) / 2;
+  const pads = chrome ?? defaultChromeInsets(true);
+  const visibleH = Math.max(0.38, 1 - pads.top - pads.bottom);
+  const fov = (fovDeg * Math.PI) / 180;
+  const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
+  const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
+  let distance = Math.max(fitH, fitW) * PORTRAIT_OVERVIEW_FILL + depth * 0.08;
+  distance = Math.min(Math.max(distance, 2.2), OVERVIEW_MAX_DISTANCE);
+  const bandCenter = pads.bottom + visibleH / 2;
+  const targetY =
+    cy + ((0.5 - bandCenter) / visibleH) * height - height * PORTRAIT_OVERVIEW_TARGET_DROP;
+  return poseFromElevation(cx, targetY, cz, distance, 0.1);
 }
 
 /** Closer and a bit lower so tray photos fill the frame without the top shelf covering them. */

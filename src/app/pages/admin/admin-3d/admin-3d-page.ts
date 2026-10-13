@@ -86,6 +86,7 @@ import {
   collectionsFromLabels,
 } from './admin-3d.fixtures';
 import { Admin3dPrefetchService } from './admin-3d-prefetch';
+import { catalogFingerprint, readCatalogSnapshot, writeCatalogSnapshot } from './catalog-snapshot';
 import { blankAtelierJoia, blankAtelierProduct, collectionSlugFromUnitId, uniqueJoiaSlug } from './atelier-blank';
 import {
   CollectionAddPiecePanel,
@@ -273,6 +274,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private canvasReady = false;
   private pendingLayout: SceneLayout | null = null;
   private loadGen = 0;
+  private lastCatalogFp = '';
   private hintTimer = 0;
   private bootFadeTimer = 0;
   private modalOpen = false;
@@ -628,6 +630,11 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    const snap = readCatalogSnapshot();
+    if (snap) {
+      this.applyInputs(snap.collections, snap.products, snap.joias, false, gen, { persist: false });
+    }
+
     this.prefetch.prefetchCatalog().subscribe({
       next: ({ collections, products, storefront, joias }) => {
         if (gen !== this.loadGen) return;
@@ -645,10 +652,15 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
           joias.map(joiaToSceneInput),
           false,
           gen,
+          { persist: true },
         );
       },
       error: (err) => {
         if (gen !== this.loadGen) return;
+        if (this.layout.racks.length) {
+          this.loading.set(false);
+          return;
+        }
         this.loading.set(false);
         this.error.set(
           adminHttpErrorMessage(err, 'Não foi possível carregar o ateliê 3D. Verifique a API.'),
@@ -664,8 +676,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     joias: SceneProductInput[],
     mock: boolean,
     gen: number,
+    opts: { persist?: boolean } = {},
   ): void {
     if (gen !== this.loadGen) return;
+    const fp = catalogFingerprint(collections, products, joias);
+    const sameScene = fp === this.lastCatalogFp && this.layout.racks.length > 0;
+    this.lastCatalogFp = fp;
     this.usingMock.set(mock);
     this.collections = collections;
     this.knownRackIds = new Set(collections.map((c) => c.slug));
@@ -673,6 +689,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.rememberCollectionProducts();
     this.bumpLayout();
     this.loading.set(false);
+    if (opts.persist) writeCatalogSnapshot({ collections, products, joias });
+    if (sameScene) {
+      const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+      const visible: SceneLayout = { racks: unitsOfKind(this.layout, kind) };
+      this.racks.set(rackNavItems(visible.racks));
+      this.empty.set(visible.racks.length === 0 && !this.creating());
+      return;
+    }
     this.syncVisibleLayout();
   }
 
