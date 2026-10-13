@@ -28,14 +28,14 @@ describe('AdminCollectionOrderService', () => {
   });
 
   it('GETs the isolated order route and returns productIds', () => {
-    const body = {
+    const body: CollectionGenderOrder = {
       collection: 'organic-dreams',
-      gender: 'feminino' as const,
+      gender: 'feminino',
       productIds: ['id-1', 'id-2'],
     };
-    let got: CollectionGenderOrder | null = null;
+    const box: { value?: CollectionGenderOrder } = {};
     service.get('organic-dreams', 'feminino').subscribe((res) => {
-      got = res;
+      box.value = res;
     });
     const req = http.expectOne(
       'http://order.test/api/admin/collections/organic-dreams/order?gender=feminino',
@@ -43,18 +43,18 @@ describe('AdminCollectionOrderService', () => {
     expect(req.request.method).toBe('GET');
     expect(req.request.withCredentials).toBeTrue();
     req.flush(body);
-    expect(got).toEqual(body);
+    expect(box.value).toEqual(body);
   });
 
   it('PUTs { productIds } and reads the same shape back', () => {
-    const body = {
+    const body: CollectionGenderOrder = {
       collection: 'organic-dreams',
-      gender: 'masculino' as const,
+      gender: 'masculino',
       productIds: ['id-a', 'id-b'],
     };
-    let got: CollectionGenderOrder | null = null;
+    const box: { value?: CollectionGenderOrder } = {};
     service.put('organic-dreams', 'masculino', ['id-a', 'id-b']).subscribe((res) => {
-      got = res;
+      box.value = res;
     });
     const req = http.expectOne(
       'http://order.test/api/admin/collections/organic-dreams/order?gender=masculino',
@@ -62,32 +62,32 @@ describe('AdminCollectionOrderService', () => {
     expect(req.request.method).toBe('PUT');
     expect(req.request.body).toEqual({ productIds: ['id-a', 'id-b'] });
     req.flush(body);
-    expect(got).toEqual(body);
+    expect(box.value).toEqual(body);
   });
 
   it('falls back locally when the order endpoint is missing', () => {
-    let got: CollectionGenderOrder | null = null;
+    const box: { value?: CollectionGenderOrder } = {};
     service.get('niponic-dreams', 'feminino').subscribe((res) => {
-      got = res;
+      box.value = res;
     });
     http
       .expectOne('http://order.test/api/admin/collections/niponic-dreams/order?gender=feminino')
       .flush('not found', { status: 404, statusText: 'Not Found' });
-    expect(got?.productIds).toEqual([]);
+    expect(box.value?.productIds).toEqual([]);
   });
 
   it('surfaces a 400 message so the UI can restore the previous order', () => {
-    let err: HttpErrorResponse | undefined;
+    const box: { err?: HttpErrorResponse } = {};
     service.put('organic-dreams', 'feminino', ['missing']).subscribe({
       next: () => fail('expected 400'),
       error: (e: unknown) => {
-        err = e as HttpErrorResponse;
+        box.err = e as HttpErrorResponse;
       },
     });
     http
       .expectOne('http://order.test/api/admin/collections/organic-dreams/order?gender=feminino')
       .flush({ message: 'Lista incompleta para este gênero.' }, { status: 400, statusText: 'Bad Request' });
-    expect(err?.status).toBe(400);
-    expect((err?.error as { message?: string })?.message).toBe('Lista incompleta para este gênero.');
+    expect(box.err?.status).toBe(400);
+    expect((box.err?.error as { message?: string })?.message).toBe('Lista incompleta para este gênero.');
   });
 });
