@@ -215,7 +215,6 @@ export class SceneEngine {
   private lift = 0;
   private liftTarget = 0;
   private focusedId: string = OVERVIEW_FOCUS_ID;
-  private pieceFocusSlug: string | null = null;
   private layout: SceneLayout = { racks: [] };
   private onClickCb: HangerPickHandler | null = null;
   private onHoverCb: HangerHoverHandler | null = null;
@@ -532,7 +531,6 @@ export class SceneEngine {
     this.ensureRackMounted(id);
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
-    this.clearPieceFocus();
     this.focusedId = id;
     const unit = this.layout.racks.find((r) => r.id === id);
     const mode: CameraFocusMode = unit?.kind === 'vitrine' ? 'vitrine' : 'rack';
@@ -553,8 +551,6 @@ export class SceneEngine {
       this.focusedId = hanger.rackId;
       this.applyOrbitLimits('rack');
     }
-    this.setNeighborLabelsVisible(slug, false);
-    this.pieceFocusSlug = slug;
     group.updateWorldMatrix(true, true);
     const garment = group.getObjectByName('garment');
     const label = group.getObjectByName('label');
@@ -586,7 +582,7 @@ export class SceneEngine {
         box,
         this.camera.aspect,
         this.camera.fov,
-        'rack',
+        'piece',
         isCompactAtelierViewport(),
         measureAtelierChrome(this.host),
       ),
@@ -599,7 +595,6 @@ export class SceneEngine {
 
   focusOverview(immediate = this.reducedMotion): void {
     this.flushDeferredRacks();
-    this.clearPieceFocus();
     this.focusedId = OVERVIEW_FOCUS_ID;
     this.applyOrbitLimits('overview');
     this.moveCamera(this.poseFor(this.racksRoot, 'overview'), immediate);
@@ -989,7 +984,7 @@ export class SceneEngine {
       this.tween = null;
       this.camera.position.copy(toPos);
       this.controls.target.copy(toTarget);
-      this.camera.near = Math.max(0.05, pose.distance / 80);
+      this.camera.near = Math.max(0.18, pose.distance / 40);
       this.camera.far = Math.max(80, pose.distance * 10);
       this.camera.updateProjectionMatrix();
       this.controls.update();
@@ -1056,7 +1051,6 @@ export class SceneEngine {
 
   private focusDraft(immediate = this.reducedMotion): void {
     if (!this.draft) return;
-    this.clearPieceFocus();
     this.focusedId = DRAFT_UNIT_ID;
     const mode: CameraFocusMode = this.draftKind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
@@ -1160,7 +1154,11 @@ export class SceneEngine {
   private faceLabels(): void {
     const viewportH = this.canvas.clientHeight || this.renderer.domElement.height || 1;
     this.racksRoot.traverse((obj) => {
-      if (obj.name === 'plate' || obj.name === 'label' || obj.name === 'labelBack') {
+      if (obj.name === 'plate') {
+        obj.quaternion.identity();
+        return;
+      }
+      if (obj.name === 'label' || obj.name === 'labelBack') {
         obj.lookAt(this.camera.position);
         return;
       }
@@ -1233,26 +1231,6 @@ export class SceneEngine {
 
   private findHangerGroup(slug: string): Group | null {
     return (this.racksRoot.getObjectByName(`hanger:${slug}`) as Group | undefined) ?? null;
-  }
-
-  /** Hide leftover neighbor plates during piece focus so they cannot clip mid-word. */
-  private setNeighborLabelsVisible(slug: string, visible: boolean): void {
-    const hanger = findHanger(this.layout, slug);
-    const siblings = hanger ? this.layout.racks.find((rack) => rack.id === hanger.rackId)?.hangers ?? [] : [];
-    for (const sibling of siblings) {
-      if (sibling.slug === slug) continue;
-      const group = this.findHangerGroup(sibling.slug);
-      for (const name of ['label', 'labelBack']) {
-        const obj = group?.getObjectByName(name);
-        if (obj) obj.visible = visible;
-      }
-    }
-  }
-
-  private clearPieceFocus(): void {
-    if (!this.pieceFocusSlug) return;
-    this.setNeighborLabelsVisible(this.pieceFocusSlug, true);
-    this.pieceFocusSlug = null;
   }
 
   private hangerName(slug: string): string {

@@ -14,7 +14,7 @@ import {
   isCompactAtelierViewport,
   photoPlaneSize,
   pieceFocusBox,
-  PIECE_FOCUS_SHIFT,
+  PIECE_NEIGHBOR_PAD,
   rackNavItems,
   stepRackIndex,
 } from './camera-guide';
@@ -144,27 +144,38 @@ describe('computeEyeLevelFit', () => {
     const piece = { minX: -0.4, maxX: 0.4, minY: -0.45, maxY: 0.75, minZ: -0.1, maxZ: 0.1 };
     const chrome = { top: 0.05, bottom: 0.18 };
     const wide = computeEyeLevelFit(rack, 16 / 9, 38, 'rack', false, chrome);
-    const close = computeEyeLevelFit(piece, 16 / 9, 38, 'rack', false, chrome);
+    const close = computeEyeLevelFit(piece, 16 / 9, 38, 'piece', false, chrome);
     expect(close.distance).toBeLessThan(wide.distance);
+  });
+
+  it('looks down more in piece mode so the collection sign stays above the frame', () => {
+    const piece = { minX: -0.4, maxX: 0.4, minY: -0.45, maxY: 0.75, minZ: -0.1, maxZ: 0.1 };
+    const chrome = { top: 0.05, bottom: 0.18 };
+    const rack = computeEyeLevelFit(piece, 16 / 9, 38, 'rack', false, chrome);
+    const close = computeEyeLevelFit(piece, 16 / 9, 38, 'piece', false, chrome);
+    const rackElev = Math.atan2(rack.position.y - rack.target.y, rack.position.z - rack.target.z);
+    const pieceElev = Math.atan2(close.position.y - close.target.y, close.position.z - close.target.z);
+    expect(pieceElev).toBeGreaterThan(rackElev);
+    expect(close.distance).toBeLessThan(rack.distance);
   });
 });
 
 describe('pieceFocusBox', () => {
   const piece = { minX: -0.56, maxX: -0.08, minY: 0.02, maxY: 1.06, minZ: 0, maxZ: 0.16 };
 
-  it('keeps a left hanger as the subject with a slight outer bias', () => {
+  it('opens toward the right sibling so its ellipsized plate stays in frame', () => {
     const box = pieceFocusBox(piece, 0, 2);
     const pieceCx = (piece.minX + piece.maxX) / 2;
     const lookCx = (box.minX + box.maxX) / 2;
-    expect(lookCx).toBeCloseTo(pieceCx - PIECE_FOCUS_SHIFT, 5);
-    expect(lookCx).toBeGreaterThan(pieceCx - 0.35);
-    expect(box.maxX - box.minX).toBeCloseTo(piece.maxX - piece.minX + 0.1, 5);
+    expect(lookCx).toBeGreaterThan(pieceCx);
+    expect(box.maxX).toBeCloseTo(piece.maxX + 0.06 + PIECE_NEIGHBOR_PAD, 5);
   });
 
-  it('shifts a right hanger look-at the other way', () => {
+  it('opens toward the left sibling the other way', () => {
     const box = pieceFocusBox(piece, 1, 2);
     const pieceCx = (piece.minX + piece.maxX) / 2;
-    expect((box.minX + box.maxX) / 2).toBeCloseTo(pieceCx + PIECE_FOCUS_SHIFT, 5);
+    expect((box.minX + box.maxX) / 2).toBeLessThan(pieceCx);
+    expect(box.minX).toBeCloseTo(piece.minX - 0.06 - PIECE_NEIGHBOR_PAD, 5);
   });
 
   it('keeps a solo hanger centered', () => {

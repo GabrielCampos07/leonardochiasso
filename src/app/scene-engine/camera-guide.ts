@@ -1,6 +1,6 @@
 import { UNCOLLECTED_RACK_ID } from './types';
 
-export type CameraFocusMode = 'rack' | 'vitrine' | 'overview';
+export type CameraFocusMode = 'rack' | 'vitrine' | 'overview' | 'piece';
 
 export interface FitBox {
   minX: number;
@@ -34,8 +34,8 @@ export const FIT_PAD_BOTTOM = 0.16;
 export const FIT_PAD_SIDE = 0.075;
 /** Extra pixels of air between the 3D content and overlaid chrome. */
 export const CHROME_MARGIN_PX = 20;
-/** Keep the piece as the look-at subject; a large shift walks the lens into the next rack. */
-export const PIECE_FOCUS_SHIFT = 0.08;
+/** Expand toward the sibling so its ellipsized name plate stays in the close-up frame. */
+export const PIECE_NEIGHBOR_PAD = 0.4;
 
 export interface ChromeInsets {
   /** Fraction of canvas height reserved at the top (header / badges). */
@@ -82,25 +82,24 @@ export function measureAtelierChrome(host: HTMLElement): ChromeInsets {
   };
 }
 
-/** Frame one hanger so its photo, name plate and ribbon fit above the bar; neighbor plates leave the frame. */
+/** Frame the aimed hanger plus enough width for the neighbor's ellipsized plate. */
 export function pieceFocusBox(
   bounds: FitBox,
   siblingIndex: number,
   siblingCount: number,
-  shift = PIECE_FOCUS_SHIFT,
+  neighborPad = PIECE_NEIGHBOR_PAD,
 ): FitBox {
-  const towardOuter =
+  const towardNeighbor =
     siblingCount > 1 && siblingIndex >= 0 && siblingIndex < siblingCount / 2
-      ? -1
+      ? 1
       : siblingCount > 1
-        ? 1
+        ? -1
         : 0;
-  const dx = towardOuter * shift;
   return {
-    minX: bounds.minX - 0.05 + dx,
-    maxX: bounds.maxX + 0.05 + dx,
+    minX: bounds.minX - 0.06 + (towardNeighbor < 0 ? -neighborPad : 0),
+    maxX: bounds.maxX + 0.06 + (towardNeighbor > 0 ? neighborPad : 0),
     minY: bounds.minY - 0.05,
-    maxY: bounds.maxY + 0.06,
+    maxY: bounds.maxY + 0.04,
     minZ: bounds.minZ,
     maxZ: bounds.maxZ,
   };
@@ -215,7 +214,7 @@ export function computeEyeLevelFit(
   const padBottom = pads.bottom;
   const visibleH = Math.max(0.38, 1 - padTop - padBottom);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : 1;
+  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : mode === 'piece' ? 0.88 : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   const fitted = Math.max(fitH, fitW);
@@ -225,7 +224,7 @@ export function computeEyeLevelFit(
 
   const bandCenter = padBottom + visibleH / 2;
   const targetY = cy + ((0.5 - bandCenter) / visibleH) * height;
-  const elevation = compact ? 0.16 : 0.22;
+  const elevation = compact ? 0.16 : mode === 'piece' ? 0.28 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
