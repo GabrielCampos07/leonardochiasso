@@ -66,8 +66,14 @@ async function until(pred: () => boolean, ms = 2500): Promise<void> {
   }
 }
 
+function isBoundPhoto(map: Texture | null): boolean {
+  if (!map || !isTextureLive(map)) return false;
+  const key = String(map.userData?.['cacheKey'] ?? '');
+  return key.includes('?tex=1') || key.startsWith('https://') || key.startsWith('http://');
+}
+
 async function photosLive(engine: SceneEngine, slugs: string[]): Promise<void> {
-  await until(() => slugs.every((slug) => isTextureLive(hangerPhoto(engine, slug))));
+  await until(() => slugs.every((slug) => isBoundPhoto(hangerPhoto(engine, slug))));
 }
 
 function mountEngine(): { engine: SceneEngine; canvas: HTMLCanvasElement; host: HTMLDivElement } | null {
