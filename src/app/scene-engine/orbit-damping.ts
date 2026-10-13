@@ -63,6 +63,13 @@ export function hangerTooltipWhileCameraBusy(cameraBusy: boolean): boolean {
   return !cameraBusy;
 }
 
+/** Off while leftover inertia dies; back on at settle and on the next pointerdown / wheel. */
+export function shouldEnableOrbitZoom(
+  phase: 'release' | 'settle' | 'pointerdown' | 'wheel',
+): boolean {
+  return phase !== 'release';
+}
+
 /** After settle: current pick or clear. Never keep a slug from a moving camera. */
 export function hoverSlugAfterCameraSettle(cameraBusy: boolean, slug: string | null): string | null {
   if (cameraBusy) return null;
