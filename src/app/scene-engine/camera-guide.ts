@@ -307,7 +307,7 @@ export function computeEyeLevelFit(
   let targetY = cy + bandShift - (mode === 'piece' ? 0.08 : 0);
   if (compact && mode === 'rack') {
     const slack = Math.max(0, viewH * visibleH - height);
-    targetY -= height * COMPACT_RACK_RAISE + slack * 0.4;
+    targetY -= height * COMPACT_RACK_RAISE * 0.45 + slack * 0.2;
   }
   const elevation = compact ? 0.07 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
