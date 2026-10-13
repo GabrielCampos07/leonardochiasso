@@ -555,19 +555,21 @@ export class SceneEngine {
     const plate = rackGroup?.getObjectByName('plate');
     group.updateWorldMatrix(true, true);
     plate?.updateWorldMatrix(true, true);
+    rackGroup?.updateWorldMatrix(true, true);
     const garment = group.getObjectByName('garment');
     const focus = new Vector3();
     (garment ?? group).getWorldPosition(focus);
-    const platePos = new Vector3();
-    plate?.getWorldPosition(platePos);
-    const plateTop = plate ? platePos.y + 0.16 : focus.y + 0.7;
+    this.bounds.makeEmpty();
+    if (plate) this.bounds.expandByObject(plate);
+    this.bounds.expandByObject(garment ?? group);
+    if (this.bounds.isEmpty()) this.bounds.expandByObject(group);
     const box = {
-      minX: focus.x - 0.62,
-      maxX: focus.x + 0.62,
-      minY: focus.y - 0.42,
-      maxY: plateTop,
-      minZ: focus.z - 0.12,
-      maxZ: focus.z + 0.12,
+      minX: Math.min(this.bounds.min.x, focus.x - 0.55),
+      maxX: Math.max(this.bounds.max.x, focus.x + 0.55),
+      minY: this.bounds.min.y - 0.08,
+      maxY: this.bounds.max.y + 0.12,
+      minZ: this.bounds.min.z,
+      maxZ: this.bounds.max.z,
     };
     this.moveCamera(
       computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, 'rack', isCompactAtelierViewport()),
@@ -936,7 +938,7 @@ export class SceneEngine {
       minX: this.bounds.min.x,
       maxX: this.bounds.max.x,
       minY: this.bounds.min.y,
-      maxY: this.bounds.max.y,
+      maxY: this.bounds.max.y + (mode === 'rack' ? 0.1 : 0),
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };

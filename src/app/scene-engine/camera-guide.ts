@@ -142,13 +142,16 @@ export function computeEyeLevelFit(
   const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
-  const fitted = Math.max(fitH, fitW);
+  const fitted =
+    mode === 'overview'
+      ? Math.max(fitH, fitW)
+      : Math.max(fitW, fitH > fitW * 1.35 ? fitH : compact ? Math.min(fitH, fitW * 1.12) : fitW);
   let distance = fitted * fill + depth * (compact ? 0.08 : 0.1);
   if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 2.6 : 3.8), compact ? 9 : 16);
   else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
 
-  const targetY = compact ? box.minY + height * 0.48 : cy;
-  const elevation = compact ? 0.11 : 0.13;
+  const targetY = compact ? box.minY + height * 0.5 : box.minY + height * 0.56;
+  const elevation = compact ? 0.18 : 0.26;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
