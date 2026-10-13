@@ -1,11 +1,13 @@
 import { CanvasTexture, SRGBColorSpace, Texture } from 'three';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
+import { isTextureLive, markSharedTexture, photoTextureCache } from './texture-cache';
+
+export { SHARED_TEXTURE_FLAG, isSharedTexture, isTextureLive, photoTextureCache } from './texture-cache';
 
 /** Must be assigned on the Image *before* `src` so R2 (`pub-…r2.dev`) sends CORS headers. */
 export const TEXTURE_CROSS_ORIGIN = 'anonymous';
 export const TEXTURE_CACHE_PARAM = 'tex';
 export const TEXTURE_CACHE_VALUE = '1';
-export const SHARED_TEXTURE_FLAG = 'shared';
 export const TEXTURE_BITMAP_MAX_W = 512;
 export const TEXTURE_BITMAP_MAX_H = 640;
 /** ImageBitmap ignores `texture.flipY`; flip here so hangers and trays stay upright. */
@@ -37,19 +39,24 @@ export function applyCorsBeforeSrc(image: { crossOrigin: string | null }): void 
   image.crossOrigin = TEXTURE_CROSS_ORIGIN;
 }
 
-export function isSharedTexture(texture: Texture | null | undefined): boolean {
-  return Boolean(texture?.userData?.[SHARED_TEXTURE_FLAG]);
-}
-
 const canvasCache = new Map<string, HTMLCanvasElement>();
+const sharedCanvasTextures = new Map<string, CanvasTexture>();
 let placeholderCanvas: HTMLCanvasElement | null = null;
 let soldOutCanvas: HTMLCanvasElement | null = null;
 
-function makeCanvasTexture(canvas: HTMLCanvasElement, shared = false): CanvasTexture {
+function makeCanvasTexture(canvas: HTMLCanvasElement, shared = false, cacheKey?: string): CanvasTexture {
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.needsUpdate = true;
-  if (shared) texture.userData[SHARED_TEXTURE_FLAG] = true;
+  if (shared) markSharedTexture(texture, cacheKey);
+  return texture;
+}
+
+function sharedCanvasTexture(key: string, canvas: HTMLCanvasElement): CanvasTexture {
+  const hit = sharedCanvasTextures.get(key);
+  if (hit && isTextureLive(hit)) return hit;
+  const texture = makeCanvasTexture(canvas, true, key);
+  sharedCanvasTextures.set(key, texture);
   return texture;
 }
 
@@ -77,7 +84,7 @@ export function makePlaceholderTexture(hex = COLLECTION_COVER_FALLBACK_HEX): Can
       ctx.fillRect(0, 0, 32, 40);
     }
   }
-  return makeCanvasTexture(placeholderCanvas, true);
+  return sharedCanvasTexture(`placeholder|${hex}`, placeholderCanvas);
 }
 
 /** Gray garment plane when the CDN image is missing or blocked. Shows name + initial. */
@@ -103,7 +110,7 @@ export function makeFallbackTexture(hex = COLLECTION_COVER_FALLBACK_HEX, name = 
       ctx.fillText(label.toUpperCase(), FALLBACK_WIDTH / 2, FALLBACK_HEIGHT - 22, FALLBACK_WIDTH - 16);
     }
   });
-  return makeCanvasTexture(canvas);
+  return sharedCanvasTexture(`fallback|${hex}|${trimmed}`, canvas);
 }
 
 /** Trim a name so it fits the painted label plate, with a real ellipsis. */
@@ -150,7 +157,7 @@ export function makeLabelTexture(
     ctx.textBaseline = 'middle';
     ctx.fillText(label.toUpperCase(), width / 2, height / 2, width - 48);
   });
-  return makeCanvasTexture(canvas);
+  return sharedCanvasTexture(`label|${width}|${height}|${fill}|${color}|${size}|${label}`, canvas);
 }
 
 export function makeSoldOutTexture(): CanvasTexture {
@@ -174,7 +181,7 @@ export function makeSoldOutTexture(): CanvasTexture {
       ctx.fillText('ESGOTADO', SOLD_OUT_TEXTURE_WIDTH / 2, SOLD_OUT_TEXTURE_HEIGHT / 2 + 2, SOLD_OUT_TEXTURE_WIDTH - 24);
     }
   }
-  return makeCanvasTexture(soldOutCanvas, true);
+  return sharedCanvasTexture('sold-out', soldOutCanvas);
 }
 
 function textureFromImage(image: TexImageSource, flipY: boolean): Texture {
@@ -212,11 +219,7 @@ function loadTextureImage(url: string): Promise<Texture | null> {
   });
 }
 
-/**
- * Load a WebGL texture with CORS. Prefers off-thread `createImageBitmap` decode
- * and downscales to a 3D-thumb size. Resolves `null` on any failure.
- */
-export async function loadTextureSafe(url: string): Promise<Texture | null> {
+async function loadTextureUncached(url: string): Promise<Texture | null> {
   try {
     if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
       return await loadTextureBitmap(url);
@@ -229,6 +232,16 @@ export async function loadTextureSafe(url: string): Promise<Texture | null> {
       return null;
     }
   }
+}
+
+/**
+ * Load a WebGL texture with CORS. Prefers off-thread `createImageBitmap` decode
+ * and downscales to a 3D-thumb size. Resolves `null` on any failure.
+ * Shared across hangers via the ref-counted photo cache.
+ */
+export async function loadTextureSafe(url: string): Promise<Texture | null> {
+  if (!url) return null;
+  return photoTextureCache.acquire(textureCacheUrl(url), () => loadTextureUncached(url));
 }
 
 /** Try each URL (already distinct) through the CORS `tex=1` loader. */

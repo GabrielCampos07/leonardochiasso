@@ -78,10 +78,10 @@ import {
   vitrineWidth,
 } from './jewelry-vitrine';
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
-import { disposeObject3D, disposeRenderer } from './dispose';
+import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
-import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
+import { isTextureLive, loadTextureCandidates, makeFallbackTexture, photoTextureCache } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
 import {
   findHanger,
@@ -687,6 +687,7 @@ export class SceneEngine {
     if (this.focusedId === id) this.focusedId = OVERVIEW_FOCUS_ID;
     this.rises = this.rises.filter((rise) => rise.group !== group);
     if (immediate || !group) {
+      this.forgetUnitPhotos(id);
       if (group) {
         group.removeFromParent();
         disposeObject3D(group);
@@ -707,8 +708,10 @@ export class SceneEngine {
   restoreUnit(unit: SceneRack): void {
     if (this.layout.racks.some((r) => r.id === unit.id)) return;
     this.layout = { racks: [...this.layout.racks, unit] };
+    for (const hanger of unit.hangers) this.loadedPhotos.delete(hanger.slug);
     const slot = this.computeRackSlots(this.layout).find((s) => s.id === unit.id);
     if (slot) this.mountRack(slot);
+    this.enqueueHangerTextures();
     this.requestRender();
   }
 
@@ -872,6 +875,7 @@ export class SceneEngine {
     this.onEmptyUnitCb = null;
     this.texQueue.dispose();
     this.loadedPhotos.clear();
+    photoTextureCache.clear();
     this.keyLight = null;
     this.hdri?.dispose();
     this.hdri = null;
@@ -1128,6 +1132,8 @@ export class SceneEngine {
       const e = easeInOutCubic(t);
       this.sink.group.position.y = this.sink.fromY + (this.sink.toY - this.sink.fromY) * e;
       if (t >= 1) {
+        const rackId = String(this.sink.group.userData?.['rackId'] ?? '');
+        if (rackId) this.forgetUnitPhotos(rackId);
         this.sink.group.removeFromParent();
         disposeObject3D(this.sink.group);
         this.sink = null;
@@ -1233,6 +1239,13 @@ export class SceneEngine {
     return (this.racksRoot.getObjectByName(`hanger:${slug}`) as Group | undefined) ?? null;
   }
 
+  private hangerPhotoIsLive(slug: string): boolean {
+    const group = this.findHangerGroup(slug);
+    const garment = group?.getObjectByName('garment') as Mesh | undefined;
+    if (!garment || !isPhotoMaterial(garment.material)) return false;
+    return isTextureLive(garment.material.map);
+  }
+
   private hangerName(slug: string): string {
     for (const rack of this.layout.racks) {
       const found = rack.hangers.find((h) => h.slug === slug);
@@ -1264,6 +1277,7 @@ export class SceneEngine {
   }
 
   private remountUnit(id: string): void {
+    this.forgetUnitPhotos(id);
     const existing = this.racksRoot.getObjectByName(`rack:${id}`);
     const x = existing?.position.x ?? this.computeRackSlots(this.layout).find((s) => s.id === id)?.x;
     if (existing) {
@@ -1275,6 +1289,17 @@ export class SceneEngine {
     this.mountRack({ rack, x });
     this.enqueueHangerTextures();
     this.requestRender();
+  }
+
+  /** Rack rebuilds create new meshes; drop the "already loaded" flag so photos rebind. */
+  private forgetUnitPhotos(id: string): void {
+    const rack = this.layout.racks.find((r) => r.id === id);
+    for (const hanger of rack?.hangers ?? []) this.loadedPhotos.delete(hanger.slug);
+    const existing = this.racksRoot.getObjectByName(`rack:${id}`);
+    existing?.traverse((child) => {
+      const slug = String(child.userData?.['slug'] ?? '');
+      if (slug) this.loadedPhotos.delete(slug);
+    });
   }
 
   private emptyUnitIdFromHits(hits: Array<{ object: Object3D }>): string | null {
@@ -1404,7 +1429,11 @@ export class SceneEngine {
 
   private async loadHangerTexture(hanger: SceneHanger | string, url?: string | null, name?: string): Promise<void> {
     const slug = typeof hanger === 'string' ? hanger : hanger.slug;
-    if (this.disposed || this.loadedPhotos.has(slug)) return;
+    if (this.disposed) return;
+    if (this.loadedPhotos.has(slug)) {
+      if (this.hangerPhotoIsLive(slug)) return;
+      this.loadedPhotos.delete(slug);
+    }
     const piece = typeof hanger === 'string' ? null : hanger;
     const label = piece?.name ?? name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
@@ -1420,7 +1449,7 @@ export class SceneEngine {
       if (!live || !liveGarment || !isPhotoMaterial(liveGarment.material)) return;
       applyPhotoMap(liveGarment.material, texture);
       this.applyPiecePhoto(live, texture);
-      if (previous && previous !== texture && !isSharedTexture(previous)) previous.dispose();
+      if (previous && previous !== texture) disposeOwnedTexture(previous);
       this.requestRender();
     };
     const candidates = hangerTextureUrls(
@@ -1434,7 +1463,7 @@ export class SceneEngine {
     }
     const texture = await loadTextureCandidates(candidates);
     if (this.disposed) {
-      texture?.dispose();
+      disposeOwnedTexture(texture);
       return;
     }
     apply(texture ?? makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
@@ -1540,7 +1569,7 @@ export class SceneEngine {
       wall.material.map = wallMap;
       wall.material.color.setHex(0xf4efe6);
       wall.material.needsUpdate = true;
-      if (prev && !isSharedTexture(prev)) prev.dispose();
+      disposeOwnedTexture(prev);
     } else {
       wallMap?.dispose();
     }

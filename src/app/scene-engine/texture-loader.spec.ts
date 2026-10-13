@@ -105,9 +105,17 @@ describe('label and placeholder canvases', () => {
     const a = makePlaceholderTexture();
     const b = makePlaceholderTexture();
     expect(isSharedTexture(a)).toBeTrue();
+    expect(a).toBe(b);
     expect(a.image).toBe(b.image);
     expect(a.image.width).toBeLessThanOrEqual(64);
+  });
+
+  it('returns a new live placeholder if the shared instance was disposed', () => {
+    const a = makePlaceholderTexture();
     a.dispose();
-    b.dispose();
+    const b = makePlaceholderTexture();
+    expect(b).not.toBe(a);
+    expect(isSharedTexture(b)).toBeTrue();
+    expect(b.image.width).toBeGreaterThan(0);
   });
 });
