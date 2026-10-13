@@ -855,6 +855,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private markFirstFrame(): void {
     this.boot.markFirstFrame();
     this.firstFrame.set(true);
+    afterOverlayPaint(() => this.engine?.refitToChrome());
     const piece = this.route.snapshot.queryParamMap.get('piece');
     if (piece) {
       const aim = () => this.engine?.focusHanger(piece, true);

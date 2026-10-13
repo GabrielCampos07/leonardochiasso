@@ -45,41 +45,78 @@ export interface ChromeInsets {
 }
 
 export function defaultChromeInsets(compact = false): ChromeInsets {
-  return compact ? { top: 0.06, bottom: 0.3 } : { top: 0.05, bottom: 0.18 };
+  return compact ? { top: 0.08, bottom: 0.26 } : { top: 0.05, bottom: 0.18 };
 }
 
-/** Read the live guide / add-piece overlays so the lens leaves them empty. */
+export function readSafeAreaInsets(): { top: number; bottom: number } {
+  if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
+    return { top: 0, bottom: 0 };
+  }
+  const probe = document.createElement('div');
+  probe.style.cssText =
+    'position:fixed;top:0;left:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);visibility:hidden;pointer-events:none';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const top = Number.parseFloat(cs.paddingTop) || 0;
+  const bottom = Number.parseFloat(cs.paddingBottom) || 0;
+  probe.remove();
+  return { top, bottom };
+}
+
+/** Canvas rect minus live overlays and safe-area insets. */
 export function measureAtelierChrome(host: HTMLElement): ChromeInsets {
-  const fallback = defaultChromeInsets(isCompactAtelierViewport(host.clientWidth || 1280));
-  const height = Math.max(host.clientHeight || 0, 1);
   const hostRect = host.getBoundingClientRect();
+  const canvas = host.querySelector('canvas');
+  const canvasRect = canvas?.getBoundingClientRect();
+  const width = Math.max(hostRect.width || host.clientWidth || 0, canvasRect?.width || 0, 1);
+  const height = Math.max(hostRect.height || host.clientHeight || 0, canvasRect?.height || 0, 1);
+  const compact = isCompactAtelierViewport(width);
+  const fallback = defaultChromeInsets(compact);
+  const safe = readSafeAreaInsets();
+  const frame = canvasRect && canvasRect.height > 1 ? canvasRect : hostRect;
   let top = fallback.top;
   let bottom = fallback.bottom;
   const overlay = host.querySelector('.admin-3d__chrome') as HTMLElement | null;
   if (overlay) {
-    const fromTop = overlay.getBoundingClientRect().bottom - hostRect.top;
-    if (fromTop > 0 && fromTop < height * 0.35) {
-      top = Math.max(top, (fromTop + 8) / height);
+    const fromTop = overlay.getBoundingClientRect().bottom - frame.top + safe.top;
+    if (fromTop > 0 && fromTop < height * 0.4) {
+      top = (fromTop + 8) / height;
     }
+  } else {
+    top = (fallback.top * height + safe.top) / height;
   }
   const guide = host.querySelector('.admin-3d__guide') as HTMLElement | null;
   if (guide) {
-    const fromBottom = hostRect.bottom - guide.getBoundingClientRect().top;
+    const fromBottom = frame.bottom - guide.getBoundingClientRect().top + safe.bottom;
     if (fromBottom > 0 && fromBottom < height) {
-      bottom = Math.max(bottom, (fromBottom + CHROME_MARGIN_PX) / height);
+      bottom = (fromBottom + CHROME_MARGIN_PX) / height;
     }
+  } else {
+    bottom = (fallback.bottom * height + safe.bottom) / height;
   }
   const add = host.querySelector('.admin-3d__add-piece') as HTMLElement | null;
   if (add) {
-    const fromBottom = hostRect.bottom - add.getBoundingClientRect().top;
+    const fromBottom = frame.bottom - add.getBoundingClientRect().top + safe.bottom;
     if (fromBottom > 0 && fromBottom < height) {
       bottom = Math.max(bottom, (fromBottom + 8) / height);
     }
   }
+  applyAtelierChromeVars(host, { top, bottom }, height);
   return {
-    top: Math.min(0.28, top),
-    bottom: Math.min(0.42, bottom),
+    top: Math.min(0.28, Math.max(0.04, top)),
+    bottom: Math.min(0.46, Math.max(compact ? 0.2 : 0.14, bottom)),
   };
+}
+
+/** Pixel insets for the rail counter / CSS, written onto the scene host. */
+export function applyAtelierChromeVars(
+  host: HTMLElement,
+  chrome: ChromeInsets,
+  height = host.getBoundingClientRect().height || host.clientHeight || 1,
+): void {
+  const h = Math.max(1, height);
+  host.style.setProperty('--lc-atelier-chrome-top', `${Math.round(chrome.top * h)}px`);
+  host.style.setProperty('--lc-atelier-chrome-bottom', `${Math.round(chrome.bottom * h)}px`);
 }
 
 /** Frame the aimed hanger plus enough width for the neighbor's ellipsized plate. */
@@ -106,6 +143,10 @@ export function pieceFocusBox(
 }
 /** Side inset so hangers fill ~85% of the viewport width. */
 export const FIT_WIDTH_MARGIN = 0.075;
+/** Extra side air on portrait so Organic / short racks don't lose the posts. */
+export const FIT_WIDTH_MARGIN_COMPACT = 0.12;
+/** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
+export const RACK_MAX_DISTANCE_COMPACT = 26;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
 /** Ver todas must back up far enough to keep Organic / Sem coleção in frame. */
 export const OVERVIEW_MAX_DISTANCE = 48;
@@ -232,7 +273,7 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const pads = chrome ?? { top: compact ? 0.06 : FIT_PAD_TOP, bottom: compact ? 0.3 : FIT_PAD_BOTTOM };
+  const pads = chrome ?? defaultChromeInsets(compact);
   const padTop = pads.top;
   const padBottom = pads.bottom;
   const visibleH = Math.max(0.38, 1 - padTop - padBottom);
@@ -240,7 +281,12 @@ export function computeEyeLevelFit(
   const fill =
     mode === 'overview' ? (compact ? OVERVIEW_FILL_COMPACT : OVERVIEW_FILL) : mode === 'piece' ? 0.84 : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
-  const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
+  const fitW = distanceToFitWidth(
+    width,
+    aspect,
+    fovDeg,
+    compact ? FIT_WIDTH_MARGIN_COMPACT : FIT_WIDTH_MARGIN,
+  );
   const fitted = Math.max(fitH, fitW);
   let distance = fitted * fill + depth * (compact ? 0.08 : 0.1);
   if (mode === 'overview') {
@@ -248,7 +294,7 @@ export function computeEyeLevelFit(
       Math.max(distance, compact ? 2.6 : 3.8),
       compact ? OVERVIEW_MAX_DISTANCE_COMPACT : OVERVIEW_MAX_DISTANCE,
     );
-  } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), 10);
+  } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), compact ? RACK_MAX_DISTANCE_COMPACT : 10);
 
   const targetY = chromeBandTargetY(cy, height, pads) - (mode === 'piece' ? 0.08 : 0);
   const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
@@ -285,7 +331,7 @@ export function computePortraitOverviewFit(
   const visibleH = Math.max(0.38, 1 - pads.top - pads.bottom);
   const fov = (fovDeg * Math.PI) / 180;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
-  const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
+  const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN_COMPACT);
   let distance = Math.max(fitH, fitW) * PORTRAIT_OVERVIEW_FILL + depth * 0.08;
   distance = Math.min(Math.max(distance, 2.2), OVERVIEW_MAX_DISTANCE);
   return poseFromElevation(cx, chromeBandTargetY(cy, height, pads), cz, distance, 0.1);

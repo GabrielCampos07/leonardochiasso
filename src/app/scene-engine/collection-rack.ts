@@ -20,6 +20,15 @@ export const HANGER_ROW_LIMIT = 8;
 export const HANGER_ROW_MAX = 2;
 /** Camera frames at most this many columns so name plates stay readable. */
 export const RACK_FRAME_COLUMNS = 8;
+/** Portrait / compact: ~5–6 columns plus the cut-edge fade. */
+export const RACK_FRAME_COLUMNS_COMPACT = 6;
+
+export function rackFrameColumns(compact = false, hangerCount = 0): number {
+  if (!compact) return RACK_FRAME_COLUMNS;
+  return hangersPerRow(hangerCount) > RACK_FRAME_COLUMNS
+    ? RACK_FRAME_COLUMNS_COMPACT
+    : RACK_FRAME_COLUMNS;
+}
 export const RACK_ROW_PITCH = 1.12;
 export const RACK_BAR_TOP = 0.96;
 export const HANGER_HOOK_OFFSET = 0.48;
@@ -54,13 +63,13 @@ export function rackRowCount(hangerCount: number): number {
 }
 
 /** Width the lens actually frames — long racks pan instead of shrinking photos. */
-export function rackFrameWidth(hangerCount: number): number {
-  return rackWidthFromColumns(Math.min(hangersPerRow(hangerCount), RACK_FRAME_COLUMNS));
+export function rackFrameWidth(hangerCount: number, frameColumns = RACK_FRAME_COLUMNS): number {
+  return rackWidthFromColumns(Math.min(hangersPerRow(hangerCount), frameColumns));
 }
 
 /** Half the extra length beyond the framed window. 0 when the rack fits. */
-export function rackPanRange(hangerCount: number): number {
-  return Math.max(0, (rackWidth(hangerCount) - rackFrameWidth(hangerCount)) / 2);
+export function rackPanRange(hangerCount: number, frameColumns = RACK_FRAME_COLUMNS): number {
+  return Math.max(0, (rackWidth(hangerCount) - rackFrameWidth(hangerCount, frameColumns)) / 2);
 }
 
 /** Raise the top bar so the lowest hanger (photo + label) stays above the floor. */

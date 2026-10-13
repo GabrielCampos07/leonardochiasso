@@ -63,6 +63,9 @@ describe('CollectionCreatePanel', () => {
     expect(field.tagName).toBe('INPUT');
     expect(field.type).toBe('text');
     expect(field.getAttribute('contenteditable')).toBeNull();
+    expect(field.id).toBe('atelier-collection-name');
+    expect(field.name).toBe('collectionName');
+    expect(field.getAttribute('autocomplete')).toBe('off');
   });
 
   it('shows a live plate preview and saves on Enter without losing the caret', () => {

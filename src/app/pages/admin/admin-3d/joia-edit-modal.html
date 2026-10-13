@@ -17,7 +17,15 @@
     <form class="admin-edit__form" (ngSubmit)="save()">
       <label>
         Título
-        <input type="text" [ngModel]="p.title" (ngModelChange)="patch('title', $event)" name="title" required />
+        <input
+          id="atelier-joia-title"
+          type="text"
+          [ngModel]="p.title"
+          (ngModelChange)="patch('title', $event)"
+          name="title"
+          autocomplete="off"
+          required
+        />
       </label>
       <label>
         Preço (texto)
@@ -25,16 +33,32 @@
           type="text"
           [ngModel]="p.priceLabel"
           (ngModelChange)="patch('priceLabel', $event)"
+          id="atelier-joia-price"
           name="priceLabel"
+          autocomplete="off"
         />
       </label>
       <label>
         Descrição
-        <textarea rows="4" [ngModel]="p.description" (ngModelChange)="patch('description', $event)" name="description"></textarea>
+        <textarea
+          id="atelier-joia-description"
+          rows="4"
+          [ngModel]="p.description"
+          (ngModelChange)="patch('description', $event)"
+          name="description"
+          autocomplete="off"
+        ></textarea>
       </label>
       <label>
         Fotos (uma URL por linha)
-        <textarea rows="4" [ngModel]="imagesText()" (ngModelChange)="onImagesChange($event)" name="images"></textarea>
+        <textarea
+          id="atelier-joia-images"
+          rows="4"
+          [ngModel]="imagesText()"
+          (ngModelChange)="onImagesChange($event)"
+          name="images"
+          autocomplete="off"
+        ></textarea>
       </label>
       <div class="admin-edit__footer">
         <button

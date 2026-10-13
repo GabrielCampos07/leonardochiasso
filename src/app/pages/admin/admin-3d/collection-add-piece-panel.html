@@ -60,6 +60,7 @@
         <input
           type="search"
           class="add-piece__search"
+          id="atelier-add-piece-search"
           name="addPieceSearch"
           autocomplete="off"
           placeholder="Nome ou slug"
@@ -73,6 +74,8 @@
             <label class="add-piece__row" [class.add-piece__row--on]="item.onRack">
               <input
                 type="checkbox"
+                [id]="'atelier-add-piece-' + item.slug"
+                [name]="'add-piece-' + item.slug"
                 [checked]="isChecked(item.slug)"
                 [disabled]="item.onRack"
                 (change)="$event.stopPropagation(); toggle(item.slug)"
@@ -123,6 +126,7 @@
         <input
           type="text"
           class="add-piece__input"
+          id="atelier-add-piece-name"
           name="addPieceName"
           autocomplete="off"
           maxlength="80"
@@ -137,6 +141,7 @@
         <input
           type="text"
           class="add-piece__input"
+          id="atelier-add-piece-price"
           name="addPiecePrice"
           inputmode="decimal"
           autocomplete="off"
@@ -151,7 +156,9 @@
         <input
           type="number"
           class="add-piece__input"
+          id="atelier-add-piece-stock"
           name="addPieceStock"
+          autocomplete="off"
           inputmode="numeric"
           min="0"
           step="1"
@@ -168,6 +175,7 @@
             #photoInput
             type="file"
             class="add-piece__file-native"
+            id="atelier-add-piece-photo"
             name="addPiecePhoto"
             accept="image/*"
             tabindex="-1"
