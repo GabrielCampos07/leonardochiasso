@@ -11,6 +11,7 @@ import {
   rackRowCount,
   rackWidth,
   rackFrameColumns,
+  syncRackTitlePlate,
   RACK_BAR_TOP,
   RACK_FRAME_COLUMNS,
   RACK_FRAME_COLUMNS_COMPACT,
@@ -53,7 +54,7 @@ describe('rackWidth', () => {
     expect(rackPanRange(19)).toBeGreaterThan(0);
     expect(rackFrameWidth(17, 6)).toBeLessThan(rackFrameWidth(17, 8));
     expect(rackPanRange(17, 6)).toBeGreaterThan(rackPanRange(17, 8));
-    expect(rackFrameColumns(true, 8)).toBe(RACK_FRAME_COLUMNS);
+    expect(rackFrameColumns(true, 8)).toBe(RACK_FRAME_COLUMNS_COMPACT);
     expect(rackFrameColumns(true, 17)).toBe(RACK_FRAME_COLUMNS_COMPACT);
     expect(rackFrameColumns(false, 17)).toBe(RACK_FRAME_COLUMNS);
   });
@@ -102,5 +103,30 @@ describe('createCollectionRack first paint', () => {
     const ys = [...new Set((hangersRoot?.children ?? []).map((child) => Number(child.position.y.toFixed(3))))];
     expect(ys.length).toBe(2);
     expect(group.userData['unitWidth']).toBeGreaterThan(rackWidth(8));
+  });
+
+  it('slides the collection sign with the pan so a 4-col frame keeps the title', () => {
+    const hangers: SceneHanger[] = Array.from({ length: 8 }, (_, i) => ({
+      productId: `p${i}`,
+      slug: `peca-${i}`,
+      name: `Peça ${i}`,
+      imageUrl: null,
+      stockQty: 1,
+      priceLabel: 'R$ 1,00',
+      status: 'published',
+      rackId: 'organic-dreams',
+      kind: 'garment',
+    }));
+    const group = createCollectionRack(
+      { id: 'organic-dreams', name: 'Organic Dreams', sortOrder: 1, hangers, kind: 'rack' },
+      0,
+    );
+    const start = rackPanRange(8, RACK_FRAME_COLUMNS_COMPACT);
+    expect(start).toBeGreaterThan(0.5);
+    syncRackTitlePlate(group, -start);
+    expect(group.getObjectByName('plate')!.position.x).toBeCloseTo(-start, 5);
+    expect(group.getObjectByName('plate-box')!.position.x).toBeCloseTo(-start, 5);
+    syncRackTitlePlate(group, 0);
+    expect(group.getObjectByName('plate')!.position.x).toBe(0);
   });
 });

@@ -75,6 +75,7 @@ import {
   rackPanRange,
   rackRowCount,
   rackWidth,
+  syncRackTitlePlate,
 } from './collection-rack';
 import {
   EMPTY_RACK_PAN,
@@ -100,6 +101,7 @@ import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { hangerSlugFromHits, isTap, isRoomSurface, resolveHangerClick } from './hanger-pick';
 import { rackFocusIdAfterPointer, rackIdFromHits } from './rack-pick';
+import { screenRectFromPoints, wheelOverRackRects, worldBoxCorners, type ScreenRect } from './rack-screen';
 import {
   ORBIT_DAMPING_FACTOR,
   ORBIT_DAMPING_MAX_MS,
@@ -668,9 +670,7 @@ export class SceneEngine {
 
   /** Nudge the framed window one column. Returns false when the rack edge is reached. */
   panRack(delta: -1 | 1): boolean {
-    const moved = this.nudgePan(delta * HANGER_SPACING);
-    if (moved) this.refocusPannedRack();
-    return moved;
+    return this.nudgePan(delta * HANGER_SPACING);
   }
 
   canPan(delta: -1 | 1): boolean {
@@ -729,36 +729,17 @@ export class SceneEngine {
   }
 
   /** Project a unit's world box to canvas-local pixels (tests + mobile fit). */
-  unitScreenBounds(id: string): { top: number; bottom: number; left: number; right: number } | null {
+  unitScreenBounds(id: string): ScreenRect | null {
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return null;
-    group.updateWorldMatrix(true, true);
-    this.bounds.makeEmpty();
-    this.bounds.expandByObject(group);
-    if (this.bounds.isEmpty()) return null;
+    const client = this.objectScreenRect(group, true);
+    if (!client) return null;
     const rect = this.canvas.getBoundingClientRect();
-    const xs: number[] = [];
-    const ys: number[] = [];
-    const corners = [
-      new Vector3(this.bounds.min.x, this.bounds.min.y, this.bounds.min.z),
-      new Vector3(this.bounds.min.x, this.bounds.min.y, this.bounds.max.z),
-      new Vector3(this.bounds.min.x, this.bounds.max.y, this.bounds.min.z),
-      new Vector3(this.bounds.min.x, this.bounds.max.y, this.bounds.max.z),
-      new Vector3(this.bounds.max.x, this.bounds.min.y, this.bounds.min.z),
-      new Vector3(this.bounds.max.x, this.bounds.min.y, this.bounds.max.z),
-      new Vector3(this.bounds.max.x, this.bounds.max.y, this.bounds.min.z),
-      new Vector3(this.bounds.max.x, this.bounds.max.y, this.bounds.max.z),
-    ];
-    for (const corner of corners) {
-      const p = this.worldToClient(corner);
-      xs.push(p.x - rect.left);
-      ys.push(p.y - rect.top);
-    }
     return {
-      left: Math.min(...xs),
-      right: Math.max(...xs),
-      top: Math.min(...ys),
-      bottom: Math.max(...ys),
+      left: client.left - rect.left,
+      right: client.right - rect.left,
+      top: client.top - rect.top,
+      bottom: client.bottom - rect.top,
     };
   }
 
@@ -1249,13 +1230,12 @@ export class SceneEngine {
       unit && unit.kind !== 'vitrine'
         ? rackStartPanX(unit.hangers.length, this.frameColumnCount(unit.hangers.length))
         : 0;
+    this.syncTitlePlate(id);
   }
 
-  private refocusPannedRack(): void {
-    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return;
-    const group = this.racksRoot.getObjectByName(`rack:${this.focusedId}`);
-    if (!group) return;
-    this.moveCamera(this.poseFor(group as Group, 'rack'), true);
+  private syncTitlePlate(id = this.focusedId): void {
+    const group = this.racksRoot.getObjectByName(`rack:${id}`) as Group | undefined;
+    if (group) syncRackTitlePlate(group, this.rackPanX);
   }
 
   private focusedPanRange(): number {
@@ -1285,6 +1265,7 @@ export class SceneEngine {
     if (Math.abs(next - this.rackPanX) < 0.0001) return false;
     const applied = next - this.rackPanX;
     this.rackPanX = next;
+    this.syncTitlePlate();
     this.camera.position.x += applied;
     this.controls.target.x += applied;
     this.onPanCb?.();
@@ -1320,15 +1301,10 @@ export class SceneEngine {
     const hostSize = hostDrawingSize(this.host);
     const compact = isCompactAtelierViewport(hostSize?.width || this.lastWidth);
     if (mode === 'rack' && object instanceof Group) {
-      if (compact) {
-        this.bounds.expandByObject(object);
-        this.expandBoundsByRackRug(String(object.userData?.['rackId'] ?? ''));
-      } else {
-        const plate = object.getObjectByName('plate');
-        const hangers = object.getObjectByName('hangers');
-        if (plate) this.bounds.expandByObject(plate);
-        if (hangers) this.bounds.expandByObject(hangers);
-      }
+      const plate = object.getObjectByName('plate');
+      const hangers = object.getObjectByName('hangers');
+      if (plate) this.bounds.expandByObject(plate);
+      if (hangers) this.bounds.expandByObject(hangers);
     }
     if (this.bounds.isEmpty()) this.bounds.expandByObject(object);
     if (this.bounds.isEmpty()) {
@@ -1359,7 +1335,8 @@ export class SceneEngine {
     };
     const chrome = measureAtelierChrome(this.host);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
-      box.maxY += 0.14;
+      box.maxY += 0.42;
+      box.minY -= 0.08;
     }
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
@@ -1446,7 +1423,9 @@ export class SceneEngine {
 
   private clampCamera(): void {
     this.camera.up.set(0, 1, 0);
-    if (this.controls.target.y < FLOOR_Y + 0.12) this.controls.target.y = FLOOR_Y + 0.12;
+    const minTargetY =
+      this.compactViewport() && this.focusedId !== OVERVIEW_FOCUS_ID ? FLOOR_Y - 2.6 : FLOOR_Y + 0.12;
+    if (this.controls.target.y < minTargetY) this.controls.target.y = minTargetY;
     this.orbitOffset.copy(this.camera.position).sub(this.controls.target);
     this.orbitSpherical.setFromVector3(this.orbitOffset);
     const locked = clampOrbitSpherical(this.orbitSpherical.theta, this.orbitSpherical.phi);
@@ -1705,7 +1684,7 @@ export class SceneEngine {
       if (!group) continue;
       if (mode === 'stack') {
         const off = portraitStackOffset(i, slots.length);
-        group.position.set(off.x, off.y, 0);
+        group.position.set(off.x, off.y, off.z);
       } else {
         group.position.set(slot.x, 0, 0);
       }
@@ -2079,11 +2058,29 @@ export class SceneEngine {
     else this.focusRack(this.focusedId, true);
   }
 
+  private objectScreenRect(object: Object3D, includeRug = false): ScreenRect | null {
+    object.updateWorldMatrix(true, true);
+    this.bounds.makeEmpty();
+    this.bounds.expandByObject(object);
+    if (includeRug) this.expandBoundsByRackRug(String(object.userData?.['rackId'] ?? ''));
+    if (this.bounds.isEmpty()) return null;
+    const corners = worldBoxCorners({
+      minX: this.bounds.min.x,
+      maxX: this.bounds.max.x,
+      minY: this.bounds.min.y,
+      maxY: this.bounds.max.y,
+      minZ: this.bounds.min.z,
+      maxZ: this.bounds.max.z,
+    }).map((c) => this.worldToClient(this.projectScratch.set(c.x, c.y, c.z)));
+    return screenRectFromPoints(corners);
+  }
+
   private wheelOverAnyRack(event: WheelEvent): boolean {
     if (!event.clientX && !event.clientY) return this.racksRoot.children.length > 0;
-    const hits = this.raycastClient(event.clientX, event.clientY);
-    if (!hits.length) return this.focusedPanRange() > 0;
-    return Boolean(rackIdFromHits(hits));
+    const rects: Array<ScreenRect | null> = this.racksRoot.children.map((child) =>
+      this.objectScreenRect(child, true),
+    );
+    return wheelOverRackRects(event.clientX, event.clientY, rects);
   }
 
   private rememberPointer(event: PointerEvent): void {
