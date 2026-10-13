@@ -3,6 +3,7 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   Texture,
@@ -22,9 +23,39 @@ export const PHOTO_MAX_H = 0.64;
 export const HANGER_LIFT = 0.055;
 export const SOLD_OUT_BADGE_W = 0.3;
 export const SOLD_OUT_BADGE_H = 0.105;
+/** Must stay under hanger spacing (0.64) so neighbor plates never overlap. */
+export const HANGER_LABEL_MAX_W = 0.46;
+export const HANGER_LABEL_Z = 0.16;
+export const HANGER_LABEL_BACK_Z = 0.12;
+export const HANGER_LABEL_BELOW = 0.1;
+
+export function hangerLabelWidth(photoWidth: number): number {
+  return Math.min(Math.max(photoWidth, 0.28), HANGER_LABEL_MAX_W);
+}
 
 function hangerLabelMap(name: string) {
   return makeLabelTexture(name, { width: 512, height: 80, fill: '#1c1814', size: 32 });
+}
+
+function pullLabelForward(material: MeshBasicMaterial): void {
+  material.polygonOffset = true;
+  material.polygonOffsetFactor = -4;
+  material.polygonOffsetUnits = -4;
+}
+
+function layoutHangerLabel(group: Group, photoW: number, photoH: number): void {
+  const width = hangerLabelWidth(photoW);
+  const y = -photoH * 0.5 - HANGER_LABEL_BELOW;
+  const back = group.getObjectByName('labelBack') as Mesh | undefined;
+  const label = group.getObjectByName('label') as Mesh | undefined;
+  if (back) {
+    back.scale.set(width + 0.02, 0.09, 1);
+    back.position.set(0, y, HANGER_LABEL_BACK_Z);
+  }
+  if (label) {
+    label.scale.set(width, 0.08, 1);
+    label.position.set(0, y, HANGER_LABEL_Z);
+  }
 }
 
 function attachSoldOutBadge(parent: Group, x: number, y: number, z: number, w: number, h: number, opacity: number): Group {
@@ -71,6 +102,7 @@ export function applyPhotoAspect(garment: Mesh, frame: Mesh | undefined, texture
   const size = photoPlaneSize(img?.width ?? 3, img?.height ?? 4, PHOTO_MAX_W, PHOTO_MAX_H);
   garment.scale.set(size.width, size.height, 1);
   if (frame) frame.scale.set(size.width + 0.028, size.height + 0.028, 1);
+  if (garment.parent instanceof Group) layoutHangerLabel(garment.parent, size.width, size.height);
 }
 
 export function createGarmentHanger(data: SceneHanger): Group {
@@ -138,28 +170,26 @@ export function createGarmentHanger(data: SceneHanger): Group {
   );
   badge.visible = isSoldOut(data.stockQty);
 
-  const labelY = -photo.height * 0.5 - 0.06;
   const labelBack = new Mesh(
     new PlaneGeometry(1, 1),
-    makePhotoMaterial(null, { color: 0x1c1814, opacity, transparent: opacity < 1 }),
+    makePhotoMaterial(null, { color: 0x1c1814, opacity, transparent: opacity < 1, polygonOffset: -4 }),
   );
-  labelBack.scale.set(0.52, 0.09, 1);
-  labelBack.position.set(0, labelY, 0.035);
   labelBack.name = 'labelBack';
   labelBack.userData = group.userData;
-  labelBack.renderOrder = 2;
+  labelBack.renderOrder = 4;
+  pullLabelForward(labelBack.material as MeshBasicMaterial);
   group.add(labelBack);
 
   const label = new Mesh(
     new PlaneGeometry(1, 1),
-    makePhotoMaterial(hangerLabelMap(data.name), { opacity, transparent: opacity < 1 }),
+    makePhotoMaterial(hangerLabelMap(data.name), { opacity, transparent: opacity < 1, polygonOffset: -4 }),
   );
-  label.scale.set(0.5, 0.08, 1);
-  label.position.set(0, labelY, 0.05);
   label.name = 'label';
   label.userData = group.userData;
-  label.renderOrder = 3;
+  label.renderOrder = 5;
+  pullLabelForward(label.material as MeshBasicMaterial);
   group.add(label);
+  layoutHangerLabel(group, photo.width, photo.height);
 
   return group;
 }
@@ -198,6 +228,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     label.material.transparent = opacity < 1;
     label.material.depthWrite = true;
     label.material.fog = false;
+    pullLabelForward(label.material);
     label.material.needsUpdate = true;
     prev?.dispose();
   }
@@ -206,6 +237,7 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     labelBack.material.transparent = opacity < 1;
     labelBack.material.depthWrite = true;
     labelBack.material.fog = false;
+    pullLabelForward(labelBack.material);
   }
 }
 

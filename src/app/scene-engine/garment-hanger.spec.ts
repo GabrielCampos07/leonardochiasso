@@ -1,6 +1,14 @@
 import { Mesh } from 'three';
-import { createGarmentHanger, SOLD_OUT_BADGE_H, SOLD_OUT_BADGE_W } from './garment-hanger';
+import {
+  createGarmentHanger,
+  HANGER_LABEL_MAX_W,
+  HANGER_LABEL_Z,
+  hangerLabelWidth,
+  SOLD_OUT_BADGE_H,
+  SOLD_OUT_BADGE_W,
+} from './garment-hanger';
 import { isPhotoMaterial } from './photo-material';
+import { HANGER_SPACING } from './collection-rack';
 
 describe('garment hanger sold-out badge', () => {
   it('is large enough to read on hangers', () => {
@@ -55,5 +63,16 @@ describe('garment hanger sold-out badge', () => {
     expect(tag.opacity).toBe(1);
     expect(tag.transparent).toBeFalse();
     expect(tag.depthWrite).toBeTrue();
+    expect(label.position.z).toBeGreaterThan(garment.position.z + 0.08);
+    expect(label.position.z).toBe(HANGER_LABEL_Z);
+    expect(label.position.y).toBeLessThan(garment.position.y - garment.scale.y * 0.5);
+    expect(label.scale.x).toBeLessThanOrEqual(HANGER_LABEL_MAX_W);
+  });
+});
+
+describe('hangerLabelWidth', () => {
+  it('keeps neighbor plates from overlapping on the rail', () => {
+    expect(hangerLabelWidth(0.48)).toBeLessThan(HANGER_SPACING - 0.08);
+    expect(hangerLabelWidth(0.8)).toBe(HANGER_LABEL_MAX_W);
   });
 });

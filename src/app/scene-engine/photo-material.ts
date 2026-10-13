@@ -6,7 +6,12 @@ import { MeshBasicMaterial, Texture } from 'three';
  */
 export function makePhotoMaterial(
   map: Texture | null,
-  opts: { color?: number; opacity?: number; transparent?: boolean } = {},
+  opts: {
+    color?: number;
+    opacity?: number;
+    transparent?: boolean;
+    polygonOffset?: number;
+  } = {},
 ): MeshBasicMaterial {
   const opacity = opts.opacity ?? 1;
   const transparent = opts.transparent ?? opacity < 1;
@@ -20,6 +25,11 @@ export function makePhotoMaterial(
   });
   material.toneMapped = false;
   material.fog = false;
+  if (opts.polygonOffset) {
+    material.polygonOffset = true;
+    material.polygonOffsetFactor = opts.polygonOffset;
+    material.polygonOffsetUnits = opts.polygonOffset;
+  }
   return material;
 }
 
