@@ -7,8 +7,10 @@ import {
   hangerSlugFromObject,
   isIgnoredPick,
   isPointerClick,
+  isTap,
   isRoomSurface,
   resolveHangerClick,
+  TOUCH_CLICK_SLOP_PX,
 } from './hanger-pick';
 import type { SceneHanger } from './types';
 
@@ -185,6 +187,32 @@ describe('resolveHangerClick', () => {
     ).toBeNull();
     expect(isPointerClick(5, 0)).toBeTrue();
     expect(isPointerClick(6, 0)).toBeFalse();
+  });
+
+  it('counts a first iOS tap that wobbles past the mouse slop', () => {
+    expect(isTap(10, 8, 'touch')).toBeTrue();
+    expect(isTap(10, 8, 'mouse')).toBeFalse();
+    expect(isTap(TOUCH_CLICK_SLOP_PX + 1, 0, 'touch')).toBeFalse();
+    expect(
+      resolveHangerClick({
+        pointerDownSlug: 'vestido-lg-bateau',
+        pointerUpSlug: 'vestido-lg-bateau',
+        hoverSlug: null,
+        dx: 10,
+        dy: 8,
+        pointerType: 'touch',
+      }),
+    ).toBe('vestido-lg-bateau');
+    expect(
+      resolveHangerClick({
+        pointerDownSlug: 'vestido-lg-bateau',
+        pointerUpSlug: 'vestido-lg-bateau',
+        hoverSlug: null,
+        dx: 10,
+        dy: 8,
+        pointerType: 'mouse',
+      }),
+    ).toBeNull();
   });
 
   it('ignores a hold longer than 300ms even if the pointer barely moved', () => {

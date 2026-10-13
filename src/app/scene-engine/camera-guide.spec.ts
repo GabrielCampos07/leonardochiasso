@@ -15,6 +15,7 @@ import {
   computeVitrineFit,
   defaultChromeInsets,
   distanceToFitWidth,
+  FIT_WIDTH_MARGIN_COMPACT,
   measureAtelierChrome,
   easeInOutCubic,
   easeOutBack,
@@ -120,9 +121,9 @@ describe('computeEyeLevelFit', () => {
     expect(4 / visible).toBeLessThan(0.95);
   });
 
-  it('keeps a compact viewport on the 85% width fit instead of backing away', () => {
+  it('keeps a compact viewport on the width fit with extra side margin', () => {
     const compact = computeEyeLevelFit(box, 400 / 720, 38, 'rack', true);
-    const need = distanceToFitWidth(3, 400 / 720, 38, 0.075);
+    const need = distanceToFitWidth(3, 400 / 720, 38, FIT_WIDTH_MARGIN_COMPACT);
     expect(compact.distance).toBeGreaterThanOrEqual(need * 0.92);
     expect(compact.distance).toBeLessThan(need * 1.25);
   });
@@ -314,9 +315,46 @@ describe('measureAtelierChrome', () => {
     } as DOMRect);
     host.appendChild(overlay);
     const chrome = measureAtelierChrome(host);
-    expect(chrome.bottom).toBeGreaterThan(defaultChromeInsets(false).bottom - 0.01);
     expect(chrome.bottom).toBeGreaterThan((800 - 720) / 800);
+    expect(chrome.bottom).toBeLessThan(0.2);
     expect(chrome.top).toBeGreaterThan(52 / 800);
+    expect(host.style.getPropertyValue('--lc-atelier-chrome-bottom')).toMatch(/px$/);
+  });
+
+  it('uses the live 393×852 bar instead of the 0.30 compact fallback', () => {
+    const host = document.createElement('div');
+    Object.defineProperty(host, 'clientHeight', { value: 852 });
+    Object.defineProperty(host, 'clientWidth', { value: 393 });
+    spyOn(host, 'getBoundingClientRect').and.returnValue({
+      top: 0,
+      bottom: 852,
+      height: 852,
+      width: 393,
+      left: 0,
+      right: 393,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const guide = document.createElement('nav');
+    guide.className = 'admin-3d__guide';
+    spyOn(guide, 'getBoundingClientRect').and.returnValue({
+      top: 692,
+      bottom: 852,
+      height: 160,
+      width: 393,
+      left: 0,
+      right: 393,
+      x: 0,
+      y: 692,
+      toJSON: () => ({}),
+    } as DOMRect);
+    host.appendChild(guide);
+    const chrome = measureAtelierChrome(host);
+    const measured = (852 - 692 + 20) / 852;
+    expect(chrome.bottom).toBeCloseTo(measured, 2);
+    expect(chrome.bottom).toBeLessThan(defaultChromeInsets(true).bottom);
+    expect(chrome.bottom).toBeLessThan(0.3);
   });
 });
 

@@ -226,7 +226,7 @@
 .admin-3d__rail-count {
   position: absolute;
   left: 50%;
-  bottom: 96px;
+  bottom: calc(var(--lc-atelier-chrome-bottom, 96px) + 8px);
   margin: 0;
   transform: translateX(-50%);
   padding: 4px 10px;
@@ -570,7 +570,7 @@
   }
 
   .admin-3d__rail-count {
-    bottom: 118px;
+    bottom: calc(var(--lc-atelier-chrome-bottom, 160px) + env(safe-area-inset-bottom, 0px) + 8px);
   }
 
   .admin-3d__rail-btn--prev {

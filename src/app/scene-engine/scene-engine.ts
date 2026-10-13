@@ -70,6 +70,7 @@ import {
   hangersPerRow,
   layoutHangers,
   rackBarTop,
+  rackFrameColumns,
   rackPanRange,
   rackRowCount,
   rackWidth,
@@ -80,6 +81,7 @@ import {
   rackPanProgress,
   isPinchZoomEvent,
   rackStartPanX,
+  shouldBlockWheelZoom,
   shouldPanRackOnWheel,
   wheelPanPixels,
   type RackPanProgress,
@@ -95,7 +97,7 @@ import {
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
-import { hangerSlugFromHits, isPointerClick, isRoomSurface, resolveHangerClick } from './hanger-pick';
+import { hangerSlugFromHits, isTap, isRoomSurface, resolveHangerClick } from './hanger-pick';
 import { rackFocusIdAfterPointer, rackIdFromHits } from './rack-pick';
 import {
   ORBIT_DAMPING_FACTOR,
@@ -344,6 +346,7 @@ export class SceneEngine {
   private readonly wheelCursorWorld = new Vector3();
   private wheelCursorNdc = { x: 0, y: 0 };
   private wheelCursorValid = false;
+  private wheelPanHandledAt = -1;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -378,7 +381,7 @@ export class SceneEngine {
         this.nudgePan(-dx * this.panPixelsToWorld());
       }
     }
-    this.pendingHover = event;
+    if (event.pointerType !== 'touch') this.pendingHover = event;
     if (this.hoverQueued) return;
     this.hoverQueued = true;
     requestAnimationFrame(() => {
@@ -403,14 +406,15 @@ export class SceneEngine {
       dx,
       dy,
       durationMs,
+      pointerType: event.pointerType,
     });
     this.pointerDownSlug = null;
-    if (!isPointerClick(dx, dy)) this.userOrbited = true;
+    if (!isTap(dx, dy, event.pointerType)) this.userOrbited = true;
     const hits = this.raycastPointer(event);
     const rackId = rackFocusIdAfterPointer({
       overview: this.focusedId === OVERVIEW_FOCUS_ID,
       wasPanning,
-      isClick: isPointerClick(dx, dy),
+      isClick: isTap(dx, dy, event.pointerType),
       hits,
     });
     if (rackId) {
@@ -418,7 +422,7 @@ export class SceneEngine {
       this.focusRack(rackId);
       return;
     }
-    if (!wasPanning && isPointerClick(dx, dy)) {
+    if (!wasPanning && isTap(dx, dy, event.pointerType)) {
       if (slug) {
         this.onClickCb?.(slug);
       } else {
@@ -447,26 +451,29 @@ export class SceneEngine {
     if (event.cancelable) event.preventDefault();
   };
   private readonly onTouchStart = (event: TouchEvent) => {
-    if (event.cancelable) event.preventDefault();
     if (event.touches.length >= 2) {
+      if (event.cancelable) event.preventDefault();
       this.orbitGesture = 'wheel';
       this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
     }
   };
   /**
    * Capture runs before OrbitControls.
-   * Wheel over rack → pan (zoom off). Elsewhere / pinch → zoom.
+   * Wheel over any rack → never zoom (stop the event). Elsewhere / pinch → zoom.
    */
   private readonly onWheelCapture = (event: WheelEvent) => {
     const pinch = isPinchZoomEvent(event);
-    const pan = shouldPanRackOnWheel({
-      overRack: this.wheelOverFocusedRack(event),
-      pinch,
-      panRange: this.focusedPanRange(),
-    });
+    const overRack = this.wheelOverAnyRack(event);
     this.wheelCursorValid = false;
-    if (pan) {
+    if (shouldBlockWheelZoom({ overRack, pinch })) {
       this.controls.enableZoom = false;
+      if (event.cancelable) event.preventDefault();
+      event.stopImmediatePropagation();
+      event.stopPropagation();
+      this.wheelPanHandledAt = event.timeStamp;
+      if (shouldPanRackOnWheel({ overRack, pinch, panRange: this.focusedPanRange() })) {
+        this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+      }
       return;
     }
     if (this.orbitSettling() && !pinch) return;
@@ -474,18 +481,18 @@ export class SceneEngine {
     this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
     if (pinch) this.captureWheelCursor(event);
   };
-  /** Rack wheel pans pieces. Elsewhere (or ctrl / pinch) dollies. */
+  /** Rack wheel pans pieces when the rail overflows. Elsewhere (or pinch) dollies. */
   private readonly onWheel = (event: WheelEvent) => {
     if (event.cancelable) event.preventDefault();
     const pinch = isPinchZoomEvent(event);
-    if (
-      shouldPanRackOnWheel({
-        overRack: this.wheelOverFocusedRack(event),
-        pinch,
-        panRange: this.focusedPanRange(),
-      })
-    ) {
-      this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+    const overRack = this.wheelOverAnyRack(event);
+    if (shouldBlockWheelZoom({ overRack, pinch })) {
+      if (
+        this.wheelPanHandledAt !== event.timeStamp &&
+        shouldPanRackOnWheel({ overRack, pinch, panRange: this.focusedPanRange() })
+      ) {
+        this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+      }
       return;
     }
     if (pinch && this.wheelCursorValid) {
@@ -548,6 +555,7 @@ export class SceneEngine {
     this.renderer.shadowMap.type = PCFShadowMap;
 
     this.restoreAddEventListener = forceNonPassiveCanvasListeners(canvas);
+    canvas.addEventListener('wheel', this.onWheelCapture, { capture: true, passive: false });
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !this.reducedMotion;
     this.controls.dampingFactor = ORBIT_DAMPING_FACTOR;
@@ -604,7 +612,6 @@ export class SceneEngine {
     canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
     canvas.addEventListener('touchstart', this.onTouchStart, NON_PASSIVE);
     canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
-    canvas.addEventListener('wheel', this.onWheelCapture, { capture: true, passive: false });
     canvas.addEventListener('wheel', this.onWheel, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
@@ -677,7 +684,7 @@ export class SceneEngine {
     }
     const unit = this.layout.racks.find((r) => r.id === this.focusedId);
     if (!unit || unit.kind === 'vitrine') return { ...EMPTY_RACK_PAN };
-    return rackPanProgress(unit.hangers.length, this.rackPanX);
+    return rackPanProgress(unit.hangers.length, this.rackPanX, this.frameColumnCount(unit.hangers.length));
   }
 
   start(): void {
@@ -1237,7 +1244,10 @@ export class SceneEngine {
 
   private resetPanForUnit(id: string): void {
     const unit = this.layout.racks.find((r) => r.id === id);
-    this.rackPanX = unit && unit.kind !== 'vitrine' ? rackStartPanX(unit.hangers.length) : 0;
+    this.rackPanX =
+      unit && unit.kind !== 'vitrine'
+        ? rackStartPanX(unit.hangers.length, this.frameColumnCount(unit.hangers.length))
+        : 0;
   }
 
   private refocusPannedRack(): void {
@@ -1251,7 +1261,7 @@ export class SceneEngine {
     if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return 0;
     const unit = this.layout.racks.find((r) => r.id === this.focusedId);
     if (!unit || unit.kind === 'vitrine') return 0;
-    return rackPanRange(unit.hangers.length);
+    return rackPanRange(unit.hangers.length, this.frameColumnCount(unit.hangers.length));
   }
 
   private panPixelsToWorld(): number {
@@ -1330,7 +1340,9 @@ export class SceneEngine {
     const rackId = String(object.userData?.['rackId'] ?? '');
     const unit = rackId ? this.layout.racks.find((r) => r.id === rackId) : undefined;
     const look =
-      unit && mode === 'rack' ? rackLookFrame(unit.hangers.length, this.rackPanX) : null;
+      unit && mode === 'rack'
+        ? rackLookFrame(unit.hangers.length, this.rackPanX, this.frameColumnCount(unit.hangers.length))
+        : null;
     const halfW =
       look != null
         ? look.halfW
@@ -1345,6 +1357,9 @@ export class SceneEngine {
       maxZ: this.bounds.max.z,
     };
     const chrome = measureAtelierChrome(this.host);
+    if (mode === 'overview' && this.rackLayoutMode === 'stack') {
+      box.maxY += 0.14;
+    }
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
       return computePortraitOverviewFit(box, this.camera.aspect, this.camera.fov, chrome);
@@ -2046,12 +2061,28 @@ export class SceneEngine {
     }
   }
 
-  private wheelOverFocusedRack(event: WheelEvent): boolean {
-    if (!event.clientX && !event.clientY) return this.focusedPanRange() > 0;
+  private compactViewport(): boolean {
+    const size = hostDrawingSize(this.host);
+    return isCompactAtelierViewport(size?.width || this.lastWidth);
+  }
+
+  private frameColumnCount(hangerCount = 0): number {
+    return rackFrameColumns(this.compactViewport(), hangerCount);
+  }
+
+  /** Re-fit after the collections bar / hint mount so chrome insets are real. */
+  refitToChrome(): void {
+    if (!this.hasLayout) return;
+    if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
+    else if (this.focusedId === DRAFT_UNIT_ID) this.focusDraft(true);
+    else this.focusRack(this.focusedId, true);
+  }
+
+  private wheelOverAnyRack(event: WheelEvent): boolean {
+    if (!event.clientX && !event.clientY) return this.racksRoot.children.length > 0;
     const hits = this.raycastClient(event.clientX, event.clientY);
     if (!hits.length) return this.focusedPanRange() > 0;
-    const id = rackIdFromHits(hits);
-    return Boolean(id && id === this.focusedId);
+    return Boolean(rackIdFromHits(hits));
   }
 
   private rememberPointer(event: PointerEvent): void {
@@ -2094,6 +2125,7 @@ export class SceneEngine {
   }
 
   private handlePointer(event: PointerEvent): void {
+    if (event.pointerType === 'touch') return;
     this.rememberPointer(event);
     if (!hangerTooltipWhileCameraBusy(this.cameraBusy())) {
       this.hideHoverForCamera();

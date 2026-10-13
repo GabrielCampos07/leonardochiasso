@@ -35,8 +35,8 @@ export function clampRackPan(panX: number, range: number): number {
 }
 
 /** Start at the left of a long rack so the first pieces are readable. */
-export function rackStartPanX(hangerCount: number): number {
-  return -rackPanRange(hangerCount);
+export function rackStartPanX(hangerCount: number, frameColumns = RACK_FRAME_COLUMNS): number {
+  return -rackPanRange(hangerCount, frameColumns);
 }
 
 export function rackPanLabel(last: number, total: number): string {
@@ -48,11 +48,15 @@ export function rackPanLabel(last: number, total: number): string {
  * Window along a long rack. At rest a 19-piece rail reads "8 de 19";
  * the last step lands on "19 de 19".
  */
-export function rackPanProgress(hangerCount: number, panX = 0): RackPanProgress {
+export function rackPanProgress(
+  hangerCount: number,
+  panX = 0,
+  frameColumns = RACK_FRAME_COLUMNS,
+): RackPanProgress {
   const total = Math.max(0, hangerCount);
   if (total <= 0) return { ...EMPTY_RACK_PAN };
-  const frame = Math.min(hangersPerRow(total), RACK_FRAME_COLUMNS);
-  const range = rackPanRange(total);
+  const frame = Math.min(hangersPerRow(total), frameColumns);
+  const range = rackPanRange(total, frameColumns);
   const x = clampRackPan(panX, range);
   const showChrome = range > 0.001;
   const canPrev = showChrome && x > -range + 0.001;
@@ -76,9 +80,10 @@ export function rackPanProgress(hangerCount: number, panX = 0): RackPanProgress 
 export function rackLookFrame(
   hangerCount: number,
   panX: number,
+  frameColumns = RACK_FRAME_COLUMNS,
 ): { offset: number; halfW: number } {
-  const frameW = rackFrameWidth(hangerCount);
-  const range = rackPanRange(hangerCount);
+  const frameW = rackFrameWidth(hangerCount, frameColumns);
+  const range = rackPanRange(hangerCount, frameColumns);
   if (range <= 0.001) return { offset: 0, halfW: frameW / 2 };
   const x = clampRackPan(panX, range);
   const atStart = x <= -range + 0.001;
@@ -98,10 +103,11 @@ export function wheelPanPixels(event: { deltaX: number; deltaY: number; deltaMod
 export function rackVisibleColumnRange(
   hangerCount: number,
   panX = 0,
+  frameColumns = RACK_FRAME_COLUMNS,
 ): { firstCol: number; lastCol: number } {
   const cols = Math.max(1, hangersPerRow(hangerCount));
-  const frame = Math.min(cols, RACK_FRAME_COLUMNS);
-  const range = rackPanRange(hangerCount);
+  const frame = Math.min(cols, frameColumns);
+  const range = rackPanRange(hangerCount, frameColumns);
   const x = clampRackPan(panX, range);
   const fromLeft = range <= 0 ? 0 : (x + range) / HANGER_SPACING;
   const firstCol = Math.max(0, Math.floor(fromLeft + 1e-4));
@@ -109,10 +115,15 @@ export function rackVisibleColumnRange(
   return { firstCol, lastCol };
 }
 
-export function hangerInVisibleWindow(index: number, hangerCount: number, panX = 0): boolean {
+export function hangerInVisibleWindow(
+  index: number,
+  hangerCount: number,
+  panX = 0,
+  frameColumns = RACK_FRAME_COLUMNS,
+): boolean {
   const cols = Math.max(1, hangersPerRow(hangerCount));
   const col = index % cols;
-  const { firstCol, lastCol } = rackVisibleColumnRange(hangerCount, panX);
+  const { firstCol, lastCol } = rackVisibleColumnRange(hangerCount, panX, frameColumns);
   return col >= firstCol && col <= lastCol;
 }
 
@@ -123,9 +134,10 @@ export function rackArrowDelta(key: string): -1 | 1 | 0 {
 }
 
 /**
- * Wheel vs zoom (kept consistent with #37 rack-pan):
- * 1. Wheel over the focused long rack → pan pieces only (`enableZoom` off).
- * 2. Wheel elsewhere (floor, wall, empty, overview) → zoom.
+ * Wheel vs zoom:
+ * 1. Wheel over ANY rack (frame / hangers / photos / rug) → never zoom,
+ *    even when that rack cannot pan. Capture-phase stop + enableZoom off.
+ * 2. Wheel elsewhere (floor, wall, empty) → zoom.
  * 3. Ctrl+wheel / trackpad pinch (`ctrlKey`, also meta) → zoom toward the
  *    cursor anywhere, including over a rack, so a piece can go close-up.
  */
@@ -133,11 +145,16 @@ export function isPinchZoomEvent(event: { ctrlKey?: boolean; metaKey?: boolean }
   return Boolean(event.ctrlKey || event.metaKey);
 }
 
-/** True only for rule 1 above. */
+/** Wheel on a rack must not reach OrbitControls (unless pinch). */
+export function shouldBlockWheelZoom(input: { overRack: boolean; pinch: boolean }): boolean {
+  return input.overRack && !input.pinch;
+}
+
+/** True only when the rack can actually scroll pieces. */
 export function shouldPanRackOnWheel(input: {
   overRack: boolean;
   pinch: boolean;
   panRange: number;
 }): boolean {
-  return input.overRack && !input.pinch && input.panRange > 0;
+  return shouldBlockWheelZoom(input) && input.panRange > 0;
 }

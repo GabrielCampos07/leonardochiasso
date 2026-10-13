@@ -2,22 +2,26 @@ import { createSceneEngine, type SceneEngine } from './scene-engine';
 import { PORTRAIT_STACK_PITCH } from './camera-guide';
 import type { SceneLayout } from './types';
 
-function aisleLayout(): SceneLayout {
+function aisleLayout(brazilianCount = 8): SceneLayout {
   return {
-    racks: ['organic-dreams', 'niponic-dreams', 'brazilian-dreams'].map((id, i) => ({
-      id,
-      name: id,
+    racks: [
+      { id: 'organic-dreams', count: 8 },
+      { id: 'niponic-dreams', count: 8 },
+      { id: 'brazilian-dreams', count: brazilianCount },
+    ].map((rack, i) => ({
+      id: rack.id,
+      name: rack.id,
       sortOrder: i,
       kind: 'rack' as const,
-      hangers: Array.from({ length: 8 }, (_, j) => ({
-        productId: `${id}-${j}`,
-        slug: `${id}-${j}`,
+      hangers: Array.from({ length: rack.count }, (_, j) => ({
+        productId: `${rack.id}-${j}`,
+        slug: `${rack.id}-${j}`,
         name: `Peça ${j}`,
         imageUrl: null,
         stockQty: 1,
         priceLabel: 'R$ 1,00',
         status: 'published',
-        rackId: id,
+        rackId: rack.id,
         kind: 'garment' as const,
       })),
     })),
@@ -43,8 +47,11 @@ function mountHost(
   return { host, canvas };
 }
 
-async function saveShot(engine: SceneEngine, name: string): Promise<void> {
-  const url = engine.capturePng();
+async function saveShot(engine: SceneEngine, name: string, overlay?: string): Promise<void> {
+  let url = engine.capturePng();
+  if (overlay) {
+    url = await compositeChrome(url, overlay);
+  }
   try {
     await fetch('http://127.0.0.1:9877/shot', {
       method: 'POST',
@@ -54,6 +61,39 @@ async function saveShot(engine: SceneEngine, name: string): Promise<void> {
   } catch {
     /* shot server is optional outside the capture run */
   }
+}
+
+function compositeChrome(dataUrl: string, label: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 393;
+      canvas.height = 852;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, 393, 852);
+      ctx.fillStyle = 'rgb(32 24 18 / 88%)';
+      ctx.fillRect(0, 692, 393, 160);
+      ctx.fillStyle = '#efe8dc';
+      ctx.font = '13px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Ver todas   Organic   Niponic   Brazilian', 196, 780);
+      const countY = 692 - 16;
+      ctx.fillStyle = 'rgb(255 255 255 / 82%)';
+      const w = 72;
+      ctx.fillRect(196 - w / 2, countY - 16, w, 22);
+      ctx.fillStyle = '#3a2f26';
+      ctx.font = '600 12px sans-serif';
+      ctx.fillText(label, 196, countY);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
 }
 
 describe('SceneEngine portrait Ver todas stack', () => {
@@ -127,6 +167,85 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(focused!.top).toBeGreaterThan(4);
     expect(focused!.bottom).toBeLessThan(852 - 110);
     await saveShot(engine, 'mobile-tap-brazilian-393x852');
+    engine.dispose();
+    host.remove();
+  });
+
+  it('fits Organic default and a 17-piece Brazilian focus on 393×852', async () => {
+    const { host, canvas } = mountHost(393, 852);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true, host });
+    if (!engine) {
+      host.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(aisleLayout(17));
+    engine.focusRack('organic-dreams', true);
+    engine.refitToChrome();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const organic = engine.unitScreenBounds('organic-dreams');
+    expect(organic).toBeTruthy();
+    expect(organic!.left).toBeGreaterThan(8);
+    expect(organic!.right).toBeLessThan(385);
+    expect(organic!.top).toBeGreaterThan(8);
+    expect(organic!.bottom).toBeLessThan(852 - 110);
+    await saveShot(engine, 'mobile-organic-default-393x852');
+
+    engine.focusRack('brazilian-dreams', true);
+    engine.refitToChrome();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const focused = engine.unitScreenBounds('brazilian-dreams');
+    expect(focused).toBeTruthy();
+    expect(focused!.left).toBeGreaterThan(4);
+    expect(focused!.right).toBeLessThan(389);
+    const pan = engine.rackPanState();
+    expect(pan.showChrome).toBeTrue();
+    expect(pan.last).toBe(6);
+    expect(pan.total).toBe(17);
+    expect(pan.label).toBe('6 de 17');
+    await saveShot(engine, 'mobile-brazilian-focus-393x852', pan.label);
+    engine.dispose();
+    host.remove();
+  });
+
+  it('focuses Niponic on the first touch tap from Ver todas', () => {
+    const { host, canvas } = mountHost(393, 852);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true, host });
+    if (!engine) {
+      host.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(aisleLayout());
+    engine.focusOverview(true);
+    const bounds = engine.unitScreenBounds('niponic-dreams');
+    expect(bounds).toBeTruthy();
+    const rect = canvas.getBoundingClientRect();
+    const x = rect.left + (bounds!.left + bounds!.right) / 2;
+    const y = rect.top + (bounds!.top + bounds!.bottom) / 2;
+    canvas.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        clientX: x,
+        clientY: y,
+        pointerId: 7,
+        pointerType: 'touch',
+        bubbles: true,
+        buttons: 1,
+      }),
+    );
+    canvas.dispatchEvent(
+      new PointerEvent('pointerup', {
+        clientX: x + 9,
+        clientY: y + 6,
+        pointerId: 7,
+        pointerType: 'touch',
+        bubbles: true,
+        buttons: 0,
+      }),
+    );
+    expect(engine.focusedRackId()).toBe('niponic-dreams');
     engine.dispose();
     host.remove();
   });
