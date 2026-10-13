@@ -59,10 +59,7 @@ export class CatalogService {
         sortOrder: c.sortOrder,
         publishedAt: c.publishedAt?.toISOString() ?? null,
         archivedAt: null,
-        coverImage: resolveCollectionCoverImage(
-          (c as { coverImage?: string | null }).coverImage,
-          c.products,
-        ),
+        coverImage: resolveCollectionCoverImage(c.slug, c.products),
       }));
     });
   }
@@ -94,10 +91,7 @@ export class CatalogService {
         sortOrder: collection.sortOrder,
         publishedAt: collection.publishedAt?.toISOString() ?? null,
         archivedAt: null,
-        coverImage: resolveCollectionCoverImage(
-          (collection as { coverImage?: string | null }).coverImage,
-          collection.products,
-        ),
+        coverImage: resolveCollectionCoverImage(collection.slug, collection.products),
         products: collection.products.map((pc) => mapProduct(pc.product)),
       };
     });

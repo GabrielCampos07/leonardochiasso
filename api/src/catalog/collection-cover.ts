@@ -1,3 +1,21 @@
+/**
+ * Pre-#30 storefront thumbs (local PRODUCTS first piece). Prisma Collection
+ * has no image column — never persist these; they are a slug map only.
+ */
+export const CATALOG_COLLECTION_COVERS: Readonly<Record<string, string>> = {
+  'organic-dreams':
+    'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-calca-thumb.webp',
+  'niponic-dreams':
+    'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-look-obi-organza-thumb.webp',
+  'brazilian-dreams':
+    'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-colete-bermuda-saia-echarpe-thumb.webp',
+};
+
+export function catalogCollectionCover(slug: string | null | undefined): string | null {
+  if (!slug) return null;
+  return CATALOG_COLLECTION_COVERS[slug] ?? null;
+}
+
 /** First live member photo by product_collections.sortOrder. */
 
 export interface CollectionCoverMember {
@@ -56,26 +74,6 @@ export function isArchivedValue(value: Date | string | null | undefined): boolea
   return value != null && value !== '';
 }
 
-export function archivedMemberPhotoUrls(members: readonly CollectionCoverMember[]): Set<string> {
-  const urls = new Set<string>();
-  for (const member of members) {
-    if (!isArchivedValue(member.product?.archivedAt)) continue;
-    const url = memberPhotoUrl(member);
-    if (url) urls.add(url);
-  }
-  return urls;
-}
-
-export function liveMemberPhotoUrls(members: readonly CollectionCoverMember[]): Set<string> {
-  const urls = new Set<string>();
-  for (const member of members) {
-    if (isArchivedValue(member.product?.archivedAt)) continue;
-    const url = memberPhotoUrl(member);
-    if (url) urls.add(url);
-  }
-  return urls;
-}
-
 export function derivedCollectionCover(members: readonly CollectionCoverMember[]): string | null {
   const live = members
     .map((member, index) => ({ member, index }))
@@ -97,21 +95,14 @@ export function derivedCollectionCover(members: readonly CollectionCoverMember[]
 }
 
 /**
- * Stored cover wins unless it is only the photo of an archived piece.
- * Otherwise first live piece with a photo. Null only when nothing exists.
+ * Catalog slug map (Dreams) first, then first live member photo.
+ * Collection has no image column — `stored` is ignored.
  */
 export function resolveCollectionCoverImage(
-  stored: string | null | undefined,
-  members: readonly CollectionCoverMember[],
+  slugOrStored: string | null | undefined,
+  members: readonly CollectionCoverMember[] = [],
 ): string | null {
-  const storedUrl = asText(stored);
-  if (storedUrl) {
-    const onlyArchived =
-      archivedMemberPhotoUrls(members).has(storedUrl) &&
-      !liveMemberPhotoUrls(members).has(storedUrl);
-    if (!onlyArchived) return storedUrl;
-  }
-  return derivedCollectionCover(members);
+  return catalogCollectionCover(slugOrStored) ?? derivedCollectionCover(members);
 }
 
 export const collectionCoverInclude = {

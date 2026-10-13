@@ -76,13 +76,11 @@ export class AdminCollectionEditPage implements OnInit {
   private slugLocked = false;
 
   readonly products = signal<ApiProductDto[]>([]);
-  private readonly storedCover = signal<string | null>(null);
   readonly coverUrl = computed(() =>
     resolveCollectionCover({
       collection: {
         slug: this.slug(),
         name: this.name,
-        coverImage: this.storedCover(),
       },
       products: this.products().map((p, index) => ({
         ...p,
@@ -349,7 +347,6 @@ export class AdminCollectionEditPage implements OnInit {
     this.originalPublishedAt = c.publishedAt;
     this.published = Boolean(c.publishedAt);
     this.archivedAt.set(c.archivedAt ?? null);
-    this.storedCover.set(c.coverImage ?? c.coverUrl ?? c.image ?? null);
   }
 
   private flash(msg: string): void {

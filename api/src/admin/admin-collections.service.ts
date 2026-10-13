@@ -183,7 +183,6 @@ function mapCollection(
     sortOrder: number;
     publishedAt: Date | null;
     archivedAt?: Date | null;
-    coverImage?: string | null;
     products?: Parameters<typeof resolveCollectionCoverImage>[1];
   },
   productCount = 0,
@@ -197,7 +196,7 @@ function mapCollection(
     publishedAt: c.publishedAt?.toISOString() ?? null,
     archivedAt: c.archivedAt?.toISOString() ?? null,
     productCount,
-    coverImage: resolveCollectionCoverImage(c.coverImage, c.products ?? []),
+    coverImage: resolveCollectionCoverImage(c.slug, c.products ?? []),
   };
 }
 

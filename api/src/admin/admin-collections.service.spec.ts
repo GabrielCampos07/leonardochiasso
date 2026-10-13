@@ -48,6 +48,14 @@ describe('AdminCollectionsService archive', () => {
     expect(list[0]?.archivedAt).toBeNull();
   });
 
+  it('uses the catalog thumb for Organic when members have no photos', async () => {
+    prisma.collection.findMany.mockResolvedValue([
+      { ...collectionRow(), _count: { products: 0 }, products: [] },
+    ]);
+    const list = await service.list(false);
+    expect(list[0]?.coverImage).toContain('plp-calca-thumb.webp');
+  });
+
   it('derives coverImage from the first live member photo', async () => {
     prisma.collection.findMany.mockResolvedValue([
       {

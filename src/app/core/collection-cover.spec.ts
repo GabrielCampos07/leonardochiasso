@@ -1,4 +1,6 @@
 import {
+  CATALOG_COLLECTION_COVERS,
+  catalogCollectionCoverUrl,
   collectionCoverUrl,
   collectionMembershipSortOrder,
   coversByCollectionSlug,
@@ -7,7 +9,6 @@ import {
   piecePhotoUrl,
   productBelongsToCollection,
   resolveCollectionCover,
-  storedCoverIsFromArchivedPiece,
 } from './collection-cover';
 import {
   ADMIN_NIPONIC_NAME_ONLY,
@@ -15,6 +16,19 @@ import {
   PROD_COLLECTIONS,
   PROD_PRODUCTS,
 } from './collection-cover.fixtures';
+
+describe('catalogCollectionCoverUrl', () => {
+  it('maps the three Dreams slugs and names to the pre-#30 PRODUCTS thumbs', () => {
+    expect(catalogCollectionCoverUrl('organic-dreams')).toContain('plp-calca-thumb');
+    expect(catalogCollectionCoverUrl({ name: 'Niponic Dreams' })).toContain(
+      'plp-look-obi-organza-thumb',
+    );
+    expect(catalogCollectionCoverUrl('brazilian-dreams')).toContain(
+      'plp-colete-bermuda-saia-echarpe-thumb',
+    );
+    expect(catalogCollectionCoverUrl('teste-col-capa')).toBeNull();
+  });
+});
 
 describe('piecePhotoUrl', () => {
   it('prefers thumb, then primary media, then gallery', () => {
@@ -75,99 +89,124 @@ describe('collectionCoverUrl', () => {
 });
 
 describe('resolveCollectionCover with prod-shaped fixtures', () => {
-  it('uses the first live piece photo by product_collections.sortOrder', () => {
+  it('uses the pre-#30 catalog thumbs for Organic / Niponic / Brazilian', () => {
     expect(
       resolveCollectionCover({
         collection: PROD_COLLECTIONS[0],
         products: PROD_PRODUCTS,
       }),
-    ).toContain('plp-calca-thumb.webp');
+    ).toBe(catalogCollectionCoverUrl('organic-dreams'));
     expect(
       resolveCollectionCover({
         collection: PROD_COLLECTIONS[1],
         products: PROD_PRODUCTS,
       }),
-    ).toContain('plp-look-obi-organza-thumb.webp');
+    ).toBe(catalogCollectionCoverUrl('niponic-dreams'));
     expect(
       resolveCollectionCover({
         collection: PROD_COLLECTIONS[2],
         products: PROD_PRODUCTS,
       }),
-    ).toContain('plp-colete-bermuda-saia-thumb.webp');
+    ).toBe(catalogCollectionCoverUrl('brazilian-dreams'));
+  });
+
+  it('derives a custom collection from the first live member photo', () => {
+    expect(
+      resolveCollectionCover({
+        collection: { slug: 'teste-col-capa', name: 'Teste col capa' },
+        products: [
+          {
+            thumb: 'gone.jpg',
+            archivedAt: '2026-10-12T12:00:00.000Z',
+            collections: [{ slug: 'teste-col-capa', sortOrder: 0 }],
+          },
+          { thumb: 'live.jpg', collections: [{ slug: 'teste-col-capa', sortOrder: 1 }] },
+        ],
+      }),
+    ).toBe('live.jpg');
   });
 
   it('matches membership by collection id when slug is missing', () => {
+    expect(productBelongsToCollection(ADMIN_ORGANIC_BY_ID, PROD_COLLECTIONS[0]!)).toBeTrue();
     expect(
-      resolveCollectionCover({
-        collection: PROD_COLLECTIONS[0],
-        products: [ADMIN_ORGANIC_BY_ID],
-      }),
+      collectionCoverUrl([
+        {
+          ...ADMIN_ORGANIC_BY_ID,
+          sortOrder: collectionMembershipSortOrder(
+            ADMIN_ORGANIC_BY_ID.collections,
+            PROD_COLLECTIONS[0]!,
+          ),
+        },
+      ]),
     ).toContain('plp-calca-thumb.webp');
   });
 
   it('matches membership by collection name / collectionSlug', () => {
-    expect(
-      resolveCollectionCover({
-        collection: PROD_COLLECTIONS[1],
-        products: [ADMIN_NIPONIC_NAME_ONLY],
-      }),
-    ).toContain('plp-look-obi-organza-thumb.webp');
+    expect(productBelongsToCollection(ADMIN_NIPONIC_NAME_ONLY, PROD_COLLECTIONS[1]!)).toBeTrue();
+    expect(piecePhotoUrl(ADMIN_NIPONIC_NAME_ONLY)).toContain('plp-look-obi-organza-thumb.webp');
   });
 
-  it('prefers a stored coverImage when it is not from an archived piece', () => {
+  it('prefers the pre-#30 catalog thumb over derived or DTO coverImage', () => {
     expect(
       resolveCollectionCover({
         collection: { ...PROD_COLLECTIONS[0], coverImage: 'https://cdn.example/stored-organic.jpg' },
-        products: PROD_PRODUCTS,
+        products: [{ thumb: 'other.jpg', collections: [{ slug: 'organic-dreams', sortOrder: 0 }] }],
       }),
-    ).toBe('https://cdn.example/stored-organic.jpg');
+    ).toBe(catalogCollectionCoverUrl('organic-dreams'));
   });
 
-  it('ignores a stored cover that only belongs to an archived piece and derives the next live photo', () => {
-    const archivedCover = PROD_PRODUCTS[0]!.thumb!;
-    const products = [
-      { ...PROD_PRODUCTS[0]!, archivedAt: '2026-10-12T12:00:00.000Z' },
-      PROD_PRODUCTS[1]!,
-    ];
-    expect(storedCoverIsFromArchivedPiece(archivedCover, products)).toBeTrue();
+  it('does not treat DTO coverImage as a stored Collection field', () => {
     expect(
       resolveCollectionCover({
-        collection: { ...PROD_COLLECTIONS[0], coverImage: archivedCover },
-        products,
+        collection: { slug: 'teste-col-capa', coverImage: 'https://cdn.example/stored.jpg' },
+        products: [
+          { thumb: 'live.jpg', collections: [{ slug: 'teste-col-capa', sortOrder: 0 }] },
+        ],
       }),
-    ).toContain('plp-bateau-thumb.webp');
+    ).toBe('live.jpg');
   });
 });
 
 describe('coversByCollectionSlug', () => {
-  it('picks the first live photo by collection sortOrder', () => {
+  it('picks the first live photo by collection sortOrder for custom collections', () => {
     const covers = coversByCollectionSlug([
       {
         thumb: 'gone.jpg',
         archivedAt: '2026-10-12T12:00:00.000Z',
-        collections: [{ slug: 'organic-dreams', sortOrder: 0 }],
+        collections: [{ slug: 'teste-col-capa', sortOrder: 0 }],
       },
       {
         thumb: '',
-        collections: [{ slug: 'organic-dreams', sortOrder: 1 }],
+        collections: [{ slug: 'teste-col-capa', sortOrder: 1 }],
       },
       {
         thumb: 'live.jpg',
-        collections: [{ slug: 'organic-dreams', sortOrder: 2 }],
+        collections: [{ slug: 'teste-col-capa', sortOrder: 2 }],
       },
       {
         thumb: 'later.jpg',
-        collections: [{ slug: 'organic-dreams', sortOrder: 3 }],
+        collections: [{ slug: 'teste-col-capa', sortOrder: 3 }],
       },
     ]);
-    expect(covers['organic-dreams']).toBe('live.jpg');
+    expect(covers['teste-col-capa']).toBe('live.jpg');
   });
 
-  it('derives Organic / Niponic / Brazilian from the real public product shape', () => {
-    const covers = coversByCollectionSlug(PROD_PRODUCTS, PROD_COLLECTIONS);
-    expect(covers['organic-dreams']).toContain('plp-calca-thumb.webp');
-    expect(covers['niponic-dreams']).toContain('plp-look-obi-organza-thumb.webp');
-    expect(covers['brazilian-dreams']).toContain('plp-colete-bermuda-saia-thumb.webp');
+  it('uses the pre-#30 catalog thumbs for Organic / Niponic / Brazilian even with no products', () => {
+    const covers = coversByCollectionSlug([], PROD_COLLECTIONS);
+    expect(covers['organic-dreams']).toBe(catalogCollectionCoverUrl('organic-dreams'));
+    expect(covers['niponic-dreams']).toBe(catalogCollectionCoverUrl('niponic-dreams'));
+    expect(covers['brazilian-dreams']).toBe(catalogCollectionCoverUrl('brazilian-dreams'));
+    expect(covers['organic-dreams']).toContain('plp-calca-thumb');
+    expect(covers['niponic-dreams']).toContain('plp-look-obi-organza-thumb');
+    expect(covers['brazilian-dreams']).toContain('plp-colete-bermuda-saia-echarpe-thumb');
+  });
+
+  it('keeps the catalog map keys even when no collection meta is passed', () => {
+    expect(Object.keys(CATALOG_COLLECTION_COVERS).sort()).toEqual(
+      ['brazilian-dreams', 'niponic-dreams', 'organic-dreams'].sort(),
+    );
+    const covers = coversByCollectionSlug([]);
+    expect(covers['organic-dreams']).toContain('plp-calca-thumb');
   });
 
   it('still finds a cover when admin rows omit collections[].slug', () => {
@@ -184,17 +223,17 @@ describe('coversByCollectionSlug', () => {
       {
         thumb: 'cover.jpg',
         archivedAt: '2026-10-12T12:00:00.000Z' as string | null,
-        collections: [{ slug: 'organic-dreams', sortOrder: 0 }],
+        collections: [{ slug: 'teste-col-capa', sortOrder: 0 }],
       },
       {
         thumb: 'other.jpg',
         archivedAt: null as string | null,
-        collections: [{ slug: 'organic-dreams', sortOrder: 1 }],
+        collections: [{ slug: 'teste-col-capa', sortOrder: 1 }],
       },
     ];
-    expect(coversByCollectionSlug(products)['organic-dreams']).toBe('other.jpg');
+    expect(coversByCollectionSlug(products)['teste-col-capa']).toBe('other.jpg');
     products[0]!.archivedAt = null;
-    expect(coversByCollectionSlug(products)['organic-dreams']).toBe('cover.jpg');
+    expect(coversByCollectionSlug(products)['teste-col-capa']).toBe('cover.jpg');
   });
 });
 

@@ -48,6 +48,23 @@ describe('CatalogService public archive filters', () => {
     );
   });
 
+  it('adds the catalog cover for Organic when the list has no member photos', async () => {
+    prisma.collection.findMany.mockResolvedValue([
+      {
+        id: 'a72b6b4e-6765-4f4d-85b7-91017c68a9ad',
+        slug: 'organic-dreams',
+        name: 'Organic Dreams',
+        description: null,
+        sortOrder: 1,
+        publishedAt: new Date('2026-08-22T01:51:56.219Z'),
+        archivedAt: null,
+        products: [],
+      },
+    ]);
+    const list = await service.listCollections();
+    expect(list[0]?.coverImage).toContain('plp-calca-thumb.webp');
+  });
+
   it('adds coverImage from the first live member photo on the public list', async () => {
     prisma.collection.findMany.mockResolvedValue([
       {

@@ -2,8 +2,10 @@ import type { CollectionCoverMeta, CollectionCoverProduct } from './collection-c
 
 /**
  * Real public payload shapes from GET /api/collections and GET /api/products
- * on https://api.leonardochiasso.com (2026-10-13). Admin list/detail use the
+ * on https://api.leonardochiasso.com (2026-10-13). Collections have no cover
+ * field (Prisma Collection has no image column). Admin list/detail use the
  * same `mapProduct` / collection DTO fields; extras below cover older aliases.
+ * Pre-#30 Dreams covers are the local PRODUCTS first-piece thumbs.
  */
 export const PROD_COLLECTIONS: CollectionCoverMeta[] = [
   {

@@ -1,4 +1,5 @@
 import {
+  catalogCollectionCover,
   derivedCollectionCover,
   resolveCollectionCoverImage,
 } from './collection-cover';
@@ -38,6 +39,17 @@ const organicMembers = [
   },
 ];
 
+describe('catalogCollectionCover', () => {
+  it('maps Organic / Niponic / Brazilian to the pre-#30 PRODUCTS thumbs', () => {
+    expect(catalogCollectionCover('organic-dreams')).toContain('plp-calca-thumb.webp');
+    expect(catalogCollectionCover('niponic-dreams')).toContain('plp-look-obi-organza-thumb.webp');
+    expect(catalogCollectionCover('brazilian-dreams')).toContain(
+      'plp-colete-bermuda-saia-echarpe-thumb.webp',
+    );
+    expect(catalogCollectionCover('teste-col-capa')).toBeNull();
+  });
+});
+
 describe('derivedCollectionCover', () => {
   it('picks the first live member photo by product_collections.sortOrder', () => {
     expect(derivedCollectionCover(organicMembers)).toContain('plp-calca-thumb.webp');
@@ -60,30 +72,26 @@ describe('derivedCollectionCover', () => {
 });
 
 describe('resolveCollectionCoverImage', () => {
-  it('prefers a stored cover that is not from an archived piece', () => {
+  it('prefers the pre-#30 catalog thumb for Organic even without members', () => {
+    expect(resolveCollectionCoverImage('organic-dreams', [])).toBe(
+      catalogCollectionCover('organic-dreams'),
+    );
+    expect(resolveCollectionCoverImage('organic-dreams', organicMembers)).toContain(
+      'plp-calca-thumb.webp',
+    );
+  });
+
+  it('ignores a DTO cover URL that is not a catalog slug', () => {
     expect(
       resolveCollectionCoverImage('https://cdn.example/stored-organic.jpg', organicMembers),
-    ).toBe('https://cdn.example/stored-organic.jpg');
+    ).toContain('plp-calca-thumb.webp');
   });
 
-  it('drops a stored cover that only belongs to an archived piece', () => {
-    const archived = 'https://cdn.example/gone.jpg';
-    expect(
-      resolveCollectionCoverImage(archived, [
-        {
-          sortOrder: 0,
-          product: {
-            archivedAt: new Date('2026-10-12T12:00:00Z'),
-            media: [{ mediaAsset: { cdnUrl: archived } }],
-          },
-        },
-        organicMembers[1]!,
-      ]),
-    ).toContain('plp-bateau-thumb.webp');
-  });
-
-  it('returns null only when there is no stored cover and no live photo', () => {
-    expect(resolveCollectionCoverImage(null, [])).toBeNull();
+  it('derives a custom collection and returns null only when nothing exists', () => {
+    expect(resolveCollectionCoverImage('teste-col-capa', organicMembers)).toContain(
+      'plp-calca-thumb.webp',
+    );
+    expect(resolveCollectionCoverImage('teste-col-capa', [])).toBeNull();
     expect(
       resolveCollectionCoverImage(null, [
         {

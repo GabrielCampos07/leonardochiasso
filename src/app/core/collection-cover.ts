@@ -1,10 +1,33 @@
 import { isArchivedAt } from './admin-archive';
 import { resolveMediaUrl } from './media-url';
+import { COLLECTION_SLUGS } from './routes';
 
 /** Warm atelier wash — same family as the 3D floor (`#efe8dc`). */
 export const COLLECTION_COVER_FALLBACK_HEX = '#efe8dc';
 export const COLLECTION_COVER_FALLBACK_DEEP = '#e4d4c2';
 export const COLLECTION_COVER_FALLBACK_LIGHT = '#f7f1e6';
+
+/**
+ * Pre-#30 storefront source for the three Dreams collections: first piece thumb
+ * from the local `PRODUCTS` catalog. Prisma `Collection` has no image column —
+ * there is no stored cover and this map must not be replaced by a migration.
+ */
+export const CATALOG_COLLECTION_COVERS: Readonly<Record<string, string>> = {
+  [COLLECTION_SLUGS.organicDreams]: 'assets/media/plp-calca-thumb.png',
+  [COLLECTION_SLUGS.niponicDreams]: 'assets/media/plp-look-obi-organza-thumb.png',
+  [COLLECTION_SLUGS.brazilianDreams]: 'assets/media/plp-colete-bermuda-saia-echarpe-thumb.png',
+};
+
+export function catalogCollectionCoverUrl(
+  collection: CollectionCoverMeta | string | null | undefined,
+): string | null {
+  const slug =
+    typeof collection === 'string'
+      ? normalizeKey(collection)
+      : normalizeKey(collection?.slug) || normalizeKey(collection?.name).replace(/\s+/g, '-');
+  const raw = CATALOG_COLLECTION_COVERS[slug];
+  return raw ? resolveMediaUrl(raw) : null;
+}
 
 export interface CollectionCoverMedia {
   cdnUrl?: string | null;
@@ -51,7 +74,7 @@ export interface CollectionCoverMeta {
   id?: string | null;
   slug?: string | null;
   name?: string | null;
-  /** Stored cover on the collection itself (API `coverImage` / legacy aliases). */
+  /** Derived DTO hint only — Collection has no image column. Never a stored cover. */
   coverImage?: string | null;
   coverUrl?: string | null;
   image?: string | null;
@@ -118,13 +141,7 @@ export function piecePhotoUrl(piece: CollectionCoverSource): string | null {
 }
 
 export function storedCollectionCoverUrl(collection: CollectionCoverMeta | null | undefined): string | null {
-  if (!collection) return null;
-  const raw =
-    asText(collection.coverImage) ??
-    asText(collection.coverUrl) ??
-    asText(collection.image) ??
-    asText(collection.imageUrl);
-  return raw ? resolveMediaUrl(raw) : null;
+  return catalogCollectionCoverUrl(collection);
 }
 
 export function collectionIdentityKeys(
@@ -195,43 +212,25 @@ export function collectionCoverUrl(pieces: readonly CollectionCoverSource[]): st
   return null;
 }
 
-/** True when the URL belongs to an archived member and no live member shares it. */
-export function storedCoverIsFromArchivedPiece(
-  stored: string | null | undefined,
-  pieces: readonly CollectionCoverSource[],
-): boolean {
-  const url = asText(stored);
-  if (!url) return false;
-  let onArchived = false;
-  let onLive = false;
-  for (const piece of pieces) {
-    const photo = piecePhotoUrl(piece);
-    if (photo !== url) continue;
-    if (isArchivedAt(piece.archivedAt)) onArchived = true;
-    else onLive = true;
-  }
-  return onArchived && !onLive;
-}
-
 /**
- * Stored collection cover wins when it is not the photo of an archived-only piece.
- * Otherwise derive from the first live piece with a photo. Fallback only when neither exists.
+ * Cover priority (Collection has no image column — do not persist one):
+ * 1. Pre-#30 catalog thumb for Organic / Niponic / Brazilian
+ * 2. First live member photo by product_collections.sortOrder
+ * 3. Null — the UI washes to the warm fallback
  */
 export function resolveCollectionCover(opts: {
   collection?: CollectionCoverMeta | null;
   products?: readonly CollectionCoverSource[] | null;
 }): string | null {
   const collection = opts.collection ?? {};
+  const catalog = catalogCollectionCoverUrl(collection);
+  if (catalog) return catalog;
   const members = (opts.products ?? [])
     .filter((product) => productBelongsToCollection(product, collection))
     .map((product) => ({
       ...product,
       sortOrder: collectionMembershipSortOrder(product.collections, collection) ?? product.sortOrder,
     }));
-  const stored = storedCollectionCoverUrl(collection);
-  if (stored && !storedCoverIsFromArchivedPiece(stored, members.length ? members : (opts.products ?? []))) {
-    return stored;
-  }
   return collectionCoverUrl(members);
 }
 
@@ -290,6 +289,11 @@ export function coversByCollectionSlug(
       metaByKey.get(normalizeKey(slug)) ??
       { slug };
     covers[slug] = resolveCollectionCover({ collection: meta, products: rows });
+  }
+  for (const slug of Object.keys(CATALOG_COLLECTION_COVERS)) {
+    if (covers[slug] == null) {
+      covers[slug] = catalogCollectionCoverUrl(slug);
+    }
   }
   return covers;
 }
