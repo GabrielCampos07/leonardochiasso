@@ -75,6 +75,7 @@ import {
   rackPanRange,
   rackRowCount,
   rackWidth,
+  syncRackTitlePlate,
 } from './collection-rack';
 import {
   EMPTY_RACK_PAN,
@@ -1229,6 +1230,12 @@ export class SceneEngine {
       unit && unit.kind !== 'vitrine'
         ? rackStartPanX(unit.hangers.length, this.frameColumnCount(unit.hangers.length))
         : 0;
+    this.syncTitlePlate(id);
+  }
+
+  private syncTitlePlate(id = this.focusedId): void {
+    const group = this.racksRoot.getObjectByName(`rack:${id}`) as Group | undefined;
+    if (group) syncRackTitlePlate(group, this.rackPanX);
   }
 
   private focusedPanRange(): number {
@@ -1258,6 +1265,7 @@ export class SceneEngine {
     if (Math.abs(next - this.rackPanX) < 0.0001) return false;
     const applied = next - this.rackPanX;
     this.rackPanX = next;
+    this.syncTitlePlate();
     this.camera.position.x += applied;
     this.controls.target.x += applied;
     this.onPanCb?.();
@@ -1293,15 +1301,10 @@ export class SceneEngine {
     const hostSize = hostDrawingSize(this.host);
     const compact = isCompactAtelierViewport(hostSize?.width || this.lastWidth);
     if (mode === 'rack' && object instanceof Group) {
-      if (compact) {
-        this.bounds.expandByObject(object);
-        this.expandBoundsByRackRug(String(object.userData?.['rackId'] ?? ''));
-      } else {
-        const plate = object.getObjectByName('plate');
-        const hangers = object.getObjectByName('hangers');
-        if (plate) this.bounds.expandByObject(plate);
-        if (hangers) this.bounds.expandByObject(hangers);
-      }
+      const plate = object.getObjectByName('plate');
+      const hangers = object.getObjectByName('hangers');
+      if (plate) this.bounds.expandByObject(plate);
+      if (hangers) this.bounds.expandByObject(hangers);
     }
     if (this.bounds.isEmpty()) this.bounds.expandByObject(object);
     if (this.bounds.isEmpty()) {

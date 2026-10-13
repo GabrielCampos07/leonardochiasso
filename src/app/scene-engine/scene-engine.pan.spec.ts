@@ -34,6 +34,35 @@ function organicLayout(): SceneLayout {
   return rackLayout('organic-dreams', 8);
 }
 
+function wheelOverRack(
+  canvas: HTMLCanvasElement,
+  engine: { unitScreenBounds(id: string): { left: number; right: number; top: number; bottom: number } | null },
+  rackId: string,
+  deltaY: number,
+  extra: WheelEventInit = {},
+): void {
+  const bounds = engine.unitScreenBounds(rackId);
+  const rect = canvas.getBoundingClientRect();
+  const x = bounds
+    ? rect.left + (bounds.left + bounds.right) / 2
+    : rect.left + rect.width / 2;
+  const y = bounds
+    ? rect.top + bounds.top + (bounds.bottom - bounds.top) * 0.28
+    : rect.top + rect.height * 0.4;
+  for (let i = 0; i < 4; i += 1) {
+    canvas.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY,
+        clientX: x,
+        clientY: y,
+        bubbles: true,
+        cancelable: true,
+        ...extra,
+      }),
+    );
+  }
+}
+
 describe('SceneEngine lateral pan', () => {
   it('pans a 19-piece rack and stops at the rail end', () => {
     const canvas = document.createElement('canvas');
@@ -78,9 +107,10 @@ describe('SceneEngine lateral pan', () => {
     engine.setLayout(longRackLayout());
     engine.focusRack('niponic-dreams', true);
     expect(engine.rackPanState().label).toBe('8 de 19');
-    canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 240, bubbles: true, cancelable: true }));
+    const startLast = engine.rackPanState().last;
+    wheelOverRack(canvas, engine, 'niponic-dreams', 320);
     expect(engine.canPan(-1)).toBeTrue();
-    expect(engine.rackPanState().last).toBeGreaterThan(8);
+    expect(engine.rackPanState().last).toBeGreaterThan(startLast);
     engine.dispose();
     canvas.remove();
   });
@@ -157,8 +187,9 @@ describe('SceneEngine lateral pan', () => {
     engine.focusRack('niponic-dreams', true);
     const before = engine.orbitDistance();
     expect(engine.rackPanState().label).toBe('8 de 19');
-    canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 240, bubbles: true, cancelable: true }));
-    expect(engine.rackPanState().last).toBeGreaterThan(8);
+    const startLast = engine.rackPanState().last;
+    wheelOverRack(canvas, engine, 'niponic-dreams', 320);
+    expect(engine.rackPanState().last).toBeGreaterThan(startLast);
     expect(engine.orbitDistance()).toBeCloseTo(before, 5);
     engine.dispose();
     canvas.remove();

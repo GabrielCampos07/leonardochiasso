@@ -146,7 +146,7 @@ export const FIT_WIDTH_MARGIN = 0.075;
 /** Extra side air on portrait so Organic / short racks don't lose the posts. */
 export const FIT_WIDTH_MARGIN_COMPACT = 0.1;
 /** Sit a compact focused rack higher so the wall does not eat the top 40%. */
-export const COMPACT_RACK_RAISE = 0.34;
+export const COMPACT_RACK_RAISE = 0.5;
 /** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
 export const RACK_MAX_DISTANCE_COMPACT = 26;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;

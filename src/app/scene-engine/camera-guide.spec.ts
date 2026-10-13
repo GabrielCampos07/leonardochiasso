@@ -16,6 +16,7 @@ import {
   computeVitrineFit,
   defaultChromeInsets,
   distanceToFitWidth,
+  COMPACT_RACK_RAISE,
   FIT_WIDTH_MARGIN_COMPACT,
   RACK_MAX_DISTANCE_COMPACT,
   measureAtelierChrome,
@@ -121,6 +122,15 @@ describe('computeEyeLevelFit', () => {
     const visible = 2 * Math.tan((38 * Math.PI) / 360) * pose.distance * (16 / 9);
     expect(4 / visible).toBeGreaterThan(0.78);
     expect(4 / visible).toBeLessThan(0.95);
+  });
+
+  it('raises a compact rack so the wall does not fill the top of the phone', () => {
+    const chrome = { top: 0.08, bottom: 0.22 };
+    const pose = computeEyeLevelFit(box, 393 / 852, 38, 'rack', true, chrome);
+    const cy = (box.minY + box.maxY) / 2;
+    expect(COMPACT_RACK_RAISE).toBeGreaterThan(0.4);
+    expect(pose.target.y).toBeLessThan(cy);
+    expect(pose.target.y).toBeLessThan(chromeBandTargetY(cy, box.maxY - box.minY, chrome) - 0.3);
   });
 
   it('keeps a compact viewport on the width fit with extra side margin', () => {

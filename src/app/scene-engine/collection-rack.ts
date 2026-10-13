@@ -153,6 +153,7 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
 
   const plateW = Math.min(width * 0.72, 2.6);
   const plate = new Mesh(new BoxGeometry(plateW, 0.2, 0.03), darkWoodMaterial());
+  plate.name = 'plate-box';
   plate.position.set(0, barTop + 0.28, 0.02);
   markRackDecor(plate);
   group.add(plate);
@@ -169,6 +170,22 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
 
   layoutHangers(hangersRoot, rack.hangers, width, barTop);
   return group;
+}
+
+/**
+ * Keep the collection sign over the framed columns. Otherwise a left-start
+ * pan leaves the centred title hanging off the right of a 4-col mobile frame.
+ */
+export function syncRackTitlePlate(group: Group, panX: number): void {
+  const width = Number(group.userData?.['unitWidth'] ?? 0);
+  const label = group.getObjectByName('plate');
+  const box = group.getObjectByName('plate-box');
+  if (!label || width <= 0) return;
+  const half = Math.max(0.4, (label as Mesh).scale.x / 2);
+  const maxOff = Math.max(0, width / 2 - half - 0.06);
+  const x = Math.min(maxOff, Math.max(-maxOff, panX));
+  label.position.x = x;
+  if (box) box.position.x = x;
 }
 
 export function layoutHangers(
