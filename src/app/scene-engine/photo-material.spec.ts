@@ -7,6 +7,9 @@ describe('photo materials', () => {
     const material = makePhotoMaterial(texture);
     expect(material).toBeInstanceOf(MeshBasicMaterial);
     expect(material.toneMapped).toBeFalse();
+    expect(material.fog).toBeFalse();
+    expect(material.transparent).toBeFalse();
+    expect(material.depthWrite).toBeTrue();
     expect(isPhotoMaterial(material)).toBeTrue();
     expect(isPhotoMaterial(new MeshStandardMaterial())).toBeFalse();
     applyPhotoMap(material, texture);

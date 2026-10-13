@@ -9,7 +9,9 @@ import {
   Vector2,
 } from 'three';
 import { ATELIER_BRASS, ATELIER_LINEN } from './atelier-look';
-import { FLOOR_Y } from './collection-rack';
+import { FLOOR_Y, HANGER_SPACING, HANGER_ROW_LIMIT } from './collection-rack';
+import { PHOTO_MAX_W } from './garment-hanger';
+import { UNIT_GAP } from './unit-layout';
 import type { SceneUnitKind } from './types';
 
 export const MANNEQUIN_GROUP = 'featured-mannequin';
@@ -90,10 +92,37 @@ export function createDressForm(lite = false): Group {
   return group;
 }
 
-/** Inside the unit width, behind hangers — never into the neighbor's slot. */
-export function mannequinOffset(unitWidth: number, kind: SceneUnitKind): { x: number; z: number; rotY: number } {
-  const inset = kind === 'vitrine' ? 0.22 : 0.18;
-  return { x: unitWidth / 2 - inset, z: -0.92, rotY: -0.18 };
+export const MANNEQUIN_HALF_W = 0.18;
+export const MANNEQUIN_BEHIND_Z = -1.08;
+
+/** Local X span of hanger photos on a rack, measured from the unit origin. */
+export function hangerPhotoSpan(hangerCount: number, unitWidth: number): { minX: number; maxX: number } {
+  const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
+  const rowWidth = Math.min(unitWidth - 0.45, perRow * HANGER_SPACING);
+  const startX = -rowWidth / 2 + HANGER_SPACING / 2;
+  const lastX = startX + (perRow - 1) * HANGER_SPACING;
+  return {
+    minX: startX - PHOTO_MAX_W / 2,
+    maxX: lastX + PHOTO_MAX_W / 2,
+  };
+}
+
+/**
+ * Beside the right post, behind the hanger plane. Returns null when the form
+ * would overlap a photo or the neighboring rack — omit the prop instead.
+ */
+export function mannequinOffset(
+  unitWidth: number,
+  kind: SceneUnitKind,
+  hangerCount = 1,
+): { x: number; z: number; rotY: number } | null {
+  const photos = hangerPhotoSpan(hangerCount, unitWidth);
+  const x = unitWidth / 2 + 0.28;
+  const left = x - MANNEQUIN_HALF_W;
+  const right = x + MANNEQUIN_HALF_W;
+  if (left < photos.maxX + 0.08) return null;
+  if (right > unitWidth / 2 + UNIT_GAP - 0.2) return null;
+  return { x, z: kind === 'vitrine' ? -1.2 : MANNEQUIN_BEHIND_Z, rotY: -0.16 };
 }
 
 export function dimAsBackground(root: Group, intensity = 0.32): void {

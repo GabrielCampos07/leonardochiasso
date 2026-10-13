@@ -1584,20 +1584,24 @@ export class SceneEngine {
       const unit = this.racksRoot.getObjectByName(`rack:${rack.id}`) as Group | undefined;
       if (!unit) continue;
       const width = Number(unit.userData['unitWidth'] ?? unitWidth(rack.kind, rack.hangers.length));
-      const offset = mannequinOffset(width, rack.kind);
-      const form = this.mannequinSrc ? cloneGlb(this.mannequinSrc) : createDressForm(this.lite);
-      form.name = `${MANNEQUIN_GROUP}:${rack.id}`;
-      form.position.set(unit.position.x + offset.x, FLOOR_Y, offset.z);
-      form.rotation.y = offset.rotY;
-      if (this.mannequinSrc) this.fitPropToFloor(form, 1.48);
-      form.userData = { ignorePick: true, kind: 'mannequin' };
-      this.propsRoot.add(form);
+      const offset = mannequinOffset(width, rack.kind, rack.hangers.length);
+      if (offset) {
+        const form = this.mannequinSrc ? cloneGlb(this.mannequinSrc) : createDressForm(this.lite);
+        form.name = `${MANNEQUIN_GROUP}:${rack.id}`;
+        form.position.set(unit.position.x + offset.x, FLOOR_Y, offset.z);
+        form.rotation.y = offset.rotY;
+        if (this.mannequinSrc) this.fitPropToFloor(form, 1.48);
+        hardenPropMaterials(form);
+        form.userData = { ignorePick: true, kind: 'mannequin' };
+        this.propsRoot.add(form);
+      }
 
       for (const [index, plantAt] of plantOffsets(width).entries()) {
         const pot = this.plantSrc ? cloneGlb(this.plantSrc) : createAtelierPlant(this.lite);
         pot.name = `plant:${rack.id}:${index}`;
         pot.position.set(unit.position.x + plantAt.x, FLOOR_Y, plantAt.z);
         if (this.plantSrc) this.fitPropToFloor(pot, 0.92);
+        hardenPropMaterials(pot);
         pot.userData = { ignorePick: true, kind: 'plant' };
         this.propsRoot.add(pot);
       }
@@ -1621,6 +1625,22 @@ export class SceneEngine {
       disposeObject3D(child);
     }
   }
+}
+
+function hardenPropMaterials(root: Object3D): void {
+  root.traverse((child) => {
+    if (!(child instanceof Mesh)) return;
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of mats) {
+      if (!mat || typeof mat !== 'object') continue;
+      const record = mat as MeshStandardMaterial & { transmission?: number };
+      record.transparent = false;
+      record.opacity = 1;
+      record.depthWrite = true;
+      record.depthTest = true;
+      if (typeof record.transmission === 'number') record.transmission = 0;
+    }
+  });
 }
 
 function fadeObjectOpacity(root: Object3D, opacity: number): void {

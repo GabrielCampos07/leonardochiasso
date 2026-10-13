@@ -29,4 +29,31 @@ describe('garment hanger sold-out badge', () => {
     expect(isPhotoMaterial(back.material)).toBeTrue();
     expect(badge!.position.y).toBeGreaterThan(garment.position.y + 0.28);
   });
+
+  it('keeps published photos and labels opaque and unfogged', () => {
+    const group = createGarmentHanger({
+      productId: 'p',
+      slug: 'vestido-lg-bateau',
+      name: 'Vestido LG Bateau',
+      imageUrl: null,
+      stockQty: 2,
+      priceLabel: 'R$ 1,00',
+      status: 'published',
+      rackId: 'organic-dreams',
+      kind: 'garment',
+    });
+    const garment = group.getObjectByName('garment') as Mesh;
+    const label = group.getObjectByName('label') as Mesh;
+    const photo = garment.material;
+    const tag = label.material;
+    expect(isPhotoMaterial(photo)).toBeTrue();
+    if (!isPhotoMaterial(photo) || !isPhotoMaterial(tag)) return;
+    expect(photo.opacity).toBe(1);
+    expect(photo.transparent).toBeFalse();
+    expect(photo.depthWrite).toBeTrue();
+    expect(photo.fog).toBeFalse();
+    expect(tag.opacity).toBe(1);
+    expect(tag.transparent).toBeFalse();
+    expect(tag.depthWrite).toBeTrue();
+  });
 });

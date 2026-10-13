@@ -124,6 +124,7 @@ export function createGarmentHanger(data: SceneHanger): Group {
   garment.name = 'garment';
   garment.userData = group.userData;
   garment.castShadow = true;
+  garment.renderOrder = 2;
   group.add(garment);
 
   const badge = attachSoldOutBadge(
@@ -139,12 +140,13 @@ export function createGarmentHanger(data: SceneHanger): Group {
 
   const label = new Mesh(
     new PlaneGeometry(1, 1),
-    makePhotoMaterial(hangerLabelMap(data.name), { opacity, transparent: true }),
+    makePhotoMaterial(hangerLabelMap(data.name), { opacity, transparent: opacity < 1 }),
   );
   label.scale.set(0.5, 0.08, 1);
   label.position.set(0, -photo.height * 0.5 - 0.06, 0.04);
   label.name = 'label';
   label.userData = group.userData;
+  label.renderOrder = 2;
   group.add(label);
 
   return group;
@@ -165,6 +167,8 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
   if (garment && isPhotoMaterial(garment.material)) {
     garment.material.opacity = opacity;
     garment.material.transparent = opacity < 1;
+    garment.material.depthWrite = true;
+    garment.material.fog = false;
     if (!garment.material.map) {
       applyPhotoMap(garment.material, makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, data.name));
     }
@@ -178,6 +182,9 @@ export function applyHangerData(group: Group, data: SceneHanger): void {
     const prev = label.material.map;
     label.material.map = hangerLabelMap(data.name);
     label.material.opacity = opacity;
+    label.material.transparent = opacity < 1;
+    label.material.depthWrite = true;
+    label.material.fog = false;
     label.material.needsUpdate = true;
     prev?.dispose();
   }

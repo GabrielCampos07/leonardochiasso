@@ -9,14 +9,17 @@ export function makePhotoMaterial(
   opts: { color?: number; opacity?: number; transparent?: boolean } = {},
 ): MeshBasicMaterial {
   const opacity = opts.opacity ?? 1;
+  const transparent = opts.transparent ?? opacity < 1;
   const material = new MeshBasicMaterial({
     color: opts.color ?? 0xffffff,
     map,
-    transparent: opts.transparent ?? opacity < 1,
+    transparent,
     opacity,
-    depthWrite: opacity >= 1,
+    depthWrite: true,
+    depthTest: true,
   });
   material.toneMapped = false;
+  material.fog = false;
   return material;
 }
 
@@ -28,5 +31,9 @@ export function applyPhotoMap(material: MeshBasicMaterial, texture: Texture): vo
   material.map = texture;
   material.color.setHex(0xffffff);
   material.toneMapped = false;
+  material.fog = false;
+  material.transparent = material.opacity < 1;
+  material.depthWrite = true;
+  material.depthTest = true;
   material.needsUpdate = true;
 }
