@@ -27,14 +27,14 @@ export function createAtelierRoom(lite = false): Group {
   floor.position.y = FLOOR_Y - 0.05;
   floor.receiveShadow = !lite;
   floor.name = 'floor';
-  floor.userData = { ignorePick: true };
+  floor.userData = { ignorePick: true, kind: 'floor' };
   room.add(floor);
 
   const wall = new Mesh(new PlaneGeometry(110, 18), wallMaterial(lite, makePlasterTexture()));
   wall.position.set(8, 6.2, ROOM_WALL_Z);
   wall.receiveShadow = !lite;
   wall.name = 'wall';
-  wall.userData = { ignorePick: true };
+  wall.userData = { ignorePick: true, kind: 'wall' };
   room.add(wall);
 
   const wainscot = new Mesh(new BoxGeometry(110, WAINSCOT_H, 0.04), wainscotMaterial(lite));
@@ -59,7 +59,7 @@ export function createAtelierRoom(lite = false): Group {
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.set(8, 7.4, 6);
   ceiling.name = 'ceiling';
-  ceiling.userData = { ignorePick: true };
+  ceiling.userData = { ignorePick: true, kind: 'ceiling' };
   room.add(ceiling);
 
   const rugs = new Group();
@@ -75,7 +75,7 @@ export function placeRoomRug(room: Group, centerX: number, span: number): void {
 
 export function placeRackRugs(
   room: Group,
-  slots: Array<{ x: number; width: number }>,
+  slots: Array<{ x: number; width: number; rackId?: string }>,
   lite = false,
 ): void {
   const root = room.getObjectByName('rugs') as Group | undefined;
@@ -89,14 +89,14 @@ export function placeRackRugs(
     rug.position.set(slot.x, FLOOR_Y + 0.014, RUG_Z);
     rug.receiveShadow = !lite;
     rug.name = 'rug';
-    rug.userData = { ignorePick: true };
+    rug.userData = { ignorePick: true, kind: 'rug', rackId: slot.rackId ?? '' };
     root.add(rug);
 
     const ao = new Mesh(new PlaneGeometry(slot.width * 0.95, 0.62), contactShadowMaterial());
     ao.rotation.x = -Math.PI / 2;
     ao.position.set(slot.x, FLOOR_Y + 0.018, 0.04);
     ao.name = 'contact-ao';
-    ao.userData = { ignorePick: true };
+    ao.userData = { ignorePick: true, kind: 'rug', rackId: slot.rackId ?? '' };
     root.add(ao);
   }
 }

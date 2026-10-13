@@ -2,7 +2,6 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   Box3,
-  Clock,
   Color,
   DirectionalLight,
   Fog,
@@ -21,6 +20,7 @@ import {
   Spherical,
   SRGBColorSpace,
   Texture,
+  Timer,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -78,7 +78,9 @@ import {
   EMPTY_RACK_PAN,
   rackLookFrame,
   rackPanProgress,
+  isPinchZoomEvent,
   rackStartPanX,
+  shouldPanRackOnWheel,
   wheelPanPixels,
   type RackPanProgress,
 } from './rack-pan';
@@ -93,8 +95,8 @@ import {
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
-import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
-import { rackIdFromHits } from './rack-pick';
+import { hangerSlugFromHits, isPointerClick, isRoomSurface, resolveHangerClick } from './hanger-pick';
+import { rackFocusIdAfterPointer, rackIdFromHits } from './rack-pick';
 import {
   ORBIT_DAMPING_FACTOR,
   ORBIT_DAMPING_MAX_MS,
@@ -103,6 +105,9 @@ import {
   hangerTooltipWhileCameraBusy,
   hoverSlugAfterCameraSettle,
   orbitDampingExpired,
+  shouldCapOrbitInertia,
+  shouldEnableOrbitZoom,
+  shouldRefitOnResize,
   stopOrbitInertia,
   stopPanZoomInertia,
 } from './orbit-damping';
@@ -125,6 +130,13 @@ import {
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls, textureJobId, type HangerTextureQuality } from './photo-url';
 import { inFocusUpgradeSlugs } from './photo-lod';
+import {
+  cursorOnTargetPlane,
+  keepCursorWorldPoint,
+  ndcFromClient,
+  shouldClearPieceZoomUpgrade,
+  shouldUpgradePieceFromZoom,
+} from './cursor-zoom';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
@@ -244,7 +256,10 @@ export class SceneEngine {
   private orbitDampingUntil = 0;
   private lastPointer = { x: 0, y: 0, valid: false };
   private pendingHoverAfterSettle = false;
-  private readonly clock = new Clock(false);
+  private settleTimer = 0;
+  private orbitGesture: 'pointer' | 'wheel' = 'pointer';
+  private userOrbited = false;
+  private readonly timer = new Timer();
   private disposed = false;
   private hoverSlug: string | null = null;
   private lift = 0;
@@ -325,16 +340,23 @@ export class SceneEngine {
   private mannequinSrc: Group | null = null;
   private plantSrc: Group | null = null;
 
+  private pointerDownAt = 0;
+  private readonly wheelCursorWorld = new Vector3();
+  private wheelCursorNdc = { x: 0, y: 0 };
+  private wheelCursorValid = false;
+
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.pointerDownAt = performance.now();
     this.lastDragX = event.clientX;
     this.rackPanning = false;
-    this.controls.enableZoom = true;
+    this.orbitGesture = 'pointer';
+    this.cancelCameraTween();
+    this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.rememberPointer(event);
     this.onHoverCb?.(null);
     this.setHover(null);
     this.pointerDownSlug = this.pickHangerSlug(event);
-    if (this.pointerDownSlug) this.onClickCb?.(this.pointerDownSlug);
     try {
       this.canvas.setPointerCapture(event.pointerId);
       this.capturedPointerId = event.pointerId;
@@ -373,28 +395,36 @@ export class SceneEngine {
     this.stopRackPan();
     this.rememberPointer(event);
     this.releasePointer(event.pointerId);
+    const durationMs = performance.now() - this.pointerDownAt;
     const slug = resolveHangerClick({
       pointerDownSlug: this.pointerDownSlug,
       pointerUpSlug: this.pickHangerSlug(event),
       hoverSlug: this.hoverSlug,
       dx,
       dy,
+      durationMs,
     });
     this.pointerDownSlug = null;
-    if (slug) {
-      /* opened on pointerdown so the modal is not blocked by orbit restore */
-    } else if (!wasPanning && isPointerClick(dx, dy)) {
-      const hits = this.raycastPointer(event);
-      if (this.focusedId === OVERVIEW_FOCUS_ID) {
-        const rackId = rackIdFromHits(hits);
-        if (rackId) {
-          this.focusRack(rackId);
-          this.endOrbit();
-          return;
-        }
+    if (!isPointerClick(dx, dy)) this.userOrbited = true;
+    const hits = this.raycastPointer(event);
+    const rackId = rackFocusIdAfterPointer({
+      overview: this.focusedId === OVERVIEW_FOCUS_ID,
+      wasPanning,
+      isClick: isPointerClick(dx, dy),
+      hits,
+    });
+    if (rackId) {
+      this.endOrbit();
+      this.focusRack(rackId);
+      return;
+    }
+    if (!wasPanning && isPointerClick(dx, dy)) {
+      if (slug) {
+        this.onClickCb?.(slug);
+      } else {
+        const emptyId = this.emptyUnitIdFromHits(hits);
+        if (emptyId) this.onEmptyUnitCb?.(emptyId);
       }
-      const emptyId = this.emptyUnitIdFromHits(hits);
-      if (emptyId) this.onEmptyUnitCb?.(emptyId);
     }
     this.endOrbit();
   };
@@ -416,16 +446,61 @@ export class SceneEngine {
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
+  private readonly onTouchStart = (event: TouchEvent) => {
+    if (event.cancelable) event.preventDefault();
+    if (event.touches.length >= 2) {
+      this.orbitGesture = 'wheel';
+      this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
+    }
+  };
+  /**
+   * Capture runs before OrbitControls.
+   * Wheel over rack → pan (zoom off). Elsewhere / pinch → zoom.
+   */
+  private readonly onWheelCapture = (event: WheelEvent) => {
+    const pinch = isPinchZoomEvent(event);
+    const pan = shouldPanRackOnWheel({
+      overRack: this.wheelOverFocusedRack(event),
+      pinch,
+      panRange: this.focusedPanRange(),
+    });
+    this.wheelCursorValid = false;
+    if (pan) {
+      this.controls.enableZoom = false;
+      return;
+    }
+    if (this.orbitSettling() && !pinch) return;
+    this.orbitGesture = 'wheel';
+    this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
+    if (pinch) this.captureWheelCursor(event);
+  };
+  /** Rack wheel pans pieces. Elsewhere (or ctrl / pinch) dollies. */
   private readonly onWheel = (event: WheelEvent) => {
     if (event.cancelable) event.preventDefault();
-    if (this.focusedPanRange() <= 0) return;
-    this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+    const pinch = isPinchZoomEvent(event);
+    if (
+      shouldPanRackOnWheel({
+        overRack: this.wheelOverFocusedRack(event),
+        pinch,
+        panRange: this.focusedPanRange(),
+      })
+    ) {
+      this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+      return;
+    }
+    if (pinch && this.wheelCursorValid) {
+      keepCursorWorldPoint(this.camera, this.controls.target, this.wheelCursorNdc, this.wheelCursorWorld);
+      this.controls.update();
+      this.maybeUpgradePieceFromZoom(event);
+    }
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
+    this.userOrbited = true;
     this.orbitDampingUntil = 0;
+    this.clearSettleTimer();
     this.cancelCameraTween();
-    this.controls.enableZoom = true;
+    this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.hideHoverForCamera();
     this.requestRender();
   };
@@ -527,8 +602,9 @@ export class SceneEngine {
     canvas.addEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
     canvas.addEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
     canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
-    canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('touchstart', this.onTouchStart, NON_PASSIVE);
     canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('wheel', this.onWheelCapture, { capture: true, passive: false });
     canvas.addEventListener('wheel', this.onWheel, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
@@ -608,8 +684,74 @@ export class SceneEngine {
     this.requestRender();
   }
 
+  /** Distance from the lens to the orbit target — used by zoom settle tests. */
+  orbitDistance(): number {
+    return this.camera.position.distanceTo(this.controls.target);
+  }
+
+  orbitZoomEnabled(): boolean {
+    return this.controls.enableZoom;
+  }
+
+  isCameraTweening(): boolean {
+    return this.tween !== null;
+  }
+
+  cameraSnapshot(): { x: number; y: number; z: number; distance: number } {
+    return {
+      x: this.camera.position.x,
+      y: this.camera.position.y,
+      z: this.camera.position.z,
+      distance: this.orbitDistance(),
+    };
+  }
+
   focusedRackId(): string {
     return this.focusedId;
+  }
+
+  focusedPieceSlug(): string | null {
+    return this.focusedHangerSlug;
+  }
+
+  /** Render now and read the canvas — needed because the default buffer is not preserved. */
+  capturePng(): string {
+    this.renderer.render(this.scene, this.camera);
+    return this.canvas.toDataURL('image/png');
+  }
+
+  /** Project a unit's world box to canvas-local pixels (tests + mobile fit). */
+  unitScreenBounds(id: string): { top: number; bottom: number; left: number; right: number } | null {
+    const group = this.racksRoot.getObjectByName(`rack:${id}`);
+    if (!group) return null;
+    group.updateWorldMatrix(true, true);
+    this.bounds.makeEmpty();
+    this.bounds.expandByObject(group);
+    if (this.bounds.isEmpty()) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const corners = [
+      new Vector3(this.bounds.min.x, this.bounds.min.y, this.bounds.min.z),
+      new Vector3(this.bounds.min.x, this.bounds.min.y, this.bounds.max.z),
+      new Vector3(this.bounds.min.x, this.bounds.max.y, this.bounds.min.z),
+      new Vector3(this.bounds.min.x, this.bounds.max.y, this.bounds.max.z),
+      new Vector3(this.bounds.max.x, this.bounds.min.y, this.bounds.min.z),
+      new Vector3(this.bounds.max.x, this.bounds.min.y, this.bounds.max.z),
+      new Vector3(this.bounds.max.x, this.bounds.max.y, this.bounds.min.z),
+      new Vector3(this.bounds.max.x, this.bounds.max.y, this.bounds.max.z),
+    ];
+    for (const corner of corners) {
+      const p = this.worldToClient(corner);
+      xs.push(p.x - rect.left);
+      ys.push(p.y - rect.top);
+    }
+    return {
+      left: Math.min(...xs),
+      right: Math.max(...xs),
+      top: Math.min(...ys),
+      bottom: Math.max(...ys),
+    };
   }
 
   unitLocalPosition(id: string): { x: number; y: number; z: number } | null {
@@ -635,6 +777,7 @@ export class SceneEngine {
 
     this.hasLayout = true;
     this.rackPanX = 0;
+    this.userOrbited = false;
     this.firstFrameSent = false;
     this.sceneCompleteSent = false;
     this.propsArmed = false;
@@ -668,6 +811,7 @@ export class SceneEngine {
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
     if (this.focusedId !== id) this.resetPanForUnit(id);
+    this.userOrbited = false;
     this.focusedId = id;
     this.focusedHangerSlug = null;
     const unit = this.layout.racks.find((r) => r.id === id);
@@ -689,6 +833,7 @@ export class SceneEngine {
     }
     const group = this.findHangerGroup(slug);
     if (!group) return false;
+    this.userOrbited = false;
     if (hanger) {
       this.focusedId = hanger.rackId;
       this.applyOrbitLimits('rack');
@@ -739,6 +884,7 @@ export class SceneEngine {
 
   focusOverview(immediate = this.reducedMotion): void {
     this.flushDeferredRacks();
+    this.userOrbited = false;
     this.focusedId = OVERVIEW_FOCUS_ID;
     this.focusedHangerSlug = null;
     this.applyRackLayout(this.shouldStackOverview() ? 'stack' : 'aisle');
@@ -929,6 +1075,7 @@ export class SceneEngine {
       unit.kind === 'vitrine' ? createJewelryVitrine(unit, this.draftX) : createCollectionRack(unit, this.draftX);
     this.racksRoot.add(group);
     this.layout = { racks: [...this.layout.racks, unit] };
+    this.userOrbited = false;
     this.focusedId = unit.id;
     const mode: CameraFocusMode = unit.kind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
@@ -973,7 +1120,15 @@ export class SceneEngine {
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(size.width, size.height, false);
     applyCanvasHostCss(this.canvas);
-    if (changed && (this.racksRoot.children.length || this.draft)) {
+    if (
+      changed &&
+      (this.racksRoot.children.length || this.draft) &&
+      shouldRefitOnResize({
+        userOrbited: this.userOrbited,
+        interacting: this.interacting,
+        settling: this.orbitSettling(),
+      })
+    ) {
       if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
       else if (this.focusedId === DRAFT_UNIT_ID) this.focusDraft(true);
       else this.focusRack(this.focusedId, true);
@@ -995,8 +1150,9 @@ export class SceneEngine {
     this.canvas.removeEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
     this.canvas.removeEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
-    this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('touchstart', this.onTouchStart, NON_PASSIVE);
     this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('wheel', this.onWheelCapture, { capture: true, passive: false } as AddEventListenerOptions);
     this.canvas.removeEventListener('wheel', this.onWheel, NON_PASSIVE);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost, false);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored, false);
@@ -1006,6 +1162,8 @@ export class SceneEngine {
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);
     this.controls.removeEventListener('change', this.onControlsChange);
+    this.clearSettleTimer();
+    this.timer.dispose();
     this.controls.dispose();
     this.restoreAddEventListener?.();
     this.restoreAddEventListener = null;
@@ -1148,11 +1306,18 @@ export class SceneEngine {
   private poseFor(object: Object3D, mode: CameraFocusMode): CameraPose {
     object.updateWorldMatrix(true, true);
     this.bounds.makeEmpty();
+    const hostSize = hostDrawingSize(this.host);
+    const compact = isCompactAtelierViewport(hostSize?.width || this.lastWidth);
     if (mode === 'rack' && object instanceof Group) {
-      const plate = object.getObjectByName('plate');
-      const hangers = object.getObjectByName('hangers');
-      if (plate) this.bounds.expandByObject(plate);
-      if (hangers) this.bounds.expandByObject(hangers);
+      if (compact) {
+        this.bounds.expandByObject(object);
+        this.expandBoundsByRackRug(String(object.userData?.['rackId'] ?? ''));
+      } else {
+        const plate = object.getObjectByName('plate');
+        const hangers = object.getObjectByName('hangers');
+        if (plate) this.bounds.expandByObject(plate);
+        if (hangers) this.bounds.expandByObject(hangers);
+      }
     }
     if (this.bounds.isEmpty()) this.bounds.expandByObject(object);
     if (this.bounds.isEmpty()) {
@@ -1179,7 +1344,6 @@ export class SceneEngine {
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
-    const compact = isCompactAtelierViewport();
     const chrome = measureAtelierChrome(this.host);
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
@@ -1224,8 +1388,8 @@ export class SceneEngine {
     this.raf = requestAnimationFrame(() => {
       this.renderQueued = false;
       if (this.disposed || this.contextLost) return;
-      if (!this.clock.running) this.clock.start();
-      const dt = this.clock.getDelta();
+      this.timer.update();
+      const dt = this.timer.getDelta();
       const now = performance.now();
       const animating =
         this.stepTween() ||
@@ -1235,10 +1399,12 @@ export class SceneEngine {
         this.stepGlow() ||
         this.stepArchive();
       const settling = !this.interacting && !orbitDampingExpired(now, this.orbitDampingUntil);
-      if (this.interacting || settling) capOrbitInertia(this.controls);
+      if (shouldCapOrbitInertia(this.interacting) && settling) capOrbitInertia(this.controls);
       if (!this.tween && !this.reducedMotion && (this.interacting || settling)) {
-        this.controls.dampingFactor = dampingFactorForDelta(dt);
-        this.controls.update(dt);
+        this.controls.dampingFactor = this.interacting
+          ? ORBIT_DAMPING_FACTOR
+          : dampingFactorForDelta(dt);
+        this.controls.update(this.interacting ? undefined : dt);
       }
       if (this.orbitDampingUntil && !this.interacting && orbitDampingExpired(now, this.orbitDampingUntil)) {
         this.freezeOrbit();
@@ -1279,6 +1445,7 @@ export class SceneEngine {
 
   private focusDraft(immediate = this.reducedMotion): void {
     if (!this.draft) return;
+    this.userOrbited = false;
     this.focusedId = DRAFT_UNIT_ID;
     const mode: CameraFocusMode = this.draftKind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
@@ -1548,6 +1715,7 @@ export class SceneEngine {
   }
 
   private emptyUnitIdFromHits(hits: Array<{ object: Object3D }>): string | null {
+    if (isRoomSurface(hits[0]?.object)) return null;
     for (const hit of hits) {
       let obj: Object3D | null = hit.object;
       while (obj) {
@@ -1644,18 +1812,34 @@ export class SceneEngine {
     stopOrbitInertia(this.controls);
   }
 
+  private orbitSettling(): boolean {
+    return this.interacting || !orbitDampingExpired(performance.now(), this.orbitDampingUntil);
+  }
+
+  private clearSettleTimer(): void {
+    if (!this.settleTimer) return;
+    window.clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
+  }
+
   private freezeOrbit(): void {
+    this.clearSettleTimer();
     stopOrbitInertia(this.controls);
-    this.controls.enableZoom = false;
+    this.controls.enableZoom = shouldEnableOrbitZoom('settle');
     this.orbitDampingUntil = 0;
   }
 
   private endOrbit(): void {
     this.interacting = false;
-    this.cancelCameraTween();
     this.controls.enableDamping = !this.reducedMotion;
     stopPanZoomInertia(this.controls);
-    this.controls.enableZoom = false;
+    if (this.orbitGesture === 'wheel') {
+      this.freezeOrbit();
+      this.clampCamera();
+      this.requestRender();
+      return;
+    }
+    this.controls.enableZoom = shouldEnableOrbitZoom('release');
     if (this.reducedMotion) {
       this.freezeOrbit();
       this.clampCamera();
@@ -1666,6 +1850,8 @@ export class SceneEngine {
     }
     capOrbitInertia(this.controls);
     this.orbitDampingUntil = performance.now() + ORBIT_DAMPING_MAX_MS;
+    this.clearSettleTimer();
+    this.settleTimer = window.setTimeout(() => this.freezeOrbit(), ORBIT_DAMPING_MAX_MS);
     this.hideHoverForCamera();
     this.clampCamera();
     this.requestRender();
@@ -1824,6 +2010,50 @@ export class SceneEngine {
     return hangerSlugFromHits(this.raycastPointer(event));
   }
 
+  private expandBoundsByRackRug(rackId: string): void {
+    if (!rackId || !this.room) return;
+    const rugs = this.room.getObjectByName('rugs');
+    rugs?.traverse((child) => {
+      if (String(child.userData?.['kind'] ?? '') !== 'rug') return;
+      if (String(child.userData?.['rackId'] ?? '') !== rackId) return;
+      this.bounds.expandByObject(child);
+    });
+  }
+
+  private captureWheelCursor(event: WheelEvent): void {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    this.wheelCursorNdc = ndcFromClient(event.clientX, event.clientY, rect);
+    this.wheelCursorValid = Boolean(
+      cursorOnTargetPlane(this.camera, this.controls.target, this.wheelCursorNdc, this.wheelCursorWorld),
+    );
+  }
+
+  private maybeUpgradePieceFromZoom(event: WheelEvent): void {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return;
+    const dist = this.orbitDistance();
+    const slug = hangerSlugFromHits(this.raycastClient(event.clientX, event.clientY));
+    if (shouldUpgradePieceFromZoom(dist, slug) && slug) {
+      if (this.focusedHangerSlug !== slug) {
+        this.focusedHangerSlug = slug;
+        this.enqueueHangerTextures();
+      }
+      return;
+    }
+    if (shouldClearPieceZoomUpgrade(dist, Boolean(this.focusedHangerSlug))) {
+      this.focusedHangerSlug = null;
+      this.enqueueHangerTextures();
+    }
+  }
+
+  private wheelOverFocusedRack(event: WheelEvent): boolean {
+    if (!event.clientX && !event.clientY) return this.focusedPanRange() > 0;
+    const hits = this.raycastClient(event.clientX, event.clientY);
+    if (!hits.length) return this.focusedPanRange() > 0;
+    const id = rackIdFromHits(hits);
+    return Boolean(id && id === this.focusedId);
+  }
+
   private rememberPointer(event: PointerEvent): void {
     this.lastPointer = { x: event.clientX, y: event.clientY, valid: true };
   }
@@ -1922,6 +2152,7 @@ export class SceneEngine {
       slots.map((slot) => ({
         x: slot.x,
         width: unitWidth(slot.rack.kind, slot.rack.hangers.length),
+        rackId: slot.id,
       })),
       this.lite,
     );

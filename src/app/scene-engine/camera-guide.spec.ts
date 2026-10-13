@@ -4,6 +4,7 @@ import {
   CAMERA_POLAR_MIN,
   CREATE_TWEEN_MS,
   computeEyeLevelFit,
+  chromeBandTargetY,
   computePortraitOverviewFit,
   isPortraitAtelierViewport,
   OVERVIEW_MAX_DISTANCE,
@@ -222,7 +223,8 @@ describe('isCompactAtelierViewport', () => {
 });
 
 describe('portrait Ver todas stack', () => {
-  it('treats 390×844 as portrait and 390×300 as compact landscape', () => {
+  it('treats 393×852 as portrait and 390×300 as compact landscape', () => {
+    expect(isPortraitAtelierViewport(393, 852)).toBeTrue();
     expect(isPortraitAtelierViewport(390, 844)).toBeTrue();
     expect(isPortraitAtelierViewport(390, 300)).toBeFalse();
     expect(isPortraitAtelierViewport(1280, 900)).toBeFalse();
@@ -240,19 +242,21 @@ describe('portrait Ver todas stack', () => {
     expect(top.y).toBeCloseTo(2 * PORTRAIT_STACK_PITCH, 5);
   });
 
-  it('frames a stacked aisle closer than the side-by-side compact clamp and looks below the wall', () => {
+  it('frames a stacked aisle in the usable band above the bar on 393×852', () => {
     const aisle = { minX: -14, maxX: 14, minY: -0.2, maxY: 2.2, minZ: -0.1, maxZ: 0.1 };
     const stack = { minX: -3.4, maxX: 3.4, minY: -0.7, maxY: 7.1, minZ: -0.1, maxZ: 0.1 };
     const chrome = { top: 0.08, bottom: 0.28 };
-    const wide = computeEyeLevelFit(aisle, 390 / 844, 38, 'overview', true, chrome);
-    const stacked = computePortraitOverviewFit(stack, 390 / 844, 38, chrome);
+    const wide = computeEyeLevelFit(aisle, 393 / 852, 38, 'overview', true, chrome);
+    const stacked = computePortraitOverviewFit(stack, 393 / 852, 38, chrome);
     expect(wide.distance).toBeLessThanOrEqual(OVERVIEW_MAX_DISTANCE_COMPACT);
     expect(stacked.distance).toBeGreaterThan(OVERVIEW_MAX_DISTANCE_COMPACT);
     expect(stacked.distance).toBeLessThanOrEqual(OVERVIEW_MAX_DISTANCE);
-    const stackVisible = 2 * Math.tan((38 * Math.PI) / 360) * stacked.distance * (390 / 844);
+    const stackVisible = 2 * Math.tan((38 * Math.PI) / 360) * stacked.distance * (393 / 852);
     expect(6.8 / stackVisible).toBeLessThan(1.02);
     expect(6.8 / stackVisible).toBeGreaterThan(0.7);
     const stackCy = (stack.minY + stack.maxY) / 2;
+    const stackH = stack.maxY - stack.minY;
+    expect(stacked.target.y).toBeCloseTo(chromeBandTargetY(stackCy, stackH, chrome), 5);
     expect(stacked.target.y).toBeLessThan(stackCy);
   });
 });

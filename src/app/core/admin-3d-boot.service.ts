@@ -19,6 +19,7 @@ export class Admin3dBootService {
     this.lastTtffMs.set(null);
     this.lastCompleteMs.set(null);
     this.startedAt.set(typeof performance === 'undefined' ? 0 : performance.now());
+    showStaticAtelierBoot();
   }
 
   markFirstFrame(): number {
@@ -27,6 +28,7 @@ export class Admin3dBootService {
     const ms = typeof performance === 'undefined' ? 0 : Math.max(0, performance.now() - started);
     this.lastTtffMs.set(ms);
     this.ready.set(true);
+    hideStaticAtelierBoot();
     if (typeof console !== 'undefined') {
       console.info(`${ADMIN_3D_TTFF_LOG} ${Math.round(ms)}ms`);
     }
@@ -48,5 +50,18 @@ export class Admin3dBootService {
     this.ready.set(false);
     this.lastTtffMs.set(null);
     this.lastCompleteMs.set(null);
+    hideStaticAtelierBoot();
   }
+}
+
+export function showStaticAtelierBoot(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.add('lc-atelier-booting');
+  document.getElementById('lc-atelier-boot')?.classList.add('is-on');
+}
+
+export function hideStaticAtelierBoot(): void {
+  if (typeof document === 'undefined') return;
+  document.documentElement.classList.remove('lc-atelier-booting');
+  document.getElementById('lc-atelier-boot')?.classList.remove('is-on');
 }

@@ -5,7 +5,6 @@ import {
   ElementRef,
   HostListener,
   OnDestroy,
-  OnInit,
   ViewChild,
   computed,
   inject,
@@ -38,6 +37,7 @@ import { ContentAdminService } from '../../../core/content-admin.service';
 import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { formatPriceLabel, Product } from '../../../core/product.model';
 import { CollectionSlug } from '../../../core/routes';
+import { afterOverlayPaint } from '../../../core/after-overlay-paint';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
@@ -59,7 +59,7 @@ import {
 import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
 import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
 import { clampTooltip, mergeProductPhotos } from '../../../scene-engine/photo-url';
-import { createSceneEngine, SceneEngine } from '../../../scene-engine/scene-engine';
+import type { SceneEngine } from '../../../scene-engine/scene-engine';
 import type {
   SceneCollectionInput,
   SceneLayout,
@@ -108,6 +108,8 @@ export type AtelierLine = 'roupas' | 'joias';
 export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
 const HINT_AUTO_HIDE_MS = 5000;
+/** Visible hint only — dismiss is aria-label so "Fechar" cannot leak into the copy. */
+export const ATELIER_HINT_COPY = 'Clique · arraste · ← → · scroll';
 
 export function prefersReducedMotion(): boolean {
   try {
@@ -157,7 +159,7 @@ export function clampCreatePanel(
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
-export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
+export class Admin3dPage implements AfterViewInit, OnDestroy {
   @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
   @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild(CollectionAddPiecePanel) private addPanel?: CollectionAddPiecePanel;
@@ -188,6 +190,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly hoverTip = signal<{ text: string; x: number; y: number } | null>(null);
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
+  readonly hintCopy = ATELIER_HINT_COPY;
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
@@ -281,12 +284,27 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private readonly layoutRev = signal(0);
   private addTimers: number[] = [];
   private readonly addingSlugs = new Set<string>();
-
-  ngOnInit(): void {
-    this.load();
-  }
+  private paintToken = 0;
 
   ngAfterViewInit(): void {
+    const token = ++this.paintToken;
+    afterOverlayPaint(() => {
+      if (token !== this.paintToken) return;
+      this.load();
+      void this.bootScene();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.paintToken += 1;
+    if (this.hintTimer) window.clearTimeout(this.hintTimer);
+    if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
+    this.clearAddTimers();
+    this.engine?.dispose();
+    this.engine = null;
+  }
+
+  private async bootScene(): Promise<void> {
     const canvas = this.canvasRef?.nativeElement;
     if (!canvas) {
       this.webglUnavailable.set(true);
@@ -294,6 +312,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.boot.markFirstFrame();
       return;
     }
+    const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
+    if (this.engine) return;
     this.engine = createSceneEngine(canvas, {
       reducedMotion: this.reducedMotion,
       host: this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas,
@@ -329,14 +349,6 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.pendingLayout = null;
     }
     this.hintTimer = window.setTimeout(() => this.showHint.set(false), HINT_AUTO_HIDE_MS);
-  }
-
-  ngOnDestroy(): void {
-    if (this.hintTimer) window.clearTimeout(this.hintTimer);
-    if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
-    this.clearAddTimers();
-    this.engine?.dispose();
-    this.engine = null;
   }
 
   @HostListener('window:resize')

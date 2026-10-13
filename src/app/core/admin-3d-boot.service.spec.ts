@@ -1,4 +1,10 @@
-import { ADMIN_3D_SCENE_COMPLETE_LOG, ADMIN_3D_TTFF_LOG, Admin3dBootService } from './admin-3d-boot.service';
+import {
+  ADMIN_3D_SCENE_COMPLETE_LOG,
+  ADMIN_3D_TTFF_LOG,
+  Admin3dBootService,
+  hideStaticAtelierBoot,
+  showStaticAtelierBoot,
+} from './admin-3d-boot.service';
 
 describe('Admin3dBootService', () => {
   it('stays pending until the first scene frame', () => {
@@ -20,6 +26,24 @@ describe('Admin3dBootService', () => {
     boot.markFirstFrame();
     expect(info).toHaveBeenCalledTimes(1);
     expect(String(info.calls.mostRecent().args[0])).toContain(ADMIN_3D_TTFF_LOG);
+  });
+
+  it('shows the static overlay on begin and hides it on first frame', () => {
+    const bootEl = document.createElement('div');
+    bootEl.id = 'lc-atelier-boot';
+    document.body.appendChild(bootEl);
+    const boot = new Admin3dBootService();
+    boot.begin();
+    expect(document.documentElement.classList.contains('lc-atelier-booting')).toBeTrue();
+    expect(bootEl.classList.contains('is-on')).toBeTrue();
+    boot.markFirstFrame();
+    expect(document.documentElement.classList.contains('lc-atelier-booting')).toBeFalse();
+    expect(bootEl.classList.contains('is-on')).toBeFalse();
+    showStaticAtelierBoot();
+    expect(bootEl.classList.contains('is-on')).toBeTrue();
+    hideStaticAtelierBoot();
+    expect(bootEl.classList.contains('is-on')).toBeFalse();
+    bootEl.remove();
   });
 
   it('logs scene-complete once after the first frame', () => {
