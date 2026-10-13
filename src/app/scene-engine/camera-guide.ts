@@ -108,12 +108,12 @@ export function pieceFocusBox(
 export const FIT_WIDTH_MARGIN = 0.075;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
 
-/** ±25° around the front of the active unit. */
-export const CAMERA_AZIMUTH_LIMIT = (25 * Math.PI) / 180;
-/** 35° above horizontal. */
-export const CAMERA_POLAR_MIN = Math.PI / 2 - (35 * Math.PI) / 180;
-/** 10° above horizontal. */
-export const CAMERA_POLAR_MAX = Math.PI / 2 - (10 * Math.PI) / 180;
+/** ±70° around the front of the active unit — enough to orbit, not spin behind. */
+export const CAMERA_AZIMUTH_LIMIT = (70 * Math.PI) / 180;
+/** 48° above horizontal. */
+export const CAMERA_POLAR_MIN = Math.PI / 2 - (48 * Math.PI) / 180;
+/** 8° above horizontal. */
+export const CAMERA_POLAR_MAX = Math.PI / 2 - (8 * Math.PI) / 180;
 /** ~22° above horizontal — closer and lower than the old 34° look-down. */
 export const VITRINE_ELEVATION = (22 * Math.PI) / 180;
 
@@ -252,7 +252,7 @@ export function computeVitrineFit(
   return poseFromElevation(cx, cy, cz, distance, VITRINE_ELEVATION);
 }
 
-/** Hard lock: azimuth ±25°, elevation 10–35° above horizontal. No roll. */
+/** Hard lock: azimuth ±70°, elevation 8–48° above horizontal. No roll. */
 export function clampOrbitSpherical(theta: number, phi: number): { theta: number; phi: number } {
   return {
     theta: Math.min(CAMERA_AZIMUTH_LIMIT, Math.max(-CAMERA_AZIMUTH_LIMIT, theta)),

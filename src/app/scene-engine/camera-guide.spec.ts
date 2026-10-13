@@ -76,15 +76,16 @@ describe('CREATE_TWEEN_MS', () => {
 });
 
 describe('camera lock', () => {
-  it('limits azimuth to about ±25° and polar to 10–35° above horizontal', () => {
-    expect(CAMERA_AZIMUTH_LIMIT).toBeCloseTo((25 * Math.PI) / 180, 5);
-    expect(CAMERA_POLAR_MIN).toBeCloseTo(Math.PI / 2 - (35 * Math.PI) / 180, 5);
-    expect(CAMERA_POLAR_MAX).toBeCloseTo(Math.PI / 2 - (10 * Math.PI) / 180, 5);
+  it('allows a real orbit (±70° azimuth, 8–48° elevation) instead of a sway', () => {
+    expect(CAMERA_AZIMUTH_LIMIT).toBeCloseTo((70 * Math.PI) / 180, 5);
+    expect(CAMERA_AZIMUTH_LIMIT).toBeGreaterThan((60 * Math.PI) / 180);
+    expect(CAMERA_POLAR_MIN).toBeCloseTo(Math.PI / 2 - (48 * Math.PI) / 180, 5);
+    expect(CAMERA_POLAR_MAX).toBeCloseTo(Math.PI / 2 - (8 * Math.PI) / 180, 5);
     expect(CAMERA_POLAR_MIN).toBeLessThan(CAMERA_POLAR_MAX);
   });
 
   it('clamps a hard sideways drag back into the lock every frame', () => {
-    const locked = clampOrbitSpherical(1.2, 0.1);
+    const locked = clampOrbitSpherical(2.4, 0.1);
     expect(locked.theta).toBeCloseTo(CAMERA_AZIMUTH_LIMIT, 5);
     expect(locked.phi).toBe(CAMERA_POLAR_MIN);
     const other = clampOrbitSpherical(-2, 2);

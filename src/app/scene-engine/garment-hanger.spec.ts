@@ -6,17 +6,19 @@ import {
   hangerLabelWidth,
   SOLD_OUT_BADGE_H,
   SOLD_OUT_BADGE_W,
+  SOLD_OUT_HOOK_Y,
 } from './garment-hanger';
 import { isPhotoMaterial } from './photo-material';
 import { HANGER_SPACING } from './collection-rack';
 
 describe('garment hanger sold-out badge', () => {
-  it('is large enough to read on hangers', () => {
-    expect(SOLD_OUT_BADGE_W).toBeGreaterThanOrEqual(0.28);
-    expect(SOLD_OUT_BADGE_H).toBeGreaterThanOrEqual(0.1);
+  it('is a small hook ribbon, not a giant plate', () => {
+    expect(SOLD_OUT_BADGE_W).toBeLessThanOrEqual(0.12);
+    expect(SOLD_OUT_BADGE_H).toBeLessThanOrEqual(0.04);
+    expect(SOLD_OUT_BADGE_W).toBeGreaterThan(0.08);
   });
 
-  it('puts an unlit photo and a contrast backing on the Esgotado badge', () => {
+  it('hangs on the hook and does not cover the photo or name plate', () => {
     const group = createGarmentHanger({
       productId: 'p',
       slug: 'look-obi-organza',
@@ -29,13 +31,18 @@ describe('garment hanger sold-out badge', () => {
       kind: 'garment',
     });
     const garment = group.getObjectByName('garment') as Mesh;
+    const label = group.getObjectByName('label') as Mesh;
     const badge = group.getObjectByName('badge');
     const back = group.getObjectByName('badgeBack') as Mesh;
     expect(isPhotoMaterial(garment.material)).toBeTrue();
     expect(badge?.visible).toBeTrue();
     expect(back).toBeTruthy();
     expect(isPhotoMaterial(back.material)).toBeTrue();
-    expect(badge!.position.y).toBeGreaterThan(garment.position.y + 0.28);
+    expect(badge!.position.y).toBe(SOLD_OUT_HOOK_Y);
+    const photoTop = garment.position.y + garment.scale.y * 0.5;
+    const ribbonBottom = badge!.position.y - SOLD_OUT_BADGE_H * 0.5;
+    expect(ribbonBottom).toBeGreaterThan(photoTop + 0.04);
+    expect(badge!.position.y).toBeGreaterThan(label.position.y + 0.5);
   });
 
   it('keeps published photos and labels opaque and unfogged', () => {

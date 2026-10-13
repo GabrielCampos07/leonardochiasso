@@ -21,8 +21,12 @@ export const HANGER_USER_DATA = 'hanger';
 export const PHOTO_MAX_W = 0.48;
 export const PHOTO_MAX_H = 0.64;
 export const HANGER_LIFT = 0.055;
-export const SOLD_OUT_BADGE_W = 0.3;
-export const SOLD_OUT_BADGE_H = 0.105;
+/** Small hook ribbon — never a screen-space billboard. */
+export const SOLD_OUT_BADGE_W = 0.11;
+export const SOLD_OUT_BADGE_H = 0.038;
+export const SOLD_OUT_HOOK_X = 0.058;
+export const SOLD_OUT_HOOK_Y = 0.468;
+export const SOLD_OUT_HOOK_Z = 0.03;
 /** Must stay under hanger spacing (0.64) so neighbor plates never overlap. */
 export const HANGER_LABEL_MAX_W = 0.46;
 export const HANGER_LABEL_Z = 0.16;
@@ -161,9 +165,9 @@ export function createGarmentHanger(data: SceneHanger): Group {
 
   const badge = attachSoldOutBadge(
     group,
-    0.11,
-    0.535,
-    0.02,
+    SOLD_OUT_HOOK_X,
+    SOLD_OUT_HOOK_Y,
+    SOLD_OUT_HOOK_Z,
     SOLD_OUT_BADGE_W,
     SOLD_OUT_BADGE_H,
     opacity,
