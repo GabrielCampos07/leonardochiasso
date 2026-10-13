@@ -561,13 +561,15 @@ export class SceneEngine {
     (garment ?? group).getWorldPosition(focus);
     this.bounds.makeEmpty();
     if (plate) this.bounds.expandByObject(plate);
-    this.bounds.expandByObject(garment ?? group);
+    this.bounds.expandByObject(group);
+    const hangers = rackGroup?.getObjectByName('hangers');
+    if (hangers) this.bounds.expandByObject(hangers);
     if (this.bounds.isEmpty()) this.bounds.expandByObject(group);
     const box = {
       minX: Math.min(this.bounds.min.x, focus.x - 0.55),
       maxX: Math.max(this.bounds.max.x, focus.x + 0.55),
-      minY: this.bounds.min.y - 0.08,
-      maxY: this.bounds.max.y + 0.12,
+      minY: this.bounds.min.y - 0.12,
+      maxY: this.bounds.max.y + 0.16,
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
