@@ -236,6 +236,8 @@ export function resolveCollectionCover(opts: {
 }
 
 export interface CollectionCoverProduct extends CollectionCoverSource {
+  slug?: string | null;
+  id?: string | null;
   collections?: ReadonlyArray<CollectionCoverMembership> | null;
 }
 

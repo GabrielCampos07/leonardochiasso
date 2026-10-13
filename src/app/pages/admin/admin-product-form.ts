@@ -98,7 +98,7 @@ export class AdminProductForm implements OnInit {
     );
     const knownSlugs = new Set(known.map((item) => item.slug));
     const extras = this.apiCollections()
-      .filter((item) => item.slug && !knownSlugs.has(item.slug))
+      .filter((item) => item.slug && !knownSlugs.has(item.slug as CollectionSlug))
       .map((item) => ({ slug: item.slug, label: item.name || item.slug }));
     return [...known, ...extras];
   });
