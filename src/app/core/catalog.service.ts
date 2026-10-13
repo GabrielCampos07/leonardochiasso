@@ -49,6 +49,9 @@ export interface ApiCollectionDto {
   publishedAt: string | null;
   archivedAt?: string | null;
   productCount?: number;
+  coverImage?: string | null;
+  coverUrl?: string | null;
+  image?: string | null;
   products?: ApiProductDto[];
 }
 

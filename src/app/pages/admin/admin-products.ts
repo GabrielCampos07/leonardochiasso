@@ -148,11 +148,12 @@ export class AdminProductsPage implements OnInit {
   }
 
   restore(product: Product): void {
+    if (this.restoringSlug()) return;
     this.restoringSlug.set(product.slug);
-    this.products.set(removeBySlug(this.products(), product.slug));
     this.adminCatalog.restoreViaApi(product.slug).subscribe({
       next: (restored) => {
         this.restoringSlug.set(null);
+        this.products.set(removeBySlug(this.products(), product.slug));
         if (!this.showArchived()) {
           this.products.set(upsertBySlug(this.products(), { ...restored, archivedAt: null }));
         }
@@ -160,7 +161,6 @@ export class AdminProductsPage implements OnInit {
       },
       error: (err) => {
         this.restoringSlug.set(null);
-        this.products.set(upsertBySlug(this.products(), product));
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
         );

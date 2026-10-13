@@ -30,7 +30,7 @@ import { TOAST_BG, TOAST_ERROR_BG, TOAST_ERROR_TEXT, TOAST_TEXT } from './contra
       position: fixed;
       left: 50%;
       bottom: calc(72px + env(safe-area-inset-bottom, 0px));
-      z-index: 1200;
+      z-index: 2000;
       transform: translateX(-50%);
       display: flex;
       align-items: center;

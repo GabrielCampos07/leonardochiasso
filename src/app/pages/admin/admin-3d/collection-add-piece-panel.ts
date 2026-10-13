@@ -317,8 +317,10 @@ export class CollectionAddPiecePanel implements OnChanges {
   onPhoto(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0] ?? null;
+    if (!file) return;
     this.photo = file;
-    this.photoName = file?.name ?? '';
+    this.photoName = file.name;
+    this.formError = '';
   }
 
   finishAdd(added: readonly string[]): void {

@@ -117,11 +117,12 @@ export class AdminJoiasPage implements OnInit {
   }
 
   restore(piece: JoiaPiece): void {
+    if (this.restoringSlug()) return;
     this.restoringSlug.set(piece.slug);
-    this.pieces.set(removeBySlug(this.pieces(), piece.slug));
     this.catalog.restore(piece.slug).subscribe({
       next: (restored) => {
         this.restoringSlug.set(null);
+        this.pieces.set(removeBySlug(this.pieces(), piece.slug));
         if (!this.showArchived()) {
           this.pieces.set(upsertBySlug(this.pieces(), { ...restored, archivedAt: null }));
         }
@@ -129,7 +130,6 @@ export class AdminJoiasPage implements OnInit {
       },
       error: (err) => {
         this.restoringSlug.set(null);
-        this.pieces.set(upsertBySlug(this.pieces(), piece));
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
         );

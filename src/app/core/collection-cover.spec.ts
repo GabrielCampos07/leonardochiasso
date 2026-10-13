@@ -3,8 +3,18 @@ import {
   collectionMembershipSortOrder,
   coversByCollectionSlug,
   liveCollectionPieces,
+  mergeCoverProducts,
   piecePhotoUrl,
+  productBelongsToCollection,
+  resolveCollectionCover,
+  storedCoverIsFromArchivedPiece,
 } from './collection-cover';
+import {
+  ADMIN_NIPONIC_NAME_ONLY,
+  ADMIN_ORGANIC_BY_ID,
+  PROD_COLLECTIONS,
+  PROD_PRODUCTS,
+} from './collection-cover.fixtures';
 
 describe('piecePhotoUrl', () => {
   it('prefers thumb, then primary media, then gallery', () => {
@@ -19,6 +29,12 @@ describe('piecePhotoUrl', () => {
     ).toBe('primary.jpg');
     expect(piecePhotoUrl({ gallery: ['g.jpg'], imageUrl: 'u.jpg' })).toBe('g.jpg');
     expect(piecePhotoUrl({ thumb: '   ' })).toBeNull();
+  });
+
+  it('reads prod media.cdnUrl and admin aliases (url, mediaAsset.cdnUrl)', () => {
+    expect(piecePhotoUrl(PROD_PRODUCTS[0]!)).toContain('plp-calca-thumb.webp');
+    expect(piecePhotoUrl(ADMIN_ORGANIC_BY_ID)).toContain('plp-calca-thumb.webp');
+    expect(piecePhotoUrl(ADMIN_NIPONIC_NAME_ONLY)).toContain('plp-look-obi-organza-thumb.webp');
   });
 });
 
@@ -35,9 +51,7 @@ describe('collectionCoverUrl', () => {
   });
 
   it('keeps source order when sortOrder is missing', () => {
-    expect(
-      collectionCoverUrl([{ thumb: 'first.jpg' }, { thumb: 'second.jpg' }]),
-    ).toBe('first.jpg');
+    expect(collectionCoverUrl([{ thumb: 'first.jpg' }, { thumb: 'second.jpg' }])).toBe('first.jpg');
   });
 
   it('returns null when no live piece has a photo', () => {
@@ -57,6 +71,71 @@ describe('collectionCoverUrl', () => {
     expect(collectionCoverUrl(pieces)).toBe('other.jpg');
     pieces[0]!.archivedAt = null;
     expect(collectionCoverUrl(pieces)).toBe('cover.jpg');
+  });
+});
+
+describe('resolveCollectionCover with prod-shaped fixtures', () => {
+  it('uses the first live piece photo by product_collections.sortOrder', () => {
+    expect(
+      resolveCollectionCover({
+        collection: PROD_COLLECTIONS[0],
+        products: PROD_PRODUCTS,
+      }),
+    ).toContain('plp-calca-thumb.webp');
+    expect(
+      resolveCollectionCover({
+        collection: PROD_COLLECTIONS[1],
+        products: PROD_PRODUCTS,
+      }),
+    ).toContain('plp-look-obi-organza-thumb.webp');
+    expect(
+      resolveCollectionCover({
+        collection: PROD_COLLECTIONS[2],
+        products: PROD_PRODUCTS,
+      }),
+    ).toContain('plp-colete-bermuda-saia-thumb.webp');
+  });
+
+  it('matches membership by collection id when slug is missing', () => {
+    expect(
+      resolveCollectionCover({
+        collection: PROD_COLLECTIONS[0],
+        products: [ADMIN_ORGANIC_BY_ID],
+      }),
+    ).toContain('plp-calca-thumb.webp');
+  });
+
+  it('matches membership by collection name / collectionSlug', () => {
+    expect(
+      resolveCollectionCover({
+        collection: PROD_COLLECTIONS[1],
+        products: [ADMIN_NIPONIC_NAME_ONLY],
+      }),
+    ).toContain('plp-look-obi-organza-thumb.webp');
+  });
+
+  it('prefers a stored coverImage when it is not from an archived piece', () => {
+    expect(
+      resolveCollectionCover({
+        collection: { ...PROD_COLLECTIONS[0], coverImage: 'https://cdn.example/stored-organic.jpg' },
+        products: PROD_PRODUCTS,
+      }),
+    ).toBe('https://cdn.example/stored-organic.jpg');
+  });
+
+  it('ignores a stored cover that only belongs to an archived piece and derives the next live photo', () => {
+    const archivedCover = PROD_PRODUCTS[0]!.thumb!;
+    const products = [
+      { ...PROD_PRODUCTS[0]!, archivedAt: '2026-10-12T12:00:00.000Z' },
+      PROD_PRODUCTS[1]!,
+    ];
+    expect(storedCoverIsFromArchivedPiece(archivedCover, products)).toBeTrue();
+    expect(
+      resolveCollectionCover({
+        collection: { ...PROD_COLLECTIONS[0], coverImage: archivedCover },
+        products,
+      }),
+    ).toContain('plp-bateau-thumb.webp');
   });
 });
 
@@ -82,6 +161,22 @@ describe('coversByCollectionSlug', () => {
       },
     ]);
     expect(covers['organic-dreams']).toBe('live.jpg');
+  });
+
+  it('derives Organic / Niponic / Brazilian from the real public product shape', () => {
+    const covers = coversByCollectionSlug(PROD_PRODUCTS, PROD_COLLECTIONS);
+    expect(covers['organic-dreams']).toContain('plp-calca-thumb.webp');
+    expect(covers['niponic-dreams']).toContain('plp-look-obi-organza-thumb.webp');
+    expect(covers['brazilian-dreams']).toContain('plp-colete-bermuda-saia-thumb.webp');
+  });
+
+  it('still finds a cover when admin rows omit collections[].slug', () => {
+    const covers = coversByCollectionSlug(
+      [ADMIN_ORGANIC_BY_ID, ADMIN_NIPONIC_NAME_ONLY],
+      PROD_COLLECTIONS,
+    );
+    expect(covers['organic-dreams']).toContain('plp-calca-thumb.webp');
+    expect(covers['niponic-dreams']).toContain('plp-look-obi-organza-thumb.webp');
   });
 
   it('restores the original cover when the archived piece is live again', () => {
@@ -115,6 +210,35 @@ describe('collectionMembershipSortOrder', () => {
       ),
     ).toBe(0);
     expect(collectionMembershipSortOrder([{ slug: 'organic-dreams' }], 'organic-dreams')).toBeNull();
+  });
+
+  it('reads sortOrder when membership is keyed by collection id', () => {
+    expect(
+      collectionMembershipSortOrder(
+        [{ id: PROD_COLLECTIONS[0]!.id, sortOrder: 0 }],
+        PROD_COLLECTIONS[0]!,
+      ),
+    ).toBe(0);
+  });
+});
+
+describe('productBelongsToCollection', () => {
+  it('matches slug, id, or display name', () => {
+    expect(productBelongsToCollection(PROD_PRODUCTS[0]!, PROD_COLLECTIONS[0]!)).toBeTrue();
+    expect(productBelongsToCollection(ADMIN_ORGANIC_BY_ID, PROD_COLLECTIONS[0]!)).toBeTrue();
+    expect(productBelongsToCollection(ADMIN_NIPONIC_NAME_ONLY, PROD_COLLECTIONS[1]!)).toBeTrue();
+    expect(productBelongsToCollection(PROD_PRODUCTS[0]!, PROD_COLLECTIONS[1]!)).toBeFalse();
+  });
+});
+
+describe('mergeCoverProducts', () => {
+  it('fills missing admin photos from the public catalog row', () => {
+    const merged = mergeCoverProducts(
+      [{ slug: 'calca-pantalona-rasgo', thumb: '', collections: [] }],
+      PROD_PRODUCTS,
+    );
+    expect(merged[0]?.thumb).toContain('plp-calca-thumb.webp');
+    expect(merged[0]?.collections?.[0]?.slug).toBe('organic-dreams');
   });
 });
 

@@ -162,23 +162,39 @@
         />
       </label>
       @if (canUpload) {
-        <label class="add-piece__field">
-          Foto
+        <div class="add-piece__field">
+          <span>Foto</span>
           <input
+            #photoInput
             type="file"
-            class="add-piece__file"
+            class="add-piece__file-native"
             name="addPiecePhoto"
             accept="image/*"
+            tabindex="-1"
+            aria-hidden="true"
             [disabled]="saving"
             (change)="onPhoto($event)"
           />
+          <button
+            type="button"
+            class="add-piece__file-btn"
+            [disabled]="saving"
+            (click)="photoInput.click()"
+          >
+            {{ photoName ? 'Trocar foto' : 'Escolher foto' }}
+          </button>
           @if (photoName) {
             <span class="add-piece__file-name">{{ photoName }}</span>
           }
-        </label>
+        </div>
       }
       @if (formError || createError) {
         <p class="add-piece__error" role="alert">{{ formError || createError }}</p>
+        @if (createError) {
+          <button type="button" class="add-piece__retry" [disabled]="saving" (click)="confirmCreate()">
+            Tentar de novo
+          </button>
+        }
       }
       <button
         type="submit"

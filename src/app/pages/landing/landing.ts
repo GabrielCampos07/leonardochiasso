@@ -6,10 +6,9 @@ import { of } from 'rxjs';
 import { LcNewsletter } from '../../shared/components/newsletter/newsletter';
 import { LcProductCard } from '../../shared/components/product-card/product-card';
 import { brandLineForGender } from '../../core/brand-lines';
-import { CatalogService } from '../../core/catalog.service';
+import { ApiCollectionDto, CatalogService } from '../../core/catalog.service';
 import { ChromeService } from '../../core/chrome.service';
-import { isArchivedAt } from '../../core/admin-archive';
-import { collectionCoverUrl, collectionMembershipSortOrder } from '../../core/collection-cover';
+import { resolveCollectionCover } from '../../core/collection-cover';
 import { COLLECTION_NAV } from '../../core/nav.config';
 import { Product } from '../../core/product.model';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
@@ -33,6 +32,7 @@ export class LandingPage implements OnInit {
   readonly heroImg = resolveMediaUrl('assets/media/hero-runway.jpg');
   readonly categoria = signal<GenderSlug | null>(null);
   readonly rawProducts = signal<Product[]>([]);
+  readonly apiCollections = signal<ApiCollectionDto[]>([]);
   /** Page-local: true until this view's category Observable emits. */
   readonly loading = signal(false);
   readonly skeletonSlots = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -49,25 +49,19 @@ export class LandingPage implements OnInit {
     const g = this.categoria();
     if (!g) return [];
     const products = this.catalog.products();
-    return COLLECTION_NAV.map((c) => ({
-      label: c.label,
-      route: collectionPath(c.slug),
-      queryParams: { categoria: g },
-      cover: collectionCoverUrl(
-        products
-          .filter(
-            (p) =>
-              !isArchivedAt(p.archivedAt) &&
-              (p.collectionSlug === c.slug ||
-                p.collection === c.label ||
-                (p.collections ?? []).some((item) => item.slug === c.slug)),
-          )
-          .map((p) => ({
-            ...p,
-            sortOrder: collectionMembershipSortOrder(p.collections, c.slug),
-          })),
-      ),
-    }));
+    const meta = this.apiCollections();
+    return COLLECTION_NAV.map((c) => {
+      const collection = meta.find((row) => row.slug === c.slug) ?? {
+        slug: c.slug,
+        name: c.label,
+      };
+      return {
+        label: c.label,
+        route: collectionPath(c.slug),
+        queryParams: { categoria: g },
+        cover: resolveCollectionCover({ collection, products }),
+      };
+    });
   });
 
   constructor() {
@@ -97,7 +91,10 @@ export class LandingPage implements OnInit {
   }
 
   ngOnInit(): void {
-    // Query + scroll handled in constructor.
+    this.catalog.getCollections().subscribe({
+      next: (list) => this.apiCollections.set(list),
+      error: () => this.apiCollections.set([]),
+    });
   }
 
   private scrollToColecoes(): void {

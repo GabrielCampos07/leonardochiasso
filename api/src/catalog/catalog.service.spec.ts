@@ -48,6 +48,40 @@ describe('CatalogService public archive filters', () => {
     );
   });
 
+  it('adds coverImage from the first live member photo on the public list', async () => {
+    prisma.collection.findMany.mockResolvedValue([
+      {
+        id: 'a72b6b4e-6765-4f4d-85b7-91017c68a9ad',
+        slug: 'organic-dreams',
+        name: 'Organic Dreams',
+        description: null,
+        sortOrder: 1,
+        publishedAt: new Date('2026-08-22T01:51:56.219Z'),
+        archivedAt: null,
+        products: [
+          {
+            sortOrder: 0,
+            product: {
+              archivedAt: null,
+              media: [
+                {
+                  sortOrder: 0,
+                  isPrimary: true,
+                  mediaAsset: {
+                    cdnUrl:
+                      'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-calca-thumb.webp',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ]);
+    const list = await service.listCollections();
+    expect(list[0]?.coverImage).toContain('plp-calca-thumb.webp');
+  });
+
   it('hides archived collections from the public list and detail', async () => {
     prisma.collection.findMany.mockResolvedValue([]);
     await service.listCollections();

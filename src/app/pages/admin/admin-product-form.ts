@@ -1,5 +1,5 @@
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, OnInit, inject, input, output, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import {
@@ -14,6 +14,7 @@ import {
   uniqueAdminSlug,
 } from '../../core/admin-catalog.service';
 import { parseCollectionSlugParam } from '../../core/admin-collection-context';
+import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import {
   COLLECTION_LABELS,
@@ -29,6 +30,7 @@ import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath }
 import { archiveAwareError, confirmArchivePiece } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
+import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
 
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
@@ -39,11 +41,27 @@ export function parseStockQty(raw: string | number | null | undefined): number {
   return Math.max(0, Math.round(n));
 }
 
-function collectionLabelForSlug(slug: string): Collection {
+function collectionLabelForSlug(slug: string, name?: string | null): Collection {
   if (KNOWN_COLLECTION_SLUGS.has(slug)) {
     return collectionFromSlug(slug as CollectionSlug);
   }
-  return slug as Collection;
+  const trimmed = name?.trim();
+  return (trimmed && trimmed !== slug ? trimmed : slug) as Collection;
+}
+
+export function collectionSelectLabel(
+  slug: string,
+  name?: string | null,
+  catalog: ReadonlyArray<{ slug: string; name: string }> = [],
+): string {
+  if (KNOWN_COLLECTION_SLUGS.has(slug)) {
+    return collectionFromSlug(slug as CollectionSlug);
+  }
+  const trimmed = name?.trim();
+  if (trimmed && trimmed !== slug) return trimmed;
+  const fromCatalog = catalog.find((item) => item.slug === slug)?.name?.trim();
+  if (fromCatalog) return fromCatalog;
+  return slug;
 }
 
 @Component({
@@ -56,6 +74,7 @@ function collectionLabelForSlug(slug: string): Collection {
 export class AdminProductForm implements OnInit {
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly catalog = inject(CatalogService);
+  private readonly collectionsApi = inject(AdminCollectionsApiService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
 
@@ -72,9 +91,17 @@ export class AdminProductForm implements OnInit {
 
   readonly archiving = signal(false);
 
-  readonly collectionOptions = (
-    Object.entries(COLLECTION_LABELS) as [CollectionSlug, Collection][]
-  ).map(([slug, label]) => ({ slug, label }));
+  readonly apiCollections = signal<{ slug: string; name: string }[]>([]);
+  readonly collectionOptions = computed(() => {
+    const known = (Object.entries(COLLECTION_LABELS) as [CollectionSlug, Collection][]).map(
+      ([slug, label]) => ({ slug, label }),
+    );
+    const knownSlugs = new Set(known.map((item) => item.slug));
+    const extras = this.apiCollections()
+      .filter((item) => item.slug && !knownSlugs.has(item.slug))
+      .map((item) => ({ slug: item.slug, label: item.name || item.slug }));
+    return [...known, ...extras];
+  });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
   readonly useApi = this.adminCatalog.useApi;
@@ -83,6 +110,9 @@ export class AdminProductForm implements OnInit {
   readonly galleryItems = signal<ProductMedia[]>([]);
   readonly saving = signal(false);
   readonly uploading = signal(false);
+  readonly uploadError = signal('');
+  readonly pendingFileLabel = signal('Escolher fotos');
+  private pendingFiles: File[] = [];
 
   detailsText = '';
   selectedSwatchIds: string[] = [];
@@ -90,6 +120,10 @@ export class AdminProductForm implements OnInit {
 
   ngOnInit(): void {
     this.loadDraft(structuredClone(this.product()));
+    this.collectionsApi.list().subscribe({
+      next: (list) => this.apiCollections.set(list.map((c) => ({ slug: c.slug, name: c.name }))),
+      error: () => this.apiCollections.set([]),
+    });
   }
 
   loadDraft(p: Product): void {
@@ -133,7 +167,10 @@ export class AdminProductForm implements OnInit {
     this.draft.set({
       ...p,
       collectionSlug: parsed as CollectionSlug,
-      collection: collectionLabelForSlug(parsed),
+      collection: collectionLabelForSlug(
+        parsed,
+        this.apiCollections().find((item) => item.slug === parsed)?.name,
+      ),
     });
   }
 
@@ -143,9 +180,12 @@ export class AdminProductForm implements OnInit {
 
   extraCollectionOption(): { slug: string; label: string } | null {
     const slug = this.draft()?.collectionSlug;
-    if (!slug || KNOWN_COLLECTION_SLUGS.has(slug)) return null;
+    if (!slug || this.collectionOptions().some((opt) => opt.slug === slug)) return null;
     if (!parseCollectionSlugParam(slug)) return null;
-    return { slug, label: slug };
+    return {
+      slug,
+      label: collectionSelectLabel(slug, this.draft()?.collection, this.apiCollections()),
+    };
   }
 
   onPriceChange(raw: string | number): void {
@@ -230,7 +270,20 @@ export class AdminProductForm implements OnInit {
   onFilesSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const files = Array.from(input.files ?? []);
-    input.value = '';
+    if (!files.length) return;
+    this.pendingFiles = files;
+    this.pendingFileLabel.set(files.length === 1 ? files[0]!.name : `${files.length} fotos`);
+    this.uploadError.set('');
+    this.sendPendingFiles();
+  }
+
+  retryUpload(): void {
+    if (!this.pendingFiles.length || this.uploading()) return;
+    this.sendPendingFiles();
+  }
+
+  private sendPendingFiles(): void {
+    const files = this.pendingFiles;
     if (!files.length) return;
 
     const p = this.draft();
@@ -242,6 +295,7 @@ export class AdminProductForm implements OnInit {
       const thumb = p.thumb || urls[0] || '';
       this.draft.set({ ...p, thumb, gallery });
       this.galleryItems.set(this.adminCatalog.mediaOf({ ...p, thumb, gallery }));
+      this.uploadError.set('');
       this.toast.info('Fotos adicionadas localmente (demo).');
       return;
     }
@@ -252,15 +306,20 @@ export class AdminProductForm implements OnInit {
     }
 
     this.uploading.set(true);
+    this.uploadError.set('');
     this.adminCatalog.uploadAndAttach$(p.slug, files).subscribe({
       next: (updated) => {
         this.uploading.set(false);
+        this.pendingFiles = [];
+        this.pendingFileLabel.set('Escolher fotos');
+        this.uploadError.set('');
         this.loadDraft(structuredClone(updated));
         this.toast.success('Fotos enviadas.');
       },
       error: (err) => {
         this.uploading.set(false);
-        this.toast.error(adminHttpErrorMessage(err, 'Falha no upload.'));
+        this.uploadError.set(photoUploadErrorMessage(err) || PHOTO_UPLOAD_FAILED);
+        this.toast.error(PHOTO_UPLOAD_FAILED);
       },
     });
   }
@@ -421,7 +480,10 @@ export class AdminProductForm implements OnInit {
     this.adminCatalog.archiveViaApi(p.slug).subscribe({
       next: (saved) => {
         this.archiving.set(false);
-        this.archived.emit(saved);
+        this.archived.emit({
+          ...saved,
+          archivedAt: saved.archivedAt ?? new Date().toISOString(),
+        });
       },
       error: (err) => {
         this.archiving.set(false);
