@@ -37,6 +37,10 @@ function markGlass(mesh: Mesh): void {
   mesh.userData = { ...mesh.userData, ignorePick: true, kind: 'glass' };
 }
 
+function markVitrineDecor(mesh: Mesh): void {
+  mesh.userData = { ...mesh.userData, ignorePick: true, kind: 'vitrine-decor' };
+}
+
 export function createJewelryVitrine(unit: SceneRack, x: number): Group {
   const group = new Group();
   group.name = `rack:${unit.id}`;
@@ -59,21 +63,25 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
   plinth.position.set(0, baseY, 0);
   plinth.castShadow = true;
   plinth.receiveShadow = true;
+  markVitrineDecor(plinth);
   group.add(plinth);
 
   const back = new Mesh(new BoxGeometry(width, innerH, 0.03), wood);
   back.position.set(0, caseBottom + innerH / 2, -VITRINE_DEPTH / 2 + 0.02);
   back.receiveShadow = true;
+  markVitrineDecor(back);
   group.add(back);
 
   for (const side of [-1, 1]) {
     const post = new Mesh(new BoxGeometry(0.03, innerH, VITRINE_DEPTH), wood);
     post.position.set(side * (width / 2), caseBottom + innerH / 2, 0);
+    markVitrineDecor(post);
     group.add(post);
   }
 
   const top = new Mesh(new BoxGeometry(width + 0.04, 0.03, VITRINE_DEPTH + 0.04), wood);
   top.position.set(0, caseTop, 0);
+  markVitrineDecor(top);
   group.add(top);
 
   const glass = glassMaterial();
@@ -96,6 +104,7 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
     const board = new Mesh(new BoxGeometry(width - 0.08, 0.018, VITRINE_DEPTH - 0.08), wood);
     board.position.set(0, shelfY, 0.02);
     board.receiveShadow = true;
+    markVitrineDecor(board);
     group.add(board);
   }
 
@@ -106,10 +115,12 @@ export function createJewelryVitrine(unit: SceneRack, x: number): Group {
   plate.scale.set(Math.min(width * 0.72, 1.6), 0.16, 1);
   plate.position.set(0, caseTop + 0.12, VITRINE_DEPTH / 2 - 0.04);
   plate.name = 'plate';
+  markVitrineDecor(plate);
   group.add(plate);
 
   const rail = new Mesh(new BoxGeometry(Math.min(width * 0.72, 1.6), 0.02, 0.03), brass);
   rail.position.set(0, caseTop + 0.03, VITRINE_DEPTH / 2 - 0.05);
+  markVitrineDecor(rail);
   group.add(rail);
 
   layoutTrays(traysRoot, unit.hangers, width, caseBottom);
@@ -216,9 +227,8 @@ export function applyTrayPhoto(group: Group, texture: Texture): void {
 export function applyTrayData(group: Group, data: SceneHanger): void {
   group.userData = { ...group.userData, kind: HANGER_USER_DATA, slug: data.slug, data };
   group.traverse((child) => {
-    if (child.userData?.['kind'] === HANGER_USER_DATA) {
-      child.userData = group.userData;
-    }
+    if (child.userData?.['ignorePick']) return;
+    child.userData = group.userData;
   });
   setBadgeState(group, isSoldOut(data.stockQty), hangerOpacity(data.status));
 }
