@@ -106,6 +106,30 @@ export function makeFallbackTexture(hex = COLLECTION_COVER_FALLBACK_HEX, name = 
   return makeCanvasTexture(canvas);
 }
 
+/** Trim a name so it fits the painted label plate, with a real ellipsis. */
+export function fitLabelText(
+  text: string,
+  maxWidth: number,
+  font = '600 32px "Encode Sans Expanded", "Helvetica Neue", sans-serif',
+): string {
+  const raw = text.trim();
+  if (!raw) return raw;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return raw.length > 18 ? `${raw.slice(0, 17).trimEnd()}…` : raw;
+  }
+  ctx.font = font;
+  if (ctx.measureText(raw.toUpperCase()).width <= maxWidth) return raw;
+  let cut = raw.length;
+  while (cut > 1) {
+    cut -= 1;
+    const next = `${raw.slice(0, cut).trimEnd()}…`;
+    if (ctx.measureText(next.toUpperCase()).width <= maxWidth) return next;
+  }
+  return '…';
+}
+
 export function makeLabelTexture(
   text: string,
   opts: { width?: number; height?: number; fill?: string; color?: string; size?: number } = {},
@@ -115,12 +139,13 @@ export function makeLabelTexture(
   const fill = opts.fill ?? '#0e0c0e';
   const color = opts.color ?? '#ffffff';
   const size = opts.size ?? 40;
-  const label = text.length > 28 ? `${text.slice(0, 27)}…` : text;
+  const font = `600 ${size}px "Encode Sans Expanded", "Helvetica Neue", sans-serif`;
+  const label = fitLabelText(text, width - 48, font);
   const canvas = cachedCanvas(`label|${width}|${height}|${fill}|${color}|${size}|${label}`, width, height, (ctx) => {
     ctx.fillStyle = fill;
     ctx.fillRect(0, 0, width, height);
     ctx.fillStyle = color;
-    ctx.font = `600 ${size}px "Encode Sans Expanded", "Helvetica Neue", sans-serif`;
+    ctx.font = font;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label.toUpperCase(), width / 2, height / 2, width - 48);
@@ -135,8 +160,13 @@ export function makeSoldOutTexture(): CanvasTexture {
     soldOutCanvas.height = SOLD_OUT_TEXTURE_HEIGHT;
     const ctx = soldOutCanvas.getContext('2d');
     if (ctx) {
-      ctx.fillStyle = '#8B1E2D';
+      ctx.fillStyle = '#140e0c';
       ctx.fillRect(0, 0, SOLD_OUT_TEXTURE_WIDTH, SOLD_OUT_TEXTURE_HEIGHT);
+      ctx.fillStyle = '#8B1E2D';
+      ctx.fillRect(8, 8, SOLD_OUT_TEXTURE_WIDTH - 16, SOLD_OUT_TEXTURE_HEIGHT - 16);
+      ctx.strokeStyle = '#f3ece2';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(10, 10, SOLD_OUT_TEXTURE_WIDTH - 20, SOLD_OUT_TEXTURE_HEIGHT - 20);
       ctx.fillStyle = '#ffffff';
       ctx.font = '700 42px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
       ctx.textAlign = 'center';

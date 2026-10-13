@@ -21,7 +21,7 @@ const STOCK_BY_SLUG: Record<string, number> = {
   'colete-bermuda-saia-echarpe': 3,
 };
 
-const DRAFT_SLUGS = new Set(['vestido-longo-bateau']);
+const DRAFT_SLUGS = new Set<string>();
 
 function cloneProduct(slug: string): Product | null {
   const found = PRODUCTS.find((p) => p.slug === slug);

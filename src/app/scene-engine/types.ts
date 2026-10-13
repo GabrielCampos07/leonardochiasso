@@ -72,6 +72,7 @@ export function isDraftStatus(status: string | null | undefined): boolean {
   return (status ?? '').toLowerCase() === 'draft';
 }
 
-export function hangerOpacity(status: string | null | undefined): number {
-  return isDraftStatus(status) ? 0.42 : 1;
+/** Photos and labels stay fully opaque. Draft is not a fade. */
+export function hangerOpacity(_status: string | null | undefined): number {
+  return 1;
 }

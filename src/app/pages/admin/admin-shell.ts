@@ -1,4 +1,4 @@
-import { Component, HostBinding, computed, inject, signal } from '@angular/core';
+import { Component, HostBinding, HostListener, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, NavigationStart, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { Admin3dBootService } from '../../core/admin-3d-boot.service';
@@ -40,6 +40,7 @@ export class AdminShell {
   private readonly url = signal(this.router.url);
 
   readonly sectionLabel = computed(() => adminAtelierSectionLabel(this.url()));
+  readonly navOpen = signal(false);
 
   readonly selectedView = computed<AdminViewMode>(() => {
     const path = this.url().split('?')[0] ?? '';
@@ -96,7 +97,22 @@ export class AdminShell {
     });
   }
 
+  toggleNav(event?: Event): void {
+    event?.stopPropagation();
+    this.navOpen.update((open) => !open);
+  }
+
+  closeNav(): void {
+    this.navOpen.set(false);
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    if (this.navOpen()) this.navOpen.set(false);
+  }
+
   logout(): void {
+    this.navOpen.set(false);
     this.session.logout();
     void this.router.navigateByUrl(ROUTES.admin);
   }

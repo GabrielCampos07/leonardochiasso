@@ -168,6 +168,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly loading = signal(true);
   readonly firstFrame = signal(false);
   readonly bootFading = signal(false);
+  readonly sceneProgress = signal(0);
+  readonly bootPercent = computed(() => Math.round(this.sceneProgress() * 100));
   readonly error = signal('');
   readonly empty = signal(false);
   readonly usingMock = signal(false);
@@ -217,6 +219,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     return { id: unit.id, name: unit.name, kind: unit.kind, hangers: unit.hangers.length };
   });
   readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
+  readonly moreOpen = signal(false);
+  readonly focusedName = computed(() => {
+    const id = this.focusedId();
+    if (id === OVERVIEW_FOCUS_ID) return 'Todas';
+    return this.racks().find((rack) => rack.id === id)?.name ?? 'Coleção';
+  });
   readonly adding = signal(false);
   readonly canArchiveFocused = computed(() => {
     if (this.creating() || this.adding()) return false;
@@ -286,6 +294,9 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     });
     this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.onSceneComplete(() => this.markSceneComplete());
+    this.engine.onLoadProgress((loaded, total) => {
+      this.sceneProgress.set(total > 0 ? Math.min(1, loaded / total) : 0);
+    });
     this.engine.onDraftAnchor((point) => {
       if (point && !this.createSheet()) this.createPanel.set(clampCreatePanel(point.x, point.y));
     });
@@ -345,7 +356,22 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
 
   focusOverview(): void {
     if (this.creating() || this.adding()) return;
+    this.moreOpen.set(false);
     this.engine?.focusOverview(this.reducedMotion);
+  }
+
+  toggleMore(event?: Event): void {
+    event?.stopPropagation();
+    this.moreOpen.update((open) => !open);
+  }
+
+  closeMore(): void {
+    this.moreOpen.set(false);
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    if (this.moreOpen()) this.moreOpen.set(false);
   }
 
   setLine(line: AtelierLine): void {
@@ -356,6 +382,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
 
   startCreate(): void {
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.modalOpen || this.adding()) return;
+    this.moreOpen.set(false);
     this.hoverTip.set(null);
     this.createError.set('');
     this.createSaving.set(false);
@@ -440,6 +467,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   addPieceToFocused(): void {
+    this.moreOpen.set(false);
     const unit = this.activeUnit();
     if (unit) this.openAddPanel(unit.id);
   }
@@ -528,6 +556,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.loading.set(true);
     this.firstFrame.set(false);
     this.bootFading.set(false);
+    this.sceneProgress.set(0);
     this.error.set('');
     this.empty.set(false);
 
@@ -758,6 +787,13 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private markFirstFrame(): void {
     this.boot.markFirstFrame();
     this.firstFrame.set(true);
+    const piece = this.route.snapshot.queryParamMap.get('piece');
+    if (piece) {
+      const aim = () => this.engine?.focusHanger(piece, true);
+      window.setTimeout(() => {
+        if (!aim()) window.setTimeout(aim, 400);
+      }, 480);
+    }
     if (this.reducedMotion) {
       this.bootFading.set(false);
       return;

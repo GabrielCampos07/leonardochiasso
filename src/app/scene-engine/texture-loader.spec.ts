@@ -2,6 +2,7 @@ import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import {
   applyCorsBeforeSrc,
   FALLBACK_WIDTH,
+  fitLabelText,
   isSharedTexture,
   LABEL_DEFAULT_WIDTH,
   makeFallbackTexture,
@@ -69,6 +70,15 @@ describe('makeFallbackTexture', () => {
     expect(texture.image.width).toBe(FALLBACK_WIDTH);
     expect(texture.image.height).toBeGreaterThanOrEqual(128);
     texture.dispose();
+  });
+});
+
+describe('fitLabelText', () => {
+  it('keeps a short name and ellipsizes a long one to the plate width', () => {
+    expect(fitLabelText('Bateau', 400)).toBe('Bateau');
+    const fitted = fitLabelText('Pantalona rasgo Vestido LG Bateau extra', 160);
+    expect(fitted.endsWith('…')).toBeTrue();
+    expect(fitted.length).toBeLessThan(36);
   });
 });
 
