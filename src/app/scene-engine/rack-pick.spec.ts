@@ -30,6 +30,12 @@ describe('rackIdFromHits', () => {
     expect(rackIdFromHits([{ object: floor }, { object: hanger }])).toBeNull();
   });
 
+  it('treats the frame / posts as the rack, not only the sign', () => {
+    const rack = { userData: { kind: 'rack', rackId: 'brazilian-dreams' } };
+    const post = { userData: { kind: 'rack-decor', ignorePick: true }, parent: rack };
+    expect(rackIdFromHits([{ object: post }])).toBe('brazilian-dreams');
+  });
+
   it('does not zoom a rack from a drag or a floor click', () => {
     const rack = { userData: { kind: 'rack', rackId: 'organic-dreams' } };
     const floor = { name: 'floor', userData: { kind: 'floor', ignorePick: true } };

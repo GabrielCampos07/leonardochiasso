@@ -20,7 +20,18 @@
       href="https://fonts.googleapis.com/css2?family=Encode+Sans+Expanded:wght@300;400;500&family=Quicksand:wght@300;400;500;600&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        if (/\/admin\/3d(?:\/|$|\?|#)/.test(location.pathname + location.search + location.hash)) {
+          document.documentElement.classList.add('lc-atelier-booting');
+        }
+      })();
+    </script>
     <style>
+      html.lc-atelier-booting,
+      html.lc-atelier-booting body {
+        background: #efe8dc;
+      }
       #lc-atelier-boot {
         display: none;
         position: fixed;
@@ -35,6 +46,7 @@
         color: #2a2118;
         font-family: Quicksand, "Encode Sans Expanded", sans-serif;
       }
+      html.lc-atelier-booting #lc-atelier-boot,
       #lc-atelier-boot.is-on {
         display: flex;
       }
@@ -65,7 +77,7 @@
     <script>
       (function () {
         var boot = document.getElementById('lc-atelier-boot');
-        if (boot && /\/admin\/3d(?:\/|$|\?)/.test(location.pathname + location.search)) {
+        if (boot && document.documentElement.classList.contains('lc-atelier-booting')) {
           boot.classList.add('is-on');
         }
       })();

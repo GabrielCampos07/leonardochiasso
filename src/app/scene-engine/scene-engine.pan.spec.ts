@@ -76,4 +76,34 @@ describe('SceneEngine lateral pan', () => {
     engine.dispose();
     canvas.remove();
   });
+
+  it('keeps a ctrl+wheel / pinch as zoom even over a long rack', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 450;
+    document.body.appendChild(canvas);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true });
+    if (!engine) {
+      canvas.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(longRackLayout());
+    engine.focusRack('niponic-dreams', true);
+    const beforePan = engine.rackPanState().last;
+    const beforeDist = engine.orbitDistance();
+    canvas.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: 240,
+        ctrlKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(engine.rackPanState().last).toBe(beforePan);
+    expect(engine.orbitDistance()).not.toBeCloseTo(beforeDist, 3);
+    engine.dispose();
+    canvas.remove();
+  });
 });

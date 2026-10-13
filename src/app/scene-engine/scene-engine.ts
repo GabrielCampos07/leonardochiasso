@@ -130,6 +130,13 @@ import {
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls, textureJobId, type HangerTextureQuality } from './photo-url';
 import { inFocusUpgradeSlugs } from './photo-lod';
+import {
+  cursorOnTargetPlane,
+  keepCursorWorldPoint,
+  ndcFromClient,
+  shouldClearPieceZoomUpgrade,
+  shouldUpgradePieceFromZoom,
+} from './cursor-zoom';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
@@ -334,6 +341,9 @@ export class SceneEngine {
   private plantSrc: Group | null = null;
 
   private pointerDownAt = 0;
+  private readonly wheelCursorWorld = new Vector3();
+  private wheelCursorNdc = { x: 0, y: 0 };
+  private wheelCursorValid = false;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -436,6 +446,13 @@ export class SceneEngine {
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
+  private readonly onTouchStart = (event: TouchEvent) => {
+    if (event.cancelable) event.preventDefault();
+    if (event.touches.length >= 2) {
+      this.orbitGesture = 'wheel';
+      this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
+    }
+  };
   /**
    * Capture runs before OrbitControls.
    * Wheel over rack → pan (zoom off). Elsewhere / pinch → zoom.
@@ -447,6 +464,7 @@ export class SceneEngine {
       pinch,
       panRange: this.focusedPanRange(),
     });
+    this.wheelCursorValid = false;
     if (pan) {
       this.controls.enableZoom = false;
       return;
@@ -454,6 +472,7 @@ export class SceneEngine {
     if (this.orbitSettling() && !pinch) return;
     this.orbitGesture = 'wheel';
     this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
+    if (pinch) this.captureWheelCursor(event);
   };
   /** Rack wheel pans pieces. Elsewhere (or ctrl / pinch) dollies. */
   private readonly onWheel = (event: WheelEvent) => {
@@ -467,6 +486,12 @@ export class SceneEngine {
       })
     ) {
       this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+      return;
+    }
+    if (pinch && this.wheelCursorValid) {
+      keepCursorWorldPoint(this.camera, this.controls.target, this.wheelCursorNdc, this.wheelCursorWorld);
+      this.controls.update();
+      this.maybeUpgradePieceFromZoom(event);
     }
   };
   private readonly onControlsStart = () => {
@@ -577,7 +602,7 @@ export class SceneEngine {
     canvas.addEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
     canvas.addEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
     canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
-    canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('touchstart', this.onTouchStart, NON_PASSIVE);
     canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
     canvas.addEventListener('wheel', this.onWheelCapture, { capture: true, passive: false });
     canvas.addEventListener('wheel', this.onWheel, NON_PASSIVE);
@@ -683,6 +708,44 @@ export class SceneEngine {
 
   focusedRackId(): string {
     return this.focusedId;
+  }
+
+  focusedPieceSlug(): string | null {
+    return this.focusedHangerSlug;
+  }
+
+  /** Project a unit's world box to canvas-local pixels (tests + mobile fit). */
+  unitScreenBounds(id: string): { top: number; bottom: number; left: number; right: number } | null {
+    const group = this.racksRoot.getObjectByName(`rack:${id}`);
+    if (!group) return null;
+    group.updateWorldMatrix(true, true);
+    this.bounds.makeEmpty();
+    this.bounds.expandByObject(group);
+    if (this.bounds.isEmpty()) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const corners = [
+      new Vector3(this.bounds.min.x, this.bounds.min.y, this.bounds.min.z),
+      new Vector3(this.bounds.min.x, this.bounds.min.y, this.bounds.max.z),
+      new Vector3(this.bounds.min.x, this.bounds.max.y, this.bounds.min.z),
+      new Vector3(this.bounds.min.x, this.bounds.max.y, this.bounds.max.z),
+      new Vector3(this.bounds.max.x, this.bounds.min.y, this.bounds.min.z),
+      new Vector3(this.bounds.max.x, this.bounds.min.y, this.bounds.max.z),
+      new Vector3(this.bounds.max.x, this.bounds.max.y, this.bounds.min.z),
+      new Vector3(this.bounds.max.x, this.bounds.max.y, this.bounds.max.z),
+    ];
+    for (const corner of corners) {
+      const p = this.worldToClient(corner);
+      xs.push(p.x - rect.left);
+      ys.push(p.y - rect.top);
+    }
+    return {
+      left: Math.min(...xs),
+      right: Math.max(...xs),
+      top: Math.min(...ys),
+      bottom: Math.max(...ys),
+    };
   }
 
   unitLocalPosition(id: string): { x: number; y: number; z: number } | null {
@@ -1081,7 +1144,7 @@ export class SceneEngine {
     this.canvas.removeEventListener('pointercancel', this.onPointerCancel, NON_PASSIVE);
     this.canvas.removeEventListener('lostpointercapture', this.onLostPointerCapture, NON_PASSIVE);
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
-    this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('touchstart', this.onTouchStart, NON_PASSIVE);
     this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('wheel', this.onWheelCapture, { capture: true, passive: false } as AddEventListenerOptions);
     this.canvas.removeEventListener('wheel', this.onWheel, NON_PASSIVE);
@@ -1237,11 +1300,18 @@ export class SceneEngine {
   private poseFor(object: Object3D, mode: CameraFocusMode): CameraPose {
     object.updateWorldMatrix(true, true);
     this.bounds.makeEmpty();
+    const hostSize = hostDrawingSize(this.host);
+    const compact = isCompactAtelierViewport(hostSize?.width || this.lastWidth);
     if (mode === 'rack' && object instanceof Group) {
-      const plate = object.getObjectByName('plate');
-      const hangers = object.getObjectByName('hangers');
-      if (plate) this.bounds.expandByObject(plate);
-      if (hangers) this.bounds.expandByObject(hangers);
+      if (compact) {
+        this.bounds.expandByObject(object);
+        this.expandBoundsByRackRug(String(object.userData?.['rackId'] ?? ''));
+      } else {
+        const plate = object.getObjectByName('plate');
+        const hangers = object.getObjectByName('hangers');
+        if (plate) this.bounds.expandByObject(plate);
+        if (hangers) this.bounds.expandByObject(hangers);
+      }
     }
     if (this.bounds.isEmpty()) this.bounds.expandByObject(object);
     if (this.bounds.isEmpty()) {
@@ -1268,7 +1338,6 @@ export class SceneEngine {
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
-    const compact = isCompactAtelierViewport();
     const chrome = measureAtelierChrome(this.host);
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
@@ -1756,7 +1825,6 @@ export class SceneEngine {
 
   private endOrbit(): void {
     this.interacting = false;
-    this.cancelCameraTween();
     this.controls.enableDamping = !this.reducedMotion;
     stopPanZoomInertia(this.controls);
     if (this.orbitGesture === 'wheel') {
@@ -1934,6 +2002,42 @@ export class SceneEngine {
 
   private pickHangerSlug(event: PointerEvent): string | null {
     return hangerSlugFromHits(this.raycastPointer(event));
+  }
+
+  private expandBoundsByRackRug(rackId: string): void {
+    if (!rackId || !this.room) return;
+    const rugs = this.room.getObjectByName('rugs');
+    rugs?.traverse((child) => {
+      if (String(child.userData?.['kind'] ?? '') !== 'rug') return;
+      if (String(child.userData?.['rackId'] ?? '') !== rackId) return;
+      this.bounds.expandByObject(child);
+    });
+  }
+
+  private captureWheelCursor(event: WheelEvent): void {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    this.wheelCursorNdc = ndcFromClient(event.clientX, event.clientY, rect);
+    this.wheelCursorValid = Boolean(
+      cursorOnTargetPlane(this.camera, this.controls.target, this.wheelCursorNdc, this.wheelCursorWorld),
+    );
+  }
+
+  private maybeUpgradePieceFromZoom(event: WheelEvent): void {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return;
+    const dist = this.orbitDistance();
+    const slug = hangerSlugFromHits(this.raycastClient(event.clientX, event.clientY));
+    if (shouldUpgradePieceFromZoom(dist, slug) && slug) {
+      if (this.focusedHangerSlug !== slug) {
+        this.focusedHangerSlug = slug;
+        this.enqueueHangerTextures();
+      }
+      return;
+    }
+    if (shouldClearPieceZoomUpgrade(dist, Boolean(this.focusedHangerSlug))) {
+      this.focusedHangerSlug = null;
+      this.enqueueHangerTextures();
+    }
   }
 
   private wheelOverFocusedRack(event: WheelEvent): boolean {
