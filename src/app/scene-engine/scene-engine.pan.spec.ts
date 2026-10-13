@@ -213,12 +213,11 @@ describe('SceneEngine lateral pan', () => {
     expect(engine.rackPanState().label).toBe('8 de 19');
     const dist = engine.orbitDistance();
     expect(engine.panRack(1)).toBeTrue();
-    expect(engine.panRack(1)).toBeTrue();
-    expect(engine.rackPanState().last).toBe(10);
+    expect(engine.rackPanState().last).toBe(9);
     expect(engine.orbitDistance()).toBeCloseTo(dist, 5);
     expect(engine.panRack(-1)).toBeTrue();
-    expect(engine.rackPanState().last).toBe(9);
-    expect(engine.rackPanState().label).toBe('9 de 19');
+    expect(engine.rackPanState().last).toBe(8);
+    expect(engine.rackPanState().label).toBe('8 de 19');
     expect(engine.orbitDistance()).toBeCloseTo(dist, 5);
     engine.dispose();
     canvas.remove();

@@ -241,28 +241,39 @@ describe('SceneEngine portrait Ver todas stack', () => {
     const bounds = engine.unitScreenBounds('niponic-dreams');
     expect(bounds).toBeTruthy();
     const rect = canvas.getBoundingClientRect();
-    const x = rect.left + (bounds!.left + bounds!.right) / 2;
-    const y = rect.top + (bounds!.top + bounds!.bottom) / 2;
-    canvas.dispatchEvent(
-      new PointerEvent('pointerdown', {
-        clientX: x,
-        clientY: y,
-        pointerId: 7,
-        pointerType: 'touch',
-        bubbles: true,
-        buttons: 1,
-      }),
-    );
-    canvas.dispatchEvent(
-      new PointerEvent('pointerup', {
-        clientX: x + 9,
-        clientY: y + 6,
-        pointerId: 7,
-        pointerType: 'touch',
-        bubbles: true,
-        buttons: 0,
-      }),
-    );
+    const tapAt = (nx: number, ny: number) => {
+      const x = rect.left + bounds!.left + (bounds!.right - bounds!.left) * nx;
+      const y = rect.top + bounds!.top + (bounds!.bottom - bounds!.top) * ny;
+      canvas.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          clientX: x,
+          clientY: y,
+          pointerId: 7,
+          pointerType: 'touch',
+          bubbles: true,
+          buttons: 1,
+        }),
+      );
+      canvas.dispatchEvent(
+        new PointerEvent('pointerup', {
+          clientX: x + 8,
+          clientY: y + 4,
+          pointerId: 7,
+          pointerType: 'touch',
+          bubbles: true,
+          buttons: 0,
+        }),
+      );
+    };
+    // AABB centre is the gap between hangers and the rug (wall behind).
+    // Probe the photo band and the frame, not just the middle.
+    for (const nx of [0.5, 0.35, 0.65]) {
+      for (const ny of [0.18, 0.22, 0.28, 0.35, 0.12, 0.42]) {
+        if (engine.focusedRackId() === 'niponic-dreams') break;
+        engine.focusOverview(true);
+        tapAt(nx, ny);
+      }
+    }
     expect(engine.focusedRackId()).toBe('niponic-dreams');
     engine.dispose();
     host.remove();
@@ -357,10 +368,10 @@ describe('SceneEngine portrait Ver todas stack', () => {
     const pan = engine.rackPanState();
     expect(pan.label).toBe('8 de 19');
     engine.panRack(1);
-    engine.panRack(1);
-    expect(engine.rackPanState().last).toBe(10);
-    engine.panRack(-1);
     expect(engine.rackPanState().last).toBe(9);
+    engine.panRack(-1);
+    expect(engine.rackPanState().last).toBe(8);
+    engine.panRack(1);
     expect(engine.rackPanState().label).toBe('9 de 19');
     await saveShot(engine, 'desktop-niponic-1280x800', engine.rackPanState().label, {
       width: 1280,

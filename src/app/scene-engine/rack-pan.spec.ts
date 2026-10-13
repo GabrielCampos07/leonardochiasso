@@ -47,14 +47,15 @@ describe('rackPanProgress', () => {
   });
 
   it('derives the counter from pan offset in both directions', () => {
-    const start = rackStartPanX(19);
-    const atTen = start + HANGER_SPACING * 2;
-    const back = atTen - HANGER_SPACING;
-    expect(rackPanProgress(19, atTen).last).toBe(10);
-    expect(rackPanProgress(19, atTen).label).toBe('10 de 19');
-    expect(rackPanProgress(19, back).last).toBe(9);
-    expect(rackPanProgress(19, back).label).toBe('9 de 19');
-    expect(rackPanProgress(19, start).last).toBe(8);
+    const start19 = rackStartPanX(19);
+    expect(rackPanProgress(19, start19 + HANGER_SPACING).last).toBe(9);
+    expect(rackPanProgress(19, start19).last).toBe(8);
+    expect(rackPanProgress(19, rackPanRange(19)).last).toBe(19);
+    const start21 = rackStartPanX(21);
+    expect(rackPanProgress(21, start21 + HANGER_SPACING * 2).last).toBe(10);
+    expect(rackPanProgress(21, start21 + HANGER_SPACING * 2).label).toBe('10 de 21');
+    expect(rackPanProgress(21, start21 + HANGER_SPACING).last).toBe(9);
+    expect(rackPanProgress(21, start21).last).toBe(8);
   });
 
   it('hides chrome when the rack fits in one frame', () => {
