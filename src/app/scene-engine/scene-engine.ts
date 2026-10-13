@@ -59,6 +59,7 @@ import {
   easeOutBack,
   isCompactAtelierViewport,
   measureAtelierChrome,
+  pieceFocusBox,
 } from './camera-guide';
 import {
   FLOOR_Y,
@@ -553,23 +554,29 @@ export class SceneEngine {
     group.updateWorldMatrix(true, true);
     const garment = group.getObjectByName('garment');
     const label = group.getObjectByName('label');
+    const labelBack = group.getObjectByName('labelBack');
     const badge = group.getObjectByName('badge');
-    const focus = new Vector3();
-    (garment ?? group).getWorldPosition(focus);
+    if (badge) badge.scale.set(1, 1, 1);
     this.bounds.makeEmpty();
-    this.bounds.expandByObject(group);
     if (garment) this.bounds.expandByObject(garment);
     if (label) this.bounds.expandByObject(label);
+    if (labelBack) this.bounds.expandByObject(labelBack);
     if (badge?.visible) this.bounds.expandByObject(badge);
     if (this.bounds.isEmpty()) this.bounds.expandByObject(group);
-    const box = {
-      minX: Math.min(this.bounds.min.x, focus.x - 0.4),
-      maxX: Math.max(this.bounds.max.x, focus.x + 0.4),
-      minY: this.bounds.min.y - 0.05,
-      maxY: this.bounds.max.y + 0.08,
-      minZ: this.bounds.min.z,
-      maxZ: this.bounds.max.z,
-    };
+    const siblings = hanger ? this.layout.racks.find((rack) => rack.id === hanger.rackId)?.hangers ?? [] : [];
+    const index = siblings.findIndex((item) => item.slug === slug);
+    const box = pieceFocusBox(
+      {
+        minX: this.bounds.min.x,
+        maxX: this.bounds.max.x,
+        minY: this.bounds.min.y,
+        maxY: this.bounds.max.y,
+        minZ: this.bounds.min.z,
+        maxZ: this.bounds.max.z,
+      },
+      index,
+      siblings.length,
+    );
     this.moveCamera(
       computeEyeLevelFit(
         box,

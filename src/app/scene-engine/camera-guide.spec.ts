@@ -13,6 +13,8 @@ import {
   easeOutBack,
   isCompactAtelierViewport,
   photoPlaneSize,
+  pieceFocusBox,
+  PIECE_FOCUS_SHIFT,
   rackNavItems,
   stepRackIndex,
 } from './camera-guide';
@@ -147,6 +149,29 @@ describe('computeEyeLevelFit', () => {
   });
 });
 
+describe('pieceFocusBox', () => {
+  const piece = { minX: -0.56, maxX: -0.08, minY: 0.02, maxY: 1.06, minZ: 0, maxZ: 0.16 };
+
+  it('shifts a left hanger look-at outward so the neighbor leaves the frame', () => {
+    const box = pieceFocusBox(piece, 0, 2);
+    const pieceCx = (piece.minX + piece.maxX) / 2;
+    const lookCx = (box.minX + box.maxX) / 2;
+    expect(lookCx).toBeCloseTo(pieceCx - PIECE_FOCUS_SHIFT, 5);
+    expect(box.maxX - box.minX).toBeCloseTo(piece.maxX - piece.minX + 0.1, 5);
+  });
+
+  it('shifts a right hanger look-at the other way', () => {
+    const box = pieceFocusBox(piece, 1, 2);
+    const pieceCx = (piece.minX + piece.maxX) / 2;
+    expect((box.minX + box.maxX) / 2).toBeCloseTo(pieceCx + PIECE_FOCUS_SHIFT, 5);
+  });
+
+  it('keeps a solo hanger centered', () => {
+    const box = pieceFocusBox(piece, 0, 1);
+    expect((box.minX + box.maxX) / 2).toBeCloseTo((piece.minX + piece.maxX) / 2, 5);
+  });
+});
+
 describe('computeVitrineFit', () => {
   it('fits compact vitrine width including the plate', () => {
     const box = { minX: -1.2, maxX: 1.2, minY: -0.6, maxY: 0.9, minZ: -0.25, maxZ: 0.25 };
@@ -213,10 +238,24 @@ describe('measureAtelierChrome', () => {
       toJSON: () => ({}),
     } as DOMRect);
     host.appendChild(guide);
+    const overlay = document.createElement('div');
+    overlay.className = 'admin-3d__chrome';
+    spyOn(overlay, 'getBoundingClientRect').and.returnValue({
+      top: 12,
+      bottom: 52,
+      height: 40,
+      width: 160,
+      left: 1100,
+      right: 1260,
+      x: 1100,
+      y: 12,
+      toJSON: () => ({}),
+    } as DOMRect);
+    host.appendChild(overlay);
     const chrome = measureAtelierChrome(host);
     expect(chrome.bottom).toBeGreaterThan(defaultChromeInsets(false).bottom - 0.01);
-    expect(chrome.bottom).toBeGreaterThan(72 / 800);
-    expect(chrome.top).toBeGreaterThan(0);
+    expect(chrome.bottom).toBeGreaterThan((800 - 720) / 800);
+    expect(chrome.top).toBeGreaterThan(52 / 800);
   });
 });
 

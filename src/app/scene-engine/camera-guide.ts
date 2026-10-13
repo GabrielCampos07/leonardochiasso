@@ -34,6 +34,8 @@ export const FIT_PAD_BOTTOM = 0.16;
 export const FIT_PAD_SIDE = 0.075;
 /** Extra pixels of air between the 3D content and overlaid chrome. */
 export const CHROME_MARGIN_PX = 20;
+/** Shift the piece-focus look-at away from the neighbor so leftover plates leave the frame. */
+export const PIECE_FOCUS_SHIFT = 0.92;
 
 export interface ChromeInsets {
   /** Fraction of canvas height reserved at the top (header / badges). */
@@ -53,9 +55,19 @@ export function measureAtelierChrome(host: HTMLElement): ChromeInsets {
   const hostRect = host.getBoundingClientRect();
   let top = fallback.top;
   let bottom = fallback.bottom;
+  const overlay = host.querySelector('.admin-3d__chrome') as HTMLElement | null;
+  if (overlay) {
+    const fromTop = overlay.getBoundingClientRect().bottom - hostRect.top;
+    if (fromTop > 0 && fromTop < height * 0.35) {
+      top = Math.max(top, (fromTop + 8) / height);
+    }
+  }
   const guide = host.querySelector('.admin-3d__guide') as HTMLElement | null;
   if (guide) {
-    bottom = Math.max(bottom, (guide.getBoundingClientRect().height + CHROME_MARGIN_PX) / height);
+    const fromBottom = hostRect.bottom - guide.getBoundingClientRect().top;
+    if (fromBottom > 0 && fromBottom < height) {
+      bottom = Math.max(bottom, (fromBottom + CHROME_MARGIN_PX) / height);
+    }
   }
   const add = host.querySelector('.admin-3d__add-piece') as HTMLElement | null;
   if (add) {
@@ -67,6 +79,30 @@ export function measureAtelierChrome(host: HTMLElement): ChromeInsets {
   return {
     top: Math.min(0.28, top),
     bottom: Math.min(0.42, bottom),
+  };
+}
+
+/** Frame one hanger so its photo, name plate and ribbon fit above the bar; neighbor plates leave the frame. */
+export function pieceFocusBox(
+  bounds: FitBox,
+  siblingIndex: number,
+  siblingCount: number,
+  shift = PIECE_FOCUS_SHIFT,
+): FitBox {
+  const towardOuter =
+    siblingCount > 1 && siblingIndex >= 0 && siblingIndex < siblingCount / 2
+      ? -1
+      : siblingCount > 1
+        ? 1
+        : 0;
+  const dx = towardOuter * shift;
+  return {
+    minX: bounds.minX - 0.05 + dx,
+    maxX: bounds.maxX + 0.05 + dx,
+    minY: bounds.minY - 0.05,
+    maxY: bounds.maxY + 0.06,
+    minZ: bounds.minZ,
+    maxZ: bounds.maxZ,
   };
 }
 /** Side inset so hangers fill ~85% of the viewport width. */
