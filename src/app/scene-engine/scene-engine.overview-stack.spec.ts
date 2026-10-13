@@ -190,6 +190,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(organic!.right).toBeLessThan(385);
     expect(organic!.top).toBeGreaterThan(8);
     expect(organic!.bottom).toBeLessThan(852 - 110);
+    expect(engine.orbitDistance()).toBeGreaterThan(10);
     await saveShot(engine, 'mobile-organic-default-393x852');
 
     engine.focusRack('brazilian-dreams', true);
@@ -197,13 +198,14 @@ describe('SceneEngine portrait Ver todas stack', () => {
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const focused = engine.unitScreenBounds('brazilian-dreams');
     expect(focused).toBeTruthy();
-    expect(focused!.left).toBeGreaterThan(4);
-    expect(focused!.right).toBeLessThan(389);
+    expect(focused!.top).toBeGreaterThan(4);
+    expect(focused!.bottom).toBeLessThan(852 - 110);
     const pan = engine.rackPanState();
     expect(pan.showChrome).toBeTrue();
     expect(pan.last).toBe(6);
     expect(pan.total).toBe(17);
     expect(pan.label).toBe('6 de 17');
+    expect(engine.orbitDistance()).toBeGreaterThan(10);
     await saveShot(engine, 'mobile-brazilian-focus-393x852', pan.label);
     engine.dispose();
     host.remove();
@@ -217,6 +219,8 @@ describe('SceneEngine portrait Ver todas stack', () => {
       pending('WebGL not available in this browser');
       return;
     }
+    spyOn(canvas, 'setPointerCapture');
+    spyOn(canvas, 'releasePointerCapture');
     engine.start();
     engine.setLayout(aisleLayout());
     engine.focusOverview(true);

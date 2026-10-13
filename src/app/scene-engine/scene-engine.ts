@@ -51,6 +51,7 @@ import {
   OVERVIEW_FOCUS_ID,
   OVERVIEW_MAX_DISTANCE,
   OVERVIEW_MAX_DISTANCE_COMPACT,
+  RACK_MAX_DISTANCE_COMPACT,
   clampOrbitSpherical,
   computeEyeLevelFit,
   computePortraitOverviewFit,
@@ -1309,7 +1310,7 @@ export class SceneEngine {
       this.controls.maxDistance = 6;
     } else {
       this.controls.minDistance = 1.2;
-      this.controls.maxDistance = 10;
+      this.controls.maxDistance = this.compactViewport() ? RACK_MAX_DISTANCE_COMPACT : 10;
     }
   }
 

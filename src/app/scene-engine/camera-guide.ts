@@ -145,6 +145,8 @@ export function pieceFocusBox(
 export const FIT_WIDTH_MARGIN = 0.075;
 /** Extra side air on portrait so Organic / short racks don't lose the posts. */
 export const FIT_WIDTH_MARGIN_COMPACT = 0.12;
+/** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
+export const RACK_MAX_DISTANCE_COMPACT = 26;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
 /** Ver todas must back up far enough to keep Organic / Sem coleção in frame. */
 export const OVERVIEW_MAX_DISTANCE = 48;
@@ -292,7 +294,7 @@ export function computeEyeLevelFit(
       Math.max(distance, compact ? 2.6 : 3.8),
       compact ? OVERVIEW_MAX_DISTANCE_COMPACT : OVERVIEW_MAX_DISTANCE,
     );
-  } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), 10);
+  } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), compact ? RACK_MAX_DISTANCE_COMPACT : 10);
 
   const targetY = chromeBandTargetY(cy, height, pads) - (mode === 'piece' ? 0.08 : 0);
   const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
