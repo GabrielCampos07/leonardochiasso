@@ -86,7 +86,7 @@ export function rackLookFrame(
   const range = rackPanRange(hangerCount, frameColumns);
   if (range <= 0.001) return { offset: 0, halfW: frameW / 2 };
   const x = clampRackPan(panX, range);
-  const halfW = (frameW - RACK_EDGE_CUT * 0.35) / 2;
+  const halfW = (frameW - RACK_EDGE_CUT * 0.55) / 2;
   return { offset: x, halfW };
 }
 

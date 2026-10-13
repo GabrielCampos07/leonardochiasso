@@ -143,8 +143,8 @@ export function pieceFocusBox(
 }
 /** Side inset so hangers fill ~85% of the viewport width. */
 export const FIT_WIDTH_MARGIN = 0.075;
-/** Extra side air on portrait so Organic / short racks don't lose the posts. */
-export const FIT_WIDTH_MARGIN_COMPACT = 0.1;
+/** Tight side air so a 4-column compact frame fills the phone width. */
+export const FIT_WIDTH_MARGIN_COMPACT = 0.055;
 /** Sit a compact focused rack higher so the wall does not eat the top 40%. */
 export const COMPACT_RACK_RAISE = 0.5;
 /** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
@@ -301,8 +301,14 @@ export function computeEyeLevelFit(
     );
   } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), compact ? RACK_MAX_DISTANCE_COMPACT : 10);
 
-  const raise = compact && mode === 'rack' ? height * COMPACT_RACK_RAISE : 0;
-  const targetY = chromeBandTargetY(cy, height, pads) - raise - (mode === 'piece' ? 0.08 : 0);
+  const viewH = 2 * Math.tan(fov / 2) * distance;
+  const bandCenter = pads.bottom + visibleH / 2;
+  const bandShift = (0.5 - bandCenter) * viewH;
+  let targetY = cy + bandShift - (mode === 'piece' ? 0.08 : 0);
+  if (compact && mode === 'rack') {
+    const slack = Math.max(0, viewH * visibleH - height);
+    targetY -= height * COMPACT_RACK_RAISE + slack * 0.4;
+  }
   const elevation = compact ? 0.07 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }

@@ -1423,7 +1423,9 @@ export class SceneEngine {
 
   private clampCamera(): void {
     this.camera.up.set(0, 1, 0);
-    if (this.controls.target.y < FLOOR_Y + 0.12) this.controls.target.y = FLOOR_Y + 0.12;
+    const minTargetY =
+      this.compactViewport() && this.focusedId !== OVERVIEW_FOCUS_ID ? FLOOR_Y - 2.6 : FLOOR_Y + 0.12;
+    if (this.controls.target.y < minTargetY) this.controls.target.y = minTargetY;
     this.orbitOffset.copy(this.camera.position).sub(this.controls.target);
     this.orbitSpherical.setFromVector3(this.orbitOffset);
     const locked = clampOrbitSpherical(this.orbitSpherical.theta, this.orbitSpherical.phi);

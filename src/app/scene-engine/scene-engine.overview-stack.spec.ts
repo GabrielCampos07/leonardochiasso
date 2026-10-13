@@ -62,6 +62,7 @@ async function saveShot(
       method: 'POST',
       headers: { 'x-shot-name': name, 'content-type': 'text/plain' },
       body: url,
+      signal: AbortSignal.timeout(2500),
     });
   } catch {
     /* shot server is optional outside the capture run */
@@ -183,7 +184,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     await saveShot(engine, 'mobile-tap-brazilian-393x852');
     engine.dispose();
     host.remove();
-  });
+  }, 15000);
 
   it('fits Organic default and a 17-piece Brazilian focus on 393×852', async () => {
     const { host, canvas } = mountHost(393, 852);
@@ -223,7 +224,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     await saveShot(engine, 'mobile-brazilian-focus-393x852', pan.label);
     engine.dispose();
     host.remove();
-  });
+  }, 15000);
 
   it('focuses Niponic on the first touch tap from Ver todas', () => {
     const { host, canvas } = mountHost(393, 852);
@@ -379,5 +380,5 @@ describe('SceneEngine portrait Ver todas stack', () => {
     });
     engine.dispose();
     host.remove();
-  });
+  }, 20000);
 });
