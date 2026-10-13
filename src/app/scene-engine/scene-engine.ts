@@ -574,7 +574,9 @@ export class SceneEngine {
       maxZ: this.bounds.max.z,
     };
     this.moveCamera(
-      computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, 'rack', isCompactAtelierViewport()),
+      rackGroup
+        ? this.poseFor(rackGroup, 'rack')
+        : computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, 'rack', isCompactAtelierViewport()),
       immediate,
     );
     this.layoutDeferredProps();
