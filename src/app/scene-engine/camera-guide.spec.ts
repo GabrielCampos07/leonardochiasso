@@ -6,7 +6,9 @@ import {
   computeEyeLevelFit,
   clampOrbitSpherical,
   computeVitrineFit,
+  defaultChromeInsets,
   distanceToFitWidth,
+  measureAtelierChrome,
   easeInOutCubic,
   easeOutBack,
   isCompactAtelierViewport,
@@ -127,6 +129,22 @@ describe('computeEyeLevelFit', () => {
     expect(all.distance).toBeGreaterThan(6);
     expect(all.distance).toBeLessThanOrEqual(16);
   });
+
+  it('backs off when the collections bar reserves more of the viewport', () => {
+    const unit = { minX: -1, maxX: 1, minY: -0.4, maxY: 1.3, minZ: -0.1, maxZ: 0.1 };
+    const open = computeEyeLevelFit(unit, 16 / 9, 38, 'rack', false, { top: 0.04, bottom: 0.08 });
+    const barred = computeEyeLevelFit(unit, 16 / 9, 38, 'rack', false, { top: 0.05, bottom: 0.24 });
+    expect(barred.distance).toBeGreaterThan(open.distance);
+  });
+
+  it('frames a single hanger closer than the full rack', () => {
+    const rack = { minX: -1.1, maxX: 1.1, minY: -0.45, maxY: 1.3, minZ: -0.1, maxZ: 0.1 };
+    const piece = { minX: -0.4, maxX: 0.4, minY: -0.45, maxY: 0.75, minZ: -0.1, maxZ: 0.1 };
+    const chrome = { top: 0.05, bottom: 0.18 };
+    const wide = computeEyeLevelFit(rack, 16 / 9, 38, 'rack', false, chrome);
+    const close = computeEyeLevelFit(piece, 16 / 9, 38, 'rack', false, chrome);
+    expect(close.distance).toBeLessThan(wide.distance);
+  });
 });
 
 describe('computeVitrineFit', () => {
@@ -162,6 +180,43 @@ describe('distanceToFitWidth', () => {
     const wide = distanceToFitWidth(3, 16 / 9, 38, 0.08);
     const narrow = distanceToFitWidth(3, 400 / 720, 38, 0.08);
     expect(narrow).toBeGreaterThan(wide);
+  });
+});
+
+describe('measureAtelierChrome', () => {
+  it('reserves the live collections bar plus a margin', () => {
+    const host = document.createElement('div');
+    Object.defineProperty(host, 'clientHeight', { value: 800 });
+    Object.defineProperty(host, 'clientWidth', { value: 1280 });
+    spyOn(host, 'getBoundingClientRect').and.returnValue({
+      top: 0,
+      bottom: 800,
+      height: 800,
+      width: 1280,
+      left: 0,
+      right: 1280,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const guide = document.createElement('nav');
+    guide.className = 'admin-3d__guide';
+    spyOn(guide, 'getBoundingClientRect').and.returnValue({
+      top: 720,
+      bottom: 792,
+      height: 72,
+      width: 1200,
+      left: 12,
+      right: 1212,
+      x: 12,
+      y: 720,
+      toJSON: () => ({}),
+    } as DOMRect);
+    host.appendChild(guide);
+    const chrome = measureAtelierChrome(host);
+    expect(chrome.bottom).toBeGreaterThan(defaultChromeInsets(false).bottom - 0.01);
+    expect(chrome.bottom).toBeGreaterThan(72 / 800);
+    expect(chrome.top).toBeGreaterThan(0);
   });
 });
 

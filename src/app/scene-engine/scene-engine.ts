@@ -58,6 +58,7 @@ import {
   easeInOutCubic,
   easeOutBack,
   isCompactAtelierViewport,
+  measureAtelierChrome,
 } from './camera-guide';
 import {
   FLOOR_Y,
@@ -549,34 +550,35 @@ export class SceneEngine {
       this.focusedId = hanger.rackId;
       this.applyOrbitLimits('rack');
     }
-    const rackGroup = hanger
-      ? (this.racksRoot.getObjectByName(`rack:${hanger.rackId}`) as Group | undefined)
-      : undefined;
-    const plate = rackGroup?.getObjectByName('plate');
     group.updateWorldMatrix(true, true);
-    plate?.updateWorldMatrix(true, true);
-    rackGroup?.updateWorldMatrix(true, true);
     const garment = group.getObjectByName('garment');
+    const label = group.getObjectByName('label');
+    const badge = group.getObjectByName('badge');
     const focus = new Vector3();
     (garment ?? group).getWorldPosition(focus);
     this.bounds.makeEmpty();
-    if (plate) this.bounds.expandByObject(plate);
     this.bounds.expandByObject(group);
-    const hangers = rackGroup?.getObjectByName('hangers');
-    if (hangers) this.bounds.expandByObject(hangers);
+    if (garment) this.bounds.expandByObject(garment);
+    if (label) this.bounds.expandByObject(label);
+    if (badge?.visible) this.bounds.expandByObject(badge);
     if (this.bounds.isEmpty()) this.bounds.expandByObject(group);
     const box = {
-      minX: Math.min(this.bounds.min.x, focus.x - 0.55),
-      maxX: Math.max(this.bounds.max.x, focus.x + 0.55),
-      minY: this.bounds.min.y - 0.12,
-      maxY: this.bounds.max.y + 0.16,
+      minX: Math.min(this.bounds.min.x, focus.x - 0.4),
+      maxX: Math.max(this.bounds.max.x, focus.x + 0.4),
+      minY: this.bounds.min.y - 0.05,
+      maxY: this.bounds.max.y + 0.08,
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
     this.moveCamera(
-      rackGroup
-        ? this.poseFor(rackGroup, 'rack')
-        : computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, 'rack', isCompactAtelierViewport()),
+      computeEyeLevelFit(
+        box,
+        this.camera.aspect,
+        this.camera.fov,
+        'rack',
+        isCompactAtelierViewport(),
+        measureAtelierChrome(this.host),
+      ),
       immediate,
     );
     this.layoutDeferredProps();
@@ -945,14 +947,15 @@ export class SceneEngine {
     const box = {
       minX: mode === 'rack' ? origin.x - halfW : this.bounds.min.x,
       maxX: mode === 'rack' ? origin.x + halfW : this.bounds.max.x,
-      minY: this.bounds.min.y,
+      minY: this.bounds.min.y - (mode === 'rack' ? 0.04 : 0),
       maxY: this.bounds.max.y + (mode === 'rack' ? 0.1 : 0),
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
     const compact = isCompactAtelierViewport();
+    const chrome = measureAtelierChrome(this.host);
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
-    return computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, mode, compact);
+    return computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, mode, compact, chrome);
   }
 
   private restoreFrontView(): void {

@@ -32,6 +32,43 @@ export const CAMERA_MIN_Y = -0.45;
 export const FIT_PAD_TOP = 0.08;
 export const FIT_PAD_BOTTOM = 0.16;
 export const FIT_PAD_SIDE = 0.075;
+/** Extra pixels of air between the 3D content and overlaid chrome. */
+export const CHROME_MARGIN_PX = 20;
+
+export interface ChromeInsets {
+  /** Fraction of canvas height reserved at the top (header / badges). */
+  top: number;
+  /** Fraction of canvas height reserved at the bottom (collections bar). */
+  bottom: number;
+}
+
+export function defaultChromeInsets(compact = false): ChromeInsets {
+  return compact ? { top: 0.06, bottom: 0.24 } : { top: 0.05, bottom: 0.18 };
+}
+
+/** Read the live guide / add-piece overlays so the lens leaves them empty. */
+export function measureAtelierChrome(host: HTMLElement): ChromeInsets {
+  const fallback = defaultChromeInsets(isCompactAtelierViewport(host.clientWidth || 1280));
+  const height = Math.max(host.clientHeight || 0, 1);
+  const hostRect = host.getBoundingClientRect();
+  let top = fallback.top;
+  let bottom = fallback.bottom;
+  const guide = host.querySelector('.admin-3d__guide') as HTMLElement | null;
+  if (guide) {
+    bottom = Math.max(bottom, (guide.getBoundingClientRect().height + CHROME_MARGIN_PX) / height);
+  }
+  const add = host.querySelector('.admin-3d__add-piece') as HTMLElement | null;
+  if (add) {
+    const fromBottom = hostRect.bottom - add.getBoundingClientRect().top;
+    if (fromBottom > 0 && fromBottom < height) {
+      bottom = Math.max(bottom, (fromBottom + 8) / height);
+    }
+  }
+  return {
+    top: Math.min(0.28, top),
+    bottom: Math.min(0.42, bottom),
+  };
+}
 /** Side inset so hangers fill ~85% of the viewport width. */
 export const FIT_WIDTH_MARGIN = 0.075;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
@@ -118,8 +155,9 @@ export function poseFromElevation(
 }
 
 /**
- * Fit the active rack so hangers fill ~85% of the viewport width. Height only
- * pushes the camera back far enough to keep the collection sign on screen.
+ * Fit the active rack so hangers fill ~85% of the *usable* viewport (canvas
+ * minus header / collections bar). Height always wins when the sign + name
+ * plates would otherwise sit under the bottom chrome.
  */
 export function computeEyeLevelFit(
   box: FitBox,
@@ -127,6 +165,7 @@ export function computeEyeLevelFit(
   fovDeg: number,
   mode: CameraFocusMode,
   compact = false,
+  chrome?: ChromeInsets,
 ): CameraPose {
   const width = Math.max(box.maxX - box.minX, 0.4);
   const height = Math.max(box.maxY - box.minY, 0.4);
@@ -135,23 +174,22 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const padTop = compact ? 0.05 : FIT_PAD_TOP;
-  const padBottom = compact ? 0.16 : FIT_PAD_BOTTOM;
-  const visibleH = Math.max(0.42, 1 - padTop - padBottom);
+  const pads = chrome ?? { top: compact ? 0.05 : FIT_PAD_TOP, bottom: compact ? 0.16 : FIT_PAD_BOTTOM };
+  const padTop = pads.top;
+  const padBottom = pads.bottom;
+  const visibleH = Math.max(0.38, 1 - padTop - padBottom);
   const fov = (fovDeg * Math.PI) / 180;
   const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
-  const fitted =
-    mode === 'overview'
-      ? Math.max(fitH, fitW)
-      : Math.max(fitW, fitH > fitW * 1.35 ? fitH : compact ? Math.min(fitH, fitW * 1.12) : fitW);
+  const fitted = Math.max(fitH, fitW);
   let distance = fitted * fill + depth * (compact ? 0.08 : 0.1);
   if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 2.6 : 3.8), compact ? 9 : 16);
   else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
 
-  const targetY = compact ? box.minY + height * 0.5 : box.minY + height * 0.56;
-  const elevation = compact ? 0.18 : 0.26;
+  const bandCenter = padBottom + visibleH / 2;
+  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height;
+  const elevation = compact ? 0.16 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
