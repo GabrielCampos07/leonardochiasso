@@ -27,14 +27,14 @@ export function createAtelierRoom(lite = false): Group {
   floor.position.y = FLOOR_Y - 0.05;
   floor.receiveShadow = !lite;
   floor.name = 'floor';
-  floor.userData = { ignorePick: true };
+  floor.userData = { ignorePick: true, kind: 'floor' };
   room.add(floor);
 
   const wall = new Mesh(new PlaneGeometry(110, 18), wallMaterial(lite, makePlasterTexture()));
   wall.position.set(8, 6.2, ROOM_WALL_Z);
   wall.receiveShadow = !lite;
   wall.name = 'wall';
-  wall.userData = { ignorePick: true };
+  wall.userData = { ignorePick: true, kind: 'wall' };
   room.add(wall);
 
   const wainscot = new Mesh(new BoxGeometry(110, WAINSCOT_H, 0.04), wainscotMaterial(lite));
@@ -59,7 +59,7 @@ export function createAtelierRoom(lite = false): Group {
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.set(8, 7.4, 6);
   ceiling.name = 'ceiling';
-  ceiling.userData = { ignorePick: true };
+  ceiling.userData = { ignorePick: true, kind: 'ceiling' };
   room.add(ceiling);
 
   const rugs = new Group();

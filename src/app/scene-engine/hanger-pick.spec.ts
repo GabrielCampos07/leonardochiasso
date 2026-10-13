@@ -7,6 +7,7 @@ import {
   hangerSlugFromObject,
   isIgnoredPick,
   isPointerClick,
+  isRoomSurface,
   resolveHangerClick,
 } from './hanger-pick';
 import type { SceneHanger } from './types';
@@ -122,6 +123,22 @@ describe('hangerSlugFromHits — click → piece modal mapping', () => {
     expect(hangerSlugFromHits([hit(namePlate)])).toBe('vestido-lg-bateau');
     expect(hangerSlugFromHits([hit(sign)])).toBeNull();
     expect(hangerSlugFromHits([hit(sign), hit(photo)])).toBe('vestido-lg-bateau');
+  });
+
+  it('does not look through the floor or wall to open a piece', () => {
+    const hanger = createGarmentHanger(garment());
+    const photo = hanger.getObjectByName('garment') as Mesh;
+    const floor = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial());
+    floor.name = 'floor';
+    floor.userData = { ignorePick: true, kind: 'floor' };
+    const wall = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial());
+    wall.name = 'wall';
+    wall.userData = { ignorePick: true, kind: 'wall' };
+    expect(isRoomSurface(floor)).toBeTrue();
+    expect(isRoomSurface(wall)).toBeTrue();
+    expect(hangerSlugFromHits([hit(floor), hit(photo)])).toBeNull();
+    expect(hangerSlugFromHits([hit(wall), hit(photo)])).toBeNull();
+    expect(hangerSlugFromHits([hit(photo), hit(wall)])).toBe('vestido-lg-bateau');
   });
 
   it('does not map a collection sign to a product', () => {

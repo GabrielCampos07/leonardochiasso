@@ -2,7 +2,6 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   Box3,
-  Clock,
   Color,
   DirectionalLight,
   Fog,
@@ -21,6 +20,7 @@ import {
   Spherical,
   SRGBColorSpace,
   Texture,
+  Timer,
   Vector2,
   Vector3,
   WebGLRenderer,
@@ -93,7 +93,7 @@ import {
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
-import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
+import { hangerSlugFromHits, isPointerClick, isRoomSurface, resolveHangerClick } from './hanger-pick';
 import { rackIdFromHits } from './rack-pick';
 import {
   ORBIT_DAMPING_FACTOR,
@@ -103,6 +103,9 @@ import {
   hangerTooltipWhileCameraBusy,
   hoverSlugAfterCameraSettle,
   orbitDampingExpired,
+  shouldCapOrbitInertia,
+  shouldEnableOrbitZoom,
+  shouldRefitOnResize,
   stopOrbitInertia,
   stopPanZoomInertia,
 } from './orbit-damping';
@@ -244,7 +247,10 @@ export class SceneEngine {
   private orbitDampingUntil = 0;
   private lastPointer = { x: 0, y: 0, valid: false };
   private pendingHoverAfterSettle = false;
-  private readonly clock = new Clock(false);
+  private settleTimer = 0;
+  private orbitGesture: 'pointer' | 'wheel' = 'pointer';
+  private userOrbited = false;
+  private readonly timer = new Timer();
   private disposed = false;
   private hoverSlug: string | null = null;
   private lift = 0;
@@ -329,7 +335,9 @@ export class SceneEngine {
     this.pointerDown = { x: event.clientX, y: event.clientY };
     this.lastDragX = event.clientX;
     this.rackPanning = false;
-    this.controls.enableZoom = true;
+    this.orbitGesture = 'pointer';
+    this.cancelCameraTween();
+    this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.rememberPointer(event);
     this.onHoverCb?.(null);
     this.setHover(null);
@@ -381,9 +389,10 @@ export class SceneEngine {
       dy,
     });
     this.pointerDownSlug = null;
+    if (!isPointerClick(dx, dy)) this.userOrbited = true;
     if (slug) {
-      /* opened on pointerdown so the modal is not blocked by orbit restore */
-    } else if (!wasPanning && isPointerClick(dx, dy)) {
+      /* hanger click is resolved on pointerup so a rack pan cannot open the modal */
+    } else if (!wasPanning && isPointerClick(dx, dy) && !this.userOrbited) {
       const hits = this.raycastPointer(event);
       if (this.focusedId === OVERVIEW_FOCUS_ID) {
         const rackId = rackIdFromHits(hits);
@@ -416,16 +425,22 @@ export class SceneEngine {
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
+  /** Rack wheel pans pieces. Elsewhere (or ctrl / pinch) dollies. */
   private readonly onWheel = (event: WheelEvent) => {
     if (event.cancelable) event.preventDefault();
+    if (this.orbitSettling() && !event.ctrlKey && event.deltaX === 0) return;
+    this.orbitGesture = 'wheel';
+    this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
     if (this.focusedPanRange() <= 0) return;
     this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
+    this.userOrbited = true;
     this.orbitDampingUntil = 0;
+    this.clearSettleTimer();
     this.cancelCameraTween();
-    this.controls.enableZoom = true;
+    this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.hideHoverForCamera();
     this.requestRender();
   };
@@ -608,6 +623,28 @@ export class SceneEngine {
     this.requestRender();
   }
 
+  /** Distance from the lens to the orbit target — used by zoom settle tests. */
+  orbitDistance(): number {
+    return this.camera.position.distanceTo(this.controls.target);
+  }
+
+  orbitZoomEnabled(): boolean {
+    return this.controls.enableZoom;
+  }
+
+  isCameraTweening(): boolean {
+    return this.tween !== null;
+  }
+
+  cameraSnapshot(): { x: number; y: number; z: number; distance: number } {
+    return {
+      x: this.camera.position.x,
+      y: this.camera.position.y,
+      z: this.camera.position.z,
+      distance: this.orbitDistance(),
+    };
+  }
+
   focusedRackId(): string {
     return this.focusedId;
   }
@@ -635,6 +672,7 @@ export class SceneEngine {
 
     this.hasLayout = true;
     this.rackPanX = 0;
+    this.userOrbited = false;
     this.firstFrameSent = false;
     this.sceneCompleteSent = false;
     this.propsArmed = false;
@@ -668,6 +706,7 @@ export class SceneEngine {
     const group = this.racksRoot.getObjectByName(`rack:${id}`);
     if (!group) return;
     if (this.focusedId !== id) this.resetPanForUnit(id);
+    this.userOrbited = false;
     this.focusedId = id;
     this.focusedHangerSlug = null;
     const unit = this.layout.racks.find((r) => r.id === id);
@@ -689,6 +728,7 @@ export class SceneEngine {
     }
     const group = this.findHangerGroup(slug);
     if (!group) return false;
+    this.userOrbited = false;
     if (hanger) {
       this.focusedId = hanger.rackId;
       this.applyOrbitLimits('rack');
@@ -739,6 +779,7 @@ export class SceneEngine {
 
   focusOverview(immediate = this.reducedMotion): void {
     this.flushDeferredRacks();
+    this.userOrbited = false;
     this.focusedId = OVERVIEW_FOCUS_ID;
     this.focusedHangerSlug = null;
     this.applyRackLayout(this.shouldStackOverview() ? 'stack' : 'aisle');
@@ -929,6 +970,7 @@ export class SceneEngine {
       unit.kind === 'vitrine' ? createJewelryVitrine(unit, this.draftX) : createCollectionRack(unit, this.draftX);
     this.racksRoot.add(group);
     this.layout = { racks: [...this.layout.racks, unit] };
+    this.userOrbited = false;
     this.focusedId = unit.id;
     const mode: CameraFocusMode = unit.kind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
@@ -973,7 +1015,15 @@ export class SceneEngine {
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(size.width, size.height, false);
     applyCanvasHostCss(this.canvas);
-    if (changed && (this.racksRoot.children.length || this.draft)) {
+    if (
+      changed &&
+      (this.racksRoot.children.length || this.draft) &&
+      shouldRefitOnResize({
+        userOrbited: this.userOrbited,
+        interacting: this.interacting,
+        settling: this.orbitSettling(),
+      })
+    ) {
       if (this.focusedId === OVERVIEW_FOCUS_ID) this.focusOverview(true);
       else if (this.focusedId === DRAFT_UNIT_ID) this.focusDraft(true);
       else this.focusRack(this.focusedId, true);
@@ -1006,6 +1056,8 @@ export class SceneEngine {
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);
     this.controls.removeEventListener('change', this.onControlsChange);
+    this.clearSettleTimer();
+    this.timer.dispose();
     this.controls.dispose();
     this.restoreAddEventListener?.();
     this.restoreAddEventListener = null;
@@ -1224,8 +1276,8 @@ export class SceneEngine {
     this.raf = requestAnimationFrame(() => {
       this.renderQueued = false;
       if (this.disposed || this.contextLost) return;
-      if (!this.clock.running) this.clock.start();
-      const dt = this.clock.getDelta();
+      this.timer.update();
+      const dt = this.timer.getDelta();
       const now = performance.now();
       const animating =
         this.stepTween() ||
@@ -1235,10 +1287,12 @@ export class SceneEngine {
         this.stepGlow() ||
         this.stepArchive();
       const settling = !this.interacting && !orbitDampingExpired(now, this.orbitDampingUntil);
-      if (this.interacting || settling) capOrbitInertia(this.controls);
+      if (shouldCapOrbitInertia(this.interacting) && settling) capOrbitInertia(this.controls);
       if (!this.tween && !this.reducedMotion && (this.interacting || settling)) {
-        this.controls.dampingFactor = dampingFactorForDelta(dt);
-        this.controls.update(dt);
+        this.controls.dampingFactor = this.interacting
+          ? ORBIT_DAMPING_FACTOR
+          : dampingFactorForDelta(dt);
+        this.controls.update(this.interacting ? undefined : dt);
       }
       if (this.orbitDampingUntil && !this.interacting && orbitDampingExpired(now, this.orbitDampingUntil)) {
         this.freezeOrbit();
@@ -1279,6 +1333,7 @@ export class SceneEngine {
 
   private focusDraft(immediate = this.reducedMotion): void {
     if (!this.draft) return;
+    this.userOrbited = false;
     this.focusedId = DRAFT_UNIT_ID;
     const mode: CameraFocusMode = this.draftKind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
@@ -1548,6 +1603,7 @@ export class SceneEngine {
   }
 
   private emptyUnitIdFromHits(hits: Array<{ object: Object3D }>): string | null {
+    if (isRoomSurface(hits[0]?.object)) return null;
     for (const hit of hits) {
       let obj: Object3D | null = hit.object;
       while (obj) {
@@ -1644,9 +1700,20 @@ export class SceneEngine {
     stopOrbitInertia(this.controls);
   }
 
+  private orbitSettling(): boolean {
+    return this.interacting || !orbitDampingExpired(performance.now(), this.orbitDampingUntil);
+  }
+
+  private clearSettleTimer(): void {
+    if (!this.settleTimer) return;
+    window.clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
+  }
+
   private freezeOrbit(): void {
+    this.clearSettleTimer();
     stopOrbitInertia(this.controls);
-    this.controls.enableZoom = false;
+    this.controls.enableZoom = shouldEnableOrbitZoom('settle');
     this.orbitDampingUntil = 0;
   }
 
@@ -1655,7 +1722,13 @@ export class SceneEngine {
     this.cancelCameraTween();
     this.controls.enableDamping = !this.reducedMotion;
     stopPanZoomInertia(this.controls);
-    this.controls.enableZoom = false;
+    if (this.orbitGesture === 'wheel') {
+      this.freezeOrbit();
+      this.clampCamera();
+      this.requestRender();
+      return;
+    }
+    this.controls.enableZoom = shouldEnableOrbitZoom('release');
     if (this.reducedMotion) {
       this.freezeOrbit();
       this.clampCamera();
@@ -1666,6 +1739,8 @@ export class SceneEngine {
     }
     capOrbitInertia(this.controls);
     this.orbitDampingUntil = performance.now() + ORBIT_DAMPING_MAX_MS;
+    this.clearSettleTimer();
+    this.settleTimer = window.setTimeout(() => this.freezeOrbit(), ORBIT_DAMPING_MAX_MS);
     this.hideHoverForCamera();
     this.clampCamera();
     this.requestRender();

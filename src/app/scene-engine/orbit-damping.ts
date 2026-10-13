@@ -63,6 +63,27 @@ export function hangerTooltipWhileCameraBusy(cameraBusy: boolean): boolean {
   return !cameraBusy;
 }
 
+/** Off while leftover inertia dies; back on at settle and on the next pointerdown / wheel. */
+export function shouldEnableOrbitZoom(
+  phase: 'release' | 'settle' | 'pointerdown' | 'wheel',
+): boolean {
+  return phase !== 'release';
+}
+
+/** Cap leftover only after release. Live drag must keep the full rotate delta (wall orbit). */
+export function shouldCapOrbitInertia(liveDrag: boolean): boolean {
+  return !liveDrag;
+}
+
+/** Resize must not restore the boot / focus pose after the user has orbited. */
+export function shouldRefitOnResize(input: {
+  userOrbited: boolean;
+  interacting: boolean;
+  settling: boolean;
+}): boolean {
+  return !input.userOrbited && !input.interacting && !input.settling;
+}
+
 /** After settle: current pick or clear. Never keep a slug from a moving camera. */
 export function hoverSlugAfterCameraSettle(cameraBusy: boolean, slug: string | null): string | null {
   if (cameraBusy) return null;

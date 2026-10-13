@@ -108,6 +108,8 @@ export type AtelierLine = 'roupas' | 'joias';
 export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
 const HINT_AUTO_HIDE_MS = 5000;
+/** Visible hint only — dismiss is aria-label so "Fechar" cannot leak into the copy. */
+export const ATELIER_HINT_COPY = 'Clique · arraste · ← →';
 
 export function prefersReducedMotion(): boolean {
   try {
@@ -188,6 +190,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly hoverTip = signal<{ text: string; x: number; y: number } | null>(null);
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
+  readonly hintCopy = ATELIER_HINT_COPY;
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>

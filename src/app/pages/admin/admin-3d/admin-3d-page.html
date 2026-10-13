@@ -172,8 +172,15 @@
     <div class="admin-3d__chrome">
       @if (showHint()) {
         <p class="admin-3d__hint">
-          <span>Clique · arraste para o lado · ← → · scroll</span>
-          <button type="button" class="admin-3d__hint-dismiss" (click)="dismissHint()">Fechar</button>
+          <span>{{ hintCopy }}</span>
+          <button
+            type="button"
+            class="admin-3d__hint-dismiss"
+            (click)="dismissHint()"
+            aria-label="Dispensar dica"
+          >
+            ×
+          </button>
         </p>
       }
       @if (usingMock()) {

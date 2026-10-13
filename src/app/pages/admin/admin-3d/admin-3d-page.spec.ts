@@ -1,4 +1,9 @@
-import { clampCreatePanel, isCreateSheetViewport, pieceModalFromHangerClick } from './admin-3d-page';
+import {
+  ATELIER_HINT_COPY,
+  clampCreatePanel,
+  isCreateSheetViewport,
+  pieceModalFromHangerClick,
+} from './admin-3d-page';
 import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
 
 describe('clampCreatePanel', () => {
@@ -30,6 +35,13 @@ describe('rack pan chrome', () => {
     expect(rackPanProgress(19, rackStartPanX(19)).label).toBe('8 de 19');
     expect(rackArrowDelta('ArrowLeft')).toBe(-1);
     expect(rackArrowDelta('ArrowRight')).toBe(1);
+  });
+});
+
+describe('atelier hint copy', () => {
+  it('is only the gesture line — Fechar stays off the hint', () => {
+    expect(ATELIER_HINT_COPY).not.toMatch(/fechar/i);
+    expect(ATELIER_HINT_COPY).toContain('Clique');
   });
 });
 

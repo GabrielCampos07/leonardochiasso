@@ -14,19 +14,46 @@ const IGNORE_PICK_KINDS = new Set([
   'vitrine-decor',
 ]);
 
+/** Floor / wall / ceiling — looking through these was opening a piece or refitting the rack. */
+const ROOM_SURFACE_NAMES = new Set([
+  'floor',
+  'wall',
+  'ceiling',
+  'wainscot',
+  'skirting',
+  'chair-rail',
+]);
+
+const ROOM_SURFACE_KINDS = new Set(['floor', 'wall', 'ceiling', 'room-surface']);
+
 export interface PickObject {
   userData?: Record<string, unknown> | null;
   parent?: PickObject | null;
 }
 
+export interface NamedPickObject extends PickObject {
+  name?: string;
+}
+
 export interface PickHit {
-  object: PickObject;
+  object: NamedPickObject;
 }
 
 export function isIgnoredPick(object: PickObject | null | undefined): boolean {
   if (!object) return false;
   if (object.userData?.['ignorePick'] === true) return true;
   return IGNORE_PICK_KINDS.has(String(object.userData?.['kind'] ?? ''));
+}
+
+/** Closest floor / wall / ceiling hit — do not look through it to a hanger or empty rack. */
+export function isRoomSurface(object: NamedPickObject | null | undefined): boolean {
+  let current: NamedPickObject | null | undefined = object;
+  while (current) {
+    if (ROOM_SURFACE_NAMES.has(String(current.name ?? ''))) return true;
+    if (ROOM_SURFACE_KINDS.has(String(current.userData?.['kind'] ?? ''))) return true;
+    current = current.parent;
+  }
+  return false;
 }
 
 /** Walk toward the hanger group. Props / glass / decor abort this hit. */
@@ -47,6 +74,7 @@ export function hangerSlugFromObject(object: PickObject | null | undefined): str
  * Rugs, glass, mannequins and other props never steal a piece behind them.
  */
 export function hangerSlugFromHits(hits: readonly PickHit[]): string | null {
+  if (isRoomSurface(hits[0]?.object)) return null;
   for (const hit of hits) {
     const slug = hangerSlugFromObject(hit.object);
     if (slug) return slug;
