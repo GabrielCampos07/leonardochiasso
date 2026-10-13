@@ -5,7 +5,12 @@ import { Collection, Product } from './product.model';
 import { PRODUCTS } from './products';
 import { CollectionSlug } from './routes';
 import { environment } from '../../environments/environment';
-import { sortByRecommendOrder } from './recommend-order';
+import {
+  groupShopProducts,
+  matchesPublicGenderHub,
+  productGender,
+  storefrontCategory,
+} from './product-gender';
 import { AdminCatalogService } from './admin-catalog.service';
 import { isArchivedAt, primaryCollectionLabel } from './admin-archive';
 import { withCdnUrls } from './media-url';
@@ -27,6 +32,7 @@ export interface ApiProductDto {
   status?: string;
   stockQty?: number;
   category: string;
+  gender?: string | null;
   collection: string;
   collections?: { slug: string; name: string; archivedAt?: string | null; sortOrder?: number }[];
   thumb: string;
@@ -63,9 +69,16 @@ function formatPriceLabel(reais: number): string {
 export function mapApiProduct(dto: ApiProductDto): Product {
   const price = Math.round(dto.priceCents / 100);
   const local = PRODUCTS.find((p) => p.slug === dto.slug || p.id === dto.slug);
+  const gender = productGender({
+    slug: dto.slug,
+    gender: dto.gender,
+    category: dto.category,
+  });
   return withCdnUrls({
     id: dto.slug,
+    productId: dto.id,
     slug: dto.slug,
+    gender,
     name: dto.name,
     price,
     priceCents: dto.priceCents,
@@ -79,7 +92,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     shipping: dto.shipping ?? '',
     thumb: dto.thumb,
     gallery: dto.gallery ?? [],
-    category: (dto.category === 'masculino' ? 'masculino' : 'feminino') as Product['category'],
+    category: storefrontCategory({ slug: dto.slug, gender, category: dto.category }),
     collection: (primaryCollectionLabel(dto.collections).name ||
       (!dto.collections?.length ? dto.collection : '') ||
       '') as Collection,
@@ -170,7 +183,7 @@ export class CatalogService {
 
   getProductsByCollection(collection: Collection | string): Observable<Product[]> {
     const fromLive = () =>
-      sortByRecommendOrder(
+      groupShopProducts(
         this.products().filter(
           (p) =>
             !isArchivedAt(p.archivedAt) &&
@@ -180,13 +193,15 @@ export class CatalogService {
 
     if (environment.demoMode) {
       return of(
-        this.adminCatalog
-          .applyTo(PRODUCTS)
-          .filter(
-            (p) =>
-              !isArchivedAt(p.archivedAt) &&
-              (p.collection === collection || p.collectionSlug === collection),
-          ),
+        groupShopProducts(
+          this.adminCatalog
+            .applyTo(PRODUCTS)
+            .filter(
+              (p) =>
+                !isArchivedAt(p.archivedAt) &&
+                (p.collection === collection || p.collectionSlug === collection),
+            ),
+        ),
       );
     }
     const slug = collectionNameToSlug(collection);
@@ -197,7 +212,7 @@ export class CatalogService {
         const api = (col.products ?? [])
           .map(mapApiProduct)
           .filter((p) => !isArchivedAt(p.archivedAt));
-        return sortByRecommendOrder(api.length > 0 ? api : fromLive());
+        return groupShopProducts(api.length > 0 ? api : fromLive());
       }),
       catchError(() => of(fromLive())),
     );
@@ -205,7 +220,7 @@ export class CatalogService {
 
   getProductsByCategory(category: 'feminino' | 'masculino'): Observable<Product[]> {
     return this.loadProducts().pipe(
-      map((list) => list.filter((p) => p.category === category)),
+      map((list) => list.filter((p) => matchesPublicGenderHub(p, category))),
     );
   }
 

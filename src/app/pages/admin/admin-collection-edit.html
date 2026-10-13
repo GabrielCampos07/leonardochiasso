@@ -98,7 +98,9 @@
         <header class="admin-col-products__head">
           <div>
             <h2>Produtos</h2>
-            <p>Arraste para reordenar. A ordem é salva automaticamente.</p>
+            <p>
+              Arraste com Masculino ou Feminino para reordenar. Em Todos, escolha um gênero.
+            </p>
           </div>
           <a
             class="admin-list__add"
@@ -109,6 +111,24 @@
           </a>
         </header>
 
+        <div class="admin-col-products__filter">
+          <span class="admin-col-products__filter-label">Gênero</span>
+          <lc-segmented
+            [options]="genderFilters"
+            [value]="genderFilter()"
+            [pulse]="highlightGender()"
+            label="Filtrar por gênero"
+            (valueChange)="setGenderFilter($event)"
+          />
+        </div>
+
+        @if (todosHint()) {
+          <p class="admin-col-products__hint" role="status">{{ todosHint() }}</p>
+        }
+        @if (showUnissexNotice()) {
+          <p class="admin-col-products__notice" role="status">{{ unissexNotice }}</p>
+        }
+
         @if (savingOrder()) {
           <p class="admin-list__count">Salvando ordem…</p>
         }
@@ -116,21 +136,51 @@
         <ul
           class="admin-list__rows admin-col-products__list"
           cdkDropList
+          [cdkDropListData]="visibleProducts()"
           (cdkDropListDropped)="onDrop($event)"
         >
-          @for (p of products(); track p.slug) {
-            <li class="admin-row admin-col-products__row" cdkDrag>
-              <span class="admin-col-products__handle" cdkDragHandle aria-hidden="true">⋮⋮</span>
+          @for (p of visibleProducts(); track p.slug; let i = $index) {
+            <li
+              class="admin-row admin-col-products__row"
+              cdkDrag
+              [cdkDragDisabled]="!canDrag() || savingOrder()"
+              [cdkDragStartDelay]="dragStartDelay"
+              (cdkDragStarted)="onDragStarted()"
+            >
+              <span
+                class="admin-col-products__handle"
+                cdkDragHandle
+                aria-hidden="true"
+                (pointerdown)="onTodosDragAttempt($event)"
+              >⋮⋮</span>
               <lc-collection-cover class="admin-col-products__thumb" [src]="p.thumb" [alt]="p.name" />
               <div class="admin-row__info">
                 <strong>{{ p.name }}</strong>
-                <span>{{ p.slug }} · {{ p.category }}</span>
+                <span>{{ p.slug }} · {{ genderLabel(p) }}</span>
                 @if (soldOut(p)) {
                   <span class="admin-row__sold-out">Esgotado</span>
                 }
               </div>
               <div class="admin-row__actions">
                 <a class="admin-row__edit" [routerLink]="productEditPath(p.slug)">Editar</a>
+                <div class="admin-row__order">
+                  <button
+                    type="button"
+                    class="admin-row__order-btn"
+                    (click)="move(p.slug, -1)"
+                    [disabled]="i === 0 || savingOrder() || !canDrag()"
+                  >
+                    <span aria-hidden="true">↑</span> Subir
+                  </button>
+                  <button
+                    type="button"
+                    class="admin-row__order-btn"
+                    (click)="move(p.slug, 1)"
+                    [disabled]="i === visibleProducts().length - 1 || savingOrder() || !canDrag()"
+                  >
+                    <span aria-hidden="true">↓</span> Descer
+                  </button>
+                </div>
                 <button
                   type="button"
                   class="admin-row__order-btn"

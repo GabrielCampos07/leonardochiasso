@@ -3,13 +3,33 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { LcSegmented } from '../../shared/components/segmented/segmented';
 import { Subject, switchMap, tap } from 'rxjs';
 import {
   AdminCatalogService,
   adminHttpErrorMessage,
   slugFromCollection,
 } from '../../core/admin-catalog.service';
+import {
+  AdminCollectionOrderService,
+  collectionOrderErrorMessage,
+} from '../../core/admin-collection-order.service';
 import { CatalogService } from '../../core/catalog.service';
+import {
+  GENDER_FILTER_OPTIONS,
+  GENDER_ORDER_SAVED_TEXT,
+  GENDER_ORDER_UNDO_LABEL,
+  GENDER_ORDER_UNDO_MS,
+  GenderFilter,
+  MASCULINO_UNISSEX_NOTICE,
+  TODOS_DRAG_HINT,
+  applyProductIdOrder,
+  canReorderWithFilter,
+  coarsePointerDragDelay,
+  matchesGenderFilter,
+  orderProductId,
+  productGender,
+} from '../../core/product-gender';
 import { COLLECTIONS, Collection, Product } from '../../core/product.model';
 import {
   ADMIN_PRODUCT_COLLECTION_QUERY,
@@ -34,12 +54,13 @@ import { isSoldOut } from '../../scene-engine/types';
 @Component({
   selector: 'lc-admin-products',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule],
+  imports: [FormsModule, RouterLink, DragDropModule, LcSegmented],
   templateUrl: './admin-products.html',
   styleUrl: './admin-products.scss',
 })
 export class AdminProductsPage implements OnInit {
   private readonly adminCatalog = inject(AdminCatalogService);
+  private readonly collectionOrder = inject(AdminCollectionOrderService);
   private readonly catalog = inject(CatalogService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
@@ -47,8 +68,15 @@ export class AdminProductsPage implements OnInit {
   private readonly load$ = new Subject<boolean>();
 
   readonly query = signal('');
-  readonly category = signal<'todos' | 'feminino' | 'masculino'>('todos');
+  readonly category = signal<GenderFilter>('todos');
   readonly collection = signal<'todas' | string>('todas');
+  readonly genderFilters = GENDER_FILTER_OPTIONS;
+  readonly highlightGender = signal(false);
+  readonly todosHint = signal('');
+  readonly showUnissexNotice = signal(false);
+  readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
+  readonly dragStartDelay = coarsePointerDragDelay();
+  readonly canDrag = computed(() => canReorderWithFilter(this.category()));
   readonly showArchived = signal(false);
   readonly loading = signal(true);
   readonly error = signal('');
@@ -65,7 +93,7 @@ export class AdminProductsPage implements OnInit {
     const cat = this.category();
     const col = this.collection();
     return this.products().filter((p) => {
-      if (cat !== 'todos' && p.category !== cat) return false;
+      if (!matchesGenderFilter(p, cat)) return false;
       if (col !== 'todas' && p.collection !== col && p.collectionSlug !== col) return false;
       if (q && !p.name.toLowerCase().includes(q)) return false;
       return true;
@@ -87,6 +115,7 @@ export class AdminProductsPage implements OnInit {
         if (result.ok) {
           this.products.set(result.value);
           if (!this.useApi) this.catalog.refreshLocalCatalog();
+          this.applyCollectionGenderOrder();
           return;
         }
         this.error.set(
@@ -120,6 +149,55 @@ export class AdminProductsPage implements OnInit {
 
   soldOut(p: Product): boolean {
     return isSoldOut(p.stockQty);
+  }
+
+  genderLabel(p: Product): string {
+    return productGender(p);
+  }
+
+  setGenderFilter(raw: string): void {
+    const next: GenderFilter = raw === 'masculino' || raw === 'feminino' ? raw : 'todos';
+    this.category.set(next);
+    this.todosHint.set('');
+    this.highlightGender.set(false);
+    this.showUnissexNotice.set(false);
+    this.applyCollectionGenderOrder();
+  }
+
+  setCollectionFilter(raw: string): void {
+    this.collection.set(raw || 'todas');
+    this.applyCollectionGenderOrder();
+  }
+
+  onTodosDragAttempt(event?: Event): void {
+    if (this.canDrag()) return;
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.todosHint.set(TODOS_DRAG_HINT);
+    this.highlightGender.set(true);
+  }
+
+  onDragStarted(): void {
+    if (this.category() === 'masculino') this.showUnissexNotice.set(true);
+  }
+
+  private collectionSlugForOrder(): string | null {
+    const col = this.collection();
+    if (col === 'todas') return null;
+    return slugFromCollection(col as Collection);
+  }
+
+  private applyCollectionGenderOrder(): void {
+    const slug = this.collectionSlugForOrder();
+    const filter = this.category();
+    if (!slug || !canReorderWithFilter(filter)) return;
+    this.collectionOrder.get(slug, filter).subscribe({
+      next: (res) => {
+        if (!res.productIds.length) return;
+        const visible = applyProductIdOrder(this.filtered(), res.productIds);
+        this.applyVisibleOrderLocal(visible.map((p) => p.slug));
+      },
+    });
   }
 
   onArchivedFilter(show: boolean): void {
@@ -190,21 +268,31 @@ export class AdminProductsPage implements OnInit {
   }
 
   drop(event: CdkDragDrop<Product[]>): void {
+    if (!this.canDrag()) {
+      this.onTodosDragAttempt();
+      return;
+    }
     if (event.previousIndex === event.currentIndex) return;
     const visible = [...this.filtered()];
+    const previousIds = visible.map(orderProductId);
     moveItemInArray(visible, event.previousIndex, event.currentIndex);
-    this.applyVisibleOrder(visible.map((p) => p.slug));
+    this.applyVisibleOrder(visible.map((p) => p.slug), previousIds);
   }
 
   move(slug: string, direction: -1 | 1): void {
+    if (!this.canDrag()) {
+      this.onTodosDragAttempt();
+      return;
+    }
     const vis = this.filtered().map((p) => p.slug);
     const vi = vis.indexOf(slug);
     const vj = vi + direction;
     if (vi < 0 || vj < 0 || vj >= vis.length) return;
+    const previousIds = this.filtered().map(orderProductId);
     const nextVis = [...vis];
     nextVis[vi] = vis[vj]!;
     nextVis[vj] = slug;
-    this.applyVisibleOrder(nextVis);
+    this.applyVisibleOrder(nextVis, previousIds);
   }
 
   async resetAll(): Promise<void> {
@@ -225,18 +313,43 @@ export class AdminProductsPage implements OnInit {
   }
 
   /** Map filtered order back onto the full product list. */
-  private applyVisibleOrder(visibleSlugs: string[]): void {
-    const fullSlugs = this.products().map((p) => p.slug);
-    const visibleSet = new Set(visibleSlugs);
-    const nextFull: string[] = [];
-    let vi = 0;
-    for (const slug of fullSlugs) {
-      if (visibleSet.has(slug)) nextFull.push(visibleSlugs[vi++]!);
-      else nextFull.push(slug);
+  private applyVisibleOrder(visibleSlugs: string[], previousIds?: string[]): void {
+    this.applyVisibleOrderLocal(visibleSlugs);
+
+    const filter = this.category();
+    const collectionSlug = this.collectionSlugForOrder();
+    if (collectionSlug && canReorderWithFilter(filter)) {
+      const productIds = this.filtered().map(orderProductId);
+      this.savingOrder.set(true);
+      this.collectionOrder.put(collectionSlug, filter, productIds).subscribe({
+        next: () => {
+          this.savingOrder.set(false);
+          this.toast.success(GENDER_ORDER_SAVED_TEXT, {
+            durationMs: GENDER_ORDER_UNDO_MS,
+            action: previousIds
+              ? {
+                  label: GENDER_ORDER_UNDO_LABEL,
+                  run: () => this.restoreCollectionOrder(previousIds),
+                }
+              : undefined,
+          });
+        },
+        error: (err) => {
+          this.savingOrder.set(false);
+          if (previousIds) {
+            this.applyVisibleOrderLocal(
+              applyProductIdOrder(this.filtered(), previousIds).map((p) => p.slug),
+            );
+          } else {
+            this.refresh();
+          }
+          this.toast.error(collectionOrderErrorMessage(err));
+        },
+      });
+      return;
     }
 
-    const bySlug = new Map(this.products().map((p) => [p.slug, p]));
-    this.products.set(nextFull.map((s) => bySlug.get(s)!).filter(Boolean));
+    const nextFull = this.products().map((p) => p.slug);
     this.adminCatalog.setOrder(nextFull);
 
     if (!this.useApi) {
@@ -255,6 +368,39 @@ export class AdminProductsPage implements OnInit {
         this.savingOrder.set(false);
         this.refresh();
         this.toast.error(adminHttpErrorMessage(err, 'Não foi possível salvar a ordem.'));
+      },
+    });
+  }
+
+  private applyVisibleOrderLocal(visibleSlugs: string[]): void {
+    const fullSlugs = this.products().map((p) => p.slug);
+    const visibleSet = new Set(visibleSlugs);
+    const nextFull: string[] = [];
+    let vi = 0;
+    for (const slug of fullSlugs) {
+      if (visibleSet.has(slug)) nextFull.push(visibleSlugs[vi++]!);
+      else nextFull.push(slug);
+    }
+    const bySlug = new Map(this.products().map((p) => [p.slug, p]));
+    this.products.set(nextFull.map((s) => bySlug.get(s)!).filter(Boolean));
+  }
+
+  private restoreCollectionOrder(previousIds: string[]): void {
+    const slug = this.collectionSlugForOrder();
+    const filter = this.category();
+    if (!slug || !canReorderWithFilter(filter)) return;
+    const restored = applyProductIdOrder(this.filtered(), previousIds);
+    this.applyVisibleOrderLocal(restored.map((p) => p.slug));
+    this.savingOrder.set(true);
+    this.collectionOrder.put(slug, filter, restored.map(orderProductId)).subscribe({
+      next: () => {
+        this.savingOrder.set(false);
+        this.toast.success('Ordem restaurada.');
+      },
+      error: (err) => {
+        this.savingOrder.set(false);
+        this.toast.error(collectionOrderErrorMessage(err));
+        this.refresh();
       },
     });
   }

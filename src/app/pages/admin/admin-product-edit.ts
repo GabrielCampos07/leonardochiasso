@@ -45,6 +45,7 @@ function blankProduct(collectionSlug: string | null): Product {
     gallery: [],
     media: [],
     category: 'feminino',
+    gender: 'feminino',
     collection: hasCollection ? collectionLabelForSlug(collectionSlug) : ('' as Collection),
     collectionSlug: (collectionSlug ?? '') as CollectionSlug,
     pieces: [],

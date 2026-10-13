@@ -26,4 +26,29 @@ describe('mapApiProduct collection badges', () => {
     expect(product.collection).toBe('' as never);
     expect(product.collectionSlug).toBe('' as never);
   });
+
+  it('keeps the API product id and maps unissex gender to the feminine hub', () => {
+    const product = mapApiProduct({
+      id: 'uuid-unissex',
+      slug: 'trench-coat',
+      name: 'Trench',
+      description: '',
+      details: [],
+      shipping: null,
+      priceCents: 10000,
+      currency: 'BRL',
+      color: null,
+      size: null,
+      fabric: null,
+      season: null,
+      category: 'masculino',
+      gender: 'unissex',
+      collection: 'Organic Dreams',
+      thumb: '',
+      gallery: [],
+    });
+    expect(product.productId).toBe('uuid-unissex');
+    expect(product.gender).toBe('unissex');
+    expect(product.category).toBe('feminino');
+  });
 });
