@@ -1,4 +1,4 @@
-import { clampCreatePanel, isCreateSheetViewport } from './admin-3d-page';
+import { clampCreatePanel, isCreateSheetViewport, pieceModalFromHangerClick } from './admin-3d-page';
 
 describe('clampCreatePanel', () => {
   it('keeps the floating panel on a desktop viewport', () => {
@@ -21,5 +21,20 @@ describe('isCreateSheetViewport', () => {
   it('treats 768px and below as a bottom sheet', () => {
     expect(isCreateSheetViewport(768)).toBeTrue();
     expect(isCreateSheetViewport(1280)).toBeFalse();
+  });
+});
+
+describe('pieceModalFromHangerClick', () => {
+  it('opens the edit modal for a picked hanger slug', () => {
+    expect(pieceModalFromHangerClick('vestido-lg-bateau')).toEqual({
+      open: true,
+      slug: 'vestido-lg-bateau',
+    });
+  });
+
+  it('does not open while creating a collection or adding pieces', () => {
+    expect(pieceModalFromHangerClick('vestido-lg-bateau', { creating: true })).toEqual({ open: false });
+    expect(pieceModalFromHangerClick('vestido-lg-bateau', { adding: true })).toEqual({ open: false });
+    expect(pieceModalFromHangerClick(null)).toEqual({ open: false });
   });
 });

@@ -24,6 +24,10 @@ export const HANGER_BELOW_ORIGIN = 0.38;
 const MIN_HANGER_Y = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.08;
 const MIN_HANGER_Y_TALL = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.32;
 
+function markRackDecor(mesh: Mesh): void {
+  mesh.userData = { ...mesh.userData, ignorePick: true, kind: 'rack-decor' };
+}
+
 export function rackWidth(hangerCount: number): number {
   const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
   return Math.max(1.72, perRow * HANGER_SPACING + 0.52);
@@ -66,25 +70,30 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   const left = new Mesh(postGeo, metal);
   left.position.set(-width / 2, postY, 0);
   left.castShadow = true;
+  markRackDecor(left);
   const right = new Mesh(postGeo.clone(), metal);
   right.position.set(width / 2, postY, 0);
   right.castShadow = true;
+  markRackDecor(right);
   group.add(left, right);
 
   for (const side of [-1, 1]) {
     const cap = new Mesh(new SphereGeometry(postR + 0.004, 12, 10), metal);
     cap.position.set((side * width) / 2, topY, 0);
     cap.castShadow = true;
+    markRackDecor(cap);
     group.add(cap);
 
     const foot = new Mesh(new CylinderGeometry(0.075, 0.088, 0.04, 20), metal);
     foot.position.set((side * width) / 2, FLOOR_Y + 0.022, 0);
     foot.castShadow = true;
+    markRackDecor(foot);
     group.add(foot);
 
     const pad = new Mesh(new SphereGeometry(0.03, 10, 8), metal);
     pad.scale.set(1.6, 0.45, 1.6);
     pad.position.set((side * width) / 2, FLOOR_Y + 0.006, 0);
+    markRackDecor(pad);
     group.add(pad);
   }
 
@@ -99,11 +108,13 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
     bar.rotation.z = Math.PI / 2;
     bar.position.y = barY;
     bar.castShadow = true;
+    markRackDecor(bar);
     group.add(bar);
     for (const side of [-1, 1]) {
       const end = new Mesh(new SphereGeometry(0.014, 10, 8), metal);
       end.position.set((side * barLen) / 2, barY, 0);
       end.castShadow = true;
+      markRackDecor(end);
       group.add(end);
     }
   }
@@ -111,6 +122,7 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   const plateW = Math.min(width * 0.72, 2.6);
   const plate = new Mesh(new BoxGeometry(plateW, 0.2, 0.03), darkWoodMaterial());
   plate.position.set(0, barTop + 0.28, 0.02);
+  markRackDecor(plate);
   group.add(plate);
 
   const plateLabel = new Mesh(
@@ -120,6 +132,7 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   plateLabel.scale.set(Math.min(width * 0.78, 2.8), 0.22, 1);
   plateLabel.position.set(0, barTop + 0.28, 0.05);
   plateLabel.name = 'plate';
+  markRackDecor(plateLabel);
   group.add(plateLabel);
 
   layoutHangers(hangersRoot, rack.hangers, width, barTop);

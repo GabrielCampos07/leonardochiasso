@@ -80,6 +80,7 @@ import {
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
+import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { isTextureLive, loadTextureCandidates, makeFallbackTexture, photoTextureCache } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
@@ -140,7 +141,6 @@ export function hostDrawingSize(host: HTMLElement): { width: number; height: num
   return { width, height };
 }
 
-const DRAG_SLOP_SQ = 36;
 const CLEAR = ATELIER_CLEAR;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 /** Piece leave / unit sink: 400–600 ms. Cut instantly when reduced motion. */
@@ -236,6 +236,7 @@ export class SceneEngine {
   private idleHandle = 0;
   private idleRic = 0;
   private capturedPointerId: number | null = null;
+  private pointerDownSlug: string | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private contextLost = false;
   private lastWidth = 0;
@@ -286,6 +287,7 @@ export class SceneEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.pointerDownSlug = this.pickHangerSlug(event);
     try {
       this.canvas.setPointerCapture(event.pointerId);
       this.capturedPointerId = event.pointerId;
@@ -300,7 +302,7 @@ export class SceneEngine {
     requestAnimationFrame(() => {
       this.hoverQueued = false;
       if (this.disposed || !this.pendingHover) return;
-      this.handlePointer(this.pendingHover, false);
+      this.handlePointer(this.pendingHover);
       this.pendingHover = null;
     });
   };
@@ -308,11 +310,23 @@ export class SceneEngine {
     const dx = event.clientX - this.pointerDown.x;
     const dy = event.clientY - this.pointerDown.y;
     this.releasePointer(event.pointerId);
+    const slug = resolveHangerClick({
+      pointerDownSlug: this.pointerDownSlug,
+      pointerUpSlug: this.pickHangerSlug(event),
+      hoverSlug: this.hoverSlug,
+      dx,
+      dy,
+    });
+    this.pointerDownSlug = null;
+    if (slug) this.onClickCb?.(slug);
+    else if (isPointerClick(dx, dy)) {
+      const emptyId = this.emptyUnitIdFromHits(this.raycastPointer(event));
+      if (emptyId) this.onEmptyUnitCb?.(emptyId);
+    }
     this.endOrbit();
-    if (dx * dx + dy * dy > DRAG_SLOP_SQ) return;
-    this.handlePointer(event, true);
   };
   private readonly onPointerCancel = (event: PointerEvent) => {
+    this.pointerDownSlug = null;
     this.releasePointer(event.pointerId);
     this.endOrbit();
   };
@@ -1484,26 +1498,26 @@ export class SceneEngine {
     this.onSceneCompleteCb?.();
   }
 
-  private handlePointer(event: PointerEvent, isClick: boolean): void {
+  /** CPU raycast only — never GPU id-buffer / readPixels (that stalls the compositor). */
+  private raycastPointer(event: PointerEvent) {
     const rect = this.canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    if (!rect.width || !rect.height) return [];
     this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    const hits = this.raycaster.intersectObjects(this.racksRoot.children, true);
-    const slug = hits.find(
-      (h) => !h.object.userData?.['ignorePick'] && h.object.userData?.['kind'] === HANGER_USER_DATA,
-    )?.object.userData?.['slug'] as string | undefined;
-    if (isClick) {
-      if (slug) {
-        this.onClickCb?.(slug);
-        return;
-      }
-      const emptyId = this.emptyUnitIdFromHits(hits);
-      if (emptyId) this.onEmptyUnitCb?.(emptyId);
-      return;
-    }
-    this.setHover(slug ?? null, { x: event.clientX, y: event.clientY });
+    const roots = [this.racksRoot];
+    if (this.propsRoot) roots.push(this.propsRoot);
+    if (this.room) roots.push(this.room);
+    return this.raycaster.intersectObjects(roots, true);
+  }
+
+  private pickHangerSlug(event: PointerEvent): string | null {
+    return hangerSlugFromHits(this.raycastPointer(event));
+  }
+
+  private handlePointer(event: PointerEvent): void {
+    const slug = this.pickHangerSlug(event);
+    this.setHover(slug, { x: event.clientX, y: event.clientY });
     this.canvas.style.cursor = slug ? 'pointer' : 'grab';
   }
 
@@ -1640,6 +1654,9 @@ export class SceneEngine {
         if (this.mannequinSrc) this.fitPropToFloor(form, 1.48);
         hardenPropMaterials(form);
         form.userData = { ignorePick: true, kind: 'mannequin' };
+        form.traverse((child) => {
+          child.userData = { ...child.userData, ignorePick: true, kind: child.userData?.['kind'] ?? 'mannequin' };
+        });
         this.propsRoot.add(form);
       }
 
@@ -1650,6 +1667,9 @@ export class SceneEngine {
         if (this.plantSrc) this.fitPropToFloor(pot, 0.92);
         hardenPropMaterials(pot);
         pot.userData = { ignorePick: true, kind: 'plant' };
+        pot.traverse((child) => {
+          child.userData = { ...child.userData, ignorePick: true, kind: child.userData?.['kind'] ?? 'plant' };
+        });
         this.propsRoot.add(pot);
       }
     }
