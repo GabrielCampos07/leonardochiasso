@@ -105,7 +105,7 @@ export function rackVisibleColumnRange(
   const x = clampRackPan(panX, range);
   const fromLeft = range <= 0 ? 0 : (x + range) / HANGER_SPACING;
   const firstCol = Math.max(0, Math.floor(fromLeft + 1e-4));
-  const lastCol = Math.min(cols - 1, Math.max(firstCol, Math.ceil(fromLeft + frame - 1e-4)));
+  const lastCol = Math.min(cols - 1, Math.max(firstCol, Math.floor(fromLeft + frame - 1e-4)));
   return { firstCol, lastCol };
 }
 
