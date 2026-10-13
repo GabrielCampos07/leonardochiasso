@@ -146,7 +146,7 @@ export const FIT_WIDTH_MARGIN = 0.075;
 /** Tight side air so a 4-column compact frame fills the phone width. */
 export const FIT_WIDTH_MARGIN_COMPACT = 0.03;
 /** Sit a compact focused rack higher so the wall does not eat the top 40%. */
-export const COMPACT_RACK_RAISE = 0.58;
+export const COMPACT_RACK_RAISE = 0.5;
 /** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
 export const RACK_MAX_DISTANCE_COMPACT = 26;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
@@ -186,7 +186,7 @@ export const PORTRAIT_STACK_Z = 0.62;
 export const PORTRAIT_OVERVIEW_FILL = 1;
 export const PORTRAIT_OVERVIEW_ELEVATION = 0.035;
 /** Tiny world air so Organic's title sits just below the header, not under it. */
-export const PORTRAIT_OVERVIEW_TOP_AIR = 0.04;
+export const PORTRAIT_OVERVIEW_TOP_AIR = 0;
 
 /** Same X, first collection on top, last rack standing on the floor. */
 export function portraitStackOffset(index: number, count: number): { x: number; y: number; z: number } {
@@ -316,7 +316,9 @@ export function computeEyeLevelFit(
   let targetY = cy + bandShift - (mode === 'piece' ? 0.08 : 0);
   if (compact && mode === 'rack') {
     const slack = Math.max(0, viewH * visibleH - height);
-    targetY -= height * COMPACT_RACK_RAISE * 0.5 + slack * 0.28;
+    // Use little of the leftover height as raise — dumping slack below the rack
+    // left a tall empty floor on Organic and clipped tall Brazilian titles.
+    targetY -= height * COMPACT_RACK_RAISE * 0.38 + slack * 0.06;
   }
   const elevation = compact ? (mode === 'rack' ? 0.045 : 0.07) : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
@@ -334,7 +336,9 @@ export function chromeBandTargetY(cy: number, height: number, chrome: ChromeInse
 
 /** Look-at Y that pins `boxMaxY` just below the header in a portrait stack. */
 export function portraitOverviewTargetY(boxMaxY: number, viewH: number, chrome: ChromeInsets): number {
-  return boxMaxY - (0.5 - chrome.top) * viewH + PORTRAIT_OVERVIEW_TOP_AIR;
+  // Elevation looks slightly down, which drops the stack on screen — compensate so
+  // Organic's title sits under the header instead of a plaster band.
+  return boxMaxY - (0.5 - chrome.top) * viewH - viewH * 0.018 + PORTRAIT_OVERVIEW_TOP_AIR;
 }
 
 /**

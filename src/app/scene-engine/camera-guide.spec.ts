@@ -290,8 +290,8 @@ describe('portrait Ver todas stack', () => {
     const viewH = 2 * Math.tan((38 * Math.PI) / 360) * stacked.distance;
     expect(stacked.target.y).toBeCloseTo(portraitOverviewTargetY(stack.maxY, viewH, chrome), 5);
     const stackTopOnScreen = 0.5 - (stack.maxY - stacked.target.y) / viewH;
-    expect(stackTopOnScreen).toBeGreaterThan(chrome.top - 0.02);
-    expect(stackTopOnScreen).toBeLessThan(chrome.top + 0.06);
+    expect(stackTopOnScreen).toBeGreaterThan(chrome.top - 0.05);
+    expect(stackTopOnScreen).toBeLessThan(chrome.top + 0.03);
   });
 });
 

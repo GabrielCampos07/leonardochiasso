@@ -63,6 +63,41 @@ export function worldBoxFrontCorners(box: WorldBox): Array<{ x: number; y: numbe
   ];
 }
 
+/**
+ * Focus-view wheel boxes. X is the framed window only. The rug is a floor
+ * strip at its centre Z so the oval's near edge does not balloon the rect.
+ */
+export function focusWheelWorldBoxes(
+  originX: number,
+  look: { offset: number; halfW: number },
+  rack: WorldBox,
+  rug?: WorldBox | null,
+): { rack: WorldBox; rug: WorldBox | null } {
+  const minX = originX + look.offset - look.halfW;
+  const maxX = originX + look.offset + look.halfW;
+  const framed: WorldBox = {
+    minX,
+    maxX,
+    minY: rack.minY,
+    maxY: rack.maxY,
+    minZ: rack.minZ,
+    maxZ: rack.maxZ,
+  };
+  if (!rug) return { rack: framed, rug: null };
+  const rugZ = (rug.minZ + rug.maxZ) / 2;
+  return {
+    rack: framed,
+    rug: {
+      minX,
+      maxX,
+      minY: rug.minY,
+      maxY: Math.max(rug.maxY, rug.minY + 0.04),
+      minZ: rugZ,
+      maxZ: rugZ,
+    },
+  };
+}
+
 export function unionScreenRects(a: ScreenRect | null, b: ScreenRect | null): ScreenRect | null {
   if (!a) return b;
   if (!b) return a;

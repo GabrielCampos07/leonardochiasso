@@ -1,5 +1,6 @@
 import {
   FOCUS_WHEEL_PAD_PX,
+  focusWheelWorldBoxes,
   pointInScreenRect,
   screenRectFromPoints,
   unionScreenRects,
@@ -39,6 +40,20 @@ describe('rack screen AABB', () => {
     expect(front.every((c) => c.z === 0.2)).toBeTrue();
     expect(FOCUS_WHEEL_PAD_PX).toBeLessThanOrEqual(10);
     expect(FOCUS_WHEEL_PAD_PX).toBeGreaterThan(0);
+  });
+
+  it('clamps a long rack wheel box to the framed window, not the full rail', () => {
+    const { rack, rug } = focusWheelWorldBoxes(
+      0,
+      { offset: -2, halfW: 1.4 },
+      { minX: -6, maxX: 6, minY: -0.7, maxY: 1.4, minZ: -0.1, maxZ: 0.2 },
+      { minX: -5, maxX: 5, minY: -0.7, maxY: -0.68, minZ: -0.4, maxZ: 0.5 },
+    );
+    expect(rack.minX).toBeCloseTo(-3.4, 5);
+    expect(rack.maxX).toBeCloseTo(-0.6, 5);
+    expect(rack.maxX - rack.minX).toBeLessThan(4);
+    expect(rack.maxZ).toBe(0.2);
+    expect(rug?.maxZ).toBeCloseTo(0.05, 5);
   });
 
   it('unions a rack silhouette with its rug', () => {

@@ -103,6 +103,7 @@ import { hangerSlugFromHits, isTap, isRoomSurface, resolveHangerClick } from './
 import { rackFocusIdAfterPointer, rackIdFromHits } from './rack-pick';
 import {
   FOCUS_WHEEL_PAD_PX,
+  focusWheelWorldBoxes,
   screenRectFromPoints,
   unionScreenRects,
   wheelOverRackRects,
@@ -1361,8 +1362,8 @@ export class SceneEngine {
     };
     const chrome = measureAtelierChrome(this.host);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
-      box.maxY += 0.42;
-      box.minY -= 0.08;
+      box.maxY += 0.12;
+      box.minY -= 0.04;
     }
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
     if (mode === 'overview' && this.rackLayoutMode === 'stack') {
@@ -2101,12 +2102,16 @@ export class SceneEngine {
     return screenRectFromPoints(corners);
   }
 
-  private objectFrontScreenRect(object: Object3D): ScreenRect | null {
-    object.updateWorldMatrix(true, true);
-    this.bounds.makeEmpty();
-    this.bounds.expandByObject(object);
+  private worldBoxFromBounds(): {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    minZ: number;
+    maxZ: number;
+  } | null {
     if (this.bounds.isEmpty()) return null;
-    const box = {
+    return {
       minX: this.bounds.min.x,
       maxX: this.bounds.max.x,
       minY: this.bounds.min.y,
@@ -2114,36 +2119,42 @@ export class SceneEngine {
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
-    const corners = worldBoxFrontCorners(box).map((c) =>
-      this.worldToClient(this.projectScratch.set(c.x, c.y, c.z)),
-    );
-    return screenRectFromPoints(corners);
   }
 
-  private rugScreenRect(rackId: string): ScreenRect | null {
-    if (!rackId || !this.room) return null;
-    const rugs = this.room.getObjectByName('rugs');
-    if (!rugs) return null;
-    this.bounds.makeEmpty();
-    this.expandBoundsByRackRug(rackId);
-    if (this.bounds.isEmpty()) return null;
-    const corners = worldBoxFrontCorners({
-      minX: this.bounds.min.x,
-      maxX: this.bounds.max.x,
-      minY: this.bounds.min.y,
-      maxY: this.bounds.max.y,
-      minZ: this.bounds.min.z,
-      maxZ: this.bounds.max.z,
-    }).map((c) => this.worldToClient(this.projectScratch.set(c.x, c.y, c.z)));
-    return screenRectFromPoints(corners);
+  private projectFrontBox(box: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    minZ: number;
+    maxZ: number;
+  }): ScreenRect | null {
+    return screenRectFromPoints(
+      worldBoxFrontCorners(box).map((c) => this.worldToClient(this.projectScratch.set(c.x, c.y, c.z))),
+    );
   }
 
   private focusedWheelRect(): ScreenRect | null {
     if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return null;
     const group = this.racksRoot.getObjectByName(`rack:${this.focusedId}`);
     if (!group) return null;
+    group.updateWorldMatrix(true, true);
+    this.bounds.makeEmpty();
+    this.bounds.expandByObject(group);
+    const rackBox = this.worldBoxFromBounds();
+    if (!rackBox) return null;
     const rackId = String(group.userData?.['rackId'] ?? this.focusedId);
-    return unionScreenRects(this.objectFrontScreenRect(group), this.rugScreenRect(rackId));
+    this.bounds.makeEmpty();
+    this.expandBoundsByRackRug(rackId);
+    const rugBox = this.worldBoxFromBounds();
+    const unit = this.layout.racks.find((r) => r.id === this.focusedId);
+    const origin = new Vector3();
+    group.getWorldPosition(origin);
+    const look = unit
+      ? rackLookFrame(unit.hangers.length, this.rackPanX, this.frameColumnCount(unit.hangers.length))
+      : { offset: 0, halfW: Math.max(0.4, (rackBox.maxX - rackBox.minX) / 2) };
+    const boxes = focusWheelWorldBoxes(origin.x, look, rackBox, rugBox);
+    return unionScreenRects(this.projectFrontBox(boxes.rack), boxes.rug ? this.projectFrontBox(boxes.rug) : null);
   }
 
   private wheelCaptureRects(): Array<ScreenRect | null> {
