@@ -214,7 +214,7 @@ export function computeEyeLevelFit(
   const padBottom = pads.bottom;
   const visibleH = Math.max(0.38, 1 - padTop - padBottom);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : mode === 'piece' ? 0.88 : 1;
+  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : mode === 'piece' ? 0.84 : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   const fitted = Math.max(fitH, fitW);
@@ -223,8 +223,8 @@ export function computeEyeLevelFit(
   else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
 
   const bandCenter = padBottom + visibleH / 2;
-  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height;
-  const elevation = compact ? 0.16 : mode === 'piece' ? 0.28 : 0.22;
+  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height - (mode === 'piece' ? 0.08 : 0);
+  const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
