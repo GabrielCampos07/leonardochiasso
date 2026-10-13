@@ -3,9 +3,11 @@ import { toSceneHanger } from './mapping';
 import {
   clampTooltip,
   derivedThumbUrl,
+  fullImageUrl,
   hangerTextureUrls,
   mergeProductPhotos,
   primaryImageUrl,
+  textureJobId,
   thumbImageUrl,
 } from './photo-url';
 import { textureCacheUrl } from './texture-loader';
@@ -135,36 +137,45 @@ describe('primaryImageUrl (prod catalog shape)', () => {
       }),
       'organic-dreams',
     );
-    expect(hanger.imageUrl).toBe(PROD_THUMB);
     expect(hanger.thumbUrl).toBe(PROD_THUMB);
+    expect(hanger.imageUrl).toBe(PROD_BATEAU.gallery[0]);
+    expect(fullImageUrl(PROD_BATEAU)).toBe(PROD_BATEAU.gallery[0]);
   });
 });
 
 describe('hangerTextureUrls', () => {
-  it('loads the storefront thumb first and still busts the poisoned cache with tex=1', () => {
+  it('uses only the thumb for the default 3D load', () => {
     const urls = hangerTextureUrls({
       imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp',
       thumbUrl: 'https://cdn.example/pdp/plp-bateau-thumb.webp',
     });
-    expect(urls).toEqual([
-      'https://cdn.example/pdp/plp-bateau-thumb.webp',
-      'https://cdn.example/pdp/pdp-bateau-01.webp',
-    ]);
+    expect(urls).toEqual(['https://cdn.example/pdp/plp-bateau-thumb.webp']);
     expect(textureCacheUrl(urls[0]!)).toBe('https://cdn.example/pdp/plp-bateau-thumb.webp?tex=1');
+    expect(
+      hangerTextureUrls(
+        {
+          imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp',
+          thumbUrl: 'https://cdn.example/pdp/plp-bateau-thumb.webp',
+        },
+        'full',
+      ),
+    ).toEqual(['https://cdn.example/pdp/pdp-bateau-01.webp']);
+    expect(textureJobId('bateau', 'full')).toBe('bateau:full');
   });
 
-  it('derives a plp thumb variant from a pdp gallery path', () => {
+  it('falls back to the full pdp photo when thumb is missing', () => {
     expect(derivedThumbUrl('https://cdn.example/pdp/pdp-bateau-01.webp')).toBe(
       'https://cdn.example/pdp/plp-bateau-thumb.webp',
     );
-    expect(hangerTextureUrls({ imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp' })[0]).toBe(
-      'https://cdn.example/pdp/plp-bateau-thumb.webp',
-    );
+    expect(hangerTextureUrls({ imageUrl: 'https://cdn.example/pdp/pdp-bateau-01.webp' })).toEqual([
+      'https://cdn.example/pdp/pdp-bateau-01.webp',
+    ]);
   });
 
   it('does not duplicate when the primary already is the thumb', () => {
     expect(thumbImageUrl(PROD_BATEAU)).toBe(PROD_THUMB);
     expect(hangerTextureUrls({ imageUrl: PROD_THUMB, thumbUrl: PROD_THUMB })).toEqual([PROD_THUMB]);
+    expect(hangerTextureUrls({ imageUrl: PROD_THUMB, thumbUrl: PROD_THUMB }, 'full')).toEqual([]);
   });
 
   it('reads role thumb from media when product.thumb is empty', () => {

@@ -10,6 +10,8 @@ export const TEXTURE_CACHE_PARAM = 'tex';
 export const TEXTURE_CACHE_VALUE = '1';
 export const TEXTURE_BITMAP_MAX_W = 256;
 export const TEXTURE_BITMAP_MAX_H = 320;
+export const TEXTURE_BITMAP_FULL_W = 512;
+export const TEXTURE_BITMAP_FULL_H = 640;
 /** ImageBitmap ignores `texture.flipY`; flip here so hangers and trays stay upright. */
 export const TEXTURE_BITMAP_ORIENTATION = 'flipY' as const;
 export const LABEL_DEFAULT_WIDTH = 768;
@@ -193,15 +195,19 @@ function textureFromImage(image: TexImageSource, flipY: boolean): Texture {
   return texture;
 }
 
-async function loadTextureBitmap(url: string): Promise<Texture | null> {
+async function loadTextureBitmap(
+  url: string,
+  maxW = TEXTURE_BITMAP_MAX_W,
+  maxH = TEXTURE_BITMAP_MAX_H,
+): Promise<Texture | null> {
   const src = textureCacheUrl(url);
   const res = await fetch(src, { mode: 'cors', credentials: 'omit' });
   if (!res.ok) return null;
   const blob = await res.blob();
   const bitmap = await createImageBitmap(blob, {
     imageOrientation: TEXTURE_BITMAP_ORIENTATION,
-    resizeWidth: TEXTURE_BITMAP_MAX_W,
-    resizeHeight: TEXTURE_BITMAP_MAX_H,
+    resizeWidth: maxW,
+    resizeHeight: maxH,
     resizeQuality: 'medium',
   });
   const texture = textureFromImage(bitmap, false);
@@ -219,10 +225,25 @@ function loadTextureImage(url: string): Promise<Texture | null> {
   });
 }
 
-async function loadTextureUncached(url: string): Promise<Texture | null> {
+export interface TextureLoadOpts {
+  maxW?: number;
+  maxH?: number;
+}
+
+export function textureAcquireKey(url: string, maxW: number, maxH: number): string {
+  const base = textureCacheUrl(url);
+  if (maxW === TEXTURE_BITMAP_MAX_W && maxH === TEXTURE_BITMAP_MAX_H) return base;
+  return `${base}|${maxW}x${maxH}`;
+}
+
+async function loadTextureUncached(
+  url: string,
+  maxW = TEXTURE_BITMAP_MAX_W,
+  maxH = TEXTURE_BITMAP_MAX_H,
+): Promise<Texture | null> {
   try {
     if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
-      return await loadTextureBitmap(url);
+      return await loadTextureBitmap(url, maxW, maxH);
     }
     return await loadTextureImage(url);
   } catch {
@@ -239,16 +260,23 @@ async function loadTextureUncached(url: string): Promise<Texture | null> {
  * and downscales to a 3D-thumb size. Resolves `null` on any failure.
  * Shared across hangers via the ref-counted photo cache.
  */
-export async function loadTextureSafe(url: string): Promise<Texture | null> {
+export async function loadTextureSafe(url: string, opts: TextureLoadOpts = {}): Promise<Texture | null> {
   if (!url) return null;
-  return photoTextureCache.acquire(textureCacheUrl(url), () => loadTextureUncached(url));
+  const maxW = opts.maxW ?? TEXTURE_BITMAP_MAX_W;
+  const maxH = opts.maxH ?? TEXTURE_BITMAP_MAX_H;
+  return photoTextureCache.acquire(textureAcquireKey(url, maxW, maxH), () =>
+    loadTextureUncached(url, maxW, maxH),
+  );
 }
 
 /** Try each URL (already distinct) through the CORS `tex=1` loader. */
-export async function loadTextureCandidates(urls: readonly string[]): Promise<Texture | null> {
+export async function loadTextureCandidates(
+  urls: readonly string[],
+  opts: TextureLoadOpts = {},
+): Promise<Texture | null> {
   for (const url of urls) {
     if (!url) continue;
-    const texture = await loadTextureSafe(url);
+    const texture = await loadTextureSafe(url, opts);
     if (texture) return texture;
   }
   return null;

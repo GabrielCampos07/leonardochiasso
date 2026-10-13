@@ -94,6 +94,28 @@ export function wheelPanPixels(event: { deltaX: number; deltaY: number; deltaMod
   return mode === 1 ? raw * 16 : mode === 2 ? raw * 800 : raw;
 }
 
+/** 0-based rail columns currently inside the framed window (including the cut edge). */
+export function rackVisibleColumnRange(
+  hangerCount: number,
+  panX = 0,
+): { firstCol: number; lastCol: number } {
+  const cols = Math.max(1, hangersPerRow(hangerCount));
+  const frame = Math.min(cols, RACK_FRAME_COLUMNS);
+  const range = rackPanRange(hangerCount);
+  const x = clampRackPan(panX, range);
+  const fromLeft = range <= 0 ? 0 : (x + range) / HANGER_SPACING;
+  const firstCol = Math.max(0, Math.floor(fromLeft + 1e-4));
+  const lastCol = Math.min(cols - 1, Math.max(firstCol, Math.ceil(fromLeft + frame - 1e-4)));
+  return { firstCol, lastCol };
+}
+
+export function hangerInVisibleWindow(index: number, hangerCount: number, panX = 0): boolean {
+  const cols = Math.max(1, hangersPerRow(hangerCount));
+  const col = index % cols;
+  const { firstCol, lastCol } = rackVisibleColumnRange(hangerCount, panX);
+  return col >= firstCol && col <= lastCol;
+}
+
 export function rackArrowDelta(key: string): -1 | 1 | 0 {
   if (key === 'ArrowLeft') return -1;
   if (key === 'ArrowRight') return 1;

@@ -1,6 +1,6 @@
 import { hangersPerRow } from './collection-rack';
 
-export const TEXTURE_LOAD_CONCURRENCY = 5;
+export const TEXTURE_LOAD_CONCURRENCY = 7;
 
 export interface TextureJob {
   id: string;
@@ -41,6 +41,11 @@ export class TextureLoadQueue {
       this.scheduled = false;
       this.pump();
     });
+  }
+
+  cancel(id: string): void {
+    const index = this.pending.findIndex((item) => item.id === id);
+    if (index >= 0) this.pending.splice(index, 1);
   }
 
   clear(): void {

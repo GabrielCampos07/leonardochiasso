@@ -96,7 +96,14 @@ import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HA
 import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
 import { rackIdFromHits } from './rack-pick';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
-import { isTextureLive, loadTextureCandidates, makeFallbackTexture, photoTextureCache } from './texture-loader';
+import {
+  isTextureLive,
+  loadTextureCandidates,
+  makeFallbackTexture,
+  photoTextureCache,
+  TEXTURE_BITMAP_FULL_H,
+  TEXTURE_BITMAP_FULL_W,
+} from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
 import {
   findHanger,
@@ -106,7 +113,8 @@ import {
   replaceHanger,
 } from './mapping';
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
-import { hangerTextureUrls } from './photo-url';
+import { hangerTextureUrls, textureJobId, type HangerTextureQuality } from './photo-url';
+import { hangerInVisibleWindow } from './rack-pan';
 import { soldOutBadgeScale } from './sold-out-scale';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
@@ -245,6 +253,8 @@ export class SceneEngine {
   private finishedPhotos = 0;
   private readonly texQueue = new TextureLoadQueue();
   private readonly loadedPhotos = new Set<string>();
+  private readonly photoQuality = new Map<string, HangerTextureQuality>();
+  private focusedHangerSlug: string | null = null;
   private shadowsArmed = false;
   private keyLight: DirectionalLight | null = null;
   private hasLayout = false;
@@ -602,6 +612,8 @@ export class SceneEngine {
     this.expectedPhotos = layout.racks.reduce((n, r) => n + r.hangers.length, 0);
     this.finishedPhotos = 0;
     this.loadedPhotos.clear();
+    this.photoQuality.clear();
+    this.focusedHangerSlug = null;
     this.texQueue.clear();
     if (firstId !== OVERVIEW_FOCUS_ID) this.focusRack(firstId, true);
     else this.focusOverview(true);
@@ -625,6 +637,7 @@ export class SceneEngine {
     if (!group) return;
     if (this.focusedId !== id) this.resetPanForUnit(id);
     this.focusedId = id;
+    this.focusedHangerSlug = null;
     const unit = this.layout.racks.find((r) => r.id === id);
     const mode: CameraFocusMode = unit?.kind === 'vitrine' ? 'vitrine' : 'rack';
     this.applyOrbitLimits(mode);
@@ -682,14 +695,17 @@ export class SceneEngine {
       ),
       immediate,
     );
+    this.focusedHangerSlug = slug;
     this.layoutDeferredProps();
     if (hanger) this.onFocusCb?.(hanger.rackId);
+    if (this.hasLayout) this.enqueueHangerTextures();
     return true;
   }
 
   focusOverview(immediate = this.reducedMotion): void {
     this.flushDeferredRacks();
     this.focusedId = OVERVIEW_FOCUS_ID;
+    this.focusedHangerSlug = null;
     this.applyOrbitLimits('overview');
     this.moveCamera(this.poseFor(this.racksRoot, 'overview'), immediate);
     this.onFocusCb?.(OVERVIEW_FOCUS_ID);
@@ -734,11 +750,9 @@ export class SceneEngine {
       });
     }
     this.loadedPhotos.delete(next.slug);
-    this.texQueue.enqueue({
-      id: next.slug,
-      priority: 0,
-      run: () => this.loadHangerTexture(next),
-    });
+    this.photoQuality.delete(next.slug);
+    this.enqueueHangerPhoto(next, 'thumb', 0);
+    if (this.shouldUpgradeHanger(next)) this.enqueueHangerPhoto(next, 'full', -40);
     this.requestRender();
   }
 
@@ -802,7 +816,10 @@ export class SceneEngine {
   restoreUnit(unit: SceneRack): void {
     if (this.layout.racks.some((r) => r.id === unit.id)) return;
     this.layout = { racks: [...this.layout.racks, unit] };
-    for (const hanger of unit.hangers) this.loadedPhotos.delete(hanger.slug);
+    for (const hanger of unit.hangers) {
+      this.loadedPhotos.delete(hanger.slug);
+      this.photoQuality.delete(hanger.slug);
+    }
     const slot = this.computeRackSlots(this.layout).find((s) => s.id === unit.id);
     if (slot) this.mountRack(slot);
     this.enqueueHangerTextures();
@@ -821,11 +838,9 @@ export class SceneEngine {
     else applyHangerData(group, next);
     if (prev?.imageUrl !== next.imageUrl || prev?.thumbUrl !== next.thumbUrl) {
       this.loadedPhotos.delete(next.slug);
-      this.texQueue.enqueue({
-        id: next.slug,
-        priority: 0,
-        run: () => this.loadHangerTexture(next),
-      });
+      this.photoQuality.delete(next.slug);
+      this.enqueueHangerPhoto(next, 'thumb', 0);
+      if (this.shouldUpgradeHanger(next)) this.enqueueHangerPhoto(next, 'full', -40);
     }
     if (prev && prev.rackId !== next.rackId) {
       this.moveHanger(group, next);
@@ -970,6 +985,8 @@ export class SceneEngine {
     this.onPanCb = null;
     this.texQueue.dispose();
     this.loadedPhotos.clear();
+    this.photoQuality.clear();
+    this.focusedHangerSlug = null;
     photoTextureCache.clear();
     this.keyLight = null;
     this.hdri?.dispose();
@@ -989,6 +1006,7 @@ export class SceneEngine {
     this.resize();
     if (this.hasLayout) {
       this.loadedPhotos.clear();
+      this.photoQuality.clear();
       this.finishedPhotos = 0;
       this.expectedPhotos = this.layout.racks.reduce((n, r) => n + r.hangers.length, 0);
       this.sceneCompleteSent = false;
@@ -1460,11 +1478,17 @@ export class SceneEngine {
   /** Rack rebuilds create new meshes; drop the "already loaded" flag so photos rebind. */
   private forgetUnitPhotos(id: string): void {
     const rack = this.layout.racks.find((r) => r.id === id);
-    for (const hanger of rack?.hangers ?? []) this.loadedPhotos.delete(hanger.slug);
+    for (const hanger of rack?.hangers ?? []) {
+      this.loadedPhotos.delete(hanger.slug);
+      this.photoQuality.delete(hanger.slug);
+    }
     const existing = this.racksRoot.getObjectByName(`rack:${id}`);
     existing?.traverse((child) => {
       const slug = String(child.userData?.['slug'] ?? '');
-      if (slug) this.loadedPhotos.delete(slug);
+      if (slug) {
+        this.loadedPhotos.delete(slug);
+        this.photoQuality.delete(slug);
+      }
     });
   }
 
@@ -1574,23 +1598,50 @@ export class SceneEngine {
     const focused = this.focusedId;
     const focusedIndex = this.layout.racks.findIndex((r) => r.id === focused);
     const rackCount = this.layout.racks.length;
+    const upgrade = new Set(this.inFocusUpgradeSlugs());
     this.layout.racks.forEach((rack, rackIndex) => {
       if (!this.racksRoot.getObjectByName(`rack:${rack.id}`)) return;
       const perRow = hangersPerRow(Math.max(1, rack.hangers.length));
       const focusColumn =
         rack.id === focused ? (perRow - 1) / 2 + this.rackPanX / HANGER_SPACING : (perRow - 1) / 2;
       rack.hangers.forEach((hanger, hangerIndex) => {
-        this.texQueue.enqueue({
-          id: hanger.slug,
-          priority: hangerPhotoPriority(rack.id, focused, rackIndex, focusedIndex, hangerIndex, {
-            hangerCount: rack.hangers.length,
-            focusColumn,
-            rackCount,
-          }),
-          run: () => this.loadHangerTexture(hanger),
+        const priority = hangerPhotoPriority(rack.id, focused, rackIndex, focusedIndex, hangerIndex, {
+          hangerCount: rack.hangers.length,
+          focusColumn,
+          rackCount,
         });
+        this.enqueueHangerPhoto(hanger, 'thumb', priority);
+        if (upgrade.has(hanger.slug)) this.enqueueHangerPhoto(hanger, 'full', priority - 50);
       });
     });
+  }
+
+  private enqueueHangerPhoto(hanger: SceneHanger, quality: HangerTextureQuality, priority: number): void {
+    this.texQueue.enqueue({
+      id: textureJobId(hanger.slug, quality),
+      priority,
+      run: () => this.loadHangerTexture(hanger, quality),
+    });
+  }
+
+  private shouldUpgradeHanger(hanger: SceneHanger): boolean {
+    return this.inFocusUpgradeSlugs().includes(hanger.slug);
+  }
+
+  private inFocusUpgradeSlugs(): string[] {
+    if (this.focusedId === OVERVIEW_FOCUS_ID || this.focusedId === DRAFT_UNIT_ID) return [];
+    const unit = this.layout.racks.find((r) => r.id === this.focusedId);
+    if (!unit) return [];
+    if (this.focusedHangerSlug) {
+      const index = unit.hangers.findIndex((h) => h.slug === this.focusedHangerSlug);
+      if (index < 0) return [this.focusedHangerSlug];
+      return [unit.hangers[index - 1], unit.hangers[index], unit.hangers[index + 1]]
+        .filter(Boolean)
+        .map((h) => h!.slug);
+    }
+    return unit.hangers
+      .filter((_, index) => hangerInVisibleWindow(index, unit.hangers.length, this.rackPanX))
+      .map((h) => h.slug);
   }
 
   private armShadows(): void {
@@ -1601,15 +1652,15 @@ export class SceneEngine {
     this.requestRender();
   }
 
-  private async loadHangerTexture(hanger: SceneHanger | string, url?: string | null, name?: string): Promise<void> {
-    const slug = typeof hanger === 'string' ? hanger : hanger.slug;
+  private async loadHangerTexture(hanger: SceneHanger, quality: HangerTextureQuality = 'thumb'): Promise<void> {
+    const slug = hanger.slug;
     if (this.disposed) return;
-    if (this.loadedPhotos.has(slug)) {
-      if (this.hangerPhotoIsLive(slug)) return;
-      this.loadedPhotos.delete(slug);
+    const current = this.photoQuality.get(slug);
+    if (this.hangerPhotoIsLive(slug)) {
+      if (quality === 'thumb' && current) return;
+      if (quality === 'full' && current === 'full') return;
     }
-    const piece = typeof hanger === 'string' ? null : hanger;
-    const label = piece?.name ?? name ?? this.hangerName(slug);
+    const label = hanger.name || this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
     if (!group || !garment || !isPhotoMaterial(garment.material)) {
@@ -1618,6 +1669,10 @@ export class SceneEngine {
     }
     const previous = garment.material.map;
     const apply = (texture: Texture) => {
+      if (quality === 'thumb' && this.photoQuality.get(slug) === 'full') {
+        disposeOwnedTexture(texture);
+        return;
+      }
       const live = this.findHangerGroup(slug);
       const liveGarment = live?.getObjectByName('garment') as Mesh | undefined;
       if (!live || !liveGarment || !isPhotoMaterial(liveGarment.material)) return;
@@ -1626,22 +1681,35 @@ export class SceneEngine {
       if (previous && previous !== texture) disposeOwnedTexture(previous);
       this.requestRender();
     };
-    const candidates = hangerTextureUrls(
-      piece ?? { imageUrl: url ?? null, thumbUrl: this.findHangerGroup(slug)?.userData?.['data']?.thumbUrl },
-    );
+    const candidates = hangerTextureUrls(hanger, quality);
     if (!candidates.length) {
+      if (quality === 'full') return;
       apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
       this.loadedPhotos.add(slug);
+      this.photoQuality.set(slug, 'thumb');
       this.markPhotoFinished();
       return;
     }
-    const texture = await loadTextureCandidates(candidates);
+    const texture = await loadTextureCandidates(
+      candidates,
+      quality === 'full' ? { maxW: TEXTURE_BITMAP_FULL_W, maxH: TEXTURE_BITMAP_FULL_H } : {},
+    );
     if (this.disposed) {
       disposeOwnedTexture(texture);
       return;
     }
-    apply(texture ?? makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
+    if (!texture) {
+      if (quality === 'full') return;
+      apply(makeFallbackTexture(COLLECTION_COVER_FALLBACK_HEX, label));
+      this.loadedPhotos.add(slug);
+      this.photoQuality.set(slug, 'thumb');
+      this.markPhotoFinished();
+      return;
+    }
+    apply(texture);
+    if (quality === 'thumb' && this.photoQuality.get(slug) === 'full') return;
     this.loadedPhotos.add(slug);
+    this.photoQuality.set(slug, quality === 'full' || !hanger.thumbUrl ? 'full' : 'thumb');
     this.markPhotoFinished();
   }
 

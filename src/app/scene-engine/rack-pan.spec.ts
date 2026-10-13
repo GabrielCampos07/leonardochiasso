@@ -6,8 +6,10 @@ import {
   rackArrowDelta,
   rackLookFrame,
   rackPanLabel,
+  hangerInVisibleWindow,
   rackPanProgress,
   rackStartPanX,
+  rackVisibleColumnRange,
   wheelPanPixels,
 } from './rack-pan';
 
@@ -56,6 +58,16 @@ describe('rackLookFrame', () => {
     const end = rackLookFrame(19, rackPanRange(19));
     const full = rackFrameWidth(19);
     expect(end.offset - end.halfW).toBeCloseTo(rackPanRange(19) - full / 2 + RACK_EDGE_CUT, 5);
+  });
+});
+
+describe('rackVisibleColumnRange', () => {
+  it('starts a 19-piece rail on the first eight columns', () => {
+    const { firstCol, lastCol } = rackVisibleColumnRange(19, rackStartPanX(19));
+    expect(firstCol).toBe(0);
+    expect(lastCol).toBeGreaterThanOrEqual(7);
+    expect(hangerInVisibleWindow(0, 19, rackStartPanX(19))).toBeTrue();
+    expect(hangerInVisibleWindow(18, 19, rackStartPanX(19))).toBeFalse();
   });
 });
 

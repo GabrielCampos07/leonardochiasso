@@ -99,19 +99,53 @@ export function derivedThumbUrl(url: string | null | undefined): string | null {
   return `${match[1]}plp-${match[2]}-thumb${match[3]}${query}${hash}`;
 }
 
-/** Unique photo URLs for a hanger: thumb / variant first, then the full photo. */
-export function hangerTextureUrls(hanger: {
-  imageUrl?: string | null;
-  thumbUrl?: string | null;
-}): string[] {
-  const urls: string[] = [];
-  const seen = new Set<string>();
-  for (const url of [hanger.thumbUrl, derivedThumbUrl(hanger.imageUrl), hanger.imageUrl]) {
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    urls.push(url);
+export function isThumbPhotoUrl(url: string | null | undefined): boolean {
+  return Boolean(url && /thumb/i.test(url));
+}
+
+/**
+ * Full `pdp-*` gallery photo, never the ~30KB `thumb` / `plp-*-thumb` asset.
+ * Used when the camera closes on a rack or piece.
+ */
+export function fullImageUrl(product: LooseProductPhotos): string | null {
+  const thumb = thumbImageUrl(product);
+  const media = [...(product.media ?? [])]
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .filter((m) => !isThumbRole(m));
+  const candidates = [
+    ...(product.gallery ?? []).map(asText),
+    ...media.map(mediaItemUrl),
+    ...(product.images ?? []).map(mediaItemUrl),
+    ...(product.photos ?? []).map(mediaItemUrl),
+    asText(product.imageUrl),
+  ];
+  for (const raw of candidates) {
+    if (!raw || isThumbPhotoUrl(raw)) continue;
+    const resolved = resolveMediaUrl(raw);
+    if (resolved && resolved !== thumb) return resolved;
   }
-  return urls;
+  return null;
+}
+
+export type HangerTextureQuality = 'thumb' | 'full';
+
+/**
+ * Default 3D load uses `thumb` only. Full `pdp-*` is a separate upgrade pass.
+ * If `thumb` is missing, fall back to the full photo.
+ */
+export function hangerTextureUrls(
+  hanger: { imageUrl?: string | null; thumbUrl?: string | null },
+  quality: HangerTextureQuality = 'thumb',
+): string[] {
+  const thumb = hanger.thumbUrl || null;
+  const full = hanger.imageUrl && hanger.imageUrl !== thumb && !isThumbPhotoUrl(hanger.imageUrl) ? hanger.imageUrl : null;
+  if (quality === 'full') return full ? [full] : [];
+  if (thumb) return [thumb];
+  return full ? [full] : hanger.imageUrl ? [hanger.imageUrl] : [];
+}
+
+export function textureJobId(slug: string, quality: HangerTextureQuality): string {
+  return `${slug}:${quality}`;
 }
 
 export function mergeProductPhotos<T extends LooseProductPhotos>(admin: T, storefront?: LooseProductPhotos | null): T {
