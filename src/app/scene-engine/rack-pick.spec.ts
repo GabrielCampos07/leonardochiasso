@@ -1,4 +1,4 @@
-import { rackIdFromHits, rackIdFromObject } from './rack-pick';
+import { rackFocusIdAfterPointer, rackIdFromHits, rackIdFromObject } from './rack-pick';
 
 describe('rackIdFromObject', () => {
   it('walks up to the unit group', () => {
@@ -19,5 +19,57 @@ describe('rackIdFromHits', () => {
     const organic = { userData: { kind: 'rack', rackId: 'organic-dreams' } };
     const none = { userData: { kind: 'rack', rackId: '__none__' } };
     expect(rackIdFromHits([{ object: organic }, { object: none }])).toBe('organic-dreams');
+  });
+
+  it('treats hangers and the rug as part of the rack, but not the floor', () => {
+    const hanger = { userData: { kind: 'hanger', rackId: 'organic-dreams', slug: 'vestido-lg-bateau' } };
+    const rug = { name: 'rug', userData: { kind: 'rug', rackId: 'organic-dreams', ignorePick: true } };
+    const floor = { name: 'floor', userData: { kind: 'floor', ignorePick: true } };
+    expect(rackIdFromHits([{ object: hanger }])).toBe('organic-dreams');
+    expect(rackIdFromHits([{ object: rug }])).toBe('organic-dreams');
+    expect(rackIdFromHits([{ object: floor }, { object: hanger }])).toBeNull();
+  });
+
+  it('treats the frame / posts as the rack, not only the sign', () => {
+    const rack = { userData: { kind: 'rack', rackId: 'brazilian-dreams' } };
+    const post = { userData: { kind: 'rack-decor', ignorePick: true }, parent: rack };
+    expect(rackIdFromHits([{ object: post }])).toBe('brazilian-dreams');
+  });
+
+  it('does not zoom a rack from a drag or a floor click', () => {
+    const rack = { userData: { kind: 'rack', rackId: 'organic-dreams' } };
+    const floor = { name: 'floor', userData: { kind: 'floor', ignorePick: true } };
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: false,
+        isClick: false,
+        hits: [{ object: rack }],
+      }),
+    ).toBeNull();
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: true,
+        isClick: true,
+        hits: [{ object: rack }],
+      }),
+    ).toBeNull();
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: false,
+        isClick: true,
+        hits: [{ object: floor }, { object: rack }],
+      }),
+    ).toBeNull();
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: false,
+        isClick: true,
+        hits: [{ object: rack }],
+      }),
+    ).toBe('organic-dreams');
   });
 });

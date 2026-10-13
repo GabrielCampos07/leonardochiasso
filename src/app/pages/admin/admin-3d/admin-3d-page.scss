@@ -346,15 +346,17 @@
 
 .admin-3d__hint-dismiss {
   min-height: 32px;
+  min-width: 32px;
   padding: 0 8px;
   border: none;
   background: transparent;
   color: var(--lc-void);
   font-family: var(--lc-font-display);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: underline;
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: none;
+  text-decoration: none;
   cursor: pointer;
 }
 

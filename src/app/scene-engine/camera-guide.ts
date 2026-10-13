@@ -45,7 +45,7 @@ export interface ChromeInsets {
 }
 
 export function defaultChromeInsets(compact = false): ChromeInsets {
-  return compact ? { top: 0.06, bottom: 0.24 } : { top: 0.05, bottom: 0.18 };
+  return compact ? { top: 0.06, bottom: 0.3 } : { top: 0.05, bottom: 0.18 };
 }
 
 /** Read the live guide / add-piece overlays so the lens leaves them empty. */
@@ -232,7 +232,7 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const pads = chrome ?? { top: compact ? 0.05 : FIT_PAD_TOP, bottom: compact ? 0.16 : FIT_PAD_BOTTOM };
+  const pads = chrome ?? { top: compact ? 0.06 : FIT_PAD_TOP, bottom: compact ? 0.3 : FIT_PAD_BOTTOM };
   const padTop = pads.top;
   const padBottom = pads.bottom;
   const visibleH = Math.max(0.38, 1 - padTop - padBottom);
@@ -248,17 +248,26 @@ export function computeEyeLevelFit(
       Math.max(distance, compact ? 2.6 : 3.8),
       compact ? OVERVIEW_MAX_DISTANCE_COMPACT : OVERVIEW_MAX_DISTANCE,
     );
-  } else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
+  } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), 10);
 
-  const bandCenter = padBottom + visibleH / 2;
-  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height - (mode === 'piece' ? 0.08 : 0);
+  const targetY = chromeBandTargetY(cy, height, pads) - (mode === 'piece' ? 0.08 : 0);
   const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
 /**
- * Portrait Ver todas: frame a vertical stack (one rack wide) in the lower
- * usable band. Does not clamp to the compact aisle max of 22.
+ * Look-at Y that sits the fitted box in the usable band (above the collections
+ * bar, below the header) instead of the raw viewport center.
+ */
+export function chromeBandTargetY(cy: number, height: number, chrome: ChromeInsets): number {
+  const visibleH = Math.max(0.38, 1 - chrome.top - chrome.bottom);
+  const bandCenter = chrome.bottom + visibleH / 2;
+  return cy + ((0.5 - bandCenter) / visibleH) * height;
+}
+
+/**
+ * Portrait Ver todas: fit the vertical stack in the usable band above the
+ * bottom bar. Does not clamp to the compact aisle max of 22.
  */
 export function computePortraitOverviewFit(
   box: FitBox,
@@ -279,9 +288,7 @@ export function computePortraitOverviewFit(
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   let distance = Math.max(fitH, fitW) * PORTRAIT_OVERVIEW_FILL + depth * 0.08;
   distance = Math.min(Math.max(distance, 2.2), OVERVIEW_MAX_DISTANCE);
-  const bandCenter = pads.bottom + visibleH / 2;
-  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height;
-  return poseFromElevation(cx, targetY, cz, distance, 0.1);
+  return poseFromElevation(cx, chromeBandTargetY(cy, height, pads), cz, distance, 0.1);
 }
 
 /** Closer and a bit lower so tray photos fill the frame without the top shelf covering them. */

@@ -8,8 +8,10 @@ import {
   rackPanLabel,
   hangerInVisibleWindow,
   rackPanProgress,
+  isPinchZoomEvent,
   rackStartPanX,
   rackVisibleColumnRange,
+  shouldPanRackOnWheel,
   wheelPanPixels,
 } from './rack-pan';
 
@@ -86,5 +88,10 @@ describe('pan input helpers', () => {
     expect(wheelPanPixels({ deltaX: 0, deltaY: 80, deltaMode: 0 })).toBe(80);
     expect(wheelPanPixels({ deltaX: 0, deltaY: 3, deltaMode: 1 })).toBe(48);
     expect(HANGER_SPACING).toBeGreaterThan(0.5);
+    expect(isPinchZoomEvent({ ctrlKey: true })).toBeTrue();
+    expect(shouldPanRackOnWheel({ overRack: true, pinch: false, panRange: 2 })).toBeTrue();
+    expect(shouldPanRackOnWheel({ overRack: true, pinch: true, panRange: 2 })).toBeFalse();
+    expect(shouldPanRackOnWheel({ overRack: false, pinch: false, panRange: 2 })).toBeFalse();
+    expect(shouldPanRackOnWheel({ overRack: true, pinch: false, panRange: 0 })).toBeFalse();
   });
 });
