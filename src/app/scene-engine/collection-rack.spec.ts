@@ -4,6 +4,7 @@ import {
   createCollectionRack,
   hangerLocalY,
   rackBarTop,
+  rackWidth,
   RACK_BAR_TOP,
   RACK_ROW_PITCH,
 } from './collection-rack';
@@ -23,6 +24,13 @@ describe('rack label clearance', () => {
       const labelY = restY - HANGER_BELOW_ORIGIN;
       expect(labelY).toBeGreaterThan(FLOOR_Y + 0.04);
     }
+  });
+});
+
+describe('rackWidth', () => {
+  it('shrinks for a two-hanger rack so the camera can come closer', () => {
+    expect(rackWidth(2)).toBeLessThan(2.2);
+    expect(rackWidth(8)).toBeGreaterThan(5);
   });
 });
 

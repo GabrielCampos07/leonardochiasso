@@ -3,11 +3,13 @@ import {
   CylinderGeometry,
   Group,
   Mesh,
-  MeshStandardMaterial,
   PlaneGeometry,
+  SphereGeometry,
 } from 'three';
+import { brassMaterial, darkWoodMaterial } from './atelier-materials';
 import { disposeObject3D } from './dispose';
 import { createGarmentHanger } from './garment-hanger';
+import { makePhotoMaterial } from './photo-material';
 import { makeLabelTexture } from './texture-loader';
 import type { SceneHanger, SceneRack } from './types';
 
@@ -24,7 +26,7 @@ const MIN_HANGER_Y_TALL = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.32;
 
 export function rackWidth(hangerCount: number): number {
   const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
-  return Math.max(2.6, perRow * HANGER_SPACING + 0.7);
+  return Math.max(1.72, perRow * HANGER_SPACING + 0.52);
 }
 
 export function rackRowCount(hangerCount: number): number {
@@ -52,13 +54,15 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   const rows = rackRowCount(count);
   const barTop = rackBarTop(rows);
   const width = rackWidth(count);
-  const metal = new MeshStandardMaterial({ color: 0xb7b1a8, roughness: 0.32, metalness: 0.68 });
+  const metal = brassMaterial();
+  group.userData['unitWidth'] = width;
 
   const topY = barTop + 0.38;
-  const bottomY = FLOOR_Y + 0.02;
+  const bottomY = FLOOR_Y + 0.04;
   const postHeight = Math.max(1.2, topY - bottomY);
   const postY = (topY + bottomY) / 2;
-  const postGeo = new CylinderGeometry(0.012, 0.014, postHeight, 10);
+  const postR = 0.024;
+  const postGeo = new CylinderGeometry(postR, postR + 0.003, postHeight, 16);
   const left = new Mesh(postGeo, metal);
   left.position.set(-width / 2, postY, 0);
   left.castShadow = true;
@@ -67,12 +71,22 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   right.castShadow = true;
   group.add(left, right);
 
-  const footGeo = new CylinderGeometry(0.04, 0.045, 0.02, 12);
-  const footL = new Mesh(footGeo, metal);
-  footL.position.set(-width / 2, FLOOR_Y + 0.02, 0);
-  const footR = new Mesh(footGeo.clone(), metal);
-  footR.position.set(width / 2, FLOOR_Y + 0.02, 0);
-  group.add(footL, footR);
+  for (const side of [-1, 1]) {
+    const cap = new Mesh(new SphereGeometry(postR + 0.004, 12, 10), metal);
+    cap.position.set((side * width) / 2, topY, 0);
+    cap.castShadow = true;
+    group.add(cap);
+
+    const foot = new Mesh(new CylinderGeometry(0.075, 0.088, 0.04, 20), metal);
+    foot.position.set((side * width) / 2, FLOOR_Y + 0.022, 0);
+    foot.castShadow = true;
+    group.add(foot);
+
+    const pad = new Mesh(new SphereGeometry(0.03, 10, 8), metal);
+    pad.scale.set(1.6, 0.45, 1.6);
+    pad.position.set((side * width) / 2, FLOOR_Y + 0.006, 0);
+    group.add(pad);
+  }
 
   const hangersRoot = new Group();
   hangersRoot.name = 'hangers';
@@ -80,27 +94,28 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
 
   for (let row = 0; row < rows; row += 1) {
     const barY = barTop - row * RACK_ROW_PITCH;
-    const bar = new Mesh(new CylinderGeometry(0.007, 0.007, width - 0.06, 10), metal);
+    const barLen = width - 0.08;
+    const bar = new Mesh(new CylinderGeometry(0.012, 0.012, barLen, 14), metal);
     bar.rotation.z = Math.PI / 2;
     bar.position.y = barY;
     bar.castShadow = true;
     group.add(bar);
+    for (const side of [-1, 1]) {
+      const end = new Mesh(new SphereGeometry(0.014, 10, 8), metal);
+      end.position.set((side * barLen) / 2, barY, 0);
+      end.castShadow = true;
+      group.add(end);
+    }
   }
 
   const plateW = Math.min(width * 0.72, 2.6);
-  const plate = new Mesh(
-    new BoxGeometry(plateW, 0.2, 0.03),
-    new MeshStandardMaterial({ color: 0x1c1814, roughness: 0.5 }),
-  );
+  const plate = new Mesh(new BoxGeometry(plateW, 0.2, 0.03), darkWoodMaterial());
   plate.position.set(0, barTop + 0.28, 0.02);
   group.add(plate);
 
   const plateLabel = new Mesh(
     new PlaneGeometry(1, 1),
-    new MeshStandardMaterial({
-      map: makeLabelTexture(rack.name, { width: 768, height: 120, fill: '#1c1814', size: 48 }),
-      roughness: 0.55,
-    }),
+    makePhotoMaterial(makeLabelTexture(rack.name, { width: 768, height: 120, fill: '#1c1814', size: 48 })),
   );
   plateLabel.scale.set(Math.min(width * 0.78, 2.8), 0.22, 1);
   plateLabel.position.set(0, barTop + 0.28, 0.05);

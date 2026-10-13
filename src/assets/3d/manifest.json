@@ -1,0 +1,86 @@
+[
+  {
+    "file": "assets/3d/hdri-studio-small-08-512.ae1fc852.hdr",
+    "bytes": 399056,
+    "name": "hdri-studio-small-08-512.ae1fc852.hdr",
+    "license": "CC0",
+    "author": "Greg Zaal / Poly Haven",
+    "url": "https://polyhaven.com/a/studio_small_08",
+    "kind": "hdri",
+    "note": "512×256 RGBE downsample of the 1k original"
+  },
+  {
+    "file": "assets/3d/mdl-mannequin.7d3d0875.glb",
+    "bytes": 21208,
+    "name": "mdl-mannequin.7d3d0875.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "Dress-form mannequin with brass stand",
+    "kind": "model",
+    "compressed": "meshopt"
+  },
+  {
+    "file": "assets/3d/mdl-plant-potted.96aa11c9.glb",
+    "bytes": 14560,
+    "name": "mdl-plant-potted.96aa11c9.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "Ficus-style potted plant",
+    "kind": "model",
+    "compressed": "meshopt"
+  },
+  {
+    "file": "assets/3d/mdl-hanger.61a1e542.glb",
+    "bytes": 6328,
+    "name": "mdl-hanger.61a1e542.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "mdl-hanger",
+    "kind": "model",
+    "compressed": "meshopt"
+  },
+  {
+    "file": "assets/3d/mdl-jewelry-tray.67115f7d.glb",
+    "bytes": 4536,
+    "name": "mdl-jewelry-tray.67115f7d.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "mdl-jewelry-tray",
+    "kind": "model",
+    "compressed": "meshopt"
+  },
+  {
+    "file": "assets/3d/mdl-vitrine.64ba2829.glb",
+    "bytes": 5192,
+    "name": "mdl-vitrine.64ba2829.glb",
+    "license": "CC0",
+    "author": "Leonardo Chiasso atelier (modeled in code)",
+    "url": "mdl-vitrine",
+    "kind": "model",
+    "compressed": "meshopt"
+  },
+  {
+    "file": "assets/3d/tex-light-wood-diff.7f175455.jpg",
+    "bytes": 33367,
+    "name": "tex-light-wood-diff.7f175455.jpg",
+    "license": "CC0",
+    "author": "Rob Tuytel / Poly Haven",
+    "kind": "texture"
+  },
+  {
+    "file": "assets/3d/tex-plaster-wall-diff.bef42e7d.jpg",
+    "bytes": 13279,
+    "name": "tex-plaster-wall-diff.bef42e7d.jpg",
+    "license": "CC0",
+    "author": "Rob Tuytel / Poly Haven",
+    "kind": "texture"
+  },
+  {
+    "file": "assets/3d/tex-wood-floor-diff.531d0840.jpg",
+    "bytes": 21485,
+    "name": "tex-wood-floor-diff.531d0840.jpg",
+    "license": "CC0",
+    "author": "Rob Tuytel / Poly Haven",
+    "kind": "texture"
+  }
+]

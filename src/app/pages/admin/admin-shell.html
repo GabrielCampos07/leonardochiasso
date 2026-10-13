@@ -42,12 +42,21 @@
     }
   </div>
   @if (loggedIn()) {
-    <div class="admin-bar__nav-wrap">
+    <button
+      type="button"
+      class="admin-bar__menu-btn"
+      [attr.aria-expanded]="navOpen()"
+      aria-label="Menu"
+      (click)="toggleNav($event)"
+    >
+      Menu
+    </button>
+    <div class="admin-bar__nav-wrap" [class.is-open]="navOpen()">
       <nav class="admin-bar__nav">
-        <a [routerLink]="products">Produtos</a>
-        <a [routerLink]="collections">Coleções</a>
-        <a [routerLink]="joias">Joias</a>
-        <a [routerLink]="home">Abrir o site</a>
+        <a [routerLink]="products" (click)="closeNav()">Produtos</a>
+        <a [routerLink]="collections" (click)="closeNav()">Coleções</a>
+        <a [routerLink]="joias" (click)="closeNav()">Joias</a>
+        <a [routerLink]="home" (click)="closeNav()">Abrir o site</a>
       </nav>
       <button type="button" class="admin-bar__out" (click)="logout()">Sair</button>
     </div>

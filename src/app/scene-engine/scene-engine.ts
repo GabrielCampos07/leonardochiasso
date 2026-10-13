@@ -1,29 +1,47 @@
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   Box3,
-  BoxGeometry,
   Color,
   DirectionalLight,
+  EquirectangularReflectionMapping,
   Fog,
   Group,
   HemisphereLight,
+  LoadingManager,
   Material,
   Mesh,
   MeshStandardMaterial,
+  NoToneMapping,
   Object3D,
-  PCFShadowMap,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   PlaneGeometry,
+  PMREMGenerator,
   Raycaster,
   Scene,
   Spherical,
+  SRGBColorSpace,
   Texture,
   Vector2,
   Vector3,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { makePlasterTexture, makeWoodFloorTexture } from './atelier-materials';
+import {
+  ATELIER_ASSETS,
+  cloneGlb,
+  createAtelierLoadingManager,
+  loadColorTexture,
+  loadGlb,
+  loadHdri,
+  type LoadProgressHandler,
+} from './atelier-assets';
+import { ATELIER_CLEAR, ATELIER_EXPOSURE, ATELIER_FOG, detectAtelierLiteMode } from './atelier-look';
+import { createAtelierPlant, plantOffsets } from './atelier-plants';
+import { createAtelierRoom, placeRackRugs } from './atelier-room';
+import { createDressForm, MANNEQUIN_GROUP, mannequinOffset } from './featured-mannequin';
+import { applyPhotoMap, isPhotoMaterial } from './photo-material';
 import {
   CAMERA_AZIMUTH_LIMIT,
   CAMERA_MIN_Y,
@@ -40,6 +58,8 @@ import {
   easeInOutCubic,
   easeOutBack,
   isCompactAtelierViewport,
+  measureAtelierChrome,
+  pieceFocusBox,
 } from './camera-guide';
 import {
   FLOOR_Y,
@@ -84,12 +104,14 @@ export type HangerHoverHandler = (
 export type FocusChangeHandler = (id: string) => void;
 export type FirstFrameHandler = () => void;
 export type SceneCompleteHandler = () => void;
+export type LoadProgressCb = LoadProgressHandler;
 export type DraftAnchorHandler = (point: { x: number; y: number } | null) => void;
 export type EmptyUnitHandler = (rackId: string) => void;
 
 export interface SceneEngineOptions {
   reducedMotion?: boolean;
   host?: HTMLElement;
+  lite?: boolean;
 }
 
 export function atelierPixelRatio(
@@ -119,7 +141,7 @@ export function hostDrawingSize(host: HTMLElement): { width: number; height: num
 }
 
 const DRAG_SLOP_SQ = 36;
-const CLEAR = 0xefe8dc;
+const CLEAR = ATELIER_CLEAR;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 /** Piece leave / unit sink: 400–600 ms. Cut instantly when reduced motion. */
 export const ARCHIVE_TWEEN_MS = 500;
@@ -251,6 +273,16 @@ export class SceneEngine {
   } | null = null;
   private readonly projectScratch = new Vector3();
   private restoreAddEventListener: (() => void) | null = null;
+  private readonly lite: boolean;
+  private readonly manager: LoadingManager;
+  private onProgressCb: LoadProgressHandler | null = null;
+  private room: Group | null = null;
+  private propsRoot: Group | null = null;
+  private hdri: Texture | null = null;
+  private pmrem: PMREMGenerator | null = null;
+  private propsArmed = false;
+  private mannequinSrc: Group | null = null;
+  private plantSrc: Group | null = null;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -316,17 +348,27 @@ export class SceneEngine {
     this.canvas = canvas;
     this.host = options.host ?? canvas.parentElement ?? canvas;
     this.reducedMotion = Boolean(options.reducedMotion);
+    this.lite =
+      options.lite ??
+      detectAtelierLiteMode({
+        reducedMotion: this.reducedMotion,
+        width: typeof window === 'undefined' ? 1280 : window.innerWidth,
+      });
+    this.manager = createAtelierLoadingManager((loaded, total) => this.onProgressCb?.(loaded, total));
     this.scene.background = new Color(CLEAR);
-    this.scene.fog = new Fog(CLEAR, 22, 48);
+    this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 32 : 28, this.lite ? 70 : 64);
 
     this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
     this.camera.position.set(0, 1.15, 3.2);
 
-    this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false });
+    this.renderer = new WebGLRenderer({ canvas, antialias: !this.lite, alpha: false });
     this.renderer.setPixelRatio(atelierPixelRatio(this.reducedMotion));
+    this.renderer.outputColorSpace = SRGBColorSpace;
+    this.renderer.toneMapping = this.lite ? NoToneMapping : ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = this.lite ? 1 : ATELIER_EXPOSURE;
     this.renderer.setClearColor(CLEAR, 1);
     this.renderer.shadowMap.enabled = false;
-    this.renderer.shadowMap.type = PCFShadowMap;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
 
     this.restoreAddEventListener = forceNonPassiveCanvasListeners(canvas);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -341,13 +383,13 @@ export class SceneEngine {
     this.controls.addEventListener('change', this.onControlsChange);
     this.controls.update();
 
-    this.scene.add(new AmbientLight(0xfff3e4, 0.32));
-    this.scene.add(new HemisphereLight(0xfff4e8, 0x4a3d32, 0.38));
+    this.scene.add(new AmbientLight(0xfff6ea, this.lite ? 0.62 : 0.48));
+    this.scene.add(new HemisphereLight(0xfff8f0, 0xc4b4a0, this.lite ? 0.55 : 0.46));
 
-    const key = new DirectionalLight(0xffe2c4, 1.35);
+    const key = new DirectionalLight(0xfff0dc, this.lite ? 1.08 : 1.02);
     key.position.set(3.1, 6.2, 4.4);
     key.castShadow = false;
-    key.shadow.mapSize.set(512, 512);
+    key.shadow.mapSize.set(this.lite ? 256 : 1024, this.lite ? 256 : 1024);
     this.keyLight = key;
     key.shadow.camera.near = 1;
     key.shadow.camera.far = 36;
@@ -355,42 +397,28 @@ export class SceneEngine {
     key.shadow.camera.right = 16;
     key.shadow.camera.top = 12;
     key.shadow.camera.bottom = -6;
-    key.shadow.radius = 2.2;
-    key.shadow.bias = -0.00025;
+    key.shadow.radius = 3.2;
+    key.shadow.bias = -0.00022;
     this.scene.add(key);
 
-    const fill = new DirectionalLight(0xd8c8b4, 0.28);
+    const fill = new DirectionalLight(0xf4eadc, this.lite ? 0.42 : 0.34);
     fill.position.set(-3.4, 2.4, 1.6);
     this.scene.add(fill);
 
-    const floor = new Mesh(
-      new BoxGeometry(96, 0.1, 64),
-      new MeshStandardMaterial({
-        color: 0xffffff,
-        map: makeWoodFloorTexture(),
-        roughness: 0.88,
-        metalness: 0,
-      }),
-    );
-    floor.position.y = FLOOR_Y - 0.05;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
+    const bounce = new DirectionalLight(0xfff4e8, this.lite ? 0.2 : 0.16);
+    bounce.position.set(0.4, 1.1, 5.2);
+    this.scene.add(bounce);
 
-    const wall = new Mesh(
-      new PlaneGeometry(110, 18),
-      new MeshStandardMaterial({
-        color: 0xffffff,
-        map: makePlasterTexture(),
-        roughness: 0.92,
-        metalness: 0,
-      }),
-    );
-    wall.position.set(10, 6.4, -2.4);
-    wall.receiveShadow = true;
-    this.scene.add(wall);
+    this.room = createAtelierRoom(this.lite);
+    this.scene.add(this.room);
+    this.propsRoot = new Group();
+    this.propsRoot.name = 'atelier-props';
+    this.scene.add(this.propsRoot);
 
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
+    void this.loadRoomTextures();
+    if (!this.lite) void this.loadHdriEnv();
 
     canvas.addEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
     canvas.addEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
@@ -433,6 +461,14 @@ export class SceneEngine {
     this.onSceneCompleteCb = handler;
   }
 
+  onLoadProgress(handler: LoadProgressHandler): void {
+    this.onProgressCb = handler;
+  }
+
+  isLite(): boolean {
+    return this.lite;
+  }
+
   onDraftAnchor(handler: DraftAnchorHandler): void {
     this.onDraftAnchorCb = handler;
   }
@@ -468,6 +504,9 @@ export class SceneEngine {
     this.hasLayout = true;
     this.firstFrameSent = false;
     this.sceneCompleteSent = false;
+    this.propsArmed = false;
+    this.clearDeferredProps();
+    this.fitRoomToLayout();
     this.expectedPhotos = layout.racks.reduce((n, r) => n + r.hangers.length, 0);
     this.finishedPhotos = 0;
     this.loadedPhotos.clear();
@@ -498,7 +537,60 @@ export class SceneEngine {
     this.applyOrbitLimits(mode);
     this.moveCamera(this.poseFor(group as Group, mode), immediate);
     this.onFocusCb?.(id);
+    this.layoutDeferredProps();
     if (this.hasLayout) this.enqueueHangerTextures();
+  }
+
+  /** Tight frame on a single hanger — used for Esgotado close-ups. */
+  focusHanger(slug: string, immediate = this.reducedMotion): boolean {
+    const hanger = findHanger(this.layout, slug);
+    if (hanger) this.ensureRackMounted(hanger.rackId);
+    const group = this.findHangerGroup(slug);
+    if (!group) return false;
+    if (hanger) {
+      this.focusedId = hanger.rackId;
+      this.applyOrbitLimits('rack');
+    }
+    group.updateWorldMatrix(true, true);
+    const garment = group.getObjectByName('garment');
+    const label = group.getObjectByName('label');
+    const labelBack = group.getObjectByName('labelBack');
+    const badge = group.getObjectByName('badge');
+    if (badge) badge.scale.set(1, 1, 1);
+    this.bounds.makeEmpty();
+    if (garment) this.bounds.expandByObject(garment);
+    if (label) this.bounds.expandByObject(label);
+    if (labelBack) this.bounds.expandByObject(labelBack);
+    if (badge?.visible) this.bounds.expandByObject(badge);
+    if (this.bounds.isEmpty()) this.bounds.expandByObject(group);
+    const siblings = hanger ? this.layout.racks.find((rack) => rack.id === hanger.rackId)?.hangers ?? [] : [];
+    const index = siblings.findIndex((item) => item.slug === slug);
+    const box = pieceFocusBox(
+      {
+        minX: this.bounds.min.x,
+        maxX: this.bounds.max.x,
+        minY: this.bounds.min.y,
+        maxY: this.bounds.max.y,
+        minZ: this.bounds.min.z,
+        maxZ: this.bounds.max.z,
+      },
+      index,
+      siblings.length,
+    );
+    this.moveCamera(
+      computeEyeLevelFit(
+        box,
+        this.camera.aspect,
+        this.camera.fov,
+        'piece',
+        isCompactAtelierViewport(),
+        measureAtelierChrome(this.host),
+      ),
+      immediate,
+    );
+    this.layoutDeferredProps();
+    if (hanger) this.onFocusCb?.(hanger.rackId);
+    return true;
   }
 
   focusOverview(immediate = this.reducedMotion): void {
@@ -781,6 +873,13 @@ export class SceneEngine {
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     this.keyLight = null;
+    this.hdri?.dispose();
+    this.hdri = null;
+    this.pmrem?.dispose();
+    this.pmrem = null;
+    this.room = null;
+    this.propsRoot = null;
+    this.onProgressCb = null;
   }
 
   private restoreAfterContext(): void {
@@ -829,30 +928,41 @@ export class SceneEngine {
       this.controls.minDistance = 1.4;
       this.controls.maxDistance = 6;
     } else {
-      this.controls.minDistance = 1.8;
-      this.controls.maxDistance = 12;
+      this.controls.minDistance = 1.2;
+      this.controls.maxDistance = 10;
     }
   }
 
   private poseFor(object: Object3D, mode: CameraFocusMode): CameraPose {
+    object.updateWorldMatrix(true, true);
     this.bounds.makeEmpty();
-    this.bounds.expandByObject(object);
+    if (mode === 'rack' && object instanceof Group) {
+      const plate = object.getObjectByName('plate');
+      const hangers = object.getObjectByName('hangers');
+      if (plate) this.bounds.expandByObject(plate);
+      if (hangers) this.bounds.expandByObject(hangers);
+    }
+    if (this.bounds.isEmpty()) this.bounds.expandByObject(object);
     if (this.bounds.isEmpty()) {
       return { position: { x: 0, y: 1.15, z: 3.2 }, target: { x: 0, y: 0.35, z: 0 }, distance: 3.2 };
     }
     this.bounds.getSize(this.fitSize);
     this.bounds.getCenter(this.fitCenter);
+    const origin = new Vector3();
+    object.getWorldPosition(origin);
+    const halfW = Math.max(origin.x - this.bounds.min.x, this.bounds.max.x - origin.x, this.fitSize.x / 2);
     const box = {
-      minX: this.bounds.min.x,
-      maxX: this.bounds.max.x,
-      minY: this.bounds.min.y,
-      maxY: this.bounds.max.y,
+      minX: mode === 'rack' ? origin.x - halfW : this.bounds.min.x,
+      maxX: mode === 'rack' ? origin.x + halfW : this.bounds.max.x,
+      minY: this.bounds.min.y - (mode === 'rack' ? 0.04 : 0),
+      maxY: this.bounds.max.y + (mode === 'rack' ? 0.1 : 0),
       minZ: this.bounds.min.z,
       maxZ: this.bounds.max.z,
     };
     const compact = isCompactAtelierViewport();
+    const chrome = measureAtelierChrome(this.host);
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
-    return computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, mode, compact);
+    return computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, mode, compact, chrome);
   }
 
   private restoreFrontView(): void {
@@ -874,7 +984,7 @@ export class SceneEngine {
       this.tween = null;
       this.camera.position.copy(toPos);
       this.controls.target.copy(toTarget);
-      this.camera.near = Math.max(0.05, pose.distance / 80);
+      this.camera.near = Math.max(0.18, pose.distance / 40);
       this.camera.far = Math.max(80, pose.distance * 10);
       this.camera.updateProjectionMatrix();
       this.controls.update();
@@ -915,6 +1025,7 @@ export class SceneEngine {
         this.firstFrameSent = true;
         this.onFirstFrameCb?.();
         this.armShadows();
+        this.scheduleDeferredProps();
       }
       if (animating || this.draft || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
         if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
@@ -1043,23 +1154,27 @@ export class SceneEngine {
   private faceLabels(): void {
     const viewportH = this.canvas.clientHeight || this.renderer.domElement.height || 1;
     this.racksRoot.traverse((obj) => {
-      if (obj.name === 'plate' || obj.name === 'label') {
+      if (obj.name === 'plate') {
+        obj.quaternion.identity();
+        return;
+      }
+      if (obj.name === 'label' || obj.name === 'labelBack') {
         obj.lookAt(this.camera.position);
         return;
       }
       if (obj.name !== 'badge') return;
       obj.lookAt(this.camera.position);
-      const mesh = obj as Mesh;
-      const geom = mesh.geometry as PlaneGeometry;
-      const badgeH = geom.parameters?.height || SOLD_OUT_BADGE_H;
-      mesh.getWorldPosition(this.projectScratch);
+      const geom = (obj as Mesh).geometry as PlaneGeometry | undefined;
+      const badgeH = geom?.parameters?.height || SOLD_OUT_BADGE_H;
+      obj.getWorldPosition(this.projectScratch);
       const scale = soldOutBadgeScale(
         this.projectScratch.distanceTo(this.camera.position),
         this.camera.fov,
         viewportH,
         badgeH,
       );
-      mesh.scale.set(scale, scale, 1);
+      const capped = isCompactAtelierViewport() ? Math.min(scale, 1.22) : scale;
+      obj.scale.set(capped, capped, 1);
     });
   }
 
@@ -1280,7 +1395,7 @@ export class SceneEngine {
   }
 
   private armShadows(): void {
-    if (this.shadowsArmed || this.disposed) return;
+    if (this.lite || this.shadowsArmed || this.disposed) return;
     this.shadowsArmed = true;
     this.renderer.shadowMap.enabled = true;
     if (this.keyLight) this.keyLight.castShadow = true;
@@ -1294,7 +1409,7 @@ export class SceneEngine {
     const label = piece?.name ?? name ?? this.hangerName(slug);
     const group = this.findHangerGroup(slug);
     const garment = group?.getObjectByName('garment') as Mesh | undefined;
-    if (!group || !garment || !(garment.material instanceof MeshStandardMaterial)) {
+    if (!group || !garment || !isPhotoMaterial(garment.material)) {
       this.markPhotoFinished();
       return;
     }
@@ -1302,9 +1417,8 @@ export class SceneEngine {
     const apply = (texture: Texture) => {
       const live = this.findHangerGroup(slug);
       const liveGarment = live?.getObjectByName('garment') as Mesh | undefined;
-      if (!live || !liveGarment || !(liveGarment.material instanceof MeshStandardMaterial)) return;
-      liveGarment.material.map = texture;
-      liveGarment.material.needsUpdate = true;
+      if (!live || !liveGarment || !isPhotoMaterial(liveGarment.material)) return;
+      applyPhotoMap(liveGarment.material, texture);
       this.applyPiecePhoto(live, texture);
       if (previous && previous !== texture && !isSharedTexture(previous)) previous.dispose();
       this.requestRender();
@@ -1391,11 +1505,160 @@ export class SceneEngine {
 
   private tintHanger(slug: string, on: boolean): void {
     const group = this.findHangerGroup(slug);
-    const garment = group?.getObjectByName('garment') as Mesh | undefined;
-    if (!garment || !(garment.material instanceof MeshStandardMaterial)) return;
-    garment.material.emissive.setHex(on ? 0x2a241c : 0x000000);
-    garment.material.emissiveIntensity = on ? 0.12 : 0;
+    const frame = group?.getObjectByName('frame') as Mesh | undefined;
+    if (!frame || !(frame.material instanceof MeshStandardMaterial)) return;
+    frame.material.emissive.setHex(on ? 0xc4b08a : 0x000000);
+    frame.material.emissiveIntensity = on ? 0.16 : 0;
   }
+
+  private fitRoomToLayout(): void {
+    if (!this.room) return;
+    const slots = this.computeRackSlots(this.layout);
+    if (!slots.length) {
+      placeRackRugs(this.room, [{ x: 0, width: 2.6 }], this.lite);
+      return;
+    }
+    placeRackRugs(
+      this.room,
+      slots.map((slot) => ({
+        x: slot.x,
+        width: unitWidth(slot.rack.kind, slot.rack.hangers.length),
+      })),
+      this.lite,
+    );
+  }
+
+  private async loadRoomTextures(): Promise<void> {
+    const wallMap = await loadColorTexture(ATELIER_ASSETS.plaster, this.manager, 4, 2);
+    if (this.disposed || !this.room) {
+      wallMap?.dispose();
+      return;
+    }
+    const wall = this.room.getObjectByName('wall') as Mesh | undefined;
+    if (wall?.material instanceof MeshStandardMaterial && wallMap) {
+      const prev = wall.material.map;
+      wall.material.map = wallMap;
+      wall.material.color.setHex(0xf4efe6);
+      wall.material.needsUpdate = true;
+      if (prev && !isSharedTexture(prev)) prev.dispose();
+    } else {
+      wallMap?.dispose();
+    }
+    this.requestRender();
+  }
+
+  private async loadHdriEnv(): Promise<void> {
+    const texture = await loadHdri(ATELIER_ASSETS.hdri, this.manager);
+    if (this.disposed || this.lite || !texture) {
+      texture?.dispose();
+      return;
+    }
+    texture.mapping = EquirectangularReflectionMapping;
+    this.hdri = texture;
+    this.pmrem = new PMREMGenerator(this.renderer);
+    const env = this.pmrem.fromEquirectangular(texture).texture;
+    this.scene.environment = env;
+    this.scene.environmentIntensity = 0.62;
+    this.requestRender();
+  }
+
+  private scheduleDeferredProps(): void {
+    if (this.propsArmed || this.disposed) return;
+    this.propsArmed = true;
+    const run = () => {
+      if (this.disposed) return;
+      void this.mountDeferredProps();
+    };
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(run, { timeout: 240 });
+    } else {
+      window.setTimeout(run, 0);
+    }
+  }
+
+  private async mountDeferredProps(): Promise<void> {
+    if (this.disposed || !this.propsRoot) return;
+    const [mannequinSrc, plantSrc] = await Promise.all([
+      loadGlb(ATELIER_ASSETS.mannequin, this.manager),
+      loadGlb(ATELIER_ASSETS.plantPotted, this.manager),
+    ]);
+    if (this.disposed || !this.propsRoot) return;
+    this.mannequinSrc = mannequinSrc;
+    this.plantSrc = plantSrc;
+    this.layoutDeferredProps();
+    this.requestRender();
+  }
+
+  private layoutDeferredProps(): void {
+    if (!this.propsRoot || this.disposed) return;
+    this.clearDeferredProps();
+    const focused =
+      this.focusedId === OVERVIEW_FOCUS_ID
+        ? this.layout.racks
+        : this.layout.racks.filter((rack) => rack.id === this.focusedId);
+    const units = focused.length ? focused : this.layout.racks.slice(0, 1);
+
+    for (const rack of units) {
+      const unit = this.racksRoot.getObjectByName(`rack:${rack.id}`) as Group | undefined;
+      if (!unit) continue;
+      const width = Number(unit.userData['unitWidth'] ?? unitWidth(rack.kind, rack.hangers.length));
+      const offset = mannequinOffset(width, rack.kind, rack.hangers.length);
+      if (offset) {
+        const form = this.mannequinSrc ? cloneGlb(this.mannequinSrc) : createDressForm(this.lite);
+        form.name = `${MANNEQUIN_GROUP}:${rack.id}`;
+        form.position.set(unit.position.x + offset.x, FLOOR_Y, offset.z);
+        form.rotation.y = offset.rotY;
+        if (this.mannequinSrc) this.fitPropToFloor(form, 1.48);
+        hardenPropMaterials(form);
+        form.userData = { ignorePick: true, kind: 'mannequin' };
+        this.propsRoot.add(form);
+      }
+
+      for (const [index, plantAt] of plantOffsets(width).entries()) {
+        const pot = this.plantSrc ? cloneGlb(this.plantSrc) : createAtelierPlant(this.lite);
+        pot.name = `plant:${rack.id}:${index}`;
+        pot.position.set(unit.position.x + plantAt.x, FLOOR_Y, plantAt.z);
+        if (this.plantSrc) this.fitPropToFloor(pot, 0.92);
+        hardenPropMaterials(pot);
+        pot.userData = { ignorePick: true, kind: 'plant' };
+        this.propsRoot.add(pot);
+      }
+    }
+    this.requestRender();
+  }
+
+  private fitPropToFloor(object: Group, targetHeight: number): void {
+    const box = new Box3().setFromObject(object);
+    const size = box.getSize(new Vector3());
+    if (size.y > 0.05) object.scale.multiplyScalar(targetHeight / size.y);
+    const next = new Box3().setFromObject(object);
+    object.position.y += FLOOR_Y - next.min.y;
+  }
+
+  private clearDeferredProps(): void {
+    if (!this.propsRoot) return;
+    while (this.propsRoot.children.length) {
+      const child = this.propsRoot.children[0]!;
+      this.propsRoot.remove(child);
+      disposeObject3D(child);
+    }
+  }
+}
+
+function hardenPropMaterials(root: Object3D): void {
+  root.traverse((child) => {
+    if (!(child instanceof Mesh)) return;
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of mats) {
+      if (!mat || typeof mat !== 'object') continue;
+      const record = mat as MeshStandardMaterial & { transmission?: number };
+      record.transparent = false;
+      record.opacity = 1;
+      record.depthWrite = true;
+      record.depthTest = true;
+      if (typeof record.transmission === 'number') record.transmission = 0;
+    }
+  });
 }
 
 function fadeObjectOpacity(root: Object3D, opacity: number): void {

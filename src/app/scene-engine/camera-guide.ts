@@ -1,6 +1,6 @@
 import { UNCOLLECTED_RACK_ID } from './types';
 
-export type CameraFocusMode = 'rack' | 'vitrine' | 'overview';
+export type CameraFocusMode = 'rack' | 'vitrine' | 'overview' | 'piece';
 
 export interface FitBox {
   minX: number;
@@ -29,11 +29,84 @@ export const CAMERA_TWEEN_MS = 720;
 export const CREATE_TWEEN_MS = 560;
 /** Keep the lens above the wood floor (`collection-rack` FLOOR_Y = -0.7). */
 export const CAMERA_MIN_Y = -0.45;
-export const FIT_PAD_TOP = 0.12;
-export const FIT_PAD_BOTTOM = 0.18;
-export const FIT_PAD_SIDE = 0.08;
-/** Extra side inset so the name plate and end hangers stay on-screen. */
-export const FIT_WIDTH_MARGIN = 0.08;
+export const FIT_PAD_TOP = 0.08;
+export const FIT_PAD_BOTTOM = 0.16;
+export const FIT_PAD_SIDE = 0.075;
+/** Extra pixels of air between the 3D content and overlaid chrome. */
+export const CHROME_MARGIN_PX = 20;
+/** Expand toward the sibling so its ellipsized name plate stays in the close-up frame. */
+export const PIECE_NEIGHBOR_PAD = 0.4;
+
+export interface ChromeInsets {
+  /** Fraction of canvas height reserved at the top (header / badges). */
+  top: number;
+  /** Fraction of canvas height reserved at the bottom (collections bar). */
+  bottom: number;
+}
+
+export function defaultChromeInsets(compact = false): ChromeInsets {
+  return compact ? { top: 0.06, bottom: 0.24 } : { top: 0.05, bottom: 0.18 };
+}
+
+/** Read the live guide / add-piece overlays so the lens leaves them empty. */
+export function measureAtelierChrome(host: HTMLElement): ChromeInsets {
+  const fallback = defaultChromeInsets(isCompactAtelierViewport(host.clientWidth || 1280));
+  const height = Math.max(host.clientHeight || 0, 1);
+  const hostRect = host.getBoundingClientRect();
+  let top = fallback.top;
+  let bottom = fallback.bottom;
+  const overlay = host.querySelector('.admin-3d__chrome') as HTMLElement | null;
+  if (overlay) {
+    const fromTop = overlay.getBoundingClientRect().bottom - hostRect.top;
+    if (fromTop > 0 && fromTop < height * 0.35) {
+      top = Math.max(top, (fromTop + 8) / height);
+    }
+  }
+  const guide = host.querySelector('.admin-3d__guide') as HTMLElement | null;
+  if (guide) {
+    const fromBottom = hostRect.bottom - guide.getBoundingClientRect().top;
+    if (fromBottom > 0 && fromBottom < height) {
+      bottom = Math.max(bottom, (fromBottom + CHROME_MARGIN_PX) / height);
+    }
+  }
+  const add = host.querySelector('.admin-3d__add-piece') as HTMLElement | null;
+  if (add) {
+    const fromBottom = hostRect.bottom - add.getBoundingClientRect().top;
+    if (fromBottom > 0 && fromBottom < height) {
+      bottom = Math.max(bottom, (fromBottom + 8) / height);
+    }
+  }
+  return {
+    top: Math.min(0.28, top),
+    bottom: Math.min(0.42, bottom),
+  };
+}
+
+/** Frame the aimed hanger plus enough width for the neighbor's ellipsized plate. */
+export function pieceFocusBox(
+  bounds: FitBox,
+  siblingIndex: number,
+  siblingCount: number,
+  neighborPad = PIECE_NEIGHBOR_PAD,
+): FitBox {
+  const towardNeighbor =
+    siblingCount > 1 && siblingIndex >= 0 && siblingIndex < siblingCount / 2
+      ? 1
+      : siblingCount > 1
+        ? -1
+        : 0;
+  return {
+    minX: bounds.minX - 0.06 + (towardNeighbor < 0 ? -neighborPad : 0),
+    maxX: bounds.maxX + 0.06 + (towardNeighbor > 0 ? neighborPad : 0),
+    minY: bounds.minY - 0.05,
+    maxY: bounds.maxY + 0.04,
+    minZ: bounds.minZ,
+    maxZ: bounds.maxZ,
+  };
+}
+/** Side inset so hangers fill ~85% of the viewport width. */
+export const FIT_WIDTH_MARGIN = 0.075;
+export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
 
 /** ±25° around the front of the active unit. */
 export const CAMERA_AZIMUTH_LIMIT = (25 * Math.PI) / 180;
@@ -117,8 +190,9 @@ export function poseFromElevation(
 }
 
 /**
- * Fit the full rack (or atelier) bounding box, leaving room for the header and
- * the bottom guide. Compact viewports frame one unit tighter and higher.
+ * Fit the active rack so hangers fill ~85% of the *usable* viewport (canvas
+ * minus header / collections bar). Height always wins when the sign + name
+ * plates would otherwise sit under the bottom chrome.
  */
 export function computeEyeLevelFit(
   box: FitBox,
@@ -126,6 +200,7 @@ export function computeEyeLevelFit(
   fovDeg: number,
   mode: CameraFocusMode,
   compact = false,
+  chrome?: ChromeInsets,
 ): CameraPose {
   const width = Math.max(box.maxX - box.minX, 0.4);
   const height = Math.max(box.maxY - box.minY, 0.4);
@@ -134,20 +209,22 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const padTop = compact ? 0.06 : FIT_PAD_TOP;
-  const padBottom = compact ? 0.14 : FIT_PAD_BOTTOM;
-  const visibleH = Math.max(0.35, 1 - padTop - padBottom);
+  const pads = chrome ?? { top: compact ? 0.05 : FIT_PAD_TOP, bottom: compact ? 0.16 : FIT_PAD_BOTTOM };
+  const padTop = pads.top;
+  const padBottom = pads.bottom;
+  const visibleH = Math.max(0.38, 1 - padTop - padBottom);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 0.98 : 1.12) : 1;
+  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : mode === 'piece' ? 0.84 : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   const fitted = Math.max(fitH, fitW);
-  let distance = Math.max(fitted, compact ? 1.45 : 2.05) * fill + depth * (compact ? 0.22 : 0.35);
-  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 3.0 : 4.4), compact ? 9 : 16);
-  else distance = Math.min(Math.max(distance, compact ? 1.45 : 2.2), 12);
+  let distance = fitted * fill + depth * (compact ? 0.08 : 0.1);
+  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 2.6 : 3.8), compact ? 9 : 16);
+  else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
 
-  const targetY = compact ? box.minY + height * 0.5 : cy;
-  const elevation = compact ? 0.14 : 0.16;
+  const bandCenter = padBottom + visibleH / 2;
+  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height - (mode === 'piece' ? 0.08 : 0);
+  const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 

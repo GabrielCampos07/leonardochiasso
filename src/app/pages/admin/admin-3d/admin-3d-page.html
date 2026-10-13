@@ -37,7 +37,7 @@
       </div>
       <button
         type="button"
-        class="admin-3d__arrow admin-3d__arrow--prev"
+        class="admin-3d__arrow admin-3d__arrow--prev admin-3d__arrow--desktop"
         [disabled]="atFirst() || creating() || adding() || !racks().length"
         (click)="stepRack(-1)"
         aria-label="Anterior"
@@ -76,28 +76,69 @@
         >
           + Nova coleção
         </button>
-        @if (activeUnit()) {
-          <button
-            type="button"
-            class="admin-3d__rack admin-3d__rack--add"
-            [class.is-on]="adding()"
-            [disabled]="adding()"
-            (click)="addPieceToFocused()"
-          >
-            <span class="admin-3d__add-full">+ Adicionar peça</span>
-            <span class="admin-3d__add-short">+ Adicionar</span>
+        @if (canArchiveFocused()) {
+          <button type="button" class="admin-3d__rack admin-3d__rack--archive" (click)="archiveFocusedCollection()">
+            Arquivar coleção
           </button>
         }
       </div>
       <button
         type="button"
-        class="admin-3d__arrow admin-3d__arrow--next"
+        class="admin-3d__arrow admin-3d__arrow--next admin-3d__arrow--desktop"
         [disabled]="atLast() || creating() || adding() || !racks().length"
         (click)="stepRack(1)"
         aria-label="Próxima"
       >
         →
       </button>
+      <div class="admin-3d__pager-actions">
+        @if (activeUnit()) {
+          <button type="button" class="admin-3d__peca" [disabled]="adding()" (click)="addPieceToFocused()">
+            + Peça
+          </button>
+        }
+        <button
+          type="button"
+          class="admin-3d__more"
+          [attr.aria-expanded]="moreOpen()"
+          aria-label="Mais ações"
+          (click)="toggleMore($event)"
+        >
+          ⋯
+        </button>
+        @if (moreOpen()) {
+          <div class="admin-3d__menu" role="menu" (click)="$event.stopPropagation()">
+            <button type="button" role="menuitem" (click)="startCreate()">Nova coleção</button>
+            <button type="button" role="menuitem" [disabled]="!racks().length" (click)="focusOverview()">
+              Ver todas
+            </button>
+            @if (canArchiveFocused()) {
+              <button type="button" role="menuitem" (click)="archiveFocusedCollection()">Arquivar coleção</button>
+            }
+          </div>
+        }
+      </div>
+      <div class="admin-3d__pager">
+        <button
+          type="button"
+          class="admin-3d__arrow"
+          [disabled]="atFirst() || creating() || adding() || !racks().length"
+          (click)="stepRack(-1)"
+          aria-label="Anterior"
+        >
+          ‹
+        </button>
+        <p class="admin-3d__pager-name">{{ focusedName() }}</p>
+        <button
+          type="button"
+          class="admin-3d__arrow"
+          [disabled]="atLast() || creating() || adding() || !racks().length"
+          (click)="stepRack(1)"
+          aria-label="Próxima"
+        >
+          ›
+        </button>
+      </div>
     </nav>
   }
 
@@ -158,12 +199,6 @@
     />
   }
 
-  @if (canArchiveFocused()) {
-    <button type="button" class="admin-3d__archive-col" (click)="archiveFocusedCollection()">
-      Arquivar
-    </button>
-  }
-
   @if (hoverTip(); as tip) {
     <p
       class="admin-3d__hover"
@@ -183,7 +218,15 @@
         <span></span>
         <span></span>
       </div>
-      <p>Montando o ateliê…</p>
+      <p>
+        Montando o ateliê…
+        @if (bootPercent() > 0) {
+          <span class="admin-3d__pct">{{ bootPercent() }}%</span>
+        }
+      </p>
+      <div class="admin-3d__bar" aria-hidden="true">
+        <span [style.width.%]="bootPercent()"></span>
+      </div>
     </div>
   }
 
