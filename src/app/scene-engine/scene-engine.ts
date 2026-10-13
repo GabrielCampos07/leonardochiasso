@@ -2,6 +2,7 @@ import {
   ACESFilmicToneMapping,
   AmbientLight,
   Box3,
+  Clock,
   Color,
   DirectionalLight,
   Fog,
@@ -77,6 +78,15 @@ import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } fr
 import { disposeObject3D, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
+import {
+  ORBIT_DAMPING_FACTOR,
+  ORBIT_DAMPING_MAX_MS,
+  capOrbitInertia,
+  dampingFactorForDelta,
+  hangerTooltipWhileCameraBusy,
+  orbitDampingExpired,
+  stopOrbitInertia,
+} from './orbit-damping';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import { isSharedTexture, loadTextureCandidates, makeFallbackTexture } from './texture-loader';
 import { TextureLoadQueue, hangerPhotoPriority } from './texture-queue';
@@ -204,7 +214,9 @@ export class SceneEngine {
   private pendingHover: PointerEvent | null = null;
   private pointerDown = { x: 0, y: 0 };
   private interacting = false;
-  private dampingFrames = 0;
+  private orbitDampingUntil = 0;
+  private lastPointer = { x: 0, y: 0, valid: false };
+  private readonly clock = new Clock(false);
   private disposed = false;
   private hoverSlug: string | null = null;
   private lift = 0;
@@ -280,6 +292,7 @@ export class SceneEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.rememberPointer(event);
     this.onHoverCb?.(null);
     this.setHover(null);
     this.pointerDownSlug = this.pickHangerSlug(event);
@@ -305,6 +318,7 @@ export class SceneEngine {
   private readonly onPointerUp = (event: PointerEvent) => {
     const dx = event.clientX - this.pointerDown.x;
     const dy = event.clientY - this.pointerDown.y;
+    this.rememberPointer(event);
     this.releasePointer(event.pointerId);
     const slug = resolveHangerClick({
       pointerDownSlug: this.pointerDownSlug,
@@ -332,17 +346,24 @@ export class SceneEngine {
     this.endOrbit();
   };
   private readonly onWindowBlur = () => this.endOrbit();
-  private readonly onPointerLeave = () => this.setHover(null);
+  private readonly onPointerLeave = () => {
+    this.lastPointer.valid = false;
+    this.setHover(null);
+  };
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
-    this.dampingFrames = this.reducedMotion ? 0 : 24;
+    this.orbitDampingUntil = 0;
+    this.hideHoverForCamera();
     this.requestRender();
   };
   private readonly onControlsEnd = () => this.endOrbit();
-  private readonly onControlsChange = () => this.requestRender();
+  private readonly onControlsChange = () => {
+    this.hideHoverForCamera();
+    this.requestRender();
+  };
   private readonly onHostResize = () => this.resize();
   private readonly onContextLost = (event: Event) => {
     event.preventDefault();
@@ -384,7 +405,7 @@ export class SceneEngine {
     this.restoreAddEventListener = forceNonPassiveCanvasListeners(canvas);
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !this.reducedMotion;
-    this.controls.dampingFactor = 0.08;
+    this.controls.dampingFactor = ORBIT_DAMPING_FACTOR;
     this.controls.enablePan = false;
     this.controls.screenSpacePanning = false;
     this.applyOrbitLimits('rack');
@@ -981,11 +1002,16 @@ export class SceneEngine {
       this.camera.near = Math.max(0.18, pose.distance / 40);
       this.camera.far = Math.max(80, pose.distance * 10);
       this.camera.updateProjectionMatrix();
+      stopOrbitInertia(this.controls);
       this.controls.update();
       this.clampCamera();
+      this.hideHoverForCamera();
       this.requestRender();
+      this.refreshHoverFromLastPointer();
       return;
     }
+    this.hideHoverForCamera();
+    stopOrbitInertia(this.controls);
     this.tween = {
       fromPos: this.camera.position.clone(),
       toPos,
@@ -1003,6 +1029,9 @@ export class SceneEngine {
     this.raf = requestAnimationFrame(() => {
       this.renderQueued = false;
       if (this.disposed || this.contextLost) return;
+      if (!this.clock.running) this.clock.start();
+      const dt = this.clock.getDelta();
+      const now = performance.now();
       const animating =
         this.stepTween() ||
         this.stepLift() ||
@@ -1010,7 +1039,19 @@ export class SceneEngine {
         this.stepRise() ||
         this.stepGlow() ||
         this.stepArchive();
-      if (!this.tween && !this.reducedMotion) this.controls.update();
+      const settling = !this.interacting && !orbitDampingExpired(now, this.orbitDampingUntil);
+      if (this.interacting || settling) capOrbitInertia(this.controls);
+      if (!this.tween && !this.reducedMotion) {
+        this.controls.dampingFactor = dampingFactorForDelta(dt);
+        this.controls.update(dt);
+      }
+      if (!this.interacting && orbitDampingExpired(now, this.orbitDampingUntil)) {
+        stopOrbitInertia(this.controls);
+        if (this.orbitDampingUntil) {
+          this.orbitDampingUntil = 0;
+          this.refreshHoverFromLastPointer();
+        }
+      }
       this.clampCamera();
       this.faceLabels();
       this.renderer.render(this.scene, this.camera);
@@ -1021,8 +1062,8 @@ export class SceneEngine {
         this.armShadows();
         this.scheduleDeferredProps();
       }
-      if (animating || this.draft || (!this.reducedMotion && (this.interacting || this.dampingFrames > 0))) {
-        if (!this.interacting && this.dampingFrames > 0) this.dampingFrames -= 1;
+      const orbitBusy = this.interacting || !orbitDampingExpired(performance.now(), this.orbitDampingUntil);
+      if (animating || this.draft || (!this.reducedMotion && orbitBusy)) {
         this.requestRender();
       }
     });
@@ -1170,6 +1211,7 @@ export class SceneEngine {
     if (t >= 1) {
       this.tween = null;
       this.controls.update();
+      this.refreshHoverFromLastPointer();
       return false;
     }
     return true;
@@ -1353,8 +1395,18 @@ export class SceneEngine {
 
   private endOrbit(): void {
     this.interacting = false;
-    this.dampingFrames = this.reducedMotion ? 0 : 24;
     this.controls.enableDamping = !this.reducedMotion;
+    if (this.reducedMotion) {
+      stopOrbitInertia(this.controls);
+      this.orbitDampingUntil = 0;
+      this.clampCamera();
+      this.refreshHoverFromLastPointer();
+      this.requestRender();
+      return;
+    }
+    capOrbitInertia(this.controls);
+    this.orbitDampingUntil = performance.now() + ORBIT_DAMPING_MAX_MS;
+    this.hideHoverForCamera();
     this.clampCamera();
     this.requestRender();
   }
@@ -1437,10 +1489,14 @@ export class SceneEngine {
 
   /** CPU raycast only — never GPU id-buffer / readPixels (that stalls the compositor). */
   private raycastPointer(event: PointerEvent) {
+    return this.raycastClient(event.clientX, event.clientY);
+  }
+
+  private raycastClient(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
     if (!rect.width || !rect.height) return [];
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const roots = [this.racksRoot];
     if (this.propsRoot) roots.push(this.propsRoot);
@@ -1452,7 +1508,41 @@ export class SceneEngine {
     return hangerSlugFromHits(this.raycastPointer(event));
   }
 
+  private rememberPointer(event: PointerEvent): void {
+    this.lastPointer = { x: event.clientX, y: event.clientY, valid: true };
+  }
+
+  private cameraBusy(): boolean {
+    return (
+      this.interacting ||
+      this.tween !== null ||
+      !orbitDampingExpired(performance.now(), this.orbitDampingUntil)
+    );
+  }
+
+  private hideHoverForCamera(): void {
+    this.onHoverCb?.(null);
+    this.setHover(null);
+  }
+
+  private refreshHoverFromLastPointer(): void {
+    if (!this.lastPointer.valid || this.cameraBusy()) return;
+    const slug = this.pickFromClient(this.lastPointer.x, this.lastPointer.y);
+    this.setHover(slug, { x: this.lastPointer.x, y: this.lastPointer.y });
+    this.canvas.style.cursor = slug ? 'pointer' : 'grab';
+  }
+
+  private pickFromClient(clientX: number, clientY: number): string | null {
+    return hangerSlugFromHits(this.raycastClient(clientX, clientY));
+  }
+
   private handlePointer(event: PointerEvent): void {
+    this.rememberPointer(event);
+    if (!hangerTooltipWhileCameraBusy(this.cameraBusy())) {
+      this.hideHoverForCamera();
+      this.canvas.style.cursor = this.interacting ? 'grabbing' : 'grab';
+      return;
+    }
     const slug = this.pickHangerSlug(event);
     this.setHover(slug, { x: event.clientX, y: event.clientY });
     this.canvas.style.cursor = slug ? 'pointer' : 'grab';
