@@ -220,6 +220,8 @@ export class SceneEngine {
   private orbitDampingUntil = 0;
   private lastPointer = { x: 0, y: 0, valid: false };
   private pendingHoverAfterSettle = false;
+  private settleTimer = 0;
+  private orbitGesture: 'pointer' | 'wheel' = 'pointer';
   private readonly clock = new Clock(false);
   private disposed = false;
   private hoverSlug: string | null = null;
@@ -296,6 +298,7 @@ export class SceneEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.orbitGesture = 'pointer';
     this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.rememberPointer(event);
     this.onHoverCb?.(null);
@@ -361,11 +364,13 @@ export class SceneEngine {
   /** Re-enable dolly after settle. Does not step racks — arrows/buttons do that. */
   private readonly onCanvasWheel = () => {
     if (this.orbitSettling()) return;
+    this.orbitGesture = 'wheel';
     this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
     this.orbitDampingUntil = 0;
+    this.clearSettleTimer();
     this.cancelCameraTween();
     this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.hideHoverForCamera();
@@ -912,6 +917,7 @@ export class SceneEngine {
     this.controls.removeEventListener('start', this.onControlsStart);
     this.controls.removeEventListener('end', this.onControlsEnd);
     this.controls.removeEventListener('change', this.onControlsChange);
+    this.clearSettleTimer();
     this.controls.dispose();
     this.restoreAddEventListener?.();
     this.restoreAddEventListener = null;
@@ -1422,7 +1428,14 @@ export class SceneEngine {
     return this.interacting || !orbitDampingExpired(performance.now(), this.orbitDampingUntil);
   }
 
+  private clearSettleTimer(): void {
+    if (!this.settleTimer) return;
+    window.clearTimeout(this.settleTimer);
+    this.settleTimer = 0;
+  }
+
   private freezeOrbit(): void {
+    this.clearSettleTimer();
     stopOrbitInertia(this.controls);
     this.controls.enableZoom = shouldEnableOrbitZoom('settle');
     this.orbitDampingUntil = 0;
@@ -1433,6 +1446,12 @@ export class SceneEngine {
     this.cancelCameraTween();
     this.controls.enableDamping = !this.reducedMotion;
     stopPanZoomInertia(this.controls);
+    if (this.orbitGesture === 'wheel') {
+      this.freezeOrbit();
+      this.clampCamera();
+      this.requestRender();
+      return;
+    }
     this.controls.enableZoom = shouldEnableOrbitZoom('release');
     if (this.reducedMotion) {
       this.freezeOrbit();
@@ -1444,6 +1463,8 @@ export class SceneEngine {
     }
     capOrbitInertia(this.controls);
     this.orbitDampingUntil = performance.now() + ORBIT_DAMPING_MAX_MS;
+    this.clearSettleTimer();
+    this.settleTimer = window.setTimeout(() => this.freezeOrbit(), ORBIT_DAMPING_MAX_MS);
     this.hideHoverForCamera();
     this.clampCamera();
     this.requestRender();
