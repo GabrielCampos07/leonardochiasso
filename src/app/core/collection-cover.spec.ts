@@ -214,8 +214,8 @@ describe('coversByCollectionSlug', () => {
       [ADMIN_ORGANIC_BY_ID, ADMIN_NIPONIC_NAME_ONLY],
       PROD_COLLECTIONS,
     );
-    expect(covers['organic-dreams']).toContain('plp-calca-thumb.webp');
-    expect(covers['niponic-dreams']).toContain('plp-look-obi-organza-thumb.webp');
+    expect(covers['organic-dreams']).toBe(catalogCollectionCoverUrl('organic-dreams'));
+    expect(covers['niponic-dreams']).toBe(catalogCollectionCoverUrl('niponic-dreams'));
   });
 
   it('restores the original cover when the archived piece is live again', () => {
