@@ -1,6 +1,7 @@
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
 import {
   applyCorsBeforeSrc,
+  FALLBACK_HEIGHT,
   FALLBACK_WIDTH,
   fitLabelText,
   isSharedTexture,
@@ -8,9 +9,13 @@ import {
   makeFallbackTexture,
   makeLabelTexture,
   makePlaceholderTexture,
+  makeUnavailableTexture,
+  UNAVAILABLE_ICON_SIZE,
   makeSoldOutTexture,
   SOLD_OUT_TEXTURE_HEIGHT,
   SOLD_OUT_TEXTURE_WIDTH,
+  TEXTURE_BITMAP_MAX_H,
+  TEXTURE_BITMAP_MAX_W,
   TEXTURE_BITMAP_ORIENTATION,
   TEXTURE_CROSS_ORIGIN,
   textureCacheUrl,
@@ -50,6 +55,11 @@ describe('ImageBitmap orientation', () => {
   it('flips Y in createImageBitmap so hangers and trays stay upright', () => {
     expect(TEXTURE_BITMAP_ORIENTATION).toBe('flipY');
   });
+
+  it('downscales hanger photos to a 3D-thumb size', () => {
+    expect(TEXTURE_BITMAP_MAX_W).toBeLessThanOrEqual(320);
+    expect(TEXTURE_BITMAP_MAX_H).toBeLessThanOrEqual(400);
+  });
 });
 
 describe('applyCorsBeforeSrc', () => {
@@ -70,6 +80,20 @@ describe('makeFallbackTexture', () => {
     expect(texture.image.width).toBe(FALLBACK_WIDTH);
     expect(texture.image.height).toBeGreaterThanOrEqual(128);
     texture.dispose();
+  });
+});
+
+describe('makeUnavailableTexture', () => {
+  it('keeps the piece name under a small dedicated unavailable icon', () => {
+    const texture = makeUnavailableTexture('Vestido Longo Radial');
+    expect(texture.image.width).toBe(FALLBACK_WIDTH);
+    expect(texture.image.height).toBe(FALLBACK_HEIGHT);
+    expect(UNAVAILABLE_ICON_SIZE).toBeLessThanOrEqual(40);
+    expect(UNAVAILABLE_ICON_SIZE).toBeGreaterThan(20);
+    const again = makeUnavailableTexture('Vestido Longo Radial');
+    expect(again.image).toBe(texture.image);
+    texture.dispose();
+    again.dispose();
   });
 });
 
@@ -105,9 +129,17 @@ describe('label and placeholder canvases', () => {
     const a = makePlaceholderTexture();
     const b = makePlaceholderTexture();
     expect(isSharedTexture(a)).toBeTrue();
+    expect(a).toBe(b);
     expect(a.image).toBe(b.image);
     expect(a.image.width).toBeLessThanOrEqual(64);
+  });
+
+  it('returns a new live placeholder if the shared instance was disposed', () => {
+    const a = makePlaceholderTexture();
     a.dispose();
-    b.dispose();
+    const b = makePlaceholderTexture();
+    expect(b).not.toBe(a);
+    expect(isSharedTexture(b)).toBeTrue();
+    expect(b.image.width).toBeGreaterThan(0);
   });
 });

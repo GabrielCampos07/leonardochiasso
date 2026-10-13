@@ -36,16 +36,18 @@ describe('SceneEngine first frame', () => {
       return;
     }
     const started = performance.now();
+    let completeMs = 0;
     engine.onFirstFrame(() => {
       const ms = performance.now() - started;
       console.info(`[admin-3d] local-first-frame ${Math.round(ms)}ms`);
       expect(ms).toBeLessThan(1500);
+    });
+    engine.onSceneComplete(() => {
+      completeMs = performance.now() - started;
+      expect(completeMs).toBeLessThan(1500);
       engine.dispose();
       canvas.remove();
       done();
-    });
-    engine.onSceneComplete(() => {
-      /* photos are null placeholders; still counts as complete */
     });
     engine.start();
     engine.setLayout(fakeLayout(8));

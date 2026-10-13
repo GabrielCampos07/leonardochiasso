@@ -9,7 +9,7 @@ import {
   Vector2,
 } from 'three';
 import { ATELIER_BRASS, ATELIER_LINEN } from './atelier-look';
-import { FLOOR_Y, HANGER_SPACING, HANGER_ROW_LIMIT } from './collection-rack';
+import { FLOOR_Y, HANGER_SPACING, hangersPerRow } from './collection-rack';
 import { PHOTO_MAX_W } from './garment-hanger';
 import { UNIT_GAP } from './unit-layout';
 import type { SceneUnitKind } from './types';
@@ -97,7 +97,7 @@ export const MANNEQUIN_BEHIND_Z = -1.08;
 
 /** Local X span of hanger photos on a rack, measured from the unit origin. */
 export function hangerPhotoSpan(hangerCount: number, unitWidth: number): { minX: number; maxX: number } {
-  const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
+  const perRow = hangersPerRow(hangerCount);
   const rowWidth = Math.min(unitWidth - 0.45, perRow * HANGER_SPACING);
   const startX = -rowWidth / 2 + HANGER_SPACING / 2;
   const lastX = startX + (perRow - 1) * HANGER_SPACING;

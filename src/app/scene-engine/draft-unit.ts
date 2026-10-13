@@ -12,6 +12,7 @@ import {
 } from 'three';
 import { FLOOR_Y, RACK_BAR_TOP, rackWidth } from './collection-rack';
 import { VITRINE_DEPTH, VITRINE_SHELF_PITCH, vitrineWidth } from './jewelry-vitrine';
+import { disposeOwnedTexture } from './dispose';
 import { makeLabelTexture } from './texture-loader';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID, unitWidth } from './unit-layout';
 import type { SceneUnitKind } from './types';
@@ -136,7 +137,7 @@ export function setDraftPlateName(group: Group, name: string): void {
     size: 64,
   });
   plate.material.needsUpdate = true;
-  prev?.dispose();
+  disposeOwnedTexture(prev);
 }
 
 export function setGroupOpacity(group: Group, opacity: number): void {

@@ -1,4 +1,6 @@
-export const TEXTURE_LOAD_CONCURRENCY = 5;
+import { hangersPerRow } from './collection-rack';
+
+export const TEXTURE_LOAD_CONCURRENCY = 7;
 
 export interface TextureJob {
   id: string;
@@ -41,6 +43,11 @@ export class TextureLoadQueue {
     });
   }
 
+  cancel(id: string): void {
+    const index = this.pending.findIndex((item) => item.id === id);
+    if (index >= 0) this.pending.splice(index, 1);
+  }
+
   clear(): void {
     this.pending.length = 0;
   }
@@ -62,19 +69,42 @@ export class TextureLoadQueue {
   }
 }
 
-export function texturePriority(rackId: string, focusedId: string, rackIndex: number, focusedIndex: number): number {
+export function texturePriority(
+  rackId: string,
+  focusedId: string,
+  rackIndex: number,
+  focusedIndex: number,
+  rackCount = 0,
+): number {
   if (rackId === focusedId) return 0;
+  if (focusedIndex < 0 && rackCount > 0) {
+    return 1 + Math.abs(rackIndex - (rackCount - 1) / 2);
+  }
   const distance = focusedIndex < 0 ? rackIndex : Math.abs(rackIndex - focusedIndex);
   return 1 + distance;
 }
 
-/** Visible (focused) hangers first, then nearby racks, left-to-right within a unit. */
+export interface HangerPhotoPriorityOpts {
+  hangerCount?: number;
+  focusColumn?: number;
+  rackCount?: number;
+}
+
+/** Visible (focused / nearest) hangers first, then nearby racks. */
 export function hangerPhotoPriority(
   rackId: string,
   focusedId: string,
   rackIndex: number,
   focusedIndex: number,
   hangerIndex: number,
+  opts: HangerPhotoPriorityOpts = {},
 ): number {
-  return texturePriority(rackId, focusedId, rackIndex, focusedIndex) * 100 + hangerIndex;
+  const count = Math.max(1, opts.hangerCount ?? hangerIndex + 1);
+  const perRow = hangersPerRow(count);
+  const col = hangerIndex % perRow;
+  const focusCol = opts.focusColumn ?? (perRow - 1) / 2;
+  return (
+    texturePriority(rackId, focusedId, rackIndex, focusedIndex, opts.rackCount) * 100 +
+    Math.abs(col - focusCol)
+  );
 }

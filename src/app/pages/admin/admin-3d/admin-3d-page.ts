@@ -42,6 +42,7 @@ import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
 import { OVERVIEW_FOCUS_ID, rackNavItems, stepRackIndex } from '../../../scene-engine/camera-guide';
+import { EMPTY_RACK_PAN, rackArrowDelta } from '../../../scene-engine/rack-pan';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
   findHanger,
@@ -85,6 +86,7 @@ import {
   collectionsFromLabels,
 } from './admin-3d.fixtures';
 import { Admin3dPrefetchService } from './admin-3d-prefetch';
+import { catalogFingerprint, readCatalogSnapshot, writeCatalogSnapshot } from './catalog-snapshot';
 import { blankAtelierJoia, blankAtelierProduct, collectionSlugFromUnitId, uniqueJoiaSlug } from './atelier-blank';
 import {
   CollectionAddPiecePanel,
@@ -200,15 +202,24 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly focusedId = signal<string>(OVERVIEW_FOCUS_ID);
   readonly overviewId = OVERVIEW_FOCUS_ID;
   readonly racks = signal<{ id: string; name: string; index: number }[]>([]);
+  private readonly panTick = signal(0);
   readonly atFirst = computed(() => {
+    this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id;
+    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id && !this.engine?.canPan(-1);
   });
   readonly atLast = computed(() => {
+    this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id;
+    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id && !this.engine?.canPan(1);
+  });
+  readonly rackPan = computed(() => {
+    this.panTick();
+    this.focusedId();
+    this.layoutRev();
+    return this.engine?.rackPanState() ?? EMPTY_RACK_PAN;
   });
   readonly creating = signal(false);
   readonly createName = signal('');
@@ -263,6 +274,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private canvasReady = false;
   private pendingLayout: SceneLayout | null = null;
   private loadGen = 0;
+  private lastCatalogFp = '';
   private hintTimer = 0;
   private bootFadeTimer = 0;
   private modalOpen = false;
@@ -303,6 +315,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     });
     this.engine.onFirstFrame(() => this.markFirstFrame());
     this.engine.onSceneComplete(() => this.markSceneComplete());
+    this.engine.onPanChange(() => this.panTick.update((n) => n + 1));
     this.engine.onLoadProgress((loaded, total) => {
       this.sceneProgress.set(total > 0 ? Math.min(1, loaded / total) : 0);
     });
@@ -346,7 +359,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       this.cancelCreate();
       return;
     }
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    const arrow = rackArrowDelta(event.key);
+    if (!arrow) return;
     if (this.creating() || this.adding()) return;
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.error()) return;
     const target = event.target as HTMLElement | null;
@@ -355,7 +369,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     }
     if (this.modalOpen || document.querySelector('.lc-product-edit-dialog')) return;
     event.preventDefault();
-    this.stepRack(event.key === 'ArrowLeft' ? -1 : 1);
+    this.stepRack(arrow);
   }
 
   focusRack(id: string): void {
@@ -523,7 +537,16 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.addPanel?.resetCreate();
   }
 
+  panFocused(delta: -1 | 1): void {
+    if (this.creating() || this.adding()) return;
+    if (this.engine?.panRack(delta)) this.panTick.update((n) => n + 1);
+  }
+
   stepRack(delta: -1 | 1): void {
+    if (this.engine?.panRack(delta)) {
+      this.panTick.update((n) => n + 1);
+      return;
+    }
     const items = this.racks();
     if (!items.length) return;
     const current = items.findIndex((r) => r.id === this.focusedId());
@@ -607,6 +630,11 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
       return;
     }
 
+    const snap = readCatalogSnapshot();
+    if (snap) {
+      this.applyInputs(snap.collections, snap.products, snap.joias, false, gen, { persist: false });
+    }
+
     this.prefetch.prefetchCatalog().subscribe({
       next: ({ collections, products, storefront, joias }) => {
         if (gen !== this.loadGen) return;
@@ -624,10 +652,15 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
           joias.map(joiaToSceneInput),
           false,
           gen,
+          { persist: true },
         );
       },
       error: (err) => {
         if (gen !== this.loadGen) return;
+        if (this.layout.racks.length) {
+          this.loading.set(false);
+          return;
+        }
         this.loading.set(false);
         this.error.set(
           adminHttpErrorMessage(err, 'Não foi possível carregar o ateliê 3D. Verifique a API.'),
@@ -643,8 +676,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     joias: SceneProductInput[],
     mock: boolean,
     gen: number,
+    opts: { persist?: boolean } = {},
   ): void {
     if (gen !== this.loadGen) return;
+    const fp = catalogFingerprint(collections, products, joias);
+    const sameScene = fp === this.lastCatalogFp && this.layout.racks.length > 0;
+    this.lastCatalogFp = fp;
     this.usingMock.set(mock);
     this.collections = collections;
     this.knownRackIds = new Set(collections.map((c) => c.slug));
@@ -652,6 +689,14 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.rememberCollectionProducts();
     this.bumpLayout();
     this.loading.set(false);
+    if (opts.persist) writeCatalogSnapshot({ collections, products, joias });
+    if (sameScene) {
+      const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+      const visible: SceneLayout = { racks: unitsOfKind(this.layout, kind) };
+      this.racks.set(rackNavItems(visible.racks));
+      this.empty.set(visible.racks.length === 0 && !this.creating());
+      return;
+    }
     this.syncVisibleLayout();
   }
 

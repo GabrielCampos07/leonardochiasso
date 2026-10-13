@@ -29,6 +29,37 @@ describe('TextureLoadQueue', () => {
     expect(seen).toContain('far');
     queue.dispose();
   });
+
+  it('cancels a pending job without starting it', async () => {
+    const seen: string[] = [];
+    const queue = new TextureLoadQueue(1);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    queue.enqueue({
+      id: 'busy',
+      priority: 0,
+      run: async () => {
+        seen.push('busy');
+        await gate;
+      },
+    });
+    queue.enqueue({
+      id: 'drop',
+      priority: 1,
+      run: async () => {
+        seen.push('drop');
+      },
+    });
+    await Promise.resolve();
+    queue.cancel('drop');
+    release();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(seen).toEqual(['busy']);
+    queue.dispose();
+  });
 });
 
 describe('texturePriority', () => {
@@ -40,11 +71,14 @@ describe('texturePriority', () => {
 });
 
 describe('hangerPhotoPriority', () => {
-  it('queues visible hangers on the focused rack ahead of the rest', () => {
-    expect(TEXTURE_LOAD_CONCURRENCY).toBeGreaterThanOrEqual(4);
-    expect(TEXTURE_LOAD_CONCURRENCY).toBeLessThanOrEqual(6);
-    expect(hangerPhotoPriority('a', 'a', 0, 0, 0)).toBe(0);
-    expect(hangerPhotoPriority('a', 'a', 0, 0, 3)).toBe(3);
-    expect(hangerPhotoPriority('b', 'a', 1, 0, 0)).toBeGreaterThan(hangerPhotoPriority('a', 'a', 0, 0, 7));
+  it('queues hangers nearest the framed column first', () => {
+    expect(TEXTURE_LOAD_CONCURRENCY).toBeGreaterThanOrEqual(6);
+    expect(TEXTURE_LOAD_CONCURRENCY).toBeLessThanOrEqual(8);
+    expect(hangerPhotoPriority('a', 'a', 0, 0, 0, { hangerCount: 8, focusColumn: 0 })).toBe(0);
+    expect(hangerPhotoPriority('a', 'a', 0, 0, 3, { hangerCount: 8, focusColumn: 0 })).toBe(3);
+    expect(hangerPhotoPriority('a', 'a', 0, 0, 3, { hangerCount: 8, focusColumn: 3 })).toBe(0);
+    expect(hangerPhotoPriority('b', 'a', 1, 0, 0, { hangerCount: 8 })).toBeGreaterThan(
+      hangerPhotoPriority('a', 'a', 0, 0, 7, { hangerCount: 8 }),
+    );
   });
 });
