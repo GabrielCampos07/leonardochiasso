@@ -152,11 +152,12 @@ describe('computeEyeLevelFit', () => {
 describe('pieceFocusBox', () => {
   const piece = { minX: -0.56, maxX: -0.08, minY: 0.02, maxY: 1.06, minZ: 0, maxZ: 0.16 };
 
-  it('shifts a left hanger look-at outward so the neighbor leaves the frame', () => {
+  it('keeps a left hanger as the subject with a slight outer bias', () => {
     const box = pieceFocusBox(piece, 0, 2);
     const pieceCx = (piece.minX + piece.maxX) / 2;
     const lookCx = (box.minX + box.maxX) / 2;
     expect(lookCx).toBeCloseTo(pieceCx - PIECE_FOCUS_SHIFT, 5);
+    expect(lookCx).toBeGreaterThan(pieceCx - 0.35);
     expect(box.maxX - box.minX).toBeCloseTo(piece.maxX - piece.minX + 0.1, 5);
   });
 
