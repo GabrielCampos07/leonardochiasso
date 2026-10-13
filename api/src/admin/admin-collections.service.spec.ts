@@ -48,6 +48,43 @@ describe('AdminCollectionsService archive', () => {
     expect(list[0]?.archivedAt).toBeNull();
   });
 
+  it('uses the catalog thumb for Organic when members have no photos', async () => {
+    prisma.collection.findMany.mockResolvedValue([
+      { ...collectionRow(), _count: { products: 0 }, products: [] },
+    ]);
+    const list = await service.list(false);
+    expect(list[0]?.coverImage).toContain('plp-calca-thumb.webp');
+  });
+
+  it('derives coverImage from the first live member photo', async () => {
+    prisma.collection.findMany.mockResolvedValue([
+      {
+        ...collectionRow(),
+        _count: { products: 2 },
+        products: [
+          {
+            sortOrder: 0,
+            product: {
+              archivedAt: null,
+              media: [
+                {
+                  sortOrder: 0,
+                  isPrimary: true,
+                  mediaAsset: {
+                    cdnUrl:
+                      'https://pub-6655ba69308240e9aa39646415abf7cb.r2.dev/pdp/plp-calca-thumb.webp',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ]);
+    const list = await service.list(false);
+    expect(list[0]?.coverImage).toContain('plp-calca-thumb.webp');
+  });
+
   it('archives the collection and leaves product_collections untouched', async () => {
     const now = new Date('2026-10-12T16:00:00Z');
     jest.useFakeTimers().setSystemTime(now);

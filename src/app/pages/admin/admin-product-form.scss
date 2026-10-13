@@ -99,11 +99,50 @@
   background: color-mix(in srgb, var(--lc-ash) 18%, var(--lc-white));
 }
 
-.admin-edit__file input[type='file'] {
-  min-height: auto;
-  padding: 10px 0;
-  border: none;
-  background: transparent;
+.admin-edit__file {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.admin-edit__file-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.admin-edit__file-btn,
+.admin-edit__file-retry {
+  align-self: flex-start;
+  min-height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--lc-void);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-edit__file-btn:disabled,
+.admin-edit__file-retry:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-edit__upload-error {
+  margin: 0;
+  color: #8b1e2d;
+  font-size: 1.05rem;
 }
 
 .admin-edit__gallery {

@@ -36,7 +36,26 @@ describe('productsInCollection', () => {
       },
       { slug: 'outro', collections: [{ slug: 'organic-dreams', name: 'Organic Dreams' }] },
     ];
-    const rows = productsInCollection('teste-col-ux-r', admin as never, []);
+    const rows = productsInCollection({ slug: 'teste-col-ux-r' }, admin as never, []);
     expect(rows.map((p) => p.slug)).toEqual(['vestido']);
+  });
+
+  it('matches membership by collection id when slug is missing', () => {
+    const admin = [
+      {
+        slug: 'calca-pantalona-rasgo',
+        collections: [{ id: 'a72b6b4e-6765-4f4d-85b7-91017c68a9ad', name: 'Organic Dreams' }],
+      },
+    ];
+    const rows = productsInCollection(
+      {
+        slug: 'organic-dreams',
+        id: 'a72b6b4e-6765-4f4d-85b7-91017c68a9ad',
+        name: 'Organic Dreams',
+      },
+      admin as never,
+      [],
+    );
+    expect(rows.map((p) => p.slug)).toEqual(['calca-pantalona-rasgo']);
   });
 });

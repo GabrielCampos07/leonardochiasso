@@ -47,7 +47,7 @@
           @if (isNew() && collectionRequired()) {
             <option value="" disabled>Selecione a coleção</option>
           }
-          @for (opt of collectionOptions; track opt.slug) {
+          @for (opt of collectionOptions(); track opt.slug) {
             <option [value]="opt.slug">{{ opt.label }}</option>
           }
           @if (extraCollectionOption(); as extra) {
@@ -176,19 +176,42 @@
       @if (useApi && isNew()) {
         <p class="admin-edit__note">Salve o produto primeiro; depois envie as fotos aqui.</p>
       }
-      <label class="admin-edit__file">
-        Enviar fotos
+      <div class="admin-edit__file">
+        <span>Enviar fotos</span>
         <input
+          #photoInput
           type="file"
           accept="image/*"
           multiple
+          class="admin-edit__file-native"
+          tabindex="-1"
+          aria-hidden="true"
           (change)="onFilesSelected($event)"
           [disabled]="uploading() || (useApi && isNew())"
         />
-      </label>
-      @if (uploading()) {
-        <p class="admin-edit__hint">Enviando…</p>
-      }
+        <button
+          type="button"
+          class="admin-edit__file-btn"
+          [disabled]="uploading() || (useApi && isNew())"
+          (click)="photoInput.click()"
+        >
+          {{ pendingFileLabel() }}
+        </button>
+        @if (uploading()) {
+          <p class="admin-edit__hint">Enviando…</p>
+        }
+        @if (uploadError()) {
+          <p class="admin-edit__upload-error" role="alert">{{ uploadError() }}</p>
+          <button
+            type="button"
+            class="admin-edit__file-retry"
+            [disabled]="uploading() || (useApi && isNew())"
+            (click)="retryUpload()"
+          >
+            Tentar de novo
+          </button>
+        }
+      </div>
 
       @if (galleryItems().length) {
         <ul

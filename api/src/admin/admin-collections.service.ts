@@ -5,6 +5,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  collectionCoverInclude,
+  resolveCollectionCoverImage,
+} from '../catalog/collection-cover';
 import { CollectionDto } from '../catalog/dto/catalog.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { archivedAtWhere } from './archive-query';
@@ -17,11 +21,12 @@ export class AdminCollectionsService {
     const collections = await this.prisma.collection.findMany({
       where: archivedAtWhere(archived),
       orderBy: { sortOrder: 'asc' },
-      include: { _count: { select: { products: true } } },
+      include: {
+        _count: { select: { products: true } },
+        ...collectionCoverInclude,
+      },
     });
-    return collections.map((c) =>
-      mapCollection(c, c._count.products),
-    );
+    return collections.map((c) => mapCollection(c, c._count.products));
   }
 
   async create(input: {
@@ -178,6 +183,7 @@ function mapCollection(
     sortOrder: number;
     publishedAt: Date | null;
     archivedAt?: Date | null;
+    products?: Parameters<typeof resolveCollectionCoverImage>[1];
   },
   productCount = 0,
 ): CollectionDto {
@@ -190,6 +196,7 @@ function mapCollection(
     publishedAt: c.publishedAt?.toISOString() ?? null,
     archivedAt: c.archivedAt?.toISOString() ?? null,
     productCount,
+    coverImage: resolveCollectionCoverImage(c.slug, c.products ?? []),
   };
 }
 
