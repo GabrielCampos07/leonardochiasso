@@ -75,7 +75,7 @@ export function placeRoomRug(room: Group, centerX: number, span: number): void {
 
 export function placeRackRugs(
   room: Group,
-  slots: Array<{ x: number; width: number }>,
+  slots: Array<{ x: number; width: number; rackId?: string }>,
   lite = false,
 ): void {
   const root = room.getObjectByName('rugs') as Group | undefined;
@@ -89,14 +89,14 @@ export function placeRackRugs(
     rug.position.set(slot.x, FLOOR_Y + 0.014, RUG_Z);
     rug.receiveShadow = !lite;
     rug.name = 'rug';
-    rug.userData = { ignorePick: true };
+    rug.userData = { ignorePick: true, kind: 'rug', rackId: slot.rackId ?? '' };
     root.add(rug);
 
     const ao = new Mesh(new PlaneGeometry(slot.width * 0.95, 0.62), contactShadowMaterial());
     ao.rotation.x = -Math.PI / 2;
     ao.position.set(slot.x, FLOOR_Y + 0.018, 0.04);
     ao.name = 'contact-ao';
-    ao.userData = { ignorePick: true };
+    ao.userData = { ignorePick: true, kind: 'rug', rackId: slot.rackId ?? '' };
     root.add(ao);
   }
 }

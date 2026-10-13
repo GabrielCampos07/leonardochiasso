@@ -183,7 +183,30 @@ describe('resolveHangerClick', () => {
         dy: 0,
       }),
     ).toBeNull();
-    expect(isPointerClick(12, 0)).toBeTrue();
-    expect(isPointerClick(13, 0)).toBeFalse();
+    expect(isPointerClick(5, 0)).toBeTrue();
+    expect(isPointerClick(6, 0)).toBeFalse();
+  });
+
+  it('ignores a hold longer than 300ms even if the pointer barely moved', () => {
+    expect(
+      resolveHangerClick({
+        pointerDownSlug: 'vestido-lg-bateau',
+        pointerUpSlug: 'vestido-lg-bateau',
+        hoverSlug: 'vestido-lg-bateau',
+        dx: 1,
+        dy: 1,
+        durationMs: 301,
+      }),
+    ).toBeNull();
+    expect(
+      resolveHangerClick({
+        pointerDownSlug: 'vestido-lg-bateau',
+        pointerUpSlug: 'vestido-lg-bateau',
+        hoverSlug: 'vestido-lg-bateau',
+        dx: 1,
+        dy: 1,
+        durationMs: 120,
+      }),
+    ).toBe('vestido-lg-bateau');
   });
 });

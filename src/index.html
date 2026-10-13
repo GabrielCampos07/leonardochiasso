@@ -20,8 +20,56 @@
       href="https://fonts.googleapis.com/css2?family=Encode+Sans+Expanded:wght@300;400;500&family=Quicksand:wght@300;400;500;600&display=swap"
       rel="stylesheet"
     />
+    <style>
+      #lc-atelier-boot {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        margin: 0;
+        background: #efe8dc;
+        color: #2a2118;
+        font-family: Quicksand, "Encode Sans Expanded", sans-serif;
+      }
+      #lc-atelier-boot.is-on {
+        display: flex;
+      }
+      #lc-atelier-boot p {
+        margin: 0;
+        font-size: 0.95rem;
+      }
+      #lc-atelier-boot .lc-atelier-boot__spin {
+        width: 28px;
+        height: 28px;
+        border: 2px solid rgb(42 33 24 / 18%);
+        border-top-color: #2a2118;
+        border-radius: 50%;
+        animation: lc-atelier-boot-spin 0.8s linear infinite;
+      }
+      @keyframes lc-atelier-boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="lc-atelier-boot" role="status">
+      <div class="lc-atelier-boot__spin" aria-hidden="true"></div>
+      <p>Montando o ateliê…</p>
+    </div>
+    <script>
+      (function () {
+        var boot = document.getElementById('lc-atelier-boot');
+        if (boot && /\/admin\/3d(?:\/|$|\?)/.test(location.pathname + location.search)) {
+          boot.classList.add('is-on');
+        }
+      })();
+    </script>
     <lc-root></lc-root>
   </body>
 </html>

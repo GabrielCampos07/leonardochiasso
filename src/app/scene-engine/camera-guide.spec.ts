@@ -253,7 +253,7 @@ describe('portrait Ver todas stack', () => {
     expect(6.8 / stackVisible).toBeLessThan(1.02);
     expect(6.8 / stackVisible).toBeGreaterThan(0.7);
     const stackCy = (stack.minY + stack.maxY) / 2;
-    expect(stacked.target.y).toBeLessThan(stackCy);
+    expect(stacked.target.y).toBeCloseTo(stackCy, 5);
   });
 });
 

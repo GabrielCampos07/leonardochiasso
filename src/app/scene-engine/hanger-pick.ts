@@ -1,7 +1,10 @@
 import { HANGER_USER_DATA } from './garment-hanger';
 
-/** 12px — the closer #33 camera made the old 6px slop treat real clicks as orbits. */
-export const DRAG_SLOP_SQ = 144;
+/** 5px — a rack pan / orbit must not count as a piece click. */
+export const CLICK_SLOP_PX = 5;
+export const DRAG_SLOP_SQ = CLICK_SLOP_PX * CLICK_SLOP_PX;
+/** Finger-down longer than this is a hold / drag, even if it barely moved. */
+export const CLICK_MAX_MS = 300;
 
 const IGNORE_PICK_KINDS = new Set([
   'room',
@@ -93,7 +96,9 @@ export function resolveHangerClick(input: {
   hoverSlug: string | null;
   dx: number;
   dy: number;
+  durationMs?: number;
 }): string | null {
   if (!isPointerClick(input.dx, input.dy)) return null;
+  if (input.durationMs != null && input.durationMs > CLICK_MAX_MS) return null;
   return input.pointerDownSlug ?? input.pointerUpSlug ?? input.hoverSlug;
 }

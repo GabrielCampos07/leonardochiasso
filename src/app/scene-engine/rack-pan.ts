@@ -121,3 +121,17 @@ export function rackArrowDelta(key: string): -1 | 1 | 0 {
   if (key === 'ArrowRight') return 1;
   return 0;
 }
+
+/** Ctrl+wheel / trackpad pinch (browsers set ctrlKey) always dollies. */
+export function isPinchZoomEvent(event: { ctrlKey?: boolean; metaKey?: boolean }): boolean {
+  return Boolean(event.ctrlKey || event.metaKey);
+}
+
+/** Wheel over a long rack pans pieces. Elsewhere — or pinch — zooms. */
+export function shouldPanRackOnWheel(input: {
+  overRack: boolean;
+  pinch: boolean;
+  panRange: number;
+}): boolean {
+  return input.overRack && !input.pinch && input.panRange > 0;
+}

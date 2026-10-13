@@ -78,7 +78,9 @@ import {
   EMPTY_RACK_PAN,
   rackLookFrame,
   rackPanProgress,
+  isPinchZoomEvent,
   rackStartPanX,
+  shouldPanRackOnWheel,
   wheelPanPixels,
   type RackPanProgress,
 } from './rack-pan';
@@ -331,8 +333,11 @@ export class SceneEngine {
   private mannequinSrc: Group | null = null;
   private plantSrc: Group | null = null;
 
+  private pointerDownAt = 0;
+
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
+    this.pointerDownAt = performance.now();
     this.lastDragX = event.clientX;
     this.rackPanning = false;
     this.orbitGesture = 'pointer';
@@ -342,7 +347,6 @@ export class SceneEngine {
     this.onHoverCb?.(null);
     this.setHover(null);
     this.pointerDownSlug = this.pickHangerSlug(event);
-    if (this.pointerDownSlug) this.onClickCb?.(this.pointerDownSlug);
     try {
       this.canvas.setPointerCapture(event.pointerId);
       this.capturedPointerId = event.pointerId;
@@ -381,29 +385,32 @@ export class SceneEngine {
     this.stopRackPan();
     this.rememberPointer(event);
     this.releasePointer(event.pointerId);
+    const durationMs = performance.now() - this.pointerDownAt;
     const slug = resolveHangerClick({
       pointerDownSlug: this.pointerDownSlug,
       pointerUpSlug: this.pickHangerSlug(event),
       hoverSlug: this.hoverSlug,
       dx,
       dy,
+      durationMs,
     });
     this.pointerDownSlug = null;
     if (!isPointerClick(dx, dy)) this.userOrbited = true;
-    if (slug) {
-      /* hanger click is resolved on pointerup so a rack pan cannot open the modal */
-    } else if (!wasPanning && isPointerClick(dx, dy) && !this.userOrbited) {
+    if (!wasPanning && isPointerClick(dx, dy) && !this.userOrbited) {
       const hits = this.raycastPointer(event);
       if (this.focusedId === OVERVIEW_FOCUS_ID) {
         const rackId = rackIdFromHits(hits);
         if (rackId) {
-          this.focusRack(rackId);
           this.endOrbit();
+          this.focusRack(rackId);
           return;
         }
+      } else if (slug) {
+        this.onClickCb?.(slug);
+      } else {
+        const emptyId = this.emptyUnitIdFromHits(hits);
+        if (emptyId) this.onEmptyUnitCb?.(emptyId);
       }
-      const emptyId = this.emptyUnitIdFromHits(hits);
-      if (emptyId) this.onEmptyUnitCb?.(emptyId);
     }
     this.endOrbit();
   };
@@ -425,14 +432,35 @@ export class SceneEngine {
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
+  /** Capture runs before OrbitControls so rack-pan can disable dolly first. */
+  private readonly onWheelCapture = (event: WheelEvent) => {
+    const pinch = isPinchZoomEvent(event);
+    const pan = shouldPanRackOnWheel({
+      overRack: this.wheelOverFocusedRack(event),
+      pinch,
+      panRange: this.focusedPanRange(),
+    });
+    if (pan) {
+      this.controls.enableZoom = false;
+      return;
+    }
+    if (this.orbitSettling() && !pinch) return;
+    this.orbitGesture = 'wheel';
+    this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
+  };
   /** Rack wheel pans pieces. Elsewhere (or ctrl / pinch) dollies. */
   private readonly onWheel = (event: WheelEvent) => {
     if (event.cancelable) event.preventDefault();
-    if (this.orbitSettling() && !event.ctrlKey && event.deltaX === 0) return;
-    this.orbitGesture = 'wheel';
-    this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
-    if (this.focusedPanRange() <= 0) return;
-    this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+    const pinch = isPinchZoomEvent(event);
+    if (
+      shouldPanRackOnWheel({
+        overRack: this.wheelOverFocusedRack(event),
+        pinch,
+        panRange: this.focusedPanRange(),
+      })
+    ) {
+      this.nudgePan(wheelPanPixels(event) * this.panPixelsToWorld());
+    }
   };
   private readonly onControlsStart = () => {
     this.interacting = true;
@@ -544,6 +572,7 @@ export class SceneEngine {
     canvas.addEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
     canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('wheel', this.onWheelCapture, { capture: true, passive: false });
     canvas.addEventListener('wheel', this.onWheel, NON_PASSIVE);
     window.addEventListener('blur', this.onWindowBlur);
 
@@ -1047,6 +1076,7 @@ export class SceneEngine {
     this.canvas.removeEventListener('pointerleave', this.onPointerLeave, NON_PASSIVE);
     this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('wheel', this.onWheelCapture, { capture: true, passive: false } as AddEventListenerOptions);
     this.canvas.removeEventListener('wheel', this.onWheel, NON_PASSIVE);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost, false);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored, false);
@@ -1899,6 +1929,11 @@ export class SceneEngine {
     return hangerSlugFromHits(this.raycastPointer(event));
   }
 
+  private wheelOverFocusedRack(event: WheelEvent): boolean {
+    const id = rackIdFromHits(this.raycastClient(event.clientX, event.clientY));
+    return Boolean(id && id === this.focusedId);
+  }
+
   private rememberPointer(event: PointerEvent): void {
     this.lastPointer = { x: event.clientX, y: event.clientY, valid: true };
   }
@@ -1997,6 +2032,7 @@ export class SceneEngine {
       slots.map((slot) => ({
         x: slot.x,
         width: unitWidth(slot.rack.kind, slot.rack.hangers.length),
+        rackId: slot.id,
       })),
       this.lite,
     );

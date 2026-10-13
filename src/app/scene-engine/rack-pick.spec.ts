@@ -20,4 +20,13 @@ describe('rackIdFromHits', () => {
     const none = { userData: { kind: 'rack', rackId: '__none__' } };
     expect(rackIdFromHits([{ object: organic }, { object: none }])).toBe('organic-dreams');
   });
+
+  it('treats hangers and the rug as part of the rack, but not the floor', () => {
+    const hanger = { userData: { kind: 'hanger', rackId: 'organic-dreams', slug: 'vestido-lg-bateau' } };
+    const rug = { name: 'rug', userData: { kind: 'rug', rackId: 'organic-dreams', ignorePick: true } };
+    const floor = { name: 'floor', userData: { kind: 'floor', ignorePick: true } };
+    expect(rackIdFromHits([{ object: hanger }])).toBe('organic-dreams');
+    expect(rackIdFromHits([{ object: rug }])).toBe('organic-dreams');
+    expect(rackIdFromHits([{ object: floor }, { object: hanger }])).toBeNull();
+  });
 });

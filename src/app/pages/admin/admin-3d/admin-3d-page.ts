@@ -109,7 +109,7 @@ export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
 const HINT_AUTO_HIDE_MS = 5000;
 /** Visible hint only — dismiss is aria-label so "Fechar" cannot leak into the copy. */
-export const ATELIER_HINT_COPY = 'Clique · arraste · ← →';
+export const ATELIER_HINT_COPY = 'Clique · arraste · ← → · scroll';
 
 export function prefersReducedMotion(): boolean {
   try {

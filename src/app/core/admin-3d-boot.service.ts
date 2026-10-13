@@ -27,6 +27,7 @@ export class Admin3dBootService {
     const ms = typeof performance === 'undefined' ? 0 : Math.max(0, performance.now() - started);
     this.lastTtffMs.set(ms);
     this.ready.set(true);
+    hideStaticAtelierBoot();
     if (typeof console !== 'undefined') {
       console.info(`${ADMIN_3D_TTFF_LOG} ${Math.round(ms)}ms`);
     }
@@ -48,5 +49,11 @@ export class Admin3dBootService {
     this.ready.set(false);
     this.lastTtffMs.set(null);
     this.lastCompleteMs.set(null);
+    hideStaticAtelierBoot();
   }
+}
+
+function hideStaticAtelierBoot(): void {
+  if (typeof document === 'undefined') return;
+  document.getElementById('lc-atelier-boot')?.classList.remove('is-on');
 }
