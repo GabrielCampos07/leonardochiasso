@@ -29,11 +29,12 @@ export const CAMERA_TWEEN_MS = 720;
 export const CREATE_TWEEN_MS = 560;
 /** Keep the lens above the wood floor (`collection-rack` FLOOR_Y = -0.7). */
 export const CAMERA_MIN_Y = -0.45;
-export const FIT_PAD_TOP = 0.12;
-export const FIT_PAD_BOTTOM = 0.18;
-export const FIT_PAD_SIDE = 0.08;
-/** Extra side inset so the name plate and end hangers stay on-screen. */
-export const FIT_WIDTH_MARGIN = 0.08;
+export const FIT_PAD_TOP = 0.08;
+export const FIT_PAD_BOTTOM = 0.16;
+export const FIT_PAD_SIDE = 0.075;
+/** Side inset so hangers fill ~85% of the viewport width. */
+export const FIT_WIDTH_MARGIN = 0.075;
+export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
 
 /** ±25° around the front of the active unit. */
 export const CAMERA_AZIMUTH_LIMIT = (25 * Math.PI) / 180;
@@ -117,8 +118,8 @@ export function poseFromElevation(
 }
 
 /**
- * Fit the full rack (or atelier) bounding box, leaving room for the header and
- * the bottom guide. Compact viewports frame one unit tighter and higher.
+ * Fit the active rack so hangers fill ~85% of the viewport width. Height only
+ * pushes the camera back far enough to keep the collection sign on screen.
  */
 export function computeEyeLevelFit(
   box: FitBox,
@@ -134,20 +135,20 @@ export function computeEyeLevelFit(
   const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
 
-  const padTop = compact ? 0.06 : FIT_PAD_TOP;
-  const padBottom = compact ? 0.14 : FIT_PAD_BOTTOM;
-  const visibleH = Math.max(0.35, 1 - padTop - padBottom);
+  const padTop = compact ? 0.05 : FIT_PAD_TOP;
+  const padBottom = compact ? 0.16 : FIT_PAD_BOTTOM;
+  const visibleH = Math.max(0.42, 1 - padTop - padBottom);
   const fov = (fovDeg * Math.PI) / 180;
-  const fill = mode === 'overview' ? (compact ? 0.98 : 1.12) : 1;
+  const fill = mode === 'overview' ? (compact ? 0.98 : 1.08) : 1;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN);
   const fitted = Math.max(fitH, fitW);
-  let distance = Math.max(fitted, compact ? 1.45 : 2.05) * fill + depth * (compact ? 0.22 : 0.35);
-  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 3.0 : 4.4), compact ? 9 : 16);
-  else distance = Math.min(Math.max(distance, compact ? 1.45 : 2.2), 12);
+  let distance = fitted * fill + depth * (compact ? 0.08 : 0.1);
+  if (mode === 'overview') distance = Math.min(Math.max(distance, compact ? 2.6 : 3.8), compact ? 9 : 16);
+  else distance = Math.min(Math.max(distance, compact ? 1.15 : 1.35), 10);
 
-  const targetY = compact ? box.minY + height * 0.5 : cy;
-  const elevation = compact ? 0.14 : 0.16;
+  const targetY = compact ? box.minY + height * 0.48 : cy;
+  const elevation = compact ? 0.11 : 0.13;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 

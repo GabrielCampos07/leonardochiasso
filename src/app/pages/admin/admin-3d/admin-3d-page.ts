@@ -218,6 +218,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     return { id: unit.id, name: unit.name, kind: unit.kind, hangers: unit.hangers.length };
   });
   readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
+  readonly moreOpen = signal(false);
+  readonly focusedName = computed(() => {
+    const id = this.focusedId();
+    if (id === OVERVIEW_FOCUS_ID) return 'Todas';
+    return this.racks().find((rack) => rack.id === id)?.name ?? 'Coleção';
+  });
   readonly adding = signal(false);
   readonly canArchiveFocused = computed(() => {
     if (this.creating() || this.adding()) return false;
@@ -348,7 +354,22 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
 
   focusOverview(): void {
     if (this.creating() || this.adding()) return;
+    this.moreOpen.set(false);
     this.engine?.focusOverview(this.reducedMotion);
+  }
+
+  toggleMore(event?: Event): void {
+    event?.stopPropagation();
+    this.moreOpen.update((open) => !open);
+  }
+
+  closeMore(): void {
+    this.moreOpen.set(false);
+  }
+
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    if (this.moreOpen()) this.moreOpen.set(false);
   }
 
   setLine(line: AtelierLine): void {
@@ -359,6 +380,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
 
   startCreate(): void {
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.modalOpen || this.adding()) return;
+    this.moreOpen.set(false);
     this.hoverTip.set(null);
     this.createError.set('');
     this.createSaving.set(false);
@@ -443,6 +465,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   addPieceToFocused(): void {
+    this.moreOpen.set(false);
     const unit = this.activeUnit();
     if (unit) this.openAddPanel(unit.id);
   }

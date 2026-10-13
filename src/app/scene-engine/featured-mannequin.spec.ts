@@ -1,12 +1,11 @@
 import { mannequinOffset } from './featured-mannequin';
 
-describe('featured mannequin placement', () => {
-  it('stays beside the unit and behind hangers', () => {
-    const rack = mannequinOffset(2.6, 'rack');
-    const vitrine = mannequinOffset(1.7, 'vitrine');
-    expect(rack.z).toBeLessThan(0);
-    expect(vitrine.z).toBeLessThan(0);
-    expect(rack.x).toBeGreaterThan(1.2);
-    expect(vitrine.x).toBeGreaterThan(0.8);
+describe('mannequinOffset', () => {
+  it('keeps the dress form inside the unit width so it cannot overlap the next rack', () => {
+    const width = 2.2;
+    const offset = mannequinOffset(width, 'rack');
+    expect(offset.x).toBeLessThan(width / 2);
+    expect(offset.x).toBeGreaterThan(0);
+    expect(offset.z).toBeLessThan(-0.4);
   });
 });

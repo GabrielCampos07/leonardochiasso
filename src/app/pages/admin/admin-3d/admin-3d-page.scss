@@ -131,15 +131,19 @@
 }
 
 .admin-3d__rack--new,
-.admin-3d__rack--add {
+.admin-3d__rack--add,
+.admin-3d__rack--archive {
   margin-left: 4px;
   border-style: dashed;
 }
 
-@media (min-width: 769px) {
-  .admin-3d__rack--add {
-    display: none;
-  }
+.admin-3d__rack--archive {
+  border-color: #8b1e2d;
+  color: #8b1e2d;
+}
+
+.admin-3d__pager {
+  display: none;
 }
 
 .admin-3d__arrow:disabled {
@@ -306,20 +310,57 @@
   display: none;
 }
 
-.admin-3d__archive-col {
-  position: absolute;
-  right: 16px;
-  top: calc(72px + env(safe-area-inset-top, 0px));
-  z-index: 7;
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid #8b1e2d;
-  background: rgb(255 255 255 / 94%);
-  color: #8b1e2d;
+.admin-3d__peca,
+.admin-3d__more {
+  flex: 0 0 auto;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--lc-void);
+  background: var(--lc-white);
+  color: var(--lc-void);
   font-family: var(--lc-font-display);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-3d__pager-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-family: var(--lc-font-display);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.admin-3d__menu {
+  position: absolute;
+  right: 8px;
+  bottom: calc(100% + 6px);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 6px;
+  background: rgb(255 255 255 / 96%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 16%, transparent);
+}
+
+.admin-3d__menu button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.82rem;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -398,10 +439,10 @@
     right: 8px;
     bottom: 8px;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: 1fr;
     grid-template-areas:
-      'lines lines lines'
-      'prev racks next';
+      'lines'
+      'pager';
     align-items: center;
     gap: 6px;
   }
@@ -411,64 +452,18 @@
     justify-content: center;
   }
 
-  .admin-3d__arrow--prev {
-    grid-area: prev;
-  }
-
-  .admin-3d__arrow--next {
-    grid-area: next;
-  }
-
+  .admin-3d__arrow--desktop,
   .admin-3d__racks {
-    grid-area: racks;
-    justify-content: center;
-    overflow: hidden;
+    display: none;
   }
 
-  .admin-3d__rack:not(.is-on) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-
-  .admin-3d__rack.is-on {
+  .admin-3d__pager {
+    grid-area: pager;
     position: relative;
-    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     min-width: 0;
-    max-width: calc(100% - 132px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .admin-3d__rack--all {
-    display: none;
-  }
-
-  .admin-3d__rack.admin-3d__rack--new,
-  .admin-3d__rack.admin-3d__rack--new:not(.is-on),
-  .admin-3d__rack.admin-3d__rack--add,
-  .admin-3d__rack.admin-3d__rack--add:not(.is-on) {
-    position: relative;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip: auto;
-    flex: 0 0 auto;
-    flex-shrink: 0;
-    min-width: 44px;
-    max-width: none;
-    white-space: nowrap;
-  }
-
-  .admin-3d__add-full {
-    display: none;
-  }
-
-  .admin-3d__add-short {
-    display: inline;
   }
 
   .admin-3d__add-piece {

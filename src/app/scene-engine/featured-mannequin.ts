@@ -90,10 +90,10 @@ export function createDressForm(lite = false): Group {
   return group;
 }
 
-/** Beside the unit, behind hangers — never between camera and a photo. */
+/** Inside the unit width, behind hangers — never into the neighbor's slot. */
 export function mannequinOffset(unitWidth: number, kind: SceneUnitKind): { x: number; z: number; rotY: number } {
-  const side = kind === 'vitrine' ? unitWidth / 2 + 0.5 : unitWidth / 2 + 0.46;
-  return { x: side, z: -0.58, rotY: -0.22 };
+  const inset = kind === 'vitrine' ? 0.22 : 0.18;
+  return { x: unitWidth / 2 - inset, z: -0.92, rotY: -0.18 };
 }
 
 export function dimAsBackground(root: Group, intensity = 0.32): void {

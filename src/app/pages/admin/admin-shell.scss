@@ -34,6 +34,7 @@
 }
 
 .admin-bar {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -88,6 +89,10 @@
   color: var(--lc-ash);
   letter-spacing: 0;
   text-transform: none;
+}
+
+.admin-bar__menu-btn {
+  display: none;
 }
 
 .admin-bar__nav-wrap {
@@ -252,40 +257,69 @@
 
 @media (max-width: 960px) {
   .admin-bar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: var(--lc-space-8);
   }
 
   .admin-bar__top {
-    width: 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .admin-bar__menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-height: 48px;
+    min-width: 48px;
+    padding: 0 14px;
+    border: 1px solid color-mix(in srgb, var(--lc-void) 22%, transparent);
+    background: var(--lc-white);
+    color: var(--lc-void);
+    font-family: var(--lc-font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
   }
 
   .admin-bar__nav-wrap {
-    width: 100%;
+    display: none;
+    position: absolute;
+    top: calc(100% - 1px);
+    right: max(var(--lc-space-16), env(safe-area-inset-right));
+    z-index: 30;
+    width: min(240px, calc(100vw - 24px));
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px;
+    background: var(--lc-white);
+    border: 1px solid color-mix(in srgb, var(--lc-void) 16%, transparent);
   }
 
-  .admin-bar__nav-wrap::after {
-    display: none;
+  .admin-bar__nav-wrap.is-open {
+    display: flex;
   }
 
   .admin-bar__nav {
-    flex-wrap: wrap;
-    overflow: visible;
-    gap: var(--lc-space-4) var(--lc-space-16);
-    padding-right: 0;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0;
   }
 
   .admin-bar__nav a,
   .admin-bar__out {
-    flex: 0 0 auto;
+    justify-content: flex-start;
+    width: 100%;
     white-space: nowrap;
   }
 
   .admin-bar__out {
-    margin-left: auto;
-    padding-inline: 10px;
-    background: var(--lc-white);
+    margin-left: 0;
+    padding-inline: 4px;
   }
 }
 

@@ -100,11 +100,19 @@ describe('computeEyeLevelFit', () => {
     expect(rack.position.y).toBeGreaterThan(-0.45);
   });
 
-  it('backs a compact 400px viewport so the full rack width and plate fit with 8% margin', () => {
+  it('fills about 85% of viewport width when the rack is wider than it is tall', () => {
+    const wide = { minX: 0, maxX: 4, minY: 0, maxY: 1.1, minZ: -0.1, maxZ: 0.1 };
+    const pose = computeEyeLevelFit(wide, 16 / 9, 38, 'rack');
+    const visible = 2 * Math.tan((38 * Math.PI) / 360) * pose.distance * (16 / 9);
+    expect(4 / visible).toBeGreaterThan(0.78);
+    expect(4 / visible).toBeLessThan(0.95);
+  });
+
+  it('keeps a compact viewport on the 85% width fit instead of backing away', () => {
     const compact = computeEyeLevelFit(box, 400 / 720, 38, 'rack', true);
-    const need = distanceToFitWidth(3, 400 / 720, 38, 0.08);
-    expect(compact.distance).toBeGreaterThanOrEqual(need);
-    expect(compact.distance).toBeGreaterThan(2.8);
+    const need = distanceToFitWidth(3, 400 / 720, 38, 0.075);
+    expect(compact.distance).toBeGreaterThanOrEqual(need * 0.92);
+    expect(compact.distance).toBeLessThan(need * 1.25);
   });
 
   it('fits a tall 3-row rack without the old 4.6 distance cap', () => {

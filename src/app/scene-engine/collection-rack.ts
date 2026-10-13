@@ -26,7 +26,7 @@ const MIN_HANGER_Y_TALL = FLOOR_Y + HANGER_BELOW_ORIGIN + 0.32;
 
 export function rackWidth(hangerCount: number): number {
   const perRow = Math.min(Math.max(hangerCount, 1), HANGER_ROW_LIMIT);
-  return Math.max(2.6, perRow * HANGER_SPACING + 0.7);
+  return Math.max(1.72, perRow * HANGER_SPACING + 0.52);
 }
 
 export function rackRowCount(hangerCount: number): number {

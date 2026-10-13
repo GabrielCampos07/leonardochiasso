@@ -549,17 +549,28 @@ export class SceneEngine {
       this.focusedId = hanger.rackId;
       this.applyOrbitLimits('rack');
     }
+    const rackGroup = hanger
+      ? (this.racksRoot.getObjectByName(`rack:${hanger.rackId}`) as Group | undefined)
+      : undefined;
+    const plate = rackGroup?.getObjectByName('plate');
     group.updateWorldMatrix(true, true);
+    plate?.updateWorldMatrix(true, true);
     const garment = group.getObjectByName('garment');
-    const target = new Vector3();
-    (garment ?? group).getWorldPosition(target);
-    const distance = 2.48;
+    const focus = new Vector3();
+    (garment ?? group).getWorldPosition(focus);
+    const platePos = new Vector3();
+    plate?.getWorldPosition(platePos);
+    const plateTop = plate ? platePos.y + 0.16 : focus.y + 0.7;
+    const box = {
+      minX: focus.x - 0.62,
+      maxX: focus.x + 0.62,
+      minY: focus.y - 0.42,
+      maxY: plateTop,
+      minZ: focus.z - 0.12,
+      maxZ: focus.z + 0.12,
+    };
     this.moveCamera(
-      {
-        position: { x: target.x, y: target.y + 0.16, z: target.z + distance },
-        target: { x: target.x, y: target.y, z: target.z },
-        distance,
-      },
+      computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, 'rack', isCompactAtelierViewport()),
       immediate,
     );
     this.layoutDeferredProps();
@@ -902,14 +913,20 @@ export class SceneEngine {
       this.controls.minDistance = 1.4;
       this.controls.maxDistance = 6;
     } else {
-      this.controls.minDistance = 1.8;
-      this.controls.maxDistance = 12;
+      this.controls.minDistance = 1.2;
+      this.controls.maxDistance = 10;
     }
   }
 
   private poseFor(object: Object3D, mode: CameraFocusMode): CameraPose {
     this.bounds.makeEmpty();
-    this.bounds.expandByObject(object);
+    if (mode === 'rack' && object instanceof Group) {
+      const plate = object.getObjectByName('plate');
+      const hangers = object.getObjectByName('hangers');
+      if (plate) this.bounds.expandByObject(plate);
+      if (hangers) this.bounds.expandByObject(hangers);
+    }
+    if (this.bounds.isEmpty()) this.bounds.expandByObject(object);
     if (this.bounds.isEmpty()) {
       return { position: { x: 0, y: 1.15, z: 3.2 }, target: { x: 0, y: 0.35, z: 0 }, distance: 3.2 };
     }
