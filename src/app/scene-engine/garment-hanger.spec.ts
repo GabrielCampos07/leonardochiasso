@@ -27,5 +27,6 @@ describe('garment hanger sold-out badge', () => {
     expect(badge?.visible).toBeTrue();
     expect(back).toBeTruthy();
     expect(isPhotoMaterial(back.material)).toBeTrue();
+    expect(badge!.position.y).toBeGreaterThan(garment.position.y + 0.28);
   });
 });

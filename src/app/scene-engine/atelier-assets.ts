@@ -4,24 +4,28 @@ import {
   SRGBColorSpace,
   Texture,
   TextureLoader,
+  type WebGLRenderer,
 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import type { Group } from 'three';
 
-/** Hashed filenames from `scripts/atelier-3d-assets.mjs`. */
+/** Hashed filenames from `scripts/atelier-3d-compress.mjs`. */
 export const ATELIER_ASSETS = {
-  hdri: 'assets/3d/hdri-studio-small-08-1k.f6a989f8.hdr',
+  hdri: 'assets/3d/hdri-studio-small-08-512.ae1fc852.hdr',
   woodFloor: 'assets/3d/tex-wood-floor-diff.531d0840.jpg',
+  woodFloorKtx2: 'assets/3d/tex-wood-floor-diff.531d0840.ktx2',
   lightWood: 'assets/3d/tex-light-wood-diff.7f175455.jpg',
+  lightWoodKtx2: 'assets/3d/tex-light-wood-diff.7f175455.ktx2',
   plaster: 'assets/3d/tex-plaster-wall-diff.bef42e7d.jpg',
-  coatRack: 'assets/3d/mdl-coat-rack.d8231c22.glb',
-  plantPotted: 'assets/3d/mdl-plant-potted.5b760eda.glb',
-  plantBush: 'assets/3d/mdl-plant-bush.d7c8ff42.glb',
-  hanger: 'assets/3d/mdl-hanger.5a1292b8.glb',
-  tray: 'assets/3d/mdl-jewelry-tray.b25f1b38.glb',
-  vitrine: 'assets/3d/mdl-vitrine.90eaa2e6.glb',
-  mannequin: 'assets/3d/mdl-mannequin.a721699c.glb',
+  plasterKtx2: 'assets/3d/tex-plaster-wall-diff.bef42e7d.ktx2',
+  plantPotted: 'assets/3d/mdl-plant-potted.96aa11c9.glb',
+  hanger: 'assets/3d/mdl-hanger.61a1e542.glb',
+  tray: 'assets/3d/mdl-jewelry-tray.67115f7d.glb',
+  vitrine: 'assets/3d/mdl-vitrine.64ba2829.glb',
+  mannequin: 'assets/3d/mdl-mannequin.7d3d0875.glb',
 } as const;
 
 export type AtelierAssetId = keyof typeof ATELIER_ASSETS;
@@ -36,6 +40,16 @@ export function createAtelierLoadingManager(onProgress?: LoadProgressHandler): L
   return manager;
 }
 
+function applyColorRepeat(texture: Texture, repeatX: number, repeatY: number): Texture {
+  texture.colorSpace = SRGBColorSpace;
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  texture.anisotropy = 2;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function loadColorTexture(
   url: string,
   manager: LoadingManager,
@@ -46,17 +60,36 @@ export function loadColorTexture(
     const loader = new TextureLoader(manager);
     loader.load(
       url,
-      (texture) => {
-        texture.colorSpace = SRGBColorSpace;
-        texture.wrapS = RepeatWrapping;
-        texture.wrapT = RepeatWrapping;
-        texture.repeat.set(repeatX, repeatY);
-        texture.anisotropy = 2;
-        texture.needsUpdate = true;
-        resolve(texture);
-      },
+      (texture) => resolve(applyColorRepeat(texture, repeatX, repeatY)),
       undefined,
       () => resolve(null),
+    );
+  });
+}
+
+let ktx2Loader: KTX2Loader | null = null;
+
+export function loadColorTextureKtx2(
+  ktx2Url: string,
+  jpgUrl: string,
+  manager: LoadingManager,
+  renderer: WebGLRenderer,
+  repeatX = 1,
+  repeatY = 1,
+): Promise<Texture | null> {
+  if (!ktx2Loader) {
+    ktx2Loader = new KTX2Loader(manager);
+    ktx2Loader.setTranscoderPath('assets/3d/basis/');
+    ktx2Loader.detectSupport(renderer);
+  }
+  return new Promise((resolve) => {
+    ktx2Loader!.load(
+      ktx2Url,
+      (texture) => resolve(applyColorRepeat(texture, repeatX, repeatY)),
+      undefined,
+      () => {
+        void loadColorTexture(jpgUrl, manager, repeatX, repeatY).then(resolve);
+      },
     );
   });
 }
@@ -82,6 +115,7 @@ export function loadGlb(url: string, manager?: LoadingManager): Promise<Group | 
   if (hit) return hit;
   const pending = new Promise<Group | null>((resolve) => {
     const loader = new GLTFLoader(manager);
+    loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
       url,
       (gltf) => resolve(gltf.scene),

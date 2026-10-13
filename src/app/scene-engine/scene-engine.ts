@@ -38,8 +38,9 @@ import {
   type LoadProgressHandler,
 } from './atelier-assets';
 import { ATELIER_CLEAR, ATELIER_EXPOSURE, ATELIER_FOG, detectAtelierLiteMode } from './atelier-look';
-import { createAtelierRoom, placeRoomRug, ROOM_PLANT_Z } from './atelier-room';
-import { createDressForm, dimAsBackground, MANNEQUIN_GROUP, mannequinOffset } from './featured-mannequin';
+import { createAtelierPlant, plantOffsets } from './atelier-plants';
+import { createAtelierRoom, placeRackRugs } from './atelier-room';
+import { createDressForm, MANNEQUIN_GROUP, mannequinOffset } from './featured-mannequin';
 import { applyPhotoMap, isPhotoMaterial } from './photo-material';
 import {
   CAMERA_AZIMUTH_LIMIT,
@@ -278,6 +279,8 @@ export class SceneEngine {
   private hdri: Texture | null = null;
   private pmrem: PMREMGenerator | null = null;
   private propsArmed = false;
+  private mannequinSrc: Group | null = null;
+  private plantSrc: Group | null = null;
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
@@ -351,7 +354,7 @@ export class SceneEngine {
       });
     this.manager = createAtelierLoadingManager((loaded, total) => this.onProgressCb?.(loaded, total));
     this.scene.background = new Color(CLEAR);
-    this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 26 : 24, this.lite ? 58 : 52);
+    this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 32 : 28, this.lite ? 70 : 64);
 
     this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
     this.camera.position.set(0, 1.15, 3.2);
@@ -378,10 +381,10 @@ export class SceneEngine {
     this.controls.addEventListener('change', this.onControlsChange);
     this.controls.update();
 
-    this.scene.add(new AmbientLight(0xfff3e4, this.lite ? 0.58 : 0.44));
-    this.scene.add(new HemisphereLight(0xfff6ea, 0x8a735c, this.lite ? 0.58 : 0.5));
+    this.scene.add(new AmbientLight(0xfff6ea, this.lite ? 0.62 : 0.48));
+    this.scene.add(new HemisphereLight(0xfff8f0, 0xc4b4a0, this.lite ? 0.55 : 0.46));
 
-    const key = new DirectionalLight(0xffe6cc, this.lite ? 1.18 : 1.12);
+    const key = new DirectionalLight(0xfff0dc, this.lite ? 1.08 : 1.02);
     key.position.set(3.1, 6.2, 4.4);
     key.castShadow = false;
     key.shadow.mapSize.set(this.lite ? 256 : 1024, this.lite ? 256 : 1024);
@@ -396,11 +399,11 @@ export class SceneEngine {
     key.shadow.bias = -0.00022;
     this.scene.add(key);
 
-    const fill = new DirectionalLight(0xf0e0cc, this.lite ? 0.48 : 0.4);
+    const fill = new DirectionalLight(0xf4eadc, this.lite ? 0.42 : 0.34);
     fill.position.set(-3.4, 2.4, 1.6);
     this.scene.add(fill);
 
-    const bounce = new DirectionalLight(0xffe8d4, this.lite ? 0.22 : 0.18);
+    const bounce = new DirectionalLight(0xfff4e8, this.lite ? 0.2 : 0.16);
     bounce.position.set(0.4, 1.1, 5.2);
     this.scene.add(bounce);
 
@@ -532,7 +535,33 @@ export class SceneEngine {
     this.applyOrbitLimits(mode);
     this.moveCamera(this.poseFor(group as Group, mode), immediate);
     this.onFocusCb?.(id);
+    this.layoutDeferredProps();
     if (this.hasLayout) this.enqueueHangerTextures();
+  }
+
+  /** Tight frame on a single hanger — used for Esgotado close-ups. */
+  focusHanger(slug: string, immediate = this.reducedMotion): boolean {
+    const hanger = findHanger(this.layout, slug);
+    if (hanger) this.ensureRackMounted(hanger.rackId);
+    const group = this.findHangerGroup(slug);
+    if (!group) return false;
+    if (hanger) {
+      this.focusedId = hanger.rackId;
+      this.applyOrbitLimits('rack');
+    }
+    const pose = this.poseFor(group, 'rack');
+    const cx = pose.target.x;
+    const cy = pose.target.y;
+    const cz = pose.target.z;
+    const closer = Math.max(1.15, pose.distance * 0.52);
+    pose.distance = closer;
+    pose.position.x = cx;
+    pose.position.y = cy + Math.sin(0.14) * closer;
+    pose.position.z = cz + Math.cos(0.14) * closer;
+    this.moveCamera(pose, immediate);
+    this.layoutDeferredProps();
+    if (hanger) this.onFocusCb?.(hanger.rackId);
+    return true;
   }
 
   focusOverview(immediate = this.reducedMotion): void {
@@ -1100,7 +1129,8 @@ export class SceneEngine {
         viewportH,
         badgeH,
       );
-      obj.scale.set(scale, scale, 1);
+      const capped = isCompactAtelierViewport() ? Math.min(scale, 1.22) : scale;
+      obj.scale.set(capped, capped, 1);
     });
   }
 
@@ -1440,42 +1470,31 @@ export class SceneEngine {
   private fitRoomToLayout(): void {
     if (!this.room) return;
     const slots = this.computeRackSlots(this.layout);
-    const first = slots[0];
-    const last = slots[slots.length - 1];
-    if (!first || !last) {
-      placeRoomRug(this.room, 0, 4);
+    if (!slots.length) {
+      placeRackRugs(this.room, [{ x: 0, width: 2.6 }], this.lite);
       return;
     }
-    const minX = first.x - unitWidth(first.rack.kind, first.rack.hangers.length) / 2;
-    const maxX = last.x + unitWidth(last.rack.kind, last.rack.hangers.length) / 2;
-    placeRoomRug(this.room, (minX + maxX) / 2, Math.max(3.2, maxX - minX + 1.2));
+    placeRackRugs(
+      this.room,
+      slots.map((slot) => ({
+        x: slot.x,
+        width: unitWidth(slot.rack.kind, slot.rack.hangers.length),
+      })),
+      this.lite,
+    );
   }
 
   private async loadRoomTextures(): Promise<void> {
-    const [floorMap, wallMap] = await Promise.all([
-      loadColorTexture(ATELIER_ASSETS.woodFloor, this.manager, 8, 6),
-      loadColorTexture(ATELIER_ASSETS.plaster, this.manager, 4, 2),
-    ]);
+    const wallMap = await loadColorTexture(ATELIER_ASSETS.plaster, this.manager, 4, 2);
     if (this.disposed || !this.room) {
-      floorMap?.dispose();
       wallMap?.dispose();
       return;
     }
-    const floor = this.room.getObjectByName('floor') as Mesh | undefined;
     const wall = this.room.getObjectByName('wall') as Mesh | undefined;
-    if (floor?.material instanceof MeshStandardMaterial && floorMap) {
-      const prev = floor.material.map;
-      floor.material.map = floorMap;
-      floor.material.color.setHex(0xfff6ea);
-      floor.material.needsUpdate = true;
-      if (prev && !isSharedTexture(prev)) prev.dispose();
-    } else {
-      floorMap?.dispose();
-    }
     if (wall?.material instanceof MeshStandardMaterial && wallMap) {
       const prev = wall.material.map;
       wall.material.map = wallMap;
-      wall.material.color.setHex(0xe8dfd4);
+      wall.material.color.setHex(0xf4efe6);
       wall.material.needsUpdate = true;
       if (prev && !isSharedTexture(prev)) prev.dispose();
     } else {
@@ -1515,67 +1534,47 @@ export class SceneEngine {
 
   private async mountDeferredProps(): Promise<void> {
     if (this.disposed || !this.propsRoot) return;
-    const [mannequinSrc, plantA, plantB, coatRack] = await Promise.all([
+    const [mannequinSrc, plantSrc] = await Promise.all([
       loadGlb(ATELIER_ASSETS.mannequin, this.manager),
       loadGlb(ATELIER_ASSETS.plantPotted, this.manager),
-      loadGlb(ATELIER_ASSETS.plantBush, this.manager),
-      loadGlb(ATELIER_ASSETS.coatRack, this.manager),
     ]);
     if (this.disposed || !this.propsRoot) return;
+    this.mannequinSrc = mannequinSrc;
+    this.plantSrc = plantSrc;
+    this.layoutDeferredProps();
+    this.requestRender();
+  }
 
-    for (const rack of this.layout.racks) {
+  private layoutDeferredProps(): void {
+    if (!this.propsRoot || this.disposed) return;
+    this.clearDeferredProps();
+    const focused =
+      this.focusedId === OVERVIEW_FOCUS_ID
+        ? this.layout.racks
+        : this.layout.racks.filter((rack) => rack.id === this.focusedId);
+    const units = focused.length ? focused : this.layout.racks.slice(0, 1);
+
+    for (const rack of units) {
       const unit = this.racksRoot.getObjectByName(`rack:${rack.id}`) as Group | undefined;
       if (!unit) continue;
       const width = Number(unit.userData['unitWidth'] ?? unitWidth(rack.kind, rack.hangers.length));
       const offset = mannequinOffset(width, rack.kind);
-      const form = mannequinSrc ? cloneGlb(mannequinSrc) : createDressForm(this.lite);
+      const form = this.mannequinSrc ? cloneGlb(this.mannequinSrc) : createDressForm(this.lite);
       form.name = `${MANNEQUIN_GROUP}:${rack.id}`;
       form.position.set(unit.position.x + offset.x, FLOOR_Y, offset.z);
       form.rotation.y = offset.rotY;
-      if (mannequinSrc) this.fitPropToFloor(form, 1.52);
-      dimAsBackground(form, this.lite ? 0.18 : 0.3);
+      if (this.mannequinSrc) this.fitPropToFloor(form, 1.48);
       form.userData = { ignorePick: true, kind: 'mannequin' };
       this.propsRoot.add(form);
-    }
 
-    const slots = this.computeRackSlots(this.layout);
-    const first = slots[0];
-    const last = slots[slots.length - 1];
-    if (first && plantA) {
-      const pot = cloneGlb(plantA);
-      dimAsBackground(pot, 0.22);
-      pot.position.set(
-        first.x - unitWidth(first.rack.kind, first.rack.hangers.length) / 2 - 1.15,
-        FLOOR_Y,
-        ROOM_PLANT_Z,
-      );
-      this.fitPropToFloor(pot, 0.95);
-      pot.userData = { ignorePick: true, kind: 'plant' };
-      this.propsRoot.add(pot);
-    }
-    if (last && plantB) {
-      const bush = cloneGlb(plantB);
-      dimAsBackground(bush, 0.2);
-      bush.position.set(
-        last.x + unitWidth(last.rack.kind, last.rack.hangers.length) / 2 + 1.05,
-        FLOOR_Y,
-        ROOM_PLANT_Z,
-      );
-      this.fitPropToFloor(bush, 0.82);
-      bush.userData = { ignorePick: true, kind: 'plant' };
-      this.propsRoot.add(bush);
-    }
-    if (first && coatRack) {
-      const rack = cloneGlb(coatRack);
-      dimAsBackground(rack, 0.24);
-      rack.position.set(
-        first.x - unitWidth(first.rack.kind, first.rack.hangers.length) / 2 - 1.85,
-        FLOOR_Y,
-        ROOM_PLANT_Z - 0.15,
-      );
-      this.fitPropToFloor(rack, 1.55);
-      rack.userData = { ignorePick: true, kind: 'prop' };
-      this.propsRoot.add(rack);
+      for (const [index, plantAt] of plantOffsets(width).entries()) {
+        const pot = this.plantSrc ? cloneGlb(this.plantSrc) : createAtelierPlant(this.lite);
+        pot.name = `plant:${rack.id}:${index}`;
+        pot.position.set(unit.position.x + plantAt.x, FLOOR_Y, plantAt.z);
+        if (this.plantSrc) this.fitPropToFloor(pot, 0.92);
+        pot.userData = { ignorePick: true, kind: 'plant' };
+        this.propsRoot.add(pot);
+      }
     }
     this.requestRender();
   }

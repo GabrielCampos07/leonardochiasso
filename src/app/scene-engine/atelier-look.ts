@@ -1,16 +1,17 @@
 /** Warm Leo atelier palette + lite-mode detection. No three.js imports. */
 
-export const ATELIER_CLEAR = 0x6a5e52;
-export const ATELIER_FOG = 0x7d7164;
+export const ATELIER_CLEAR = 0xcfc6b8;
+export const ATELIER_FOG = 0xd6cec2;
 export const ATELIER_BRASS = 0xc4b08a;
-export const ATELIER_LIGHT_WOOD = 0xc8b396;
-export const ATELIER_WAXED_WOOD = 0x8a6e54;
-export const ATELIER_DARK_WOOD = 0x3a3028;
-export const ATELIER_LINEN = 0xd8cfc4;
-export const ATELIER_WALL = 0xb4a494;
-export const ATELIER_CEILING = 0x8a8074;
-export const ATELIER_RUG = 0x8a4e3e;
-export const ATELIER_EXPOSURE = 1.12;
+export const ATELIER_LIGHT_WOOD = 0xd8c4a4;
+export const ATELIER_WAXED_WOOD = 0xcbb89a;
+export const ATELIER_DARK_WOOD = 0x5a4c40;
+export const ATELIER_LINEN = 0xe4dcd2;
+export const ATELIER_WALL = 0xe8e2d8;
+export const ATELIER_WAINSCOT = 0xd4cbbd;
+export const ATELIER_CEILING = 0xe4ddd4;
+export const ATELIER_RUG = 0xc6bbb0;
+export const ATELIER_EXPOSURE = 1.04;
 export const LITE_VIEWPORT_MAX = 768;
 export const LITE_MEMORY_MAX = 4;
 export const LITE_CORES_MAX = 4;

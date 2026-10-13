@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   SphereGeometry,
+  TorusGeometry,
   Vector2,
 } from 'three';
 import { ATELIER_BRASS, ATELIER_LINEN } from './atelier-look';
@@ -13,6 +14,7 @@ import type { SceneUnitKind } from './types';
 
 export const MANNEQUIN_GROUP = 'featured-mannequin';
 
+/** Smooth atelier dress form on a brass stand — no blob head. */
 export function createDressForm(lite = false): Group {
   const group = new Group();
   group.name = MANNEQUIN_GROUP;
@@ -20,48 +22,69 @@ export function createDressForm(lite = false): Group {
 
   const linen = new MeshStandardMaterial({
     color: ATELIER_LINEN,
-    roughness: lite ? 0.82 : 0.68,
+    roughness: lite ? 0.78 : 0.58,
     metalness: 0.02,
-    envMapIntensity: lite ? 0 : 0.28,
+    envMapIntensity: lite ? 0 : 0.42,
   });
   const brass = new MeshStandardMaterial({
     color: ATELIER_BRASS,
-    roughness: lite ? 0.5 : 0.3,
-    metalness: lite ? 0.4 : 0.8,
+    roughness: lite ? 0.46 : 0.26,
+    metalness: lite ? 0.46 : 0.86,
+    envMapIntensity: lite ? 0 : 0.7,
   });
+  const segs = lite ? 20 : 48;
 
   const profile = [
-    [0.02, 0],
-    [0.07, 0.04],
-    [0.08, 0.18],
-    [0.11, 0.42],
-    [0.16, 0.72],
-    [0.14, 0.96],
-    [0.1, 1.12],
-    [0.07, 1.22],
-    [0.09, 1.34],
-    [0.07, 1.46],
-    [0.0, 1.52],
+    [0.0, 0.4],
+    [0.1, 0.42],
+    [0.122, 0.56],
+    [0.152, 0.74],
+    [0.118, 0.94],
+    [0.148, 1.1],
+    [0.158, 1.2],
+    [0.132, 1.28],
+    [0.052, 1.34],
+    [0.046, 1.42],
+    [0.0, 1.44],
   ].map(([x, y]) => new Vector2(x, y));
-  const body = new Mesh(new LatheGeometry(profile, 18), linen);
+  const body = new Mesh(new LatheGeometry(profile, segs), linen);
   body.castShadow = !lite;
+  body.receiveShadow = !lite;
   body.userData = { ignorePick: true };
   group.add(body);
 
-  const neck = new Mesh(new CylinderGeometry(0.035, 0.04, 0.08, 12), linen);
-  neck.position.y = 1.26;
+  const neck = new Mesh(new CylinderGeometry(0.042, 0.048, 0.06, segs), linen);
+  neck.position.y = 1.41;
   neck.userData = { ignorePick: true };
   group.add(neck);
 
-  const head = new Mesh(new SphereGeometry(0.075, 14, 10), linen);
-  head.position.y = 1.4;
-  head.userData = { ignorePick: true };
-  group.add(head);
+  const cap = new Mesh(new SphereGeometry(0.046, segs, 10, 0, Math.PI * 2, 0, Math.PI / 2), linen);
+  cap.position.y = 1.44;
+  cap.userData = { ignorePick: true };
+  group.add(cap);
 
-  const base = new Mesh(new CylinderGeometry(0.11, 0.14, 0.04, 16), brass);
-  base.position.y = 0.02;
+  const pole = new Mesh(new CylinderGeometry(0.011, 0.011, 1.4, 12), brass);
+  pole.position.y = 0.7;
+  pole.userData = { ignorePick: true };
+  group.add(pole);
+
+  const collar = new Mesh(new TorusGeometry(0.05, 0.007, 8, 20), brass);
+  collar.rotation.x = Math.PI / 2;
+  collar.position.y = 1.38;
+  collar.userData = { ignorePick: true };
+  group.add(collar);
+
+  const base = new Mesh(new CylinderGeometry(0.155, 0.17, 0.036, 28), brass);
+  base.position.y = 0.018;
+  base.castShadow = !lite;
   base.userData = { ignorePick: true };
   group.add(base);
+
+  const ring = new Mesh(new TorusGeometry(0.132, 0.008, 8, 24), brass);
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.038;
+  ring.userData = { ignorePick: true };
+  group.add(ring);
 
   group.position.y = FLOOR_Y;
   return group;
@@ -69,8 +92,8 @@ export function createDressForm(lite = false): Group {
 
 /** Beside the unit, behind hangers — never between camera and a photo. */
 export function mannequinOffset(unitWidth: number, kind: SceneUnitKind): { x: number; z: number; rotY: number } {
-  const side = kind === 'vitrine' ? unitWidth / 2 + 0.46 : unitWidth / 2 + 0.4;
-  return { x: side, z: -0.48, rotY: -0.28 };
+  const side = kind === 'vitrine' ? unitWidth / 2 + 0.5 : unitWidth / 2 + 0.46;
+  return { x: side, z: -0.58, rotY: -0.22 };
 }
 
 export function dimAsBackground(root: Group, intensity = 0.32): void {

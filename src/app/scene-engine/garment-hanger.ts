@@ -128,9 +128,9 @@ export function createGarmentHanger(data: SceneHanger): Group {
 
   const badge = attachSoldOutBadge(
     group,
-    photo.width * 0.28,
-    photo.height * 0.38,
-    0.01,
+    0.11,
+    0.535,
+    0.02,
     SOLD_OUT_BADGE_W,
     SOLD_OUT_BADGE_H,
     opacity,

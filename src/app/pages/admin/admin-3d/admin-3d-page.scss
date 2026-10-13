@@ -17,6 +17,15 @@
   overflow: hidden;
 }
 
+.admin-3d::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: radial-gradient(ellipse at 50% 42%, transparent 58%, rgb(32 24 18 / 22%) 100%);
+}
+
 .admin-3d:focus,
 .admin-3d:hover,
 .admin-3d__canvas:focus,
@@ -125,6 +134,12 @@
 .admin-3d__rack--add {
   margin-left: 4px;
   border-style: dashed;
+}
+
+@media (min-width: 769px) {
+  .admin-3d__rack--add {
+    display: none;
+  }
 }
 
 .admin-3d__arrow:disabled {
@@ -457,11 +472,7 @@
   }
 
   .admin-3d__add-piece {
-    left: 50%;
-    right: auto;
-    top: auto;
-    bottom: calc(148px + env(safe-area-inset-bottom, 0px));
-    transform: translateX(-50%);
+    display: none;
   }
 
   .admin-3d__chrome {

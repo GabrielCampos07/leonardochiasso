@@ -192,9 +192,9 @@ export function createJewelryTray(data: SceneHanger): Group {
 
   const badge = attachSoldOutBadge(
     group,
-    0.14,
-    TRAY_PHOTO_Y + TRAY_PHOTO * 0.42,
-    0.01,
+    0,
+    TRAY_PHOTO_Y + TRAY_PHOTO * 0.62,
+    0.02,
     TRAY_SOLD_OUT_BADGE_W,
     TRAY_SOLD_OUT_BADGE_H,
     opacity,

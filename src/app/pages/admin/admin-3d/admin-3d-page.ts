@@ -757,6 +757,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   private markFirstFrame(): void {
     this.boot.markFirstFrame();
     this.firstFrame.set(true);
+    const piece = this.route.snapshot.queryParamMap.get('piece');
+    if (piece) {
+      window.setTimeout(() => this.engine?.focusHanger(piece, true), 80);
+    }
     if (this.reducedMotion) {
       this.bootFading.set(false);
       return;

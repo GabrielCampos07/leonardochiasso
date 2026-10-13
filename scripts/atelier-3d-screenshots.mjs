@@ -59,7 +59,7 @@ async function waitAtelier(page) {
     },
     { timeout: 10000 },
   );
-  await new Promise((r) => setTimeout(r, 700));
+  await new Promise((r) => setTimeout(r, 800));
 }
 
 async function dismissHint(page) {
@@ -95,7 +95,7 @@ function pickLog(bucket, needle) {
   return bucket.find((l) => l.text.includes(needle))?.text ?? null;
 }
 
-async function capture(name, viewport) {
+async function capture(name, viewport, pathSuffix) {
   const bucket = [];
   const browser = await puppeteer.launch({
     executablePath: CHROME,
@@ -125,10 +125,14 @@ async function capture(name, viewport) {
     }
   });
   const started = Date.now();
-  await page.goto(`${BASE}/admin/3d?mock=1`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto(`${BASE}/admin/3d${pathSuffix}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await waitAtelier(page);
   await dismissHint(page);
-  await focusNiponic(page);
+  if (pathSuffix.includes('piece=')) {
+    await new Promise((r) => setTimeout(r, 900));
+  } else {
+    await focusNiponic(page);
+  }
   const path = `${OUT}/${name}.png`;
   await page.screenshot({ path, type: 'png', fullPage: false });
   const elapsed = Date.now() - started;
@@ -144,9 +148,15 @@ async function capture(name, viewport) {
 }
 
 const results = [];
-results.push(await capture('atelier-desktop-1440x900', { width: 1440, height: 900 }));
-results.push(await capture('atelier-mobile-390x844', { width: 390, height: 844 }));
-results.push(await capture('atelier-desktop-esgotado-1440x900', { width: 1440, height: 900 }));
+results.push(await capture('atelier-desktop-wide-1440x900', { width: 1440, height: 900 }, '?mock=1'));
+results.push(
+  await capture(
+    'atelier-desktop-esgotado-close-1440x900',
+    { width: 1440, height: 900 },
+    '?mock=1&piece=look-obi-organza',
+  ),
+);
+results.push(await capture('atelier-mobile-390x844', { width: 390, height: 844 }, '?mock=1'));
 
 writeFileSync(`${OUT}/atelier-3d-capture.json`, JSON.stringify({ results, logs: allLogs }, null, 2));
 console.log(JSON.stringify(results, null, 2));

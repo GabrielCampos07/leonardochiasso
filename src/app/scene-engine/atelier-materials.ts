@@ -1,5 +1,6 @@
 import {
   CanvasTexture,
+  MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   RepeatWrapping,
@@ -12,6 +13,7 @@ import {
   ATELIER_DARK_WOOD,
   ATELIER_LIGHT_WOOD,
   ATELIER_RUG,
+  ATELIER_WAINSCOT,
   ATELIER_WALL,
   ATELIER_WAXED_WOOD,
 } from './atelier-look';
@@ -26,32 +28,32 @@ function canvasTexture(canvas: HTMLCanvasElement, repeatX = 1, repeatY = 1): Can
   return texture;
 }
 
-/** Light oak planks — no extra image assets. */
+/** Light oak planks — cool greige, never red. */
 export function makeWoodFloorTexture(): CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#e2d0b4';
+    ctx.fillStyle = '#e8d7b8';
     ctx.fillRect(0, 0, 256, 256);
-    const plankH = 32;
+    const plankH = 28;
     for (let y = 0, row = 0; y < 256; y += plankH, row += 1) {
-      const tone = row % 2 === 0 ? '#d8c09a' : '#e0c8a6';
+      const tone = row % 2 === 0 ? '#e4d2b0' : '#eddcb8';
       ctx.fillStyle = tone;
-      ctx.fillRect(0, y, 256, plankH - 2);
-      ctx.fillStyle = 'rgba(90, 70, 48, 0.12)';
-      ctx.fillRect(0, y + plankH - 2, 256, 2);
-      for (let i = 0; i < 10; i += 1) {
-        ctx.fillStyle = `rgba(92, 68, 46, ${0.04 + (i % 5) * 0.01})`;
-        ctx.fillRect((i * 73 + row * 29) % 256, y + 4 + (i % 7) * 3, 24 + (i % 4) * 8, 1);
+      ctx.fillRect(0, y, 256, plankH - 1);
+      ctx.fillStyle = 'rgba(150, 128, 96, 0.16)';
+      ctx.fillRect(0, y + plankH - 1, 256, 1);
+      for (let i = 0; i < 14; i += 1) {
+        ctx.fillStyle = `rgba(140, 118, 86, ${0.03 + (i % 5) * 0.012})`;
+        ctx.fillRect((i * 61 + row * 17) % 256, y + 3 + (i % 9) * 2, 18 + (i % 5) * 6, 1);
       }
     }
   }
-  return canvasTexture(canvas, 8, 6);
+  return canvasTexture(canvas, 10, 8);
 }
 
-/** Warm plaster for the back wall. */
+/** Warm off-white / greige plaster. */
 export function makePlasterTexture(): CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
@@ -59,16 +61,16 @@ export function makePlasterTexture(): CanvasTexture {
   const ctx = canvas.getContext('2d');
   if (ctx) {
     const grad = ctx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#d4c8ba');
-    grad.addColorStop(1, '#b8aa9a');
+    grad.addColorStop(0, '#f3eee6');
+    grad.addColorStop(1, '#e4dbd0');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
-    for (let i = 0; i < 220; i += 1) {
-      ctx.fillStyle = `rgba(40, 32, 24, ${0.02 + (i % 4) * 0.01})`;
+    for (let i = 0; i < 180; i += 1) {
+      ctx.fillStyle = `rgba(90, 78, 64, ${0.015 + (i % 4) * 0.008})`;
       ctx.fillRect((i * 47) % 256, (i * 31) % 256, 2, 2);
     }
   }
-  return canvasTexture(canvas, 4, 2);
+  return canvasTexture(canvas, 3, 2);
 }
 
 export function makeRugTexture(): CanvasTexture {
@@ -77,27 +79,47 @@ export function makeRugTexture(): CanvasTexture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#8a4e3e';
+    ctx.fillStyle = '#c6bbb0';
     ctx.fillRect(0, 0, 256, 256);
-    ctx.strokeStyle = 'rgba(232, 208, 176, 0.38)';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(14, 14, 228, 228);
-    ctx.strokeStyle = 'rgba(232, 220, 200, 0.08)';
+    ctx.strokeStyle = 'rgba(232, 224, 212, 0.55)';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(16, 16, 224, 224);
+    ctx.strokeStyle = 'rgba(90, 78, 68, 0.08)';
     ctx.lineWidth = 2;
     ctx.strokeRect(28, 28, 200, 200);
-    for (let i = 0; i < 40; i += 1) {
-      ctx.fillStyle = `rgba(90, 70, 56, ${0.04 + (i % 3) * 0.02})`;
-      ctx.fillRect((i * 53) % 256, (i * 37) % 256, 18, 2);
+    for (let i = 0; i < 36; i += 1) {
+      ctx.fillStyle = `rgba(255, 248, 238, ${0.03 + (i % 3) * 0.02})`;
+      ctx.fillRect((i * 53) % 256, (i * 37) % 256, 22, 2);
     }
   }
   return canvasTexture(canvas, 1, 1);
 }
 
+export function makeContactShadowTexture(): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grad = ctx.createRadialGradient(128, 128, 8, 128, 128, 124);
+    grad.addColorStop(0, 'rgba(22, 16, 12, 0.34)');
+    grad.addColorStop(0.45, 'rgba(22, 16, 12, 0.14)');
+    grad.addColorStop(1, 'rgba(22, 16, 12, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 256, 256);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export function brassMaterial(lite = false): MeshStandardMaterial {
   return new MeshStandardMaterial({
     color: ATELIER_BRASS,
-    roughness: lite ? 0.48 : 0.28,
-    metalness: lite ? 0.42 : 0.84,
+    roughness: lite ? 0.42 : 0.24,
+    metalness: lite ? 0.48 : 0.88,
+    envMapIntensity: lite ? 0 : 0.75,
   });
 }
 
@@ -114,8 +136,8 @@ export function waxedWoodMaterial(lite = false, map: Texture | null = null): Mes
   return new MeshStandardMaterial({
     color: map ? 0xffffff : ATELIER_WAXED_WOOD,
     map,
-    roughness: lite ? 0.62 : 0.38,
-    metalness: lite ? 0.02 : 0.08,
+    roughness: lite ? 0.62 : 0.4,
+    metalness: lite ? 0.02 : 0.06,
   });
 }
 
@@ -153,10 +175,19 @@ export function glassMaterial(lite = false): MeshStandardMaterial | MeshPhysical
 
 export function wallMaterial(lite = false, map: Texture | null = null): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: map ? 0xe8dfd4 : ATELIER_WALL,
+    color: map ? 0xf4efe6 : ATELIER_WALL,
     map,
     roughness: 0.96,
     metalness: 0,
+    envMapIntensity: lite ? 0 : 0.08,
+  });
+}
+
+export function wainscotMaterial(lite = false): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: ATELIER_WAINSCOT,
+    roughness: 0.88,
+    metalness: 0.02,
     envMapIntensity: lite ? 0 : 0.1,
   });
 }
@@ -172,20 +203,30 @@ export function ceilingMaterial(): MeshStandardMaterial {
 
 export function floorMaterial(lite = false, map: Texture | null = null): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: map ? 0xfff6ea : 0xffffff,
+    color: map ? 0xf8f1e4 : 0xf3e6d0,
     map,
-    roughness: lite ? 0.84 : 0.58,
-    metalness: lite ? 0 : 0.04,
-    envMapIntensity: lite ? 0 : 0.18,
+    roughness: lite ? 0.82 : 0.55,
+    metalness: lite ? 0 : 0.03,
+    envMapIntensity: lite ? 0 : 0.16,
   });
 }
 
 export function rugMaterial(lite = false, map: Texture | null = null): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: map ? 0xffffff : ATELIER_RUG,
+    color: map ? 0xf2ebe3 : ATELIER_RUG,
     map,
-    roughness: lite ? 0.95 : 0.88,
+    roughness: lite ? 0.95 : 0.9,
     metalness: 0,
-    envMapIntensity: 0.12,
+    envMapIntensity: 0.08,
+  });
+}
+
+export function contactShadowMaterial(): MeshBasicMaterial {
+  return new MeshBasicMaterial({
+    map: makeContactShadowTexture(),
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    toneMapped: false,
   });
 }

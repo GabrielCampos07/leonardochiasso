@@ -4,8 +4,9 @@ import {
   Group,
   Mesh,
   PlaneGeometry,
+  SphereGeometry,
 } from 'three';
-import { brassMaterial, darkWoodMaterial, lightWoodMaterial } from './atelier-materials';
+import { brassMaterial, darkWoodMaterial } from './atelier-materials';
 import { disposeObject3D } from './dispose';
 import { createGarmentHanger } from './garment-hanger';
 import { makePhotoMaterial } from './photo-material';
@@ -54,14 +55,14 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   const barTop = rackBarTop(rows);
   const width = rackWidth(count);
   const metal = brassMaterial();
-  const wood = lightWoodMaterial();
   group.userData['unitWidth'] = width;
 
   const topY = barTop + 0.38;
-  const bottomY = FLOOR_Y + 0.02;
+  const bottomY = FLOOR_Y + 0.04;
   const postHeight = Math.max(1.2, topY - bottomY);
   const postY = (topY + bottomY) / 2;
-  const postGeo = new CylinderGeometry(0.012, 0.014, postHeight, 10);
+  const postR = 0.024;
+  const postGeo = new CylinderGeometry(postR, postR + 0.003, postHeight, 16);
   const left = new Mesh(postGeo, metal);
   left.position.set(-width / 2, postY, 0);
   left.castShadow = true;
@@ -70,12 +71,22 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
   right.castShadow = true;
   group.add(left, right);
 
-  const footGeo = new BoxGeometry(0.12, 0.03, 0.16);
-  const footL = new Mesh(footGeo, wood);
-  footL.position.set(-width / 2, FLOOR_Y + 0.025, 0);
-  const footR = new Mesh(footGeo.clone(), wood);
-  footR.position.set(width / 2, FLOOR_Y + 0.025, 0);
-  group.add(footL, footR);
+  for (const side of [-1, 1]) {
+    const cap = new Mesh(new SphereGeometry(postR + 0.004, 12, 10), metal);
+    cap.position.set((side * width) / 2, topY, 0);
+    cap.castShadow = true;
+    group.add(cap);
+
+    const foot = new Mesh(new CylinderGeometry(0.075, 0.088, 0.04, 20), metal);
+    foot.position.set((side * width) / 2, FLOOR_Y + 0.022, 0);
+    foot.castShadow = true;
+    group.add(foot);
+
+    const pad = new Mesh(new SphereGeometry(0.03, 10, 8), metal);
+    pad.scale.set(1.6, 0.45, 1.6);
+    pad.position.set((side * width) / 2, FLOOR_Y + 0.006, 0);
+    group.add(pad);
+  }
 
   const hangersRoot = new Group();
   hangersRoot.name = 'hangers';
@@ -83,11 +94,18 @@ export function createCollectionRack(rack: SceneRack, x: number): Group {
 
   for (let row = 0; row < rows; row += 1) {
     const barY = barTop - row * RACK_ROW_PITCH;
-    const bar = new Mesh(new CylinderGeometry(0.007, 0.007, width - 0.06, 10), metal);
+    const barLen = width - 0.08;
+    const bar = new Mesh(new CylinderGeometry(0.012, 0.012, barLen, 14), metal);
     bar.rotation.z = Math.PI / 2;
     bar.position.y = barY;
     bar.castShadow = true;
     group.add(bar);
+    for (const side of [-1, 1]) {
+      const end = new Mesh(new SphereGeometry(0.014, 10, 8), metal);
+      end.position.set((side * barLen) / 2, barY, 0);
+      end.castShadow = true;
+      group.add(end);
+    }
   }
 
   const plateW = Math.min(width * 0.72, 2.6);
