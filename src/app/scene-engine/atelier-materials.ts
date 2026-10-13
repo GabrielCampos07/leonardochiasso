@@ -8,6 +8,7 @@ import {
 } from 'three';
 import {
   ATELIER_BRASS,
+  ATELIER_CEILING,
   ATELIER_DARK_WOOD,
   ATELIER_LIGHT_WOOD,
   ATELIER_RUG,
@@ -32,11 +33,11 @@ export function makeWoodFloorTexture(): CanvasTexture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#d8c4a8';
+    ctx.fillStyle = '#e2d0b4';
     ctx.fillRect(0, 0, 256, 256);
     const plankH = 32;
     for (let y = 0, row = 0; y < 256; y += plankH, row += 1) {
-      const tone = row % 2 === 0 ? '#cbb394' : '#d2b89a';
+      const tone = row % 2 === 0 ? '#d8c09a' : '#e0c8a6';
       ctx.fillStyle = tone;
       ctx.fillRect(0, y, 256, plankH - 2);
       ctx.fillStyle = 'rgba(90, 70, 48, 0.12)';
@@ -58,8 +59,8 @@ export function makePlasterTexture(): CanvasTexture {
   const ctx = canvas.getContext('2d');
   if (ctx) {
     const grad = ctx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#8a7d70');
-    grad.addColorStop(1, '#6a5e52');
+    grad.addColorStop(0, '#d4c8ba');
+    grad.addColorStop(1, '#b8aa9a');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 256, 256);
     for (let i = 0; i < 220; i += 1) {
@@ -76,9 +77,9 @@ export function makeRugTexture(): CanvasTexture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#4a3a32';
+    ctx.fillStyle = '#6e5648';
     ctx.fillRect(0, 0, 256, 256);
-    ctx.strokeStyle = 'rgba(196, 176, 138, 0.18)';
+    ctx.strokeStyle = 'rgba(196, 176, 138, 0.28)';
     ctx.lineWidth = 6;
     ctx.strokeRect(14, 14, 228, 228);
     ctx.strokeStyle = 'rgba(232, 220, 200, 0.08)';
@@ -152,21 +153,30 @@ export function glassMaterial(lite = false): MeshStandardMaterial | MeshPhysical
 
 export function wallMaterial(lite = false, map: Texture | null = null): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: map ? 0x8a8076 : ATELIER_WALL,
+    color: map ? 0xe8dfd4 : ATELIER_WALL,
     map,
-    roughness: 0.94,
+    roughness: 0.96,
     metalness: 0,
-    envMapIntensity: lite ? 0 : 0.22,
+    envMapIntensity: lite ? 0 : 0.1,
+  });
+}
+
+export function ceilingMaterial(): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: ATELIER_CEILING,
+    roughness: 0.98,
+    metalness: 0,
+    envMapIntensity: 0,
   });
 }
 
 export function floorMaterial(lite = false, map: Texture | null = null): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    color: 0xffffff,
+    color: map ? 0xf4e8d4 : 0xffffff,
     map,
-    roughness: lite ? 0.82 : 0.42,
-    metalness: lite ? 0 : 0.06,
-    envMapIntensity: lite ? 0 : 0.35,
+    roughness: lite ? 0.84 : 0.58,
+    metalness: lite ? 0 : 0.04,
+    envMapIntensity: lite ? 0 : 0.18,
   });
 }
 

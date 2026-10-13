@@ -1,5 +1,7 @@
 import { BoxGeometry, CircleGeometry, Group, Mesh, PlaneGeometry } from 'three';
 import {
+  ceilingMaterial,
+  darkWoodMaterial,
   floorMaterial,
   makePlasterTexture,
   makeRugTexture,
@@ -32,15 +34,18 @@ export function createAtelierRoom(lite = false): Group {
   wall.userData = { ignorePick: true };
   room.add(wall);
 
-  const ceiling = new Mesh(
-    new PlaneGeometry(96, 64),
-    wallMaterial(true, null),
-  );
+  const ceiling = new Mesh(new PlaneGeometry(96, 64), ceilingMaterial());
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.set(8, 7.4, 6);
   ceiling.name = 'ceiling';
   ceiling.userData = { ignorePick: true };
   room.add(ceiling);
+
+  const skirting = new Mesh(new BoxGeometry(110, 0.12, 0.06), darkWoodMaterial(lite));
+  skirting.position.set(8, FLOOR_Y + 0.07, ROOM_WALL_Z + 0.04);
+  skirting.name = 'skirting';
+  skirting.userData = { ignorePick: true };
+  room.add(skirting);
 
   const rug = new Mesh(new CircleGeometry(3.4, 48), rugMaterial(lite, makeRugTexture()));
   rug.rotation.x = -Math.PI / 2;

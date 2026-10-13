@@ -351,7 +351,7 @@ export class SceneEngine {
       });
     this.manager = createAtelierLoadingManager((loaded, total) => this.onProgressCb?.(loaded, total));
     this.scene.background = new Color(CLEAR);
-    this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 18 : 16, this.lite ? 42 : 36);
+    this.scene.fog = new Fog(ATELIER_FOG, this.lite ? 26 : 24, this.lite ? 58 : 52);
 
     this.camera = new PerspectiveCamera(38, 1, 0.1, 80);
     this.camera.position.set(0, 1.15, 3.2);
@@ -378,10 +378,10 @@ export class SceneEngine {
     this.controls.addEventListener('change', this.onControlsChange);
     this.controls.update();
 
-    this.scene.add(new AmbientLight(0xfff3e4, this.lite ? 0.42 : 0.22));
-    this.scene.add(new HemisphereLight(0xfff4e8, 0x3a322b, this.lite ? 0.46 : 0.28));
+    this.scene.add(new AmbientLight(0xfff3e4, this.lite ? 0.58 : 0.44));
+    this.scene.add(new HemisphereLight(0xfff6ea, 0x8a735c, this.lite ? 0.58 : 0.5));
 
-    const key = new DirectionalLight(0xffe2c4, this.lite ? 1.05 : 0.85);
+    const key = new DirectionalLight(0xffe6cc, this.lite ? 1.18 : 1.12);
     key.position.set(3.1, 6.2, 4.4);
     key.castShadow = false;
     key.shadow.mapSize.set(this.lite ? 256 : 1024, this.lite ? 256 : 1024);
@@ -396,9 +396,13 @@ export class SceneEngine {
     key.shadow.bias = -0.00022;
     this.scene.add(key);
 
-    const fill = new DirectionalLight(0xd8c8b4, this.lite ? 0.32 : 0.18);
+    const fill = new DirectionalLight(0xf0e0cc, this.lite ? 0.48 : 0.4);
     fill.position.set(-3.4, 2.4, 1.6);
     this.scene.add(fill);
+
+    const bounce = new DirectionalLight(0xffe8d4, this.lite ? 0.22 : 0.18);
+    bounce.position.set(0.4, 1.1, 5.2);
+    this.scene.add(bounce);
 
     this.room = createAtelierRoom(this.lite);
     this.scene.add(this.room);
@@ -1087,17 +1091,16 @@ export class SceneEngine {
       }
       if (obj.name !== 'badge') return;
       obj.lookAt(this.camera.position);
-      const mesh = obj as Mesh;
-      const geom = mesh.geometry as PlaneGeometry;
-      const badgeH = geom.parameters?.height || SOLD_OUT_BADGE_H;
-      mesh.getWorldPosition(this.projectScratch);
+      const geom = (obj as Mesh).geometry as PlaneGeometry | undefined;
+      const badgeH = geom?.parameters?.height || SOLD_OUT_BADGE_H;
+      obj.getWorldPosition(this.projectScratch);
       const scale = soldOutBadgeScale(
         this.projectScratch.distanceTo(this.camera.position),
         this.camera.fov,
         viewportH,
         badgeH,
       );
-      mesh.scale.set(scale, scale, 1);
+      obj.scale.set(scale, scale, 1);
     });
   }
 
@@ -1463,7 +1466,7 @@ export class SceneEngine {
     if (floor?.material instanceof MeshStandardMaterial && floorMap) {
       const prev = floor.material.map;
       floor.material.map = floorMap;
-      floor.material.color.setHex(0xffffff);
+      floor.material.color.setHex(0xf4e8d4);
       floor.material.needsUpdate = true;
       if (prev && !isSharedTexture(prev)) prev.dispose();
     } else {
@@ -1472,7 +1475,7 @@ export class SceneEngine {
     if (wall?.material instanceof MeshStandardMaterial && wallMap) {
       const prev = wall.material.map;
       wall.material.map = wallMap;
-      wall.material.color.setHex(0x8a8076);
+      wall.material.color.setHex(0xe8dfd4);
       wall.material.needsUpdate = true;
       if (prev && !isSharedTexture(prev)) prev.dispose();
     } else {
@@ -1492,6 +1495,7 @@ export class SceneEngine {
     this.pmrem = new PMREMGenerator(this.renderer);
     const env = this.pmrem.fromEquirectangular(texture).texture;
     this.scene.environment = env;
+    this.scene.environmentIntensity = 0.62;
     this.requestRender();
   }
 
