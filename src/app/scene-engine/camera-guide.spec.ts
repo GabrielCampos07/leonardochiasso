@@ -10,11 +10,13 @@ import {
   OVERVIEW_MAX_DISTANCE,
   OVERVIEW_MAX_DISTANCE_COMPACT,
   PORTRAIT_STACK_PITCH,
+  PORTRAIT_STACK_Z,
   portraitStackOffset,
   clampOrbitSpherical,
   computeVitrineFit,
   defaultChromeInsets,
   distanceToFitWidth,
+  COMPACT_RACK_RAISE,
   FIT_WIDTH_MARGIN_COMPACT,
   RACK_MAX_DISTANCE_COMPACT,
   measureAtelierChrome,
@@ -120,6 +122,15 @@ describe('computeEyeLevelFit', () => {
     const visible = 2 * Math.tan((38 * Math.PI) / 360) * pose.distance * (16 / 9);
     expect(4 / visible).toBeGreaterThan(0.78);
     expect(4 / visible).toBeLessThan(0.95);
+  });
+
+  it('raises a compact rack so the wall does not fill the top of the phone', () => {
+    const chrome = { top: 0.08, bottom: 0.22 };
+    const pose = computeEyeLevelFit(box, 393 / 852, 38, 'rack', true, chrome);
+    const cy = (box.minY + box.maxY) / 2;
+    expect(COMPACT_RACK_RAISE).toBeGreaterThan(0.4);
+    expect(pose.target.y).toBeLessThan(cy);
+    expect(pose.target.y).toBeLessThan(chromeBandTargetY(cy, box.maxY - box.minY, chrome) - 0.3);
   });
 
   it('keeps a compact viewport on the width fit with extra side margin', () => {
@@ -250,6 +261,7 @@ describe('portrait Ver todas stack', () => {
     expect(mid.x).toBe(0);
     expect(bottom.x).toBe(0);
     expect(bottom.y).toBe(0);
+    expect(top.z).toBe(PORTRAIT_STACK_Z);
     expect(mid.y).toBeCloseTo(PORTRAIT_STACK_PITCH, 5);
     expect(top.y).toBeCloseTo(2 * PORTRAIT_STACK_PITCH, 5);
   });
@@ -268,7 +280,8 @@ describe('portrait Ver todas stack', () => {
     expect(6.8 / stackVisible).toBeGreaterThan(0.7);
     const stackCy = (stack.minY + stack.maxY) / 2;
     const stackH = stack.maxY - stack.minY;
-    expect(stacked.target.y).toBeCloseTo(chromeBandTargetY(stackCy, stackH, chrome), 5);
+    const band = chromeBandTargetY(stackCy, stackH, chrome);
+    expect(stacked.target.y).toBeCloseTo(stackCy + (band - stackCy) * 0.4, 5);
     expect(stacked.target.y).toBeLessThan(stackCy);
   });
 });

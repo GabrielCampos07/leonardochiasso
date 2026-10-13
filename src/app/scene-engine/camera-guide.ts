@@ -143,8 +143,10 @@ export function pieceFocusBox(
 }
 /** Side inset so hangers fill ~85% of the viewport width. */
 export const FIT_WIDTH_MARGIN = 0.075;
-/** Extra side air on portrait so Organic / short racks don't lose the posts. */
-export const FIT_WIDTH_MARGIN_COMPACT = 0.12;
+/** Tight side air so a 4-column compact frame fills the phone width. */
+export const FIT_WIDTH_MARGIN_COMPACT = 0.055;
+/** Sit a compact focused rack higher so the wall does not eat the top 40%. */
+export const COMPACT_RACK_RAISE = 0.5;
 /** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
 export const RACK_MAX_DISTANCE_COMPACT = 26;
 export const FIT_HANGER_FILL = 1 - FIT_WIDTH_MARGIN * 2;
@@ -178,13 +180,16 @@ export function isPortraitAtelierViewport(
 }
 
 /** World-Y gap between stacked racks in Ver todas (one rack tall + air). */
-export const PORTRAIT_STACK_PITCH = 2.55;
-export const PORTRAIT_OVERVIEW_FILL = 1;
+export const PORTRAIT_STACK_PITCH = 2.42;
+/** Pull the stack off the plaster so the wall never covers Organic. */
+export const PORTRAIT_STACK_Z = 0.62;
+export const PORTRAIT_OVERVIEW_FILL = 1.12;
+export const PORTRAIT_OVERVIEW_ELEVATION = 0.035;
 
 /** Same X, first collection on top, last rack standing on the floor. */
-export function portraitStackOffset(index: number, count: number): { x: number; y: number } {
-  if (count <= 1) return { x: 0, y: 0 };
-  return { x: 0, y: (count - 1 - index) * PORTRAIT_STACK_PITCH };
+export function portraitStackOffset(index: number, count: number): { x: number; y: number; z: number } {
+  if (count <= 1) return { x: 0, y: 0, z: PORTRAIT_STACK_Z };
+  return { x: 0, y: (count - 1 - index) * PORTRAIT_STACK_PITCH, z: PORTRAIT_STACK_Z };
 }
 
 export function easeInOutCubic(t: number): number {
@@ -296,8 +301,15 @@ export function computeEyeLevelFit(
     );
   } else distance = Math.min(Math.max(distance, compact ? 1.55 : 1.35), compact ? RACK_MAX_DISTANCE_COMPACT : 10);
 
-  const targetY = chromeBandTargetY(cy, height, pads) - (mode === 'piece' ? 0.08 : 0);
-  const elevation = compact ? 0.16 : mode === 'piece' ? 0.3 : 0.22;
+  const viewH = 2 * Math.tan(fov / 2) * distance;
+  const bandCenter = pads.bottom + visibleH / 2;
+  const bandShift = (0.5 - bandCenter) * viewH;
+  let targetY = cy + bandShift - (mode === 'piece' ? 0.08 : 0);
+  if (compact && mode === 'rack') {
+    const slack = Math.max(0, viewH * visibleH - height);
+    targetY -= height * COMPACT_RACK_RAISE * 0.45 + slack * 0.2;
+  }
+  const elevation = compact ? 0.07 : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
@@ -332,9 +344,10 @@ export function computePortraitOverviewFit(
   const fov = (fovDeg * Math.PI) / 180;
   const fitH = height / (2 * Math.tan(fov / 2) * visibleH);
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN_COMPACT);
-  let distance = Math.max(fitH, fitW) * PORTRAIT_OVERVIEW_FILL + depth * 0.08;
+  let distance = Math.max(fitH * PORTRAIT_OVERVIEW_FILL, fitW) + depth * 0.08;
   distance = Math.min(Math.max(distance, 2.2), OVERVIEW_MAX_DISTANCE);
-  return poseFromElevation(cx, chromeBandTargetY(cy, height, pads), cz, distance, 0.1);
+  const targetY = cy + (chromeBandTargetY(cy, height, pads) - cy) * 0.4;
+  return poseFromElevation(cx, targetY, cz, distance, PORTRAIT_OVERVIEW_ELEVATION);
 }
 
 /** Closer and a bit lower so tray photos fill the frame without the top shelf covering them. */

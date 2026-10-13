@@ -39,11 +39,23 @@ describe('rackPanProgress', () => {
     expect(end.label).toBe('19 de 19');
   });
 
-  it('reads 6 de 17 at the left of a compact 17-piece rack', () => {
+  it('reads 4 de 17 at the left of a compact 17-piece rack', () => {
     const start = rackPanProgress(17, rackStartPanX(17, RACK_FRAME_COLUMNS_COMPACT), RACK_FRAME_COLUMNS_COMPACT);
     expect(start.showChrome).toBeTrue();
     expect(start.last).toBe(RACK_FRAME_COLUMNS_COMPACT);
-    expect(start.label).toBe('6 de 17');
+    expect(start.label).toBe('4 de 17');
+  });
+
+  it('derives the counter from pan offset in both directions', () => {
+    const start19 = rackStartPanX(19);
+    expect(rackPanProgress(19, start19 + HANGER_SPACING).last).toBe(9);
+    expect(rackPanProgress(19, start19).last).toBe(8);
+    expect(rackPanProgress(19, rackPanRange(19)).last).toBe(19);
+    const start21 = rackStartPanX(21);
+    expect(rackPanProgress(21, start21 + HANGER_SPACING * 2).last).toBe(10);
+    expect(rackPanProgress(21, start21 + HANGER_SPACING * 2).label).toBe('10 de 21');
+    expect(rackPanProgress(21, start21 + HANGER_SPACING).last).toBe(9);
+    expect(rackPanProgress(21, start21).last).toBe(8);
   });
 
   it('hides chrome when the rack fits in one frame', () => {
@@ -61,19 +73,20 @@ describe('rackPanProgress', () => {
 });
 
 describe('rackLookFrame', () => {
-  it('clips the right edge at the start so the last visible piece is cut', () => {
+  it('centers the framed window on the pan so the rack does not slide right', () => {
     const start = rackLookFrame(19, rackStartPanX(19));
     const full = rackFrameWidth(19);
     expect(RACK_EDGE_CUT).toBeGreaterThan(0.2);
+    expect(start.offset).toBeCloseTo(rackStartPanX(19), 5);
     expect(start.halfW * 2).toBeLessThan(full);
-    expect(start.offset).toBeLessThan(0);
-    expect(start.offset + start.halfW).toBeCloseTo(rackStartPanX(19) + full / 2 - RACK_EDGE_CUT, 5);
+    expect(start.halfW * 2).toBeGreaterThan(full * 0.7);
   });
 
-  it('clips the left edge at the end of the rail', () => {
+  it('keeps the same half-width at the end of the rail', () => {
+    const start = rackLookFrame(19, rackStartPanX(19));
     const end = rackLookFrame(19, rackPanRange(19));
-    const full = rackFrameWidth(19);
-    expect(end.offset - end.halfW).toBeCloseTo(rackPanRange(19) - full / 2 + RACK_EDGE_CUT, 5);
+    expect(end.offset).toBeCloseTo(rackPanRange(19), 5);
+    expect(end.halfW).toBeCloseTo(start.halfW, 5);
   });
 });
 

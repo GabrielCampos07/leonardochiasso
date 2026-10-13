@@ -62,8 +62,8 @@ export function rackPanProgress(
   const canPrev = showChrome && x > -range + 0.001;
   const canNext = showChrome && x < range - 0.001;
   const fromLeft = range <= 0 ? 0 : (x + range) / HANGER_SPACING;
-  const first = Math.min(total, Math.floor(fromLeft + 1e-4) + 1);
-  let last = Math.min(total, Math.max(first, Math.round(fromLeft + frame)));
+  const first = Math.min(total, Math.max(1, Math.floor(fromLeft + 1e-4) + 1));
+  let last = Math.min(total, first + frame - 1);
   if (showChrome && !canNext) last = total;
   return {
     first,
@@ -86,11 +86,8 @@ export function rackLookFrame(
   const range = rackPanRange(hangerCount, frameColumns);
   if (range <= 0.001) return { offset: 0, halfW: frameW / 2 };
   const x = clampRackPan(panX, range);
-  const atStart = x <= -range + 0.001;
-  const atEnd = x >= range - 0.001;
-  const halfW = (frameW - RACK_EDGE_CUT) / 2;
-  const bias = atStart ? -RACK_EDGE_CUT / 2 : atEnd ? RACK_EDGE_CUT / 2 : 0;
-  return { offset: x + bias, halfW };
+  const halfW = (frameW - RACK_EDGE_CUT * 0.55) / 2;
+  return { offset: x, halfW };
 }
 
 export function wheelPanPixels(event: { deltaX: number; deltaY: number; deltaMode?: number }): number {
