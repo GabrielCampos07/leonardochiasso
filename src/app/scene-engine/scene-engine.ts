@@ -86,6 +86,7 @@ import {
   hangerTooltipWhileCameraBusy,
   hoverSlugAfterCameraSettle,
   orbitDampingExpired,
+  shouldEnableOrbitZoom,
   stopOrbitInertia,
   stopPanZoomInertia,
 } from './orbit-damping';
@@ -295,7 +296,7 @@ export class SceneEngine {
 
   private readonly onPointerDown = (event: PointerEvent) => {
     this.pointerDown = { x: event.clientX, y: event.clientY };
-    this.controls.enableZoom = true;
+    this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.rememberPointer(event);
     this.onHoverCb?.(null);
     this.setHover(null);
@@ -357,11 +358,16 @@ export class SceneEngine {
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
+  /** Re-enable dolly after settle. Does not step racks — arrows/buttons do that. */
+  private readonly onCanvasWheel = () => {
+    if (this.orbitSettling()) return;
+    this.controls.enableZoom = shouldEnableOrbitZoom('wheel');
+  };
   private readonly onControlsStart = () => {
     this.interacting = true;
     this.orbitDampingUntil = 0;
     this.cancelCameraTween();
-    this.controls.enableZoom = true;
+    this.controls.enableZoom = shouldEnableOrbitZoom('pointerdown');
     this.hideHoverForCamera();
     this.requestRender();
   };
@@ -466,6 +472,7 @@ export class SceneEngine {
     canvas.addEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     canvas.addEventListener('touchmove', this.noopTouch, NON_PASSIVE);
     canvas.addEventListener('wheel', this.noopTouch, NON_PASSIVE);
+    canvas.addEventListener('wheel', this.onCanvasWheel, { capture: true, passive: false });
     window.addEventListener('blur', this.onWindowBlur);
 
     canvas.addEventListener('webglcontextlost', this.onContextLost, false);
@@ -516,6 +523,15 @@ export class SceneEngine {
 
   start(): void {
     this.requestRender();
+  }
+
+  /** Distance from the lens to the orbit target — used by zoom settle tests. */
+  orbitDistance(): number {
+    return this.camera.position.distanceTo(this.controls.target);
+  }
+
+  orbitZoomEnabled(): boolean {
+    return this.controls.enableZoom;
   }
 
   focusedRackId(): string {
@@ -887,6 +903,7 @@ export class SceneEngine {
     this.canvas.removeEventListener('touchstart', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('touchmove', this.noopTouch, NON_PASSIVE);
     this.canvas.removeEventListener('wheel', this.noopTouch, NON_PASSIVE);
+    this.canvas.removeEventListener('wheel', this.onCanvasWheel, { capture: true, passive: false } as AddEventListenerOptions);
     this.canvas.removeEventListener('webglcontextlost', this.onContextLost, false);
     this.canvas.removeEventListener('webglcontextrestored', this.onContextRestored, false);
     window.removeEventListener('resize', this.onHostResize);
@@ -1401,9 +1418,13 @@ export class SceneEngine {
     stopOrbitInertia(this.controls);
   }
 
+  private orbitSettling(): boolean {
+    return this.interacting || !orbitDampingExpired(performance.now(), this.orbitDampingUntil);
+  }
+
   private freezeOrbit(): void {
     stopOrbitInertia(this.controls);
-    this.controls.enableZoom = false;
+    this.controls.enableZoom = shouldEnableOrbitZoom('settle');
     this.orbitDampingUntil = 0;
   }
 
@@ -1412,7 +1433,7 @@ export class SceneEngine {
     this.cancelCameraTween();
     this.controls.enableDamping = !this.reducedMotion;
     stopPanZoomInertia(this.controls);
-    this.controls.enableZoom = false;
+    this.controls.enableZoom = shouldEnableOrbitZoom('release');
     if (this.reducedMotion) {
       this.freezeOrbit();
       this.clampCamera();

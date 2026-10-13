@@ -14,6 +14,7 @@ import {
   hangerTooltipWhileCameraBusy,
   hoverSlugAfterCameraSettle,
   orbitDampingExpired,
+  shouldEnableOrbitZoom,
   stopOrbitInertia,
   stopPanZoomInertia,
 } from './orbit-damping';
@@ -87,5 +88,12 @@ describe('hanger tooltip while the camera moves', () => {
     expect(hoverSlugAfterCameraSettle(true, 'look-obi-organza')).toBeNull();
     expect(hoverSlugAfterCameraSettle(false, 'look-obi-organza')).toBe('look-obi-organza');
     expect(hoverSlugAfterCameraSettle(false, null)).toBeNull();
+  });
+
+  it('turns zoom back on after settle and on the next pointerdown or wheel', () => {
+    expect(shouldEnableOrbitZoom('release')).toBeFalse();
+    expect(shouldEnableOrbitZoom('settle')).toBeTrue();
+    expect(shouldEnableOrbitZoom('pointerdown')).toBeTrue();
+    expect(shouldEnableOrbitZoom('wheel')).toBeTrue();
   });
 });
