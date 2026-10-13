@@ -60,6 +60,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(niponic!.x).toBeCloseTo(brazilian!.x, 5);
     expect(organic!.y).toBeGreaterThan(niponic!.y);
     expect(niponic!.y).toBeGreaterThan(brazilian!.y);
+    expect(brazilian!.y).toBeCloseTo(0, 5);
     expect(organic!.y - niponic!.y).toBeCloseTo(PORTRAIT_STACK_PITCH, 5);
 
     engine.focusRack('niponic-dreams', true);

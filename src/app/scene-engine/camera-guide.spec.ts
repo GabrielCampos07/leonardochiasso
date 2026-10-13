@@ -228,21 +228,21 @@ describe('portrait Ver todas stack', () => {
     expect(isPortraitAtelierViewport(1280, 900)).toBeFalse();
   });
 
-  it('stacks racks on Y at the same X, first collection on top', () => {
+  it('stacks racks on Y at the same X, first collection on top, last on the floor', () => {
     const top = portraitStackOffset(0, 3);
     const mid = portraitStackOffset(1, 3);
     const bottom = portraitStackOffset(2, 3);
     expect(top.x).toBe(0);
     expect(mid.x).toBe(0);
     expect(bottom.x).toBe(0);
-    expect(top.y).toBeCloseTo(PORTRAIT_STACK_PITCH, 5);
-    expect(mid.y).toBe(0);
-    expect(bottom.y).toBeCloseTo(-PORTRAIT_STACK_PITCH, 5);
+    expect(bottom.y).toBe(0);
+    expect(mid.y).toBeCloseTo(PORTRAIT_STACK_PITCH, 5);
+    expect(top.y).toBeCloseTo(2 * PORTRAIT_STACK_PITCH, 5);
   });
 
   it('frames a stacked aisle closer than the side-by-side compact clamp and looks below the wall', () => {
     const aisle = { minX: -14, maxX: 14, minY: -0.2, maxY: 2.2, minZ: -0.1, maxZ: 0.1 };
-    const stack = { minX: -3.4, maxX: 3.4, minY: -2.9, maxY: 4.9, minZ: -0.1, maxZ: 0.1 };
+    const stack = { minX: -3.4, maxX: 3.4, minY: -0.7, maxY: 7.1, minZ: -0.1, maxZ: 0.1 };
     const chrome = { top: 0.08, bottom: 0.28 };
     const wide = computeEyeLevelFit(aisle, 390 / 844, 38, 'overview', true, chrome);
     const stacked = computePortraitOverviewFit(stack, 390 / 844, 38, chrome);
@@ -254,7 +254,6 @@ describe('portrait Ver todas stack', () => {
     expect(6.8 / stackVisible).toBeGreaterThan(0.7);
     const stackCy = (stack.minY + stack.maxY) / 2;
     expect(stacked.target.y).toBeLessThan(stackCy);
-    expect(stacked.target.y).toBeLessThan(wide.target.y);
   });
 });
 

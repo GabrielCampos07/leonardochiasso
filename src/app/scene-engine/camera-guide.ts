@@ -139,14 +139,11 @@ export function isPortraitAtelierViewport(
 /** World-Y gap between stacked racks in Ver todas (one rack tall + air). */
 export const PORTRAIT_STACK_PITCH = 2.55;
 export const PORTRAIT_OVERVIEW_FILL = 1;
-/** Drop the look-at so the stack sits in the lower usable band, not the wall. */
-export const PORTRAIT_OVERVIEW_TARGET_DROP = 0.12;
 
-/** Same X, first collection on top. Centered on y = 0. */
+/** Same X, first collection on top, last rack standing on the floor. */
 export function portraitStackOffset(index: number, count: number): { x: number; y: number } {
   if (count <= 1) return { x: 0, y: 0 };
-  const mid = (count - 1) / 2;
-  return { x: 0, y: (mid - index) * PORTRAIT_STACK_PITCH };
+  return { x: 0, y: (count - 1 - index) * PORTRAIT_STACK_PITCH };
 }
 
 export function easeInOutCubic(t: number): number {
@@ -283,8 +280,7 @@ export function computePortraitOverviewFit(
   let distance = Math.max(fitH, fitW) * PORTRAIT_OVERVIEW_FILL + depth * 0.08;
   distance = Math.min(Math.max(distance, 2.2), OVERVIEW_MAX_DISTANCE);
   const bandCenter = pads.bottom + visibleH / 2;
-  const targetY =
-    cy + ((0.5 - bandCenter) / visibleH) * height - height * PORTRAIT_OVERVIEW_TARGET_DROP;
+  const targetY = cy + ((0.5 - bandCenter) / visibleH) * height;
   return poseFromElevation(cx, targetY, cz, distance, 0.1);
 }
 
