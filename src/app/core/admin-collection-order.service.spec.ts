@@ -2,7 +2,7 @@ import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
-import { AdminCollectionOrderService } from './admin-collection-order.service';
+import { AdminCollectionOrderService, CollectionGenderOrder } from './admin-collection-order.service';
 
 describe('AdminCollectionOrderService', () => {
   const originalDemo = environment.demoMode;
@@ -33,7 +33,7 @@ describe('AdminCollectionOrderService', () => {
       gender: 'feminino' as const,
       productIds: ['id-1', 'id-2'],
     };
-    let got = null as typeof body | null;
+    let got: CollectionGenderOrder | null = null;
     service.get('organic-dreams', 'feminino').subscribe((res) => {
       got = res;
     });
@@ -52,7 +52,7 @@ describe('AdminCollectionOrderService', () => {
       gender: 'masculino' as const,
       productIds: ['id-a', 'id-b'],
     };
-    let got = null as typeof body | null;
+    let got: CollectionGenderOrder | null = null;
     service.put('organic-dreams', 'masculino', ['id-a', 'id-b']).subscribe((res) => {
       got = res;
     });
@@ -66,7 +66,7 @@ describe('AdminCollectionOrderService', () => {
   });
 
   it('falls back locally when the order endpoint is missing', () => {
-    let got: { productIds: string[] } | null = null;
+    let got: CollectionGenderOrder | null = null;
     service.get('niponic-dreams', 'feminino').subscribe((res) => {
       got = res;
     });
@@ -77,10 +77,11 @@ describe('AdminCollectionOrderService', () => {
   });
 
   it('surfaces a 400 message so the UI can restore the previous order', () => {
-    let err: HttpErrorResponse | null = null;
+    let err: HttpErrorResponse | undefined;
     service.put('organic-dreams', 'feminino', ['missing']).subscribe({
-      error: (e: HttpErrorResponse) => {
-        err = e;
+      next: () => fail('expected 400'),
+      error: (e: unknown) => {
+        err = e as HttpErrorResponse;
       },
     });
     http
