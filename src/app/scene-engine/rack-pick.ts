@@ -45,3 +45,18 @@ export function rackIdFromHits(hits: readonly RackPickHit[]): string | null {
   }
   return null;
 }
+
+/**
+ * Ver todas: click a rack to zoom in. A drag / floor click / rack-pan never
+ * starts that tween — including pointerup after a floor drag that still
+ * raycasts a hanger behind the wood.
+ */
+export function rackFocusIdAfterPointer(input: {
+  overview: boolean;
+  wasPanning: boolean;
+  isClick: boolean;
+  hits: readonly RackPickHit[];
+}): string | null {
+  if (!input.overview || input.wasPanning || !input.isClick) return null;
+  return rackIdFromHits(input.hits);
+}

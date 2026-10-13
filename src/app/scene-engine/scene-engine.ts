@@ -96,7 +96,7 @@ import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } fr
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
 import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { hangerSlugFromHits, isPointerClick, isRoomSurface, resolveHangerClick } from './hanger-pick';
-import { rackIdFromHits } from './rack-pick';
+import { rackFocusIdAfterPointer, rackIdFromHits } from './rack-pick';
 import {
   ORBIT_DAMPING_FACTOR,
   ORBIT_DAMPING_MAX_MS,
@@ -396,16 +396,20 @@ export class SceneEngine {
     });
     this.pointerDownSlug = null;
     if (!isPointerClick(dx, dy)) this.userOrbited = true;
-    if (!wasPanning && isPointerClick(dx, dy) && !this.userOrbited) {
-      const hits = this.raycastPointer(event);
-      if (this.focusedId === OVERVIEW_FOCUS_ID) {
-        const rackId = rackIdFromHits(hits);
-        if (rackId) {
-          this.endOrbit();
-          this.focusRack(rackId);
-          return;
-        }
-      } else if (slug) {
+    const hits = this.raycastPointer(event);
+    const rackId = rackFocusIdAfterPointer({
+      overview: this.focusedId === OVERVIEW_FOCUS_ID,
+      wasPanning,
+      isClick: isPointerClick(dx, dy),
+      hits,
+    });
+    if (rackId) {
+      this.endOrbit();
+      this.focusRack(rackId);
+      return;
+    }
+    if (!wasPanning && isPointerClick(dx, dy)) {
+      if (slug) {
         this.onClickCb?.(slug);
       } else {
         const emptyId = this.emptyUnitIdFromHits(hits);
@@ -432,7 +436,10 @@ export class SceneEngine {
   private readonly noopTouch = (event: Event) => {
     if (event.cancelable) event.preventDefault();
   };
-  /** Capture runs before OrbitControls so rack-pan can disable dolly first. */
+  /**
+   * Capture runs before OrbitControls.
+   * Wheel over rack → pan (zoom off). Elsewhere / pinch → zoom.
+   */
   private readonly onWheelCapture = (event: WheelEvent) => {
     const pinch = isPinchZoomEvent(event);
     const pan = shouldPanRackOnWheel({

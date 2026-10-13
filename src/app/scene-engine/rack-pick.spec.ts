@@ -1,4 +1,4 @@
-import { rackIdFromHits, rackIdFromObject } from './rack-pick';
+import { rackFocusIdAfterPointer, rackIdFromHits, rackIdFromObject } from './rack-pick';
 
 describe('rackIdFromObject', () => {
   it('walks up to the unit group', () => {
@@ -28,5 +28,42 @@ describe('rackIdFromHits', () => {
     expect(rackIdFromHits([{ object: hanger }])).toBe('organic-dreams');
     expect(rackIdFromHits([{ object: rug }])).toBe('organic-dreams');
     expect(rackIdFromHits([{ object: floor }, { object: hanger }])).toBeNull();
+  });
+
+  it('does not zoom a rack from a drag or a floor click', () => {
+    const rack = { userData: { kind: 'rack', rackId: 'organic-dreams' } };
+    const floor = { name: 'floor', userData: { kind: 'floor', ignorePick: true } };
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: false,
+        isClick: false,
+        hits: [{ object: rack }],
+      }),
+    ).toBeNull();
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: true,
+        isClick: true,
+        hits: [{ object: rack }],
+      }),
+    ).toBeNull();
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: false,
+        isClick: true,
+        hits: [{ object: floor }, { object: rack }],
+      }),
+    ).toBeNull();
+    expect(
+      rackFocusIdAfterPointer({
+        overview: true,
+        wasPanning: false,
+        isClick: true,
+        hits: [{ object: rack }],
+      }),
+    ).toBe('organic-dreams');
   });
 });

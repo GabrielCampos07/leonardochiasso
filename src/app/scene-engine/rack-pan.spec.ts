@@ -92,5 +92,6 @@ describe('pan input helpers', () => {
     expect(shouldPanRackOnWheel({ overRack: true, pinch: false, panRange: 2 })).toBeTrue();
     expect(shouldPanRackOnWheel({ overRack: true, pinch: true, panRange: 2 })).toBeFalse();
     expect(shouldPanRackOnWheel({ overRack: false, pinch: false, panRange: 2 })).toBeFalse();
+    expect(shouldPanRackOnWheel({ overRack: true, pinch: false, panRange: 0 })).toBeFalse();
   });
 });

@@ -122,12 +122,18 @@ export function rackArrowDelta(key: string): -1 | 1 | 0 {
   return 0;
 }
 
-/** Ctrl+wheel / trackpad pinch (browsers set ctrlKey) always dollies. */
+/**
+ * Wheel vs zoom (kept consistent with #37 rack-pan):
+ * 1. Wheel over the focused long rack → pan pieces only (`enableZoom` off).
+ * 2. Wheel elsewhere (floor, wall, empty, overview) → zoom.
+ * 3. Ctrl+wheel / trackpad pinch (`ctrlKey`, also meta) → zoom toward the
+ *    cursor anywhere, including over a rack, so a piece can go close-up.
+ */
 export function isPinchZoomEvent(event: { ctrlKey?: boolean; metaKey?: boolean }): boolean {
   return Boolean(event.ctrlKey || event.metaKey);
 }
 
-/** Wheel over a long rack pans pieces. Elsewhere — or pinch — zooms. */
+/** True only for rule 1 above. */
 export function shouldPanRackOnWheel(input: {
   overRack: boolean;
   pinch: boolean;
