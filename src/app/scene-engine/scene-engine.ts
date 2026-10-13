@@ -4,7 +4,6 @@ import {
   Box3,
   Color,
   DirectionalLight,
-  EquirectangularReflectionMapping,
   Fog,
   Group,
   HemisphereLight,
@@ -32,7 +31,6 @@ import {
   createAtelierLoadingManager,
   loadColorTexture,
   loadGlb,
-  loadHdri,
   type LoadProgressHandler,
 } from './atelier-assets';
 import { ATELIER_CLEAR, ATELIER_EXPOSURE, ATELIER_FOG, detectAtelierLiteMode } from './atelier-look';
@@ -276,7 +274,6 @@ export class SceneEngine {
   private onProgressCb: LoadProgressHandler | null = null;
   private room: Group | null = null;
   private propsRoot: Group | null = null;
-  private hdri: Texture | null = null;
   private propsArmed = false;
   private mannequinSrc: Group | null = null;
   private plantSrc: Group | null = null;
@@ -432,7 +429,6 @@ export class SceneEngine {
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
     void this.loadRoomTextures();
-    if (!this.lite) void this.loadHdriEnv();
 
     canvas.addEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
     canvas.addEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
@@ -887,8 +883,6 @@ export class SceneEngine {
     this.texQueue.dispose();
     this.loadedPhotos.clear();
     this.keyLight = null;
-    this.hdri?.dispose();
-    this.hdri = null;
     this.room = null;
     this.propsRoot = null;
     this.onProgressCb = null;
@@ -1530,19 +1524,6 @@ export class SceneEngine {
     } else {
       wallMap?.dispose();
     }
-    this.requestRender();
-  }
-
-  private async loadHdriEnv(): Promise<void> {
-    const texture = await loadHdri(ATELIER_ASSETS.hdri, this.manager);
-    if (this.disposed || this.lite || !texture) {
-      texture?.dispose();
-      return;
-    }
-    texture.mapping = EquirectangularReflectionMapping;
-    this.hdri = texture;
-    this.scene.environment = texture;
-    this.scene.environmentIntensity = 0.62;
     this.requestRender();
   }
 
