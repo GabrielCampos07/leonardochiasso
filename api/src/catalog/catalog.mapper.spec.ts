@@ -63,5 +63,7 @@ describe('mapProduct collection badges', () => {
     ]);
     expect(dto.collections[0]?.archivedAt).toBe('2026-10-12T12:00:00.000Z');
     expect(dto.collections.map((c) => c.sortOrder)).toEqual([1, 0]);
+    expect(dto.category).toBe('feminino');
+    expect(dto.gender).toBe('feminino');
   });
 });

@@ -12,6 +12,11 @@ import {
   CollectionDto,
   ProductDto,
 } from './dto/catalog.dto';
+import {
+  orderCollectionMembersByGenderBlocks,
+  parseOptionalGenderList,
+  sortByPublicGenderBlocks,
+} from './gender';
 
 @Injectable()
 export class CatalogService {
@@ -20,14 +25,24 @@ export class CatalogService {
     private readonly cache: CatalogCacheService,
   ) {}
 
-  async listProducts(): Promise<ProductDto[]> {
-    return this.cache.getOrSet('products:list', async () => {
+  async listProducts(genderRaw?: string): Promise<ProductDto[]> {
+    const gender = parseOptionalGenderList(genderRaw);
+    const cacheKey = gender ? `products:list:${gender}` : 'products:list';
+    return this.cache.getOrSet(cacheKey, async () => {
       const products = await this.prisma.product.findMany({
-        where: { status: ProductStatus.published, archivedAt: null },
+        where: {
+          status: ProductStatus.published,
+          archivedAt: null,
+          ...(gender
+            ? { category: { slug: { in: [gender, 'unissex'] } } }
+            : {}),
+        },
         include: publicProductInclude,
         orderBy: [{ recommendOrder: 'asc' }, { createdAt: 'asc' }],
       });
-      return products.map(mapProduct);
+      const mapped = products.map(mapProduct);
+      if (gender) return mapped;
+      return sortByPublicGenderBlocks(mapped);
     });
   }
 
@@ -78,6 +93,9 @@ export class CatalogService {
               product: { include: publicProductInclude },
             },
           },
+          genderOrders: {
+            orderBy: { sortOrder: 'asc' },
+          },
         },
       });
       if (!collection) {
@@ -92,7 +110,15 @@ export class CatalogService {
         publishedAt: collection.publishedAt?.toISOString() ?? null,
         archivedAt: null,
         coverImage: resolveCollectionCoverImage(collection.slug, collection.products),
-        products: collection.products.map((pc) => mapProduct(pc.product)),
+        products: orderCollectionMembersByGenderBlocks(
+          collection.products.map((pc) => ({
+            productId: pc.productId,
+            sortOrder: pc.sortOrder,
+            gender: pc.product.category.slug,
+            product: pc.product,
+          })),
+          collection.genderOrders,
+        ).map((member) => mapProduct(member.product)),
       };
     });
   }
