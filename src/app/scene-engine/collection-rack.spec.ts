@@ -53,7 +53,7 @@ describe('rackWidth', () => {
     expect(rackPanRange(19)).toBeGreaterThan(0);
     expect(rackFrameWidth(17, 6)).toBeLessThan(rackFrameWidth(17, 8));
     expect(rackPanRange(17, 6)).toBeGreaterThan(rackPanRange(17, 8));
-    expect(rackFrameColumns(true, 8)).toBe(RACK_FRAME_COLUMNS);
+    expect(rackFrameColumns(true, 8)).toBe(RACK_FRAME_COLUMNS_COMPACT);
     expect(rackFrameColumns(true, 17)).toBe(RACK_FRAME_COLUMNS_COMPACT);
     expect(rackFrameColumns(false, 17)).toBe(RACK_FRAME_COLUMNS);
   });

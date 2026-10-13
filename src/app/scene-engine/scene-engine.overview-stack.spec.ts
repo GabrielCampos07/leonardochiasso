@@ -1,5 +1,5 @@
 import { createSceneEngine, type SceneEngine } from './scene-engine';
-import { PORTRAIT_STACK_PITCH } from './camera-guide';
+import { PORTRAIT_STACK_PITCH, PORTRAIT_STACK_Z } from './camera-guide';
 import type { SceneLayout } from './types';
 
 function aisleLayout(brazilianCount = 8): SceneLayout {
@@ -47,10 +47,15 @@ function mountHost(
   return { host, canvas };
 }
 
-async function saveShot(engine: SceneEngine, name: string, overlay?: string): Promise<void> {
+async function saveShot(
+  engine: SceneEngine,
+  name: string,
+  overlay?: string,
+  size = { width: 393, height: 852 },
+): Promise<void> {
   let url = engine.capturePng();
   if (overlay) {
-    url = await compositeChrome(url, overlay);
+    url = await compositeChrome(url, overlay, size);
   }
   try {
     await fetch('http://127.0.0.1:9877/shot', {
@@ -63,32 +68,39 @@ async function saveShot(engine: SceneEngine, name: string, overlay?: string): Pr
   }
 }
 
-function compositeChrome(dataUrl: string, label: string): Promise<string> {
+function compositeChrome(
+  dataUrl: string,
+  label: string,
+  size: { width: number; height: number },
+): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = 393;
-      canvas.height = 852;
+      canvas.width = size.width;
+      canvas.height = size.height;
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         resolve(dataUrl);
         return;
       }
-      ctx.drawImage(img, 0, 0, 393, 852);
+      const { width, height } = size;
+      ctx.drawImage(img, 0, 0, width, height);
+      const barH = Math.round(height * (width < 500 ? 0.188 : 0.12));
+      const barTop = height - barH;
       ctx.fillStyle = 'rgb(32 24 18 / 88%)';
-      ctx.fillRect(0, 692, 393, 160);
+      ctx.fillRect(0, barTop, width, barH);
       ctx.fillStyle = '#efe8dc';
       ctx.font = '13px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('Ver todas   Organic   Niponic   Brazilian', 196, 780);
-      const countY = 692 - 16;
+      ctx.fillText('Ver todas   Organic   Niponic   Brazilian', width / 2, barTop + barH * 0.55);
+      const countY = barTop - 16;
       ctx.fillStyle = 'rgb(255 255 255 / 82%)';
       const w = 72;
-      ctx.fillRect(196 - w / 2, countY - 16, w, 22);
+      ctx.fillRect(width / 2 - w / 2, countY - 16, w, 22);
       ctx.fillStyle = '#3a2f26';
       ctx.font = '600 12px sans-serif';
-      ctx.fillText(label, 196, countY);
+      ctx.fillText(label, width / 2, countY);
       resolve(canvas.toDataURL('image/png'));
     };
     img.onerror = () => resolve(dataUrl);
@@ -123,6 +135,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(organic!.y).toBeGreaterThan(niponic!.y);
     expect(niponic!.y).toBeGreaterThan(brazilian!.y);
     expect(brazilian!.y).toBeCloseTo(0, 5);
+    expect(organic!.z).toBeCloseTo(PORTRAIT_STACK_Z, 5);
     expect(organic!.y - niponic!.y).toBeCloseTo(PORTRAIT_STACK_PITCH, 5);
 
     engine.focusRack('niponic-dreams', true);
@@ -157,6 +170,7 @@ describe('SceneEngine portrait Ver todas stack', () => {
     const brazilian = engine.unitScreenBounds('brazilian-dreams');
     expect(organic && brazilian).toBeTruthy();
     expect(organic!.top).toBeGreaterThan(8);
+    expect(organic!.bottom - organic!.top).toBeGreaterThan(90);
     expect(brazilian!.bottom).toBeLessThan(852 - 110);
     await saveShot(engine, 'mobile-ver-todas-393x852');
 
@@ -184,14 +198,13 @@ describe('SceneEngine portrait Ver todas stack', () => {
     engine.focusRack('organic-dreams', true);
     engine.refitToChrome();
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-    const organic = engine.unitScreenBounds('organic-dreams');
-    expect(organic).toBeTruthy();
-    expect(organic!.left).toBeGreaterThan(8);
-    expect(organic!.right).toBeLessThan(385);
-    expect(organic!.top).toBeGreaterThan(8);
-    expect(organic!.bottom).toBeLessThan(852 - 110);
-    expect(engine.orbitDistance()).toBeGreaterThan(10);
-    await saveShot(engine, 'mobile-organic-default-393x852');
+    const organicPan = engine.rackPanState();
+    expect(organicPan.showChrome).toBeTrue();
+    expect(organicPan.last).toBe(4);
+    expect(organicPan.label).toBe('4 de 8');
+    expect(engine.orbitDistance()).toBeGreaterThan(6);
+    expect(engine.orbitDistance()).toBeLessThan(16);
+    await saveShot(engine, 'mobile-organic-default-393x852', organicPan.label);
 
     engine.focusRack('brazilian-dreams', true);
     engine.refitToChrome();
@@ -202,10 +215,11 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(focused!.bottom).toBeLessThan(852 - 110);
     const pan = engine.rackPanState();
     expect(pan.showChrome).toBeTrue();
-    expect(pan.last).toBe(6);
+    expect(pan.last).toBe(4);
     expect(pan.total).toBe(17);
-    expect(pan.label).toBe('6 de 17');
-    expect(engine.orbitDistance()).toBeGreaterThan(10);
+    expect(pan.label).toBe('4 de 17');
+    expect(engine.orbitDistance()).toBeGreaterThan(6);
+    expect(engine.orbitDistance()).toBeLessThan(16);
     await saveShot(engine, 'mobile-brazilian-focus-393x852', pan.label);
     engine.dispose();
     host.remove();
@@ -289,6 +303,69 @@ describe('SceneEngine portrait Ver todas stack', () => {
     );
     expect(engine.focusedRackId()).toBe('organic-dreams');
     expect(engine.isCameraTweening()).toBeTrue();
+    engine.dispose();
+    host.remove();
+  });
+
+  it('captures desktop Ver todas, Organic, and a 19-piece Niponic counter', async () => {
+    const { host, canvas } = mountHost(1280, 800);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true, host });
+    if (!engine) {
+      host.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout({
+      racks: [
+        {
+          id: 'organic-dreams',
+          name: 'organic-dreams',
+          sortOrder: 0,
+          kind: 'rack',
+          hangers: aisleLayout().racks[0]!.hangers,
+        },
+        {
+          id: 'niponic-dreams',
+          name: 'niponic-dreams',
+          sortOrder: 1,
+          kind: 'rack',
+          hangers: Array.from({ length: 19 }, (_, j) => ({
+            productId: `niponic-dreams-${j}`,
+            slug: `niponic-dreams-${j}`,
+            name: `Peça ${j}`,
+            imageUrl: null,
+            stockQty: 1,
+            priceLabel: 'R$ 1,00',
+            status: 'published' as const,
+            rackId: 'niponic-dreams',
+            kind: 'garment' as const,
+          })),
+        },
+      ],
+    });
+    engine.focusOverview(true);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await saveShot(engine, 'desktop-ver-todas-1280x800', undefined, { width: 1280, height: 800 });
+
+    engine.focusRack('organic-dreams', true);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    await saveShot(engine, 'desktop-organic-1280x800', undefined, { width: 1280, height: 800 });
+
+    engine.focusRack('niponic-dreams', true);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    const pan = engine.rackPanState();
+    expect(pan.label).toBe('8 de 19');
+    engine.panRack(1);
+    engine.panRack(1);
+    expect(engine.rackPanState().last).toBe(10);
+    engine.panRack(-1);
+    expect(engine.rackPanState().last).toBe(9);
+    expect(engine.rackPanState().label).toBe('9 de 19');
+    await saveShot(engine, 'desktop-niponic-1280x800', engine.rackPanState().label, {
+      width: 1280,
+      height: 800,
+    });
     engine.dispose();
     host.remove();
   });

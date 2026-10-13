@@ -10,6 +10,7 @@ import {
   OVERVIEW_MAX_DISTANCE,
   OVERVIEW_MAX_DISTANCE_COMPACT,
   PORTRAIT_STACK_PITCH,
+  PORTRAIT_STACK_Z,
   portraitStackOffset,
   clampOrbitSpherical,
   computeVitrineFit,
@@ -250,6 +251,7 @@ describe('portrait Ver todas stack', () => {
     expect(mid.x).toBe(0);
     expect(bottom.x).toBe(0);
     expect(bottom.y).toBe(0);
+    expect(top.z).toBe(PORTRAIT_STACK_Z);
     expect(mid.y).toBeCloseTo(PORTRAIT_STACK_PITCH, 5);
     expect(top.y).toBeCloseTo(2 * PORTRAIT_STACK_PITCH, 5);
   });
@@ -268,7 +270,8 @@ describe('portrait Ver todas stack', () => {
     expect(6.8 / stackVisible).toBeGreaterThan(0.7);
     const stackCy = (stack.minY + stack.maxY) / 2;
     const stackH = stack.maxY - stack.minY;
-    expect(stacked.target.y).toBeCloseTo(chromeBandTargetY(stackCy, stackH, chrome), 5);
+    const band = chromeBandTargetY(stackCy, stackH, chrome);
+    expect(stacked.target.y).toBeCloseTo(stackCy + (band - stackCy) * 0.4, 5);
     expect(stacked.target.y).toBeLessThan(stackCy);
   });
 });

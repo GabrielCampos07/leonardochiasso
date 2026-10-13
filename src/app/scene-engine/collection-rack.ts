@@ -20,14 +20,11 @@ export const HANGER_ROW_LIMIT = 8;
 export const HANGER_ROW_MAX = 2;
 /** Camera frames at most this many columns so name plates stay readable. */
 export const RACK_FRAME_COLUMNS = 8;
-/** Portrait / compact: ~5–6 columns plus the cut-edge fade. */
-export const RACK_FRAME_COLUMNS_COMPACT = 6;
+/** Portrait / compact: 4 readable columns plus the cut-edge fade. */
+export const RACK_FRAME_COLUMNS_COMPACT = 4;
 
-export function rackFrameColumns(compact = false, hangerCount = 0): number {
-  if (!compact) return RACK_FRAME_COLUMNS;
-  return hangersPerRow(hangerCount) > RACK_FRAME_COLUMNS
-    ? RACK_FRAME_COLUMNS_COMPACT
-    : RACK_FRAME_COLUMNS;
+export function rackFrameColumns(compact = false, _hangerCount = 0): number {
+  return compact ? RACK_FRAME_COLUMNS_COMPACT : RACK_FRAME_COLUMNS;
 }
 export const RACK_ROW_PITCH = 1.12;
 export const RACK_BAR_TOP = 0.96;
