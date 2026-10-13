@@ -121,6 +121,15 @@ export function isCreateSheetViewport(
   return width <= 768;
 }
 
+/** Click slug → edit modal. Blocked only while creating / adding pieces. */
+export function pieceModalFromHangerClick(
+  slug: string | null,
+  blockers: { creating?: boolean; adding?: boolean } = {},
+): { open: true; slug: string } | { open: false } {
+  if (!slug || blockers.creating || blockers.adding) return { open: false };
+  return { open: true, slug };
+}
+
 export function clampCreatePanel(
   x: number,
   y: number,
@@ -714,7 +723,8 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private openEditor(slug: string): void {
-    if (this.creating() || this.adding()) return;
+    const next = pieceModalFromHangerClick(slug, { creating: this.creating(), adding: this.adding() });
+    if (!next.open) return;
     this.hoverTip.set(null);
     this.modalOpen = true;
     const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);

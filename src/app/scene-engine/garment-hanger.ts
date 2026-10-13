@@ -197,9 +197,8 @@ export function createGarmentHanger(data: SceneHanger): Group {
 export function applyHangerData(group: Group, data: SceneHanger): void {
   group.userData = { ...group.userData, kind: HANGER_USER_DATA, slug: data.slug, data };
   group.traverse((child) => {
-    if (child.userData?.['kind'] === HANGER_USER_DATA) {
-      child.userData = group.userData;
-    }
+    if (child.userData?.['ignorePick']) return;
+    child.userData = group.userData;
   });
   const opacity = hangerOpacity(data.status);
   const garment = group.getObjectByName('garment') as Mesh | undefined;
