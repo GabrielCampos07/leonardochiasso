@@ -9,7 +9,6 @@ import {
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import type { Group } from 'three';
 
 /** Hashed filenames from `scripts/atelier-3d-compress.mjs`. */
@@ -90,20 +89,6 @@ export function loadColorTextureKtx2(
       () => {
         void loadColorTexture(jpgUrl, manager, repeatX, repeatY).then(resolve);
       },
-    );
-  });
-}
-
-export function loadHdri(url: string, manager: LoadingManager): Promise<Texture | null> {
-  return new Promise((resolve) => {
-    const loader = new HDRLoader(manager);
-    loader.load(
-      url,
-      (texture) => {
-        resolve(texture);
-      },
-      undefined,
-      () => resolve(null),
     );
   });
 }

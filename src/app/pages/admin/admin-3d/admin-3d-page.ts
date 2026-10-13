@@ -723,6 +723,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private openEditor(slug: string): void {
+    if (this.modalOpen) return;
     const next = pieceModalFromHangerClick(slug, { creating: this.creating(), adding: this.adding() });
     if (!next.open) return;
     this.hoverTip.set(null);
