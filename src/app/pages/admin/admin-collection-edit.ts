@@ -9,7 +9,7 @@ import {
 } from '../../core/admin-collections-api.service';
 import { AdminCollectionProductsService } from '../../core/admin-collection-products';
 import { ApiProductDto } from '../../core/catalog.service';
-import { collectionCoverUrl } from '../../core/collection-cover';
+import { productBelongsToCollection, resolveCollectionCover } from '../../core/collection-cover';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import {
   ADMIN_NEW_COLLECTION_SLUG,
@@ -77,15 +77,16 @@ export class AdminCollectionEditPage implements OnInit {
 
   readonly products = signal<ApiProductDto[]>([]);
   readonly coverUrl = computed(() =>
-    collectionCoverUrl(
-      this.products().map((p, index) => ({
-        archivedAt: p.archivedAt,
+    resolveCollectionCover({
+      collection: {
+        slug: this.slug(),
+        name: this.name,
+      },
+      products: this.products().map((p, index) => ({
+        ...p,
         sortOrder: index,
-        thumb: p.thumb,
-        gallery: p.gallery,
-        media: p.media,
       })),
-    ),
+    }),
   );
   readonly savingOrder = signal(false);
   private loadGen = 0;
@@ -320,7 +321,7 @@ export class AdminCollectionEditPage implements OnInit {
         this.applyMeta(meta);
         this.products.set(
           productsInCollection(
-            slug,
+            { slug, id: meta.id, name: meta.name },
             adminProducts.ok ? adminProducts.value : [],
             publicDetail.ok ? (publicDetail.value?.products ?? []) : [],
           ),
@@ -373,13 +374,11 @@ export function findAdminCollection(
 }
 
 export function productsInCollection(
-  slug: string,
+  collection: { slug: string; id?: string; name?: string },
   adminProducts: ApiProductDto[],
   publicProducts: ApiProductDto[],
 ): ApiProductDto[] {
-  const inCollection = adminProducts.filter((p) =>
-    (p.collections ?? []).some((c) => c.slug === slug),
-  );
+  const inCollection = adminProducts.filter((p) => productBelongsToCollection(p, collection));
   const seen = new Set(publicProducts.map((p) => p.slug));
   return [...publicProducts, ...inCollection.filter((p) => !seen.has(p.slug))];
 }

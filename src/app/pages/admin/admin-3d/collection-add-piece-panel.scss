@@ -106,6 +106,7 @@
 }
 
 .add-piece__field {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -127,8 +128,34 @@
   font-size: 1rem;
 }
 
-.add-piece__file {
+.add-piece__file-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.add-piece__file-btn,
+.add-piece__retry {
   min-height: 44px;
+  min-width: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--lc-void);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.add-piece__retry {
+  margin-bottom: 10px;
 }
 
 .add-piece__file-name {

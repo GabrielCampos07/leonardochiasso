@@ -2,12 +2,17 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Subject, switchMap, tap } from 'rxjs';
+import { Subject, catchError, forkJoin, of, switchMap, tap } from 'rxjs';
 import {
   AdminCollectionDto,
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
-import { coversByCollectionSlug } from '../../core/collection-cover';
+import {
+  coversByCollectionSlug,
+  mergeCoverProducts,
+  resolveCollectionCover,
+} from '../../core/collection-cover';
+import { ApiProductDto } from '../../core/catalog.service';
 import { adminCollectionPath, adminNewCollectionPath } from '../../core/routes';
 import { adminHttpErrorMessage } from '../../core/admin-catalog.service';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
@@ -46,6 +51,7 @@ export class AdminCollectionsPage implements OnInit {
   readonly restoringSlug = signal<string | null>(null);
   readonly collections = signal<AdminCollectionDto[]>([]);
   readonly covers = signal<Record<string, string | null>>({});
+  private coverProducts: ApiProductDto[] = [];
   readonly newPath = adminNewCollectionPath();
 
   readonly filtered = computed(() => {
@@ -95,6 +101,15 @@ export class AdminCollectionsPage implements OnInit {
   }
 
   coverOf(slug: string): string | null {
+    const collection = this.collections().find((row) => row.slug === slug);
+    if (collection) {
+      return (
+        resolveCollectionCover({
+          collection,
+          products: this.coverProducts,
+        }) ?? this.covers()[slug] ?? null
+      );
+    }
     return this.covers()[slug] ?? null;
   }
 
@@ -131,11 +146,12 @@ export class AdminCollectionsPage implements OnInit {
   }
 
   restore(c: AdminCollectionDto): void {
+    if (this.restoringSlug()) return;
     this.restoringSlug.set(c.slug);
-    this.collections.set(removeBySlug(this.collections(), c.slug));
     this.api.restore(c.slug).subscribe({
       next: (restored) => {
         this.restoringSlug.set(null);
+        this.collections.set(removeBySlug(this.collections(), c.slug));
         if (!this.showArchived()) {
           this.collections.set(upsertBySlug(this.collections(), { ...restored, archivedAt: null }));
         }
@@ -143,7 +159,6 @@ export class AdminCollectionsPage implements OnInit {
       },
       error: (err) => {
         this.restoringSlug.set(null);
-        this.collections.set(upsertBySlug(this.collections(), c));
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
         );
@@ -171,9 +186,12 @@ export class AdminCollectionsPage implements OnInit {
   }
 
   private refreshCovers(): void {
-    this.api.listAdminProducts().subscribe({
-      next: (products) => this.covers.set(coversByCollectionSlug(products)),
-      error: () => this.covers.set({}),
+    forkJoin({
+      admin: this.api.listAdminProducts().pipe(catchError(() => of([] as ApiProductDto[]))),
+      published: this.api.listPublicProducts().pipe(catchError(() => of([] as ApiProductDto[]))),
+    }).subscribe(({ admin, published }) => {
+      this.coverProducts = mergeCoverProducts(admin, published);
+      this.covers.set(coversByCollectionSlug(this.coverProducts, this.collections()));
     });
   }
 }

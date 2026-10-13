@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CatalogCacheService } from '../cache/catalog-cache.service';
+import {
+  collectionCoverInclude,
+  resolveCollectionCoverImage,
+} from './collection-cover';
 import { mapProduct, publicProductInclude } from './catalog.mapper';
 import {
   CollectionDetailDto,
@@ -45,6 +49,7 @@ export class CatalogService {
       const collections = await this.prisma.collection.findMany({
         where: { archivedAt: null },
         orderBy: { sortOrder: 'asc' },
+        include: collectionCoverInclude,
       });
       return collections.map((c) => ({
         id: c.id,
@@ -54,6 +59,7 @@ export class CatalogService {
         sortOrder: c.sortOrder,
         publishedAt: c.publishedAt?.toISOString() ?? null,
         archivedAt: null,
+        coverImage: resolveCollectionCoverImage(c.slug, c.products),
       }));
     });
   }
@@ -85,6 +91,7 @@ export class CatalogService {
         sortOrder: collection.sortOrder,
         publishedAt: collection.publishedAt?.toISOString() ?? null,
         archivedAt: null,
+        coverImage: resolveCollectionCoverImage(collection.slug, collection.products),
         products: collection.products.map((pc) => mapProduct(pc.product)),
       };
     });

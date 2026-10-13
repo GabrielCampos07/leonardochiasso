@@ -14,6 +14,9 @@ export interface AdminCollectionDto {
   publishedAt: string | null;
   archivedAt?: string | null;
   productCount?: number;
+  coverImage?: string | null;
+  coverUrl?: string | null;
+  image?: string | null;
 }
 
 export interface CreateCollectionPayload {

@@ -6,8 +6,8 @@ import { combineLatest, switchMap } from 'rxjs';
 import { LcProductCard } from '../../shared/components/product-card/product-card';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import { isArchivedAt } from '../../core/admin-archive';
-import { CatalogService } from '../../core/catalog.service';
-import { collectionCoverUrl } from '../../core/collection-cover';
+import { ApiCollectionDto, CatalogService } from '../../core/catalog.service';
+import { resolveCollectionCover } from '../../core/collection-cover';
 import { COLLECTION_LABELS, Product } from '../../core/product.model';
 import { ChromeService } from '../../core/chrome.service';
 import { productMatchesRtwType, RtwType } from '../../core/rtw';
@@ -54,6 +54,7 @@ export class PlpPage implements OnInit {
 
   readonly collectionSlug = signal<CollectionSlug>(COLLECTION_SLUGS.organicDreams);
   readonly rawProducts = signal<Product[]>([]);
+  readonly collectionMeta = signal<ApiCollectionDto | null>(null);
   /** Page-local: true until this PLP's collection Observable emits. */
   readonly loading = signal(true);
   readonly skeletonSlots = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -90,7 +91,13 @@ export class PlpPage implements OnInit {
   );
 
   readonly coverUrl = computed(() =>
-    collectionCoverUrl(this.rawProducts().map((p, index) => ({ ...p, sortOrder: index }))),
+    resolveCollectionCover({
+      collection: this.collectionMeta() ?? {
+        slug: this.collectionSlug(),
+        name: this.collectionLabel(),
+      },
+      products: this.rawProducts().map((p, index) => ({ ...p, sortOrder: index })),
+    }),
   );
 
   readonly products = computed(() => {
@@ -157,6 +164,10 @@ export class PlpPage implements OnInit {
           this.chrome.setActive(nav);
 
           this.loading.set(true);
+          this.catalog.getCollections().subscribe({
+            next: (list) => this.collectionMeta.set(list.find((row) => row.slug === slug) ?? null),
+            error: () => this.collectionMeta.set(null),
+          });
           return this.catalog.getProductsByCollection(slug);
         }),
       )
@@ -167,7 +178,13 @@ export class PlpPage implements OnInit {
   }
 
   ngOnInit(): void {
-    // Active nav set from query in constructor subscription.
+    this.catalog.getCollections().subscribe({
+      next: (list) => {
+        const slug = this.collectionSlug();
+        this.collectionMeta.set(list.find((row) => row.slug === slug) ?? null);
+      },
+      error: () => this.collectionMeta.set(null),
+    });
   }
 
   toggleSort(): void {

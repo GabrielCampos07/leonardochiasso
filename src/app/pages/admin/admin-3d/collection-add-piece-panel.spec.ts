@@ -319,6 +319,18 @@ describe('CollectionAddPiecePanel', () => {
     expect(fixture.nativeElement.textContent).toContain('Preço inválido.');
   });
 
+  it('shows a photo send error with Tentar de novo and hides the native file control', () => {
+    (fixture.nativeElement.querySelectorAll('.add-piece__tab')[1] as HTMLButtonElement).click();
+    fixture.componentRef.setInput('createError', 'Não foi possível enviar a foto.');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Não foi possível enviar a foto.');
+    expect(fixture.nativeElement.textContent).toContain('Tentar de novo');
+    expect(fixture.nativeElement.textContent).not.toContain('No file chosen');
+    const native = fixture.nativeElement.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(native.classList.contains('add-piece__file-native')).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.add-piece__file-btn')?.textContent).toContain('Escolher foto');
+  });
+
   it('keeps tap targets at least 44px on the sheet', () => {
     fixture.componentRef.setInput('sheet', true);
     fixture.detectChanges();

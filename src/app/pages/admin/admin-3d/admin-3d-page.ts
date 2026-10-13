@@ -12,7 +12,7 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, of, switchMap } from 'rxjs';
+import { of, switchMap } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage, uniqueAdminSlug } from '../../../core/admin-catalog.service';
 import {
   archiveAwareError,
@@ -33,6 +33,7 @@ import { ToastService } from '../../../core/feedback/toast.service';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
 import { mapApiProduct } from '../../../core/catalog.service';
+import { photoUploadErrorMessage } from '../../../core/photo-upload';
 import { ContentAdminService } from '../../../core/content-admin.service';
 import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { formatPriceLabel, Product } from '../../../core/product.model';
@@ -232,6 +233,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
   readonly addCount = signal(0);
   readonly addErrors = signal<AddPieceItemError[]>([]);
   readonly addCreateError = signal('');
+  private pendingCreatedProduct: Product | null = null;
   readonly addCanUpload = true;
   readonly addPriceRequired = computed(() => this.line() !== 'joias');
 
@@ -463,6 +465,10 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     if (!unit || this.addSaving()) return;
     this.addCreateError.set('');
     this.addSaving.set(true);
+    if (this.pendingCreatedProduct && draft.photo) {
+      this.retryCreatedPhoto(this.pendingCreatedProduct, draft.photo, unit);
+      return;
+    }
     if (unit.kind === 'vitrine') {
       this.createAndAddJoia(unit, draft);
       return;
@@ -475,6 +481,7 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.addCandidates.set([]);
     this.addErrors.set([]);
     this.addCreateError.set('');
+    this.pendingCreatedProduct = null;
     this.addCount.set(0);
     this.addPanel?.resetCreate();
   }
@@ -826,9 +833,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.removeHanger(product.slug, this.reducedMotion);
     this.hoverTip.set(null);
     this.bumpLayout();
-    showArchiveUndo(this.toast, () => {
+        showArchiveUndo(this.toast, () => {
       this.adminCatalog.restoreViaApi(product.slug).subscribe({
-        next: (restored) => this.applySaved(restored),
+        next: (restored) => {
+          this.applySaved(restored);
+          this.toast.success('Restaurado.');
+        },
         error: (err) =>
           this.toast.error(
             archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
@@ -843,9 +853,12 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     this.engine?.removeHanger(piece.slug, this.reducedMotion);
     this.hoverTip.set(null);
     this.bumpLayout();
-    showArchiveUndo(this.toast, () => {
+        showArchiveUndo(this.toast, () => {
       this.joiasAdmin.restore(piece.slug).subscribe({
-        next: (restored) => this.applySavedJoia(restored),
+        next: (restored) => {
+          this.applySavedJoia(restored);
+          this.toast.success('Restaurado.');
+        },
         error: (err) =>
           this.toast.error(
             archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
@@ -1089,12 +1102,22 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
     };
 
     this.adminCatalog.createPublishedProduct$(product).pipe(
-      switchMap((created) => this.attachCreatedPhoto$(created, draft.photo)),
+      switchMap((created) => {
+        this.pendingCreatedProduct = created;
+        return this.attachCreatedPhoto$(created, draft.photo);
+      }),
     ).subscribe({
-      next: afterCreate,
+      next: (created) => {
+        this.pendingCreatedProduct = null;
+        afterCreate(created);
+      },
       error: (err) => {
         this.addSaving.set(false);
-        this.addCreateError.set(adminHttpErrorMessage(err, 'Não foi possível criar a peça.'));
+        this.addCreateError.set(
+          draft.photo
+            ? photoUploadErrorMessage(err)
+            : adminHttpErrorMessage(err, 'Não foi possível criar a peça.'),
+        );
       },
     });
   }
@@ -1145,13 +1168,33 @@ export class Admin3dPage implements OnInit, AfterViewInit, OnDestroy {
         switchMap((asset) =>
           this.adminCatalog.attachMediaViaApi(product.slug, asset.id, { isPrimary: true }),
         ),
-        catchError(() => of(product)),
       );
     }
     const url = URL.createObjectURL(photo);
     const withPhoto: Product = { ...product, thumb: url, gallery: [url, ...(product.gallery ?? [])] };
     this.adminCatalog.save(withPhoto);
     return of(withPhoto);
+  }
+
+  private retryCreatedPhoto(product: Product, photo: File, unit: SceneRack): void {
+    this.attachCreatedPhoto$(product, photo).subscribe({
+      next: (created) => {
+        this.pendingCreatedProduct = null;
+        const collectionSlug = collectionSlugFromUnitId(unit.id);
+        if (this.usesLocalCatalog() || !collectionSlug) {
+          this.finishCreatePiece(unit, created);
+          return;
+        }
+        this.collectionProducts.append(collectionSlug, [created.slug]).subscribe({
+          next: () => this.finishCreatePiece(unit, created),
+          error: () => this.finishCreatePiece(unit, created),
+        });
+      },
+      error: (err) => {
+        this.addSaving.set(false);
+        this.addCreateError.set(photoUploadErrorMessage(err));
+      },
+    });
   }
 
   private finishCreatePiece(unit: SceneRack, product: Product): void {

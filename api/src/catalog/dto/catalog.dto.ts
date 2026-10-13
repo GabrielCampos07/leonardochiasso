@@ -47,6 +47,11 @@ export interface CollectionDto {
   publishedAt: string | null;
   archivedAt?: string | null;
   productCount?: number;
+  /**
+   * Stored cover when present and not from an archived piece; otherwise the
+   * first live member photo by `product_collections.sortOrder`.
+   */
+  coverImage?: string | null;
 }
 
 export interface CollectionDetailDto extends CollectionDto {
