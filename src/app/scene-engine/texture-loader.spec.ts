@@ -99,12 +99,12 @@ describe('label and placeholder canvases', () => {
     b.dispose();
   });
 
-  it('paints a large readable Esgotado badge', () => {
+  it('paints a compact Esgotado ribbon', () => {
     const texture = makeSoldOutTexture();
     expect(texture.image.width).toBe(SOLD_OUT_TEXTURE_WIDTH);
     expect(texture.image.height).toBe(SOLD_OUT_TEXTURE_HEIGHT);
-    expect(SOLD_OUT_TEXTURE_WIDTH).toBeGreaterThanOrEqual(256);
-    expect(SOLD_OUT_TEXTURE_HEIGHT).toBeGreaterThanOrEqual(80);
+    expect(SOLD_OUT_TEXTURE_WIDTH).toBeLessThanOrEqual(256);
+    expect(SOLD_OUT_TEXTURE_HEIGHT).toBeLessThanOrEqual(72);
     texture.dispose();
   });
 

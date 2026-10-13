@@ -4,7 +4,6 @@ import {
   Box3,
   Color,
   DirectionalLight,
-  EquirectangularReflectionMapping,
   Fog,
   Group,
   HemisphereLight,
@@ -14,10 +13,8 @@ import {
   MeshStandardMaterial,
   NoToneMapping,
   Object3D,
-  PCFSoftShadowMap,
+  PCFShadowMap,
   PerspectiveCamera,
-  PlaneGeometry,
-  PMREMGenerator,
   Raycaster,
   Scene,
   Spherical,
@@ -34,7 +31,6 @@ import {
   createAtelierLoadingManager,
   loadColorTexture,
   loadGlb,
-  loadHdri,
   type LoadProgressHandler,
 } from './atelier-assets';
 import { ATELIER_CLEAR, ATELIER_EXPOSURE, ATELIER_FOG, detectAtelierLiteMode } from './atelier-look';
@@ -92,7 +88,7 @@ import {
 } from './jewelry-vitrine';
 import { createDraftOutline, lightPlate, setDraftPlateName, setGroupOpacity } from './draft-unit';
 import { disposeObject3D, disposeOwnedTexture, disposeRenderer } from './dispose';
-import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA, SOLD_OUT_BADGE_H } from './garment-hanger';
+import { applyHangerData, applyPhotoAspect, createGarmentHanger, HANGER_LIFT, HANGER_USER_DATA } from './garment-hanger';
 import { hangerSlugFromHits, isPointerClick, resolveHangerClick } from './hanger-pick';
 import { rackIdFromHits } from './rack-pick';
 import { COLLECTION_COVER_FALLBACK_HEX } from '../core/collection-cover';
@@ -115,7 +111,6 @@ import {
 import { DRAFT_UNIT_ID, UNIT_GAP, nextDraftSlot, unitWidth } from './unit-layout';
 import { hangerTextureUrls, textureJobId, type HangerTextureQuality } from './photo-url';
 import { inFocusUpgradeSlugs } from './photo-lod';
-import { soldOutBadgeScale } from './sold-out-scale';
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from './types';
 import { isWebGLAvailable, tryCreate } from './webgl-support';
 
@@ -308,8 +303,6 @@ export class SceneEngine {
   private onProgressCb: LoadProgressHandler | null = null;
   private room: Group | null = null;
   private propsRoot: Group | null = null;
-  private hdri: Texture | null = null;
-  private pmrem: PMREMGenerator | null = null;
   private propsArmed = false;
   private mannequinSrc: Group | null = null;
   private plantSrc: Group | null = null;
@@ -318,7 +311,10 @@ export class SceneEngine {
     this.pointerDown = { x: event.clientX, y: event.clientY };
     this.lastDragX = event.clientX;
     this.rackPanning = false;
+    this.onHoverCb?.(null);
+    this.setHover(null);
     this.pointerDownSlug = this.pickHangerSlug(event);
+    if (this.pointerDownSlug) this.onClickCb?.(this.pointerDownSlug);
     try {
       this.canvas.setPointerCapture(event.pointerId);
       this.capturedPointerId = event.pointerId;
@@ -364,8 +360,9 @@ export class SceneEngine {
       dy,
     });
     this.pointerDownSlug = null;
-    if (slug) this.onClickCb?.(slug);
-    else if (!wasPanning && isPointerClick(dx, dy)) {
+    if (slug) {
+      /* opened on pointerdown so the modal is not blocked by orbit restore */
+    } else if (!wasPanning && isPointerClick(dx, dy)) {
       const hits = this.raycastPointer(event);
       if (this.focusedId === OVERVIEW_FOCUS_ID) {
         const rackId = rackIdFromHits(hits);
@@ -443,7 +440,7 @@ export class SceneEngine {
     this.renderer.toneMappingExposure = this.lite ? 1 : ATELIER_EXPOSURE;
     this.renderer.setClearColor(CLEAR, 1);
     this.renderer.shadowMap.enabled = false;
-    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    this.renderer.shadowMap.type = PCFShadowMap;
 
     this.restoreAddEventListener = forceNonPassiveCanvasListeners(canvas);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -493,7 +490,6 @@ export class SceneEngine {
     this.racksRoot.name = 'racks';
     this.scene.add(this.racksRoot);
     void this.loadRoomTextures();
-    if (!this.lite) void this.loadHdriEnv();
 
     canvas.addEventListener('pointerdown', this.onPointerDown, NON_PASSIVE);
     canvas.addEventListener('pointermove', this.onPointerMove, NON_PASSIVE);
@@ -989,10 +985,6 @@ export class SceneEngine {
     this.focusedHangerSlug = null;
     photoTextureCache.clear();
     this.keyLight = null;
-    this.hdri?.dispose();
-    this.hdri = null;
-    this.pmrem?.dispose();
-    this.pmrem = null;
     this.room = null;
     this.propsRoot = null;
     this.onProgressCb = null;
@@ -1150,18 +1142,6 @@ export class SceneEngine {
     const chrome = measureAtelierChrome(this.host);
     if (mode === 'vitrine') return computeVitrineFit(box, this.camera.aspect, this.camera.fov, compact);
     return computeEyeLevelFit(box, this.camera.aspect, this.camera.fov, mode, compact, chrome);
-  }
-
-  private restoreFrontView(): void {
-    if (this.focusedId === OVERVIEW_FOCUS_ID) {
-      this.focusOverview(this.reducedMotion);
-      return;
-    }
-    if (this.focusedId === DRAFT_UNIT_ID) {
-      this.focusDraft(this.reducedMotion);
-      return;
-    }
-    this.focusRack(this.focusedId, this.reducedMotion);
   }
 
   private moveCamera(pose: CameraPose, immediate: boolean, duration = CAMERA_TWEEN_MS): void {
@@ -1342,7 +1322,6 @@ export class SceneEngine {
 
   /** Keep plates and name tags facing the lens so they do not overlap when orbiting. */
   private faceLabels(): void {
-    const viewportH = this.canvas.clientHeight || this.renderer.domElement.height || 1;
     this.racksRoot.traverse((obj) => {
       if (obj.name === 'plate') {
         obj.quaternion.identity();
@@ -1354,17 +1333,7 @@ export class SceneEngine {
       }
       if (obj.name !== 'badge') return;
       obj.lookAt(this.camera.position);
-      const geom = (obj as Mesh).geometry as PlaneGeometry | undefined;
-      const badgeH = geom?.parameters?.height || SOLD_OUT_BADGE_H;
-      obj.getWorldPosition(this.projectScratch);
-      const scale = soldOutBadgeScale(
-        this.projectScratch.distanceTo(this.camera.position),
-        this.camera.fov,
-        viewportH,
-        badgeH,
-      );
-      const capped = isCompactAtelierViewport() ? Math.min(scale, 1.22) : scale;
-      obj.scale.set(capped, capped, 1);
+      obj.scale.set(1, 1, 1);
     });
   }
 
@@ -1585,12 +1554,9 @@ export class SceneEngine {
 
   private endOrbit(): void {
     this.interacting = false;
-    this.dampingFrames = 0;
-    this.controls.enableDamping = false;
-    this.controls.update();
-    this.clampCamera();
+    this.dampingFrames = this.reducedMotion ? 0 : 24;
     this.controls.enableDamping = !this.reducedMotion;
-    if (!this.tween) this.restoreFrontView();
+    this.clampCamera();
     this.requestRender();
   }
 
@@ -1817,21 +1783,6 @@ export class SceneEngine {
     } else {
       wallMap?.dispose();
     }
-    this.requestRender();
-  }
-
-  private async loadHdriEnv(): Promise<void> {
-    const texture = await loadHdri(ATELIER_ASSETS.hdri, this.manager);
-    if (this.disposed || this.lite || !texture) {
-      texture?.dispose();
-      return;
-    }
-    texture.mapping = EquirectangularReflectionMapping;
-    this.hdri = texture;
-    this.pmrem = new PMREMGenerator(this.renderer);
-    const env = this.pmrem.fromEquirectangular(texture).texture;
-    this.scene.environment = env;
-    this.scene.environmentIntensity = 0.62;
     this.requestRender();
   }
 

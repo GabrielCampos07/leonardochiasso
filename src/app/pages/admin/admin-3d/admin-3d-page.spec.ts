@@ -34,7 +34,7 @@ describe('rack pan chrome', () => {
 });
 
 describe('pieceModalFromHangerClick', () => {
-  it('opens the edit modal for a picked hanger slug', () => {
+  it('opens the edit modal for a picked hanger slug without waiting on a fetch', () => {
     expect(pieceModalFromHangerClick('vestido-lg-bateau')).toEqual({
       open: true,
       slug: 'vestido-lg-bateau',

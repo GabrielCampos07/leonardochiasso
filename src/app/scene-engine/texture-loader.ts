@@ -18,8 +18,8 @@ export const LABEL_DEFAULT_WIDTH = 768;
 export const LABEL_DEFAULT_HEIGHT = 120;
 export const FALLBACK_WIDTH = 128;
 export const FALLBACK_HEIGHT = 160;
-export const SOLD_OUT_TEXTURE_WIDTH = 320;
-export const SOLD_OUT_TEXTURE_HEIGHT = 96;
+export const SOLD_OUT_TEXTURE_WIDTH = 256;
+export const SOLD_OUT_TEXTURE_HEIGHT = 72;
 
 /**
  * Distinct URL for WebGL textures so Chrome does not reuse the non-CORS
@@ -169,18 +169,15 @@ export function makeSoldOutTexture(): CanvasTexture {
     soldOutCanvas.height = SOLD_OUT_TEXTURE_HEIGHT;
     const ctx = soldOutCanvas.getContext('2d');
     if (ctx) {
-      ctx.fillStyle = '#140e0c';
-      ctx.fillRect(0, 0, SOLD_OUT_TEXTURE_WIDTH, SOLD_OUT_TEXTURE_HEIGHT);
       ctx.fillStyle = '#8B1E2D';
-      ctx.fillRect(8, 8, SOLD_OUT_TEXTURE_WIDTH - 16, SOLD_OUT_TEXTURE_HEIGHT - 16);
-      ctx.strokeStyle = '#f3ece2';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(10, 10, SOLD_OUT_TEXTURE_WIDTH - 20, SOLD_OUT_TEXTURE_HEIGHT - 20);
+      ctx.fillRect(0, 0, SOLD_OUT_TEXTURE_WIDTH, SOLD_OUT_TEXTURE_HEIGHT);
+      ctx.fillStyle = '#140e0c';
+      ctx.fillRect(0, 0, 10, SOLD_OUT_TEXTURE_HEIGHT);
       ctx.fillStyle = '#ffffff';
-      ctx.font = '700 42px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
+      ctx.font = '700 28px "Encode Sans Expanded", "Helvetica Neue", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('ESGOTADO', SOLD_OUT_TEXTURE_WIDTH / 2, SOLD_OUT_TEXTURE_HEIGHT / 2 + 2, SOLD_OUT_TEXTURE_WIDTH - 24);
+      ctx.fillText('ESGOTADO', SOLD_OUT_TEXTURE_WIDTH / 2 + 4, SOLD_OUT_TEXTURE_HEIGHT / 2 + 1, SOLD_OUT_TEXTURE_WIDTH - 28);
     }
   }
   return sharedCanvasTexture('sold-out', soldOutCanvas);
