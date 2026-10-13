@@ -6,6 +6,7 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -16,6 +17,12 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import {
+  GENDER_LISTS,
+  GENDER_LIST_REQUIRED_MESSAGE,
+  PRODUCT_GENDERS,
+  PRODUCT_GENDER_MESSAGE,
+} from '../../catalog/gender';
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -30,12 +37,10 @@ export class CreateProductDto {
   @MaxLength(160)
   slug!: string;
 
-  /** Category slug: feminino | masculino */
+  /** Category slug = gender: feminino | masculino | unissex */
   @IsString()
-  @Matches(/^(feminino|masculino)$/, {
-    message: 'category must be feminino or masculino.',
-  })
-  category!: 'feminino' | 'masculino';
+  @IsIn([...PRODUCT_GENDERS], { message: PRODUCT_GENDER_MESSAGE })
+  category!: (typeof PRODUCT_GENDERS)[number];
 
   @IsString()
   @Matches(SLUG_PATTERN, {
@@ -110,10 +115,8 @@ export class UpdateProductDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^(feminino|masculino)$/, {
-    message: 'category must be feminino or masculino.',
-  })
-  category?: 'feminino' | 'masculino';
+  @IsIn([...PRODUCT_GENDERS], { message: PRODUCT_GENDER_MESSAGE })
+  category?: (typeof PRODUCT_GENDERS)[number];
 
   @IsOptional()
   @IsString()
@@ -302,4 +305,15 @@ export class SetCollectionProductsDto {
     message: 'productSlugs must contain valid kebab-case slugs.',
   })
   productSlugs!: string[];
+}
+
+export class CollectionGenderQueryDto {
+  @IsIn([...GENDER_LISTS], { message: GENDER_LIST_REQUIRED_MESSAGE })
+  gender!: (typeof GENDER_LISTS)[number];
+}
+
+export class ReorderCollectionGenderDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  productIds!: string[];
 }

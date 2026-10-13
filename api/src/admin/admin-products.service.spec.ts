@@ -112,6 +112,7 @@ describe('AdminProductsService create (otimizado, lookups em paralelo)', () => {
       collection: { findUnique: jest.fn() },
       product: { findUnique: jest.fn(), create: jest.fn() },
       productCollection: { aggregate: jest.fn() },
+      collectionGenderOrder: { groupBy: jest.fn().mockResolvedValue([]) },
     };
   }
   const dto = {
@@ -143,6 +144,31 @@ describe('AdminProductsService create (otimizado, lookups em paralelo)', () => {
     expect(arg.data.collections.create).toEqual(
       expect.objectContaining({ collectionId: 'col1', sortOrder: 5 }),
     );
+    expect(arg.data.genderOrders.create).toEqual([
+      { collectionId: 'col1', gender: 'feminino', sortOrder: 0 },
+    ]);
+  });
+
+  it('unissex entra nas duas listas de gênero da coleção', async () => {
+    const prisma = makePrisma();
+    prisma.category.findUnique.mockResolvedValue({ id: 'c3', slug: 'unissex' });
+    prisma.collection.findUnique.mockResolvedValue({ id: 'col1', slug: 'verao' });
+    prisma.product.findUnique.mockResolvedValue(null);
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: 0 } });
+    prisma.collectionGenderOrder.groupBy.mockResolvedValue([
+      { gender: 'feminino', _max: { sortOrder: 2 } },
+      { gender: 'masculino', _max: { sortOrder: 1 } },
+    ]);
+    prisma.product.create.mockResolvedValue(productRow({ category: { slug: 'unissex' } }));
+
+    const service = new AdminProductsService(prisma as never);
+    await service.create({ ...dto, category: 'unissex' });
+
+    const arg = prisma.product.create.mock.calls[0][0];
+    expect(arg.data.genderOrders.create).toEqual([
+      { collectionId: 'col1', gender: 'feminino', sortOrder: 3 },
+      { collectionId: 'col1', gender: 'masculino', sortOrder: 2 },
+    ]);
   });
 
   it('mantém a ordem dos erros: categoria desconhecida primeiro', async () => {

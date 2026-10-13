@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Param } from '@nestjs/common';
+import { Controller, Get, Header, Param, Query } from '@nestjs/common';
 import { CatalogService } from './catalog.service';
 import { CollectionDetailDto, CollectionDto, ProductDto } from './dto/catalog.dto';
 
@@ -8,8 +8,11 @@ export class CatalogController {
 
   @Get('products')
   @Header('Cache-Control', 'public, max-age=60')
-  listProducts(): Promise<ProductDto[]> {
-    return this.catalog.listProducts();
+  listProducts(
+    @Query('gender') gender?: string,
+    @Query('category') category?: string,
+  ): Promise<ProductDto[]> {
+    return this.catalog.listProducts(gender ?? category);
   }
 
   @Get('products/:slug')

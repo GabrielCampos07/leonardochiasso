@@ -77,6 +77,7 @@ export function mapProduct(product: ProductWithRelations): ProductDto {
     status: product.status,
     stockQty: product.stockQty,
     category: product.category.slug,
+    gender: product.category.slug,
     collection: liveCollections[0]?.name ?? '',
     collections,
     thumb: thumbAsset?.cdnUrl ?? '',

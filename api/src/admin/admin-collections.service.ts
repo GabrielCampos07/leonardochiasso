@@ -11,7 +11,20 @@ import {
 } from '../catalog/collection-cover';
 import { CollectionDto } from '../catalog/dto/catalog.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  GenderList,
+  matchesGenderList,
+  orderIdsByGenderList,
+  parseGenderList,
+} from '../catalog/gender';
+import { syncCollectionGenderOrders } from './collection-gender-order.sync';
 import { archivedAtWhere } from './archive-query';
+
+export interface CollectionGenderOrderDto {
+  collection: string;
+  gender: GenderList;
+  productIds: string[];
+}
 
 @Injectable()
 export class AdminCollectionsService {
@@ -155,12 +168,132 @@ export class AdminCollectionsService {
           })),
         });
       }
+      await syncCollectionGenderOrders(
+        tx,
+        collection.id,
+        productSlugs.map((productSlug) => bySlug.get(productSlug)!),
+      );
     });
 
     return {
       ...mapCollection(collection, productSlugs.length),
       productSlugs,
     };
+  }
+
+  async getGenderOrder(
+    slug: string,
+    genderRaw: string | undefined,
+  ): Promise<CollectionGenderOrderDto> {
+    const gender = parseGenderList(genderRaw);
+    const collection = await this.prisma.collection.findUnique({
+      where: { slug },
+      include: {
+        products: {
+          include: { product: { include: { category: true } } },
+          orderBy: { sortOrder: 'asc' },
+        },
+        genderOrders: {
+          where: { gender },
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+    if (!collection) {
+      throw new NotFoundException(`Collection not found: ${slug}`);
+    }
+
+    const matching = collection.products.filter((pc) =>
+      matchesGenderList(pc.product.category.slug, gender),
+    );
+    const productIds = orderIdsByGenderList(
+      matching.map((pc) => pc.productId),
+      collection.genderOrders,
+      new Map(matching.map((pc) => [pc.productId, pc.sortOrder])),
+    );
+
+    return { collection: slug, gender, productIds };
+  }
+
+  async setGenderOrder(
+    slug: string,
+    genderRaw: string | undefined,
+    productIds: string[],
+  ): Promise<CollectionGenderOrderDto> {
+    const gender = parseGenderList(genderRaw);
+    const collection = await this.prisma.collection.findUnique({
+      where: { slug },
+      include: {
+        products: {
+          include: { product: { include: { category: true } } },
+        },
+      },
+    });
+    if (!collection) {
+      throw new NotFoundException(`Collection not found: ${slug}`);
+    }
+
+    const uniqueIds = new Set(productIds);
+    if (uniqueIds.size !== productIds.length) {
+      throw new BadRequestException('productIds must not contain duplicates.');
+    }
+
+    const members = new Map(
+      collection.products.map((pc) => [pc.productId, pc]),
+    );
+    const notInCollection = productIds.filter((id) => !members.has(id));
+    if (notInCollection.length > 0) {
+      throw new BadRequestException(
+        `Product ids do not belong to this collection: ${notInCollection.join(', ')}`,
+      );
+    }
+
+    const wrongGender = productIds.filter((id) => {
+      const pc = members.get(id)!;
+      return !matchesGenderList(pc.product.category.slug, gender);
+    });
+    if (wrongGender.length > 0) {
+      throw new BadRequestException(
+        `Products must be ${gender} or unissex for gender=${gender}: ${wrongGender.join(', ')}`,
+      );
+    }
+
+    const expected = collection.products
+      .filter((pc) => matchesGenderList(pc.product.category.slug, gender))
+      .map((pc) => pc.productId);
+    const expectedSet = new Set(expected);
+    const missing = expected.filter((id) => !uniqueIds.has(id));
+    const extra = productIds.filter((id) => !expectedSet.has(id));
+    if (missing.length > 0 || extra.length > 0) {
+      const parts: string[] = [];
+      if (missing.length > 0) {
+        parts.push(`missing ${missing.join(', ')}`);
+      }
+      if (extra.length > 0) {
+        parts.push(`extra ${extra.join(', ')}`);
+      }
+      throw new BadRequestException(
+        `productIds must contain exactly the ${gender} (including unissex) products in this collection (${parts.join('; ')}).`,
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.collectionGenderOrder.deleteMany({
+        where: { collectionId: collection.id, gender },
+      });
+      if (productIds.length > 0) {
+        await tx.collectionGenderOrder.createMany({
+          data: productIds.map((productId, sortOrder) => ({
+            collectionId: collection.id,
+            productId,
+            gender,
+            sortOrder,
+          })),
+        });
+      }
+    });
+
+    return { collection: slug, gender, productIds };
   }
 
   private async requireCollection(slug: string) {
