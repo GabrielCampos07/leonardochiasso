@@ -118,6 +118,144 @@ describe('CatalogService public archive filters', () => {
   });
 });
 
+describe('CatalogService gender blocks', () => {
+  function product(over: Record<string, unknown>) {
+    return {
+      id: 'p',
+      slug: 'p',
+      name: 'P',
+      description: '',
+      details: [],
+      shippingCopy: null,
+      priceCents: 100,
+      currency: 'BRL',
+      color: null,
+      size: null,
+      fabric: null,
+      season: null,
+      status: ProductStatus.published,
+      stockQty: 1,
+      categoryId: 'c',
+      pieces: [],
+      colorVariants: [],
+      imageBindings: [],
+      artCouture: false,
+      recommendOrder: 0,
+      archivedAt: null,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      collections: [],
+      media: [],
+      ...over,
+    };
+  }
+
+  function make() {
+    const prisma = {
+      product: { findMany: jest.fn(), findFirst: jest.fn() },
+      collection: { findMany: jest.fn(), findFirst: jest.fn() },
+    };
+    const cache = new CatalogCacheService();
+    const service = new CatalogService(prisma as never, cache);
+    return { prisma, service, cache };
+  }
+
+  it('lists the store as feminino+unissex then masculino by recommendOrder', async () => {
+    const { prisma, service } = make();
+    prisma.product.findMany.mockResolvedValue([
+      product({
+        id: 'm1',
+        slug: 'm1',
+        recommendOrder: 1,
+        category: { slug: 'masculino' },
+      }),
+      product({
+        id: 'u1',
+        slug: 'u1',
+        recommendOrder: 5,
+        category: { slug: 'unissex' },
+      }),
+      product({
+        id: 'f1',
+        slug: 'f1',
+        recommendOrder: 10,
+        category: { slug: 'feminino' },
+      }),
+    ]);
+
+    const list = await service.listProducts();
+    expect(list.map((p) => p.id)).toEqual(['u1', 'f1', 'm1']);
+    expect(list.map((p) => p.gender)).toEqual(['unissex', 'feminino', 'masculino']);
+  });
+
+  it('gender filter includes unissex on both hubs', async () => {
+    const { prisma, service, cache } = make();
+    prisma.product.findMany.mockResolvedValue([]);
+
+    await service.listProducts('masculino');
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          category: { slug: { in: ['masculino', 'unissex'] } },
+        }),
+      }),
+    );
+
+    cache.clear();
+    await service.listProducts('feminino');
+    expect(prisma.product.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          category: { slug: { in: ['feminino', 'unissex'] } },
+        }),
+      }),
+    );
+  });
+
+  it('collection detail is feminino block then masculino, unissex not duplicated', async () => {
+    const { prisma, service } = make();
+    const f1 = product({
+      id: 'f1',
+      slug: 'f1',
+      category: { slug: 'feminino' },
+    });
+    const u1 = product({
+      id: 'u1',
+      slug: 'u1',
+      category: { slug: 'unissex' },
+    });
+    const m1 = product({
+      id: 'm1',
+      slug: 'm1',
+      category: { slug: 'masculino' },
+    });
+    prisma.collection.findFirst.mockResolvedValue({
+      id: 'col-1',
+      slug: 'organic-dreams',
+      name: 'Organic Dreams',
+      description: null,
+      sortOrder: 1,
+      publishedAt: null,
+      archivedAt: null,
+      products: [
+        { productId: 'm1', sortOrder: 0, product: m1 },
+        { productId: 'u1', sortOrder: 1, product: u1 },
+        { productId: 'f1', sortOrder: 2, product: f1 },
+      ],
+      genderOrders: [
+        { productId: 'u1', gender: 'feminino', sortOrder: 0 },
+        { productId: 'f1', gender: 'feminino', sortOrder: 1 },
+        { productId: 'm1', gender: 'masculino', sortOrder: 0 },
+        { productId: 'u1', gender: 'masculino', sortOrder: 1 },
+      ],
+    });
+
+    const detail = await service.getCollectionBySlug('organic-dreams');
+    expect(detail.products.map((p) => p.id)).toEqual(['u1', 'f1', 'm1']);
+    expect(detail.products.filter((p) => p.gender === 'unissex')).toHaveLength(1);
+  });
+});
+
 describe('CatalogService (cache)', () => {
   function make() {
     const findMany = jest.fn().mockResolvedValue([]);

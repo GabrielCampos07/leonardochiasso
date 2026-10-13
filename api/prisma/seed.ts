@@ -50,7 +50,7 @@ type SeedProduct = {
   thumb: string;
   gallery: string[];
   collectionSlug: string;
-  categorySlug: 'feminino' | 'masculino';
+  categorySlug: 'feminino' | 'masculino' | 'unissex';
 };
 
 const PRODUCTS: SeedProduct[] = [
@@ -1603,6 +1603,7 @@ async function main() {
   await prisma.order.deleteMany();
   await prisma.productMedia.deleteMany();
   await prisma.mediaAsset.deleteMany();
+  await prisma.collectionGenderOrder.deleteMany();
   await prisma.productCollection.deleteMany();
   await prisma.product.deleteMany();
   await prisma.collection.deleteMany();
@@ -1614,9 +1615,13 @@ async function main() {
   const masculino = await prisma.category.create({
     data: { slug: 'masculino', name: 'Masculino' },
   });
+  const unissex = await prisma.category.create({
+    data: { slug: 'unissex', name: 'Unissex' },
+  });
   const categoryBySlug = {
     feminino: feminino.id,
     masculino: masculino.id,
+    unissex: unissex.id,
   } as const;
 
   const collectionBySlug = new Map<string, string>();
@@ -1669,9 +1674,32 @@ async function main() {
     await seedMediaForProduct(product.id, p.thumb, p.gallery, p.name);
   }
 
+  const links = await prisma.productCollection.findMany({
+    include: { product: { include: { category: true } } },
+    orderBy: { sortOrder: 'asc' },
+  });
+  const genderOrderRows = links.flatMap((pc) => {
+    const gender = pc.product.category.slug;
+    const lists =
+      gender === 'unissex'
+        ? (['feminino', 'masculino'] as const)
+        : gender === 'feminino' || gender === 'masculino'
+          ? ([gender] as const)
+          : [];
+    return lists.map((list) => ({
+      collectionId: pc.collectionId,
+      productId: pc.productId,
+      gender: list,
+      sortOrder: pc.sortOrder,
+    }));
+  });
+  if (genderOrderRows.length > 0) {
+    await prisma.collectionGenderOrder.createMany({ data: genderOrderRows });
+  }
+
   // eslint-disable-next-line no-console
   console.log(
-    `Seeded ${COLLECTIONS.length} collections, 2 categories, ${PRODUCTS.length} products.`,
+    `Seeded ${COLLECTIONS.length} collections, 3 categories, ${PRODUCTS.length} products.`,
   );
 
   await seedAdminUser();

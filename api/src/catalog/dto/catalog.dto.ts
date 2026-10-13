@@ -17,6 +17,8 @@ export interface ProductDto {
   status: ProductStatus;
   stockQty: number;
   category: string;
+  /** Same as category slug (feminino | masculino | unissex). Additive alias. */
+  gender: string;
   /** Primary collection name for storefront compatibility (e.g. "Organic Dreams"). */
   collection: string;
   collections: { slug: string; name: string; archivedAt?: string | null; sortOrder?: number }[];

@@ -28,6 +28,12 @@ enum MediaRole {
   og
 }
 
+/** Per-collection gender list (unissex pieces appear on both lists). */
+enum CollectionGender {
+  feminino
+  masculino
+}
+
 model Collection {
   id          String    @id @default(uuid()) @db.Uuid
   slug        String    @unique
@@ -39,7 +45,8 @@ model Collection {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  products ProductCollection[]
+  products     ProductCollection[]
+  genderOrders CollectionGenderOrder[]
 
   @@index([archivedAt])
   @@map("collections")
@@ -80,10 +87,11 @@ model Product {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  category    Category            @relation(fields: [categoryId], references: [id])
-  collections ProductCollection[]
-  media       ProductMedia[]
-  orderItems  OrderItem[]
+  category     Category                 @relation(fields: [categoryId], references: [id])
+  collections  ProductCollection[]
+  genderOrders CollectionGenderOrder[]
+  media        ProductMedia[]
+  orderItems   OrderItem[]
 
   @@index([status])
   @@index([categoryId])
@@ -101,6 +109,21 @@ model ProductCollection {
 
   @@id([productId, collectionId])
   @@map("product_collections")
+}
+
+/** Independent sort per collection × gender list. Additive; does not replace ProductCollection.sortOrder. */
+model CollectionGenderOrder {
+  collectionId String           @map("collection_id") @db.Uuid
+  productId    String           @map("product_id") @db.Uuid
+  gender       CollectionGender
+  sortOrder    Int              @map("sort_order")
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, gender, productId])
+  @@index([collectionId, gender, sortOrder])
+  @@map("collection_gender_orders")
 }
 
 model MediaAsset {

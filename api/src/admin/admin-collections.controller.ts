@@ -15,7 +15,9 @@ import { parseArchivedFlag } from './archive-query';
 import { CacheInvalidationInterceptor } from '../cache/cache-invalidation.interceptor';
 import { AdminCollectionsService } from './admin-collections.service';
 import {
+  CollectionGenderQueryDto,
   CreateCollectionDto,
+  ReorderCollectionGenderDto,
   SetCollectionProductsDto,
   UpdateCollectionDto,
 } from './dto/admin-products.dto';
@@ -57,5 +59,22 @@ export class AdminCollectionsController {
     @Body() dto: SetCollectionProductsDto,
   ) {
     return this.collections.setProducts(slug, dto.productSlugs);
+  }
+
+  @Get(':slug/order')
+  getOrder(
+    @Param('slug') slug: string,
+    @Query() query: CollectionGenderQueryDto,
+  ) {
+    return this.collections.getGenderOrder(slug, query.gender);
+  }
+
+  @Put(':slug/order')
+  setOrder(
+    @Param('slug') slug: string,
+    @Query() query: CollectionGenderQueryDto,
+    @Body() dto: ReorderCollectionGenderDto,
+  ) {
+    return this.collections.setGenderOrder(slug, query.gender, dto.productIds);
   }
 }

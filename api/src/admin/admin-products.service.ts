@@ -12,6 +12,8 @@ import {
 } from '../catalog/catalog.mapper';
 import { ProductDto } from '../catalog/dto/catalog.dto';
 import { archivedAtWhere } from './archive-query';
+import { listsForProductGender } from '../catalog/gender';
+import { syncProductGenderOrders } from './collection-gender-order.sync';
 import {
   AttachProductMediaDto,
   CreateProductDto,
@@ -78,6 +80,21 @@ export class AdminProductsService {
     }
 
     const nextSort = (maxPc._max.sortOrder ?? -1) + 1;
+    const genderLists = listsForProductGender(dto.category);
+    const maxGenderOrders =
+      genderLists.length > 0
+        ? await this.prisma.collectionGenderOrder.groupBy({
+            by: ['gender'],
+            where: { collectionId: collection.id, gender: { in: genderLists } },
+            _max: { sortOrder: true },
+          })
+        : [];
+    const nextGenderSort = new Map(
+      maxGenderOrders.map((row) => [
+        row.gender,
+        (row._max.sortOrder ?? -1) + 1,
+      ]),
+    );
 
     const created = await this.prisma.product.create({
       data: {
@@ -99,6 +116,13 @@ export class AdminProductsService {
             collectionId: collection.id,
             sortOrder: nextSort,
           },
+        },
+        genderOrders: {
+          create: genderLists.map((gender) => ({
+            collectionId: collection.id,
+            gender,
+            sortOrder: nextGenderSort.get(gender) ?? 0,
+          })),
         },
       },
       include: publishedProductInclude,
@@ -199,6 +223,11 @@ export class AdminProductsService {
       data,
       include: publishedProductInclude,
     });
+
+    if (dto.category !== undefined || dto.collectionSlug !== undefined) {
+      await syncProductGenderOrders(this.prisma, updated.id);
+    }
+
     return mapProduct(updated);
   }
 
