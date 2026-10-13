@@ -2,15 +2,15 @@ import { createSceneEngine } from './scene-engine';
 import { rackPanRange } from './collection-rack';
 import type { SceneLayout } from './types';
 
-function longRackLayout(): SceneLayout {
+function rackLayout(id: string, count: number): SceneLayout {
   return {
     racks: [
       {
-        id: 'niponic-dreams',
-        name: 'Niponic Dreams',
+        id,
+        name: id,
         sortOrder: 0,
         kind: 'rack',
-        hangers: Array.from({ length: 19 }, (_, i) => ({
+        hangers: Array.from({ length: count }, (_, i) => ({
           productId: `p${i}`,
           slug: `peca-${i}`,
           name: `Peça ${i}`,
@@ -18,12 +18,20 @@ function longRackLayout(): SceneLayout {
           stockQty: 1,
           priceLabel: 'R$ 1,00',
           status: 'published',
-          rackId: 'niponic-dreams',
+          rackId: id,
           kind: 'garment' as const,
         })),
       },
     ],
   };
+}
+
+function longRackLayout(): SceneLayout {
+  return rackLayout('niponic-dreams', 19);
+}
+
+function organicLayout(): SceneLayout {
+  return rackLayout('organic-dreams', 8);
 }
 
 describe('SceneEngine lateral pan', () => {
@@ -106,6 +114,52 @@ describe('SceneEngine lateral pan', () => {
     );
     expect(engine.rackPanState().last).toBe(beforePan);
     expect(engine.orbitDistance()).toBeLessThan(beforeDist);
+    engine.dispose();
+    canvas.remove();
+  });
+
+  it('does not dolly when the wheel is over a short rack that cannot pan', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 450;
+    document.body.appendChild(canvas);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true });
+    if (!engine) {
+      canvas.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(organicLayout());
+    engine.focusRack('organic-dreams', true);
+    expect(engine.canPan(1)).toBeFalse();
+    const before = engine.orbitDistance();
+    canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 400, bubbles: true, cancelable: true }));
+    expect(engine.orbitDistance()).toBeCloseTo(before, 5);
+    expect(engine.orbitZoomEnabled()).toBeFalse();
+    engine.dispose();
+    canvas.remove();
+  });
+
+  it('pans a long rack on wheel without changing camera distance', () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 450;
+    document.body.appendChild(canvas);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true });
+    if (!engine) {
+      canvas.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(longRackLayout());
+    engine.focusRack('niponic-dreams', true);
+    const before = engine.orbitDistance();
+    expect(engine.rackPanState().label).toBe('8 de 19');
+    canvas.dispatchEvent(new WheelEvent('wheel', { deltaY: 240, bubbles: true, cancelable: true }));
+    expect(engine.rackPanState().last).toBeGreaterThan(8);
+    expect(engine.orbitDistance()).toBeCloseTo(before, 5);
     engine.dispose();
     canvas.remove();
   });

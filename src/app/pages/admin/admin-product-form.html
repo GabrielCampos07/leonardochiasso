@@ -5,10 +5,12 @@
       <label>
         Nome
         <input
+          id="atelier-product-name"
           type="text"
           [ngModel]="p.name"
           (ngModelChange)="onNameChange($event)"
           name="name"
+          autocomplete="off"
           required
         />
       </label>
@@ -16,10 +18,12 @@
         <label>
           Código (slug)
           <input
+            id="atelier-product-slug"
             type="text"
             [ngModel]="p.slug"
             (ngModelChange)="onSlugChange($event)"
             name="slug"
+            autocomplete="off"
             placeholder="gerado-do-nome"
           />
         </label>
@@ -28,9 +32,11 @@
       <label>
         Gênero
         <select
+          id="atelier-product-category"
           [ngModel]="p.category"
           (ngModelChange)="patchField('category', $event)"
           name="category"
+          autocomplete="off"
         >
           <option value="feminino">Feminino</option>
           <option value="masculino">Masculino</option>
@@ -39,9 +45,11 @@
       <label>
         Coleção
         <select
+          id="atelier-product-collection"
           [ngModel]="p.collectionSlug || ''"
           (ngModelChange)="onCollectionSlugChange($event)"
           name="collection"
+          autocomplete="off"
           [required]="isNew() && collectionRequired()"
         >
           @if (isNew() && collectionRequired()) {
@@ -65,10 +73,12 @@
       <label>
         Tamanho
         <input
+          id="atelier-product-size"
           type="text"
           [ngModel]="p.size"
           (ngModelChange)="patchField('size', $event)"
           name="size"
+          autocomplete="off"
         />
       </label>
     </fieldset>
@@ -78,32 +88,44 @@
       <label>
         Descrição
         <textarea
+          id="atelier-product-description"
           rows="5"
           [ngModel]="p.description"
           (ngModelChange)="patchField('description', $event)"
           name="description"
+          autocomplete="off"
         ></textarea>
       </label>
       <label>
         Detalhes (uma linha por item)
-        <textarea rows="6" [(ngModel)]="detailsText" name="details"></textarea>
+        <textarea
+          id="atelier-product-details"
+          rows="6"
+          [(ngModel)]="detailsText"
+          name="details"
+          autocomplete="off"
+        ></textarea>
       </label>
       <label>
         Tecido
         <input
+          id="atelier-product-fabric"
           type="text"
           [ngModel]="p.fabric"
           (ngModelChange)="patchField('fabric', $event)"
           name="fabric"
+          autocomplete="off"
         />
       </label>
       <label>
         Temporada
         <input
+          id="atelier-product-season"
           type="text"
           [ngModel]="p.season"
           (ngModelChange)="patchField('season', $event)"
           name="season"
+          autocomplete="off"
         />
       </label>
     </fieldset>
@@ -119,18 +141,21 @@
       <label>
         Valor em R$
         <input
+          id="atelier-product-price"
           type="number"
           min="0"
           step="1"
           [ngModel]="p.price"
           (ngModelChange)="onPriceChange($event)"
           name="price"
+          autocomplete="transaction-amount"
         />
       </label>
       <p class="admin-edit__hint">Mostra como: {{ p.priceLabel }}</p>
       <label>
         Estoque
         <input
+          id="atelier-product-stock"
           type="number"
           min="0"
           step="1"
@@ -138,6 +163,7 @@
           [ngModel]="p.stockQty ?? 0"
           (ngModelChange)="onStockQtyChange($event)"
           name="stockQty"
+          autocomplete="off"
         />
       </label>
       <p class="admin-edit__hint">Inteiro ≥ 0. Zero marca a peça como esgotada.</p>
@@ -148,10 +174,12 @@
       <label>
         Texto da cor
         <input
+          id="atelier-product-color"
           type="text"
           [ngModel]="p.color"
           (ngModelChange)="patchField('color', $event)"
           name="color"
+          autocomplete="off"
         />
       </label>
       <p class="admin-edit__hint">Marque as bolinhas de cor (opcional):</p>

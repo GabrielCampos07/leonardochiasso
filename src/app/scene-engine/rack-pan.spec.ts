@@ -1,4 +1,10 @@
-import { HANGER_SPACING, RACK_FRAME_COLUMNS, rackFrameWidth, rackPanRange } from './collection-rack';
+import {
+  HANGER_SPACING,
+  RACK_FRAME_COLUMNS,
+  RACK_FRAME_COLUMNS_COMPACT,
+  rackFrameWidth,
+  rackPanRange,
+} from './collection-rack';
 import {
   EMPTY_RACK_PAN,
   RACK_EDGE_CUT,
@@ -11,6 +17,7 @@ import {
   isPinchZoomEvent,
   rackStartPanX,
   rackVisibleColumnRange,
+  shouldBlockWheelZoom,
   shouldPanRackOnWheel,
   wheelPanPixels,
 } from './rack-pan';
@@ -30,6 +37,13 @@ describe('rackPanProgress', () => {
     expect(end.canNext).toBeFalse();
     expect(end.canPrev).toBeTrue();
     expect(end.label).toBe('19 de 19');
+  });
+
+  it('reads 6 de 17 at the left of a compact 17-piece rack', () => {
+    const start = rackPanProgress(17, rackStartPanX(17, RACK_FRAME_COLUMNS_COMPACT), RACK_FRAME_COLUMNS_COMPACT);
+    expect(start.showChrome).toBeTrue();
+    expect(start.last).toBe(RACK_FRAME_COLUMNS_COMPACT);
+    expect(start.label).toBe('6 de 17');
   });
 
   it('hides chrome when the rack fits in one frame', () => {
@@ -89,6 +103,9 @@ describe('pan input helpers', () => {
     expect(wheelPanPixels({ deltaX: 0, deltaY: 3, deltaMode: 1 })).toBe(48);
     expect(HANGER_SPACING).toBeGreaterThan(0.5);
     expect(isPinchZoomEvent({ ctrlKey: true })).toBeTrue();
+    expect(shouldBlockWheelZoom({ overRack: true, pinch: false })).toBeTrue();
+    expect(shouldBlockWheelZoom({ overRack: true, pinch: true })).toBeFalse();
+    expect(shouldBlockWheelZoom({ overRack: false, pinch: false })).toBeFalse();
     expect(shouldPanRackOnWheel({ overRack: true, pinch: false, panRange: 2 })).toBeTrue();
     expect(shouldPanRackOnWheel({ overRack: true, pinch: true, panRange: 2 })).toBeFalse();
     expect(shouldPanRackOnWheel({ overRack: false, pinch: false, panRange: 2 })).toBeFalse();

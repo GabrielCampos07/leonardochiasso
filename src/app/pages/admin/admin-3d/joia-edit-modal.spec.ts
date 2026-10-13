@@ -42,6 +42,18 @@ describe('JoiaEditModal', () => {
     expect(heading.textContent?.trim()).toBe('Editar joia · Colar Dentes');
   });
 
+  it('gives every field an id, name, and autocomplete', () => {
+    const fields = fixture.nativeElement.querySelectorAll('input, textarea, select') as NodeListOf<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >;
+    expect(fields.length).toBeGreaterThanOrEqual(4);
+    for (const field of Array.from(fields)) {
+      expect(field.id).toBeTruthy();
+      expect(field.name).toBeTruthy();
+      expect(field.getAttribute('autocomplete')).toBeTruthy();
+    }
+  });
+
   it('closes on Escape while the canvas would have kept focus', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(close).toHaveBeenCalledWith(undefined);

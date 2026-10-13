@@ -10,7 +10,10 @@ import {
   rackPanRange,
   rackRowCount,
   rackWidth,
+  rackFrameColumns,
   RACK_BAR_TOP,
+  RACK_FRAME_COLUMNS,
+  RACK_FRAME_COLUMNS_COMPACT,
   RACK_ROW_PITCH,
 } from './collection-rack';
 import type { SceneHanger } from './types';
@@ -48,6 +51,11 @@ describe('rackWidth', () => {
     expect(rackFrameWidth(19)).toBe(rackWidth(8));
     expect(rackPanRange(8)).toBe(0);
     expect(rackPanRange(19)).toBeGreaterThan(0);
+    expect(rackFrameWidth(17, 6)).toBeLessThan(rackFrameWidth(17, 8));
+    expect(rackPanRange(17, 6)).toBeGreaterThan(rackPanRange(17, 8));
+    expect(rackFrameColumns(true, 8)).toBe(RACK_FRAME_COLUMNS);
+    expect(rackFrameColumns(true, 17)).toBe(RACK_FRAME_COLUMNS_COMPACT);
+    expect(rackFrameColumns(false, 17)).toBe(RACK_FRAME_COLUMNS);
   });
 });
 

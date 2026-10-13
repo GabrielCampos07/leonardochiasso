@@ -2,7 +2,10 @@ import { HANGER_USER_DATA } from './garment-hanger';
 
 /** 5px — a rack pan / orbit must not count as a piece click. */
 export const CLICK_SLOP_PX = 5;
+/** Finger wobble on the first iOS tap is larger than a mouse click. */
+export const TOUCH_CLICK_SLOP_PX = 16;
 export const DRAG_SLOP_SQ = CLICK_SLOP_PX * CLICK_SLOP_PX;
+export const TOUCH_DRAG_SLOP_SQ = TOUCH_CLICK_SLOP_PX * TOUCH_CLICK_SLOP_PX;
 /** Finger-down longer than this is a hold / drag, even if it barely moved. */
 export const CLICK_MAX_MS = 300;
 
@@ -89,6 +92,15 @@ export function isPointerClick(dx: number, dy: number, slopSq = DRAG_SLOP_SQ): b
   return dx * dx + dy * dy <= slopSq;
 }
 
+export function slopSqForPointer(pointerType?: string): number {
+  return pointerType === 'touch' ? TOUCH_DRAG_SLOP_SQ : DRAG_SLOP_SQ;
+}
+
+/** Overview tap / piece click — touch gets a wider slop so the first tap counts. */
+export function isTap(dx: number, dy: number, pointerType?: string): boolean {
+  return isPointerClick(dx, dy, slopSqForPointer(pointerType));
+}
+
 /** Click → piece slug for the edit modal. Prefer the pointerdown pick (pre-orbit). */
 export function resolveHangerClick(input: {
   pointerDownSlug: string | null;
@@ -97,8 +109,9 @@ export function resolveHangerClick(input: {
   dx: number;
   dy: number;
   durationMs?: number;
+  pointerType?: string;
 }): string | null {
-  if (!isPointerClick(input.dx, input.dy)) return null;
+  if (!isTap(input.dx, input.dy, input.pointerType)) return null;
   if (input.durationMs != null && input.durationMs > CLICK_MAX_MS) return null;
   return input.pointerDownSlug ?? input.pointerUpSlug ?? input.hoverSlug;
 }

@@ -81,8 +81,8 @@ function wheelOn(canvas: HTMLCanvasElement, deltaY: number): void {
     new WheelEvent('wheel', {
       deltaY,
       deltaX: 80,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
+      clientX: rect.left + 12,
+      clientY: rect.top + 12,
       bubbles: true,
       cancelable: true,
     }),

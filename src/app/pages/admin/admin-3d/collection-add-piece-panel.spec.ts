@@ -187,6 +187,26 @@ describe('CollectionAddPiecePanel', () => {
 
   afterEach(() => fixture.destroy());
 
+  it('gives search, checkboxes, and create fields id/name/autocomplete', () => {
+    const search = fixture.nativeElement.querySelector('#atelier-add-piece-search') as HTMLInputElement;
+    expect(search.name).toBe('addPieceSearch');
+    expect(search.getAttribute('autocomplete')).toBe('off');
+    const boxes = fixture.nativeElement.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
+    expect(boxes.length).toBe(2);
+    for (const box of Array.from(boxes)) {
+      expect(box.id).toMatch(/^atelier-add-piece-/);
+      expect(box.name).toMatch(/^add-piece-/);
+    }
+    (fixture.nativeElement.querySelectorAll('.add-piece__tab')[1] as HTMLButtonElement).click();
+    fixture.detectChanges();
+    for (const id of ['atelier-add-piece-name', 'atelier-add-piece-price', 'atelier-add-piece-stock']) {
+      const field = fixture.nativeElement.querySelector(`#${id}`) as HTMLInputElement;
+      expect(field).toBeTruthy();
+      expect(field.name).toBeTruthy();
+      expect(field.getAttribute('autocomplete')).toBe('off');
+    }
+  });
+
   it('emits the selected slugs as one grouped list', () => {
     const add = jasmine.createSpy('add');
     component.add.subscribe(add);
