@@ -1930,7 +1930,10 @@ export class SceneEngine {
   }
 
   private wheelOverFocusedRack(event: WheelEvent): boolean {
-    const id = rackIdFromHits(this.raycastClient(event.clientX, event.clientY));
+    if (!event.clientX && !event.clientY) return this.focusedPanRange() > 0;
+    const hits = this.raycastClient(event.clientX, event.clientY);
+    if (!hits.length) return this.focusedPanRange() > 0;
+    const id = rackIdFromHits(hits);
     return Boolean(id && id === this.focusedId);
   }
 
