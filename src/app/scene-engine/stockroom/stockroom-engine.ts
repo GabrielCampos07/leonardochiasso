@@ -170,7 +170,7 @@ const HOVER_OUTLINE = 0x2563eb;
 const WINDOW_FIT_PAD = 1.04;
 /** A wider window may cost this much zoom (≈ photo size) and still count as "fits". */
 const WINDOW_ZOOM_SLACK = 0.97;
-const OUTLINE_PAD = 0.07;
+const OUTLINE_PAD = 0.16;
 
 const CLEAR = 0xd9d2c7;
 const SHARED = 'stockroomShared';

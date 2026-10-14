@@ -64,11 +64,24 @@ export class ToastService {
     if (this.timer) clearTimeout(this.timer);
 
     const ms = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DISMISS_MS;
+    const nextAction = action?.label.trim() ? action : undefined;
+    const current = this.message();
+    if (current && current.kind === kind && current.text === trimmed) {
+      if (current.action !== nextAction) {
+        this.message.set({ id: current.id, kind, text: trimmed, action: nextAction });
+      }
+      this.timer = setTimeout(() => {
+        this.message.set(null);
+        this.timer = null;
+      }, ms);
+      return;
+    }
+
     this.message.set({
       id: ++this.seq,
       kind,
       text: trimmed,
-      action: action?.label.trim() ? action : undefined,
+      action: nextAction,
     });
     this.timer = setTimeout(() => {
       this.message.set(null);
