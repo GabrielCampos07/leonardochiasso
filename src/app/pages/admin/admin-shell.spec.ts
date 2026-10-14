@@ -42,7 +42,9 @@ describe('AdminShell', () => {
 
   it('opens Abrir o site in a new tab', () => {
     const link = fixture.nativeElement.querySelector('.admin-bar__nav a[href="/"]') as HTMLAnchorElement | null;
-    expect(link?.textContent?.trim()).toBe('Abrir o site');
+    expect(link?.textContent).toContain('Abrir o site');
+    expect(link?.querySelector('.admin-bar__ext')?.textContent).toBe('↗');
+    expect(link?.querySelector('.lc-sr-only')?.textContent?.trim()).toBe('abre em nova aba');
     expect(link?.getAttribute('target')).toBe('_blank');
     expect(link?.getAttribute('rel')).toBe('noopener');
   });
