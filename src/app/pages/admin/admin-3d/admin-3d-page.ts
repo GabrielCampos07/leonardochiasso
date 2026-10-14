@@ -28,7 +28,7 @@ import {
 } from '../../../core/admin-collection-products';
 import { AdminCollectionDto, AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
 import { ConfirmService } from '../../../core/feedback/confirm.service';
-import { ToastService } from '../../../core/feedback/toast.service';
+import { ERROR_TOAST_MS, ToastService } from '../../../core/feedback/toast.service';
 import { AdminJoiasCatalogService } from '../../../core/admin-joias-catalog.service';
 import { AdminViewModeService } from '../../../core/admin-view-mode.service';
 import { mapApiProduct } from '../../../core/catalog.service';
@@ -113,6 +113,19 @@ import {
 } from './collection-add-piece-panel';
 import { CollectionCreatePanel } from './collection-create-panel';
 import { StockroomCreditsPanel } from './stockroom-credits-panel';
+import {
+  PIECE_ORDER_SAVE_ERROR,
+  REORDER_AUTOSCROLL_MS,
+  REORDER_DRAG_THRESHOLD_PX,
+  autoScrollDelta,
+  dropIndexForSlug,
+  dropTargetSlug,
+  moveSlug,
+  moveSlugById,
+  reorderRackHangers,
+  sameSlugOrder,
+  type PieceRect,
+} from './stockroom-piece-order';
 import { JoiaEditModal, JoiaEditModalData } from './joia-edit-modal';
 import {
   PRODUCT_EDIT_MODAL_TITLE_ID,
@@ -264,6 +277,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly desktopOnlyHint = DESKTOP_ONLY_HINT;
   readonly hasCredits = sceneNeedsCredits(this.sceneMode);
   readonly creditsOpen = signal(false);
+  readonly pieceDrag = signal<{ slug: string; x: number; y: number; over: string | null } | null>(null);
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
@@ -375,6 +389,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private addTimers: number[] = [];
   private readonly addingSlugs = new Set<string>();
   private paintToken = 0;
+  private pieceDragStart: { slug: string; x: number; y: number; pointerId: number } | null = null;
+  private pieceDragMoved = false;
+  private pieceScrollTimer = 0;
 
   ngAfterViewInit(): void {
     const token = ++this.paintToken;
@@ -389,6 +406,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.paintToken += 1;
     if (this.hintTimer) window.clearTimeout(this.hintTimer);
     if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
+    this.stopPieceScroll();
     this.clearAddTimers();
     this.engine?.dispose();
     this.engine = null;
@@ -491,6 +509,14 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     }
     const arrow = rackArrowDelta(event.key);
     if (!arrow) return;
+    if (event.altKey) {
+      const slug = (event.target as HTMLElement | null)?.closest?.('[data-slug]')?.getAttribute('data-slug');
+      if (slug) {
+        event.preventDefault();
+        this.movePieceByKey(slug, arrow);
+      }
+      return;
+    }
     if (this.creating() || this.adding()) return;
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.error()) return;
     const target = event.target as HTMLElement | null;
@@ -506,6 +532,125 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   openPieceFromKey(event: Event, slug: string): void {
     event.preventDefault();
     this.openEditor(slug);
+  }
+
+  onPiecePointerDown(event: PointerEvent, slug: string): void {
+    if (!this.stockroom || event.button !== 0 || this.creating() || this.adding() || this.modalOpen) return;
+    this.pieceDragStart = { slug, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+    this.pieceDragMoved = false;
+    (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+  }
+
+  @HostListener('document:pointermove', ['$event'])
+  onPiecePointerMove(event: PointerEvent): void {
+    const start = this.pieceDragStart;
+    if (!start || event.pointerId !== start.pointerId) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (!this.pieceDragMoved && Math.hypot(dx, dy) < REORDER_DRAG_THRESHOLD_PX) return;
+    this.pieceDragMoved = true;
+    const stage = this.stageRef?.nativeElement.getBoundingClientRect();
+    const localX = event.clientX - (stage?.left ?? 0);
+    const localY = event.clientY - (stage?.top ?? 0);
+    const over = dropTargetSlug(localX, localY, this.pieceRects(), start.slug);
+    this.pieceDrag.set({ slug: start.slug, x: localX, y: localY, over });
+    this.tickPieceScroll(event.clientX);
+  }
+
+  @HostListener('document:pointerup', ['$event'])
+  @HostListener('document:pointercancel', ['$event'])
+  onPiecePointerUp(event: PointerEvent): void {
+    const start = this.pieceDragStart;
+    if (!start || event.pointerId !== start.pointerId) return;
+    const drag = this.pieceDrag();
+    this.pieceDragStart = null;
+    this.stopPieceScroll();
+    this.pieceDrag.set(null);
+    if (!this.pieceDragMoved) {
+      this.openEditor(start.slug);
+      return;
+    }
+    if (!drag?.over) return;
+    this.commitPieceMove(start.slug, drag.over);
+  }
+
+  pieceDragTransform(piece: { slug: string; x: number; y: number; w: number; h: number }): string | null {
+    const drag = this.pieceDrag();
+    if (!drag || drag.slug !== piece.slug) return null;
+    return `translate(${drag.x - piece.x - piece.w / 2}px, ${drag.y - piece.y - piece.h / 2}px)`;
+  }
+
+  movePieceByKey(slug: string, delta: -1 | 1): void {
+    const rack = this.layout.racks.find((r) => r.hangers.some((h) => h.slug === slug));
+    if (!rack) return;
+    const slugs = rack.hangers.map((h) => h.slug);
+    const next = moveSlugById(slugs, slug, delta);
+    if (!next) return;
+    this.applyAndSavePieceOrder(rack.id, slugs, next);
+  }
+
+  private pieceRects(): PieceRect[] {
+    return (this.overlay()?.pieces ?? []).map((p) => ({ slug: p.slug, x: p.x, y: p.y, w: p.w, h: p.h }));
+  }
+
+  private tickPieceScroll(clientX: number): void {
+    const stage = this.stageRef?.nativeElement.getBoundingClientRect();
+    const pan = this.rackPan();
+    const pieces = this.layout.racks.find((r) => r.id === this.focusedId())?.hangers.length ?? 0;
+    const delta = stage
+      ? autoScrollDelta(clientX, stage.left, stage.width, pieces, pan.canPrev, pan.canNext)
+      : 0;
+    if (!delta) {
+      this.stopPieceScroll();
+      return;
+    }
+    if (this.pieceScrollTimer) return;
+    const step = (): void => {
+      this.engine?.panRack(delta);
+      this.pieceScrollTimer = window.setTimeout(step, REORDER_AUTOSCROLL_MS);
+    };
+    this.engine?.panRack(delta);
+    this.pieceScrollTimer = window.setTimeout(step, REORDER_AUTOSCROLL_MS);
+  }
+
+  private stopPieceScroll(): void {
+    if (this.pieceScrollTimer) window.clearTimeout(this.pieceScrollTimer);
+    this.pieceScrollTimer = 0;
+  }
+
+  private commitPieceMove(fromSlug: string, overSlug: string): void {
+    const rack = this.layout.racks.find((r) => r.hangers.some((h) => h.slug === fromSlug));
+    if (!rack) return;
+    const slugs = rack.hangers.map((h) => h.slug);
+    const from = slugs.indexOf(fromSlug);
+    const to = dropIndexForSlug(slugs, overSlug);
+    if (from < 0 || to === null || from === to) return;
+    const next = moveSlug(slugs, from, to);
+    if (sameSlugOrder(slugs, next)) return;
+    this.applyAndSavePieceOrder(rack.id, slugs, next);
+  }
+
+  private applyAndSavePieceOrder(rackId: string, previous: readonly string[], next: readonly string[]): void {
+    const collectionSlug = collectionSlugFromUnitId(rackId);
+    if (!collectionSlug || rackId === UNCOLLECTED_RACK_ID) return;
+    const layout = reorderRackHangers(this.layout, rackId, next);
+    if (!layout) return;
+    this.layout = layout;
+    this.engine?.reorderHangers?.(rackId, next);
+    this.bumpLayout();
+    this.collectionProducts.remember(collectionSlug, next);
+    this.collectionProducts.replace(collectionSlug, next).subscribe({
+      error: (err: unknown) => {
+        this.toast.error(adminHttpErrorMessage(err, PIECE_ORDER_SAVE_ERROR), { durationMs: ERROR_TOAST_MS });
+        const rolled = reorderRackHangers(this.layout, rackId, previous);
+        if (rolled) {
+          this.layout = rolled;
+          this.engine?.reorderHangers?.(rackId, previous);
+          this.collectionProducts.remember(collectionSlug, previous);
+          this.bumpLayout();
+        }
+      },
+    });
   }
 
   focusRack(id: string): void {
