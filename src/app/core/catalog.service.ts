@@ -182,15 +182,6 @@ export class CatalogService {
   }
 
   getProductsByCollection(collection: Collection | string): Observable<Product[]> {
-    const fromLive = () =>
-      groupShopProducts(
-        this.products().filter(
-          (p) =>
-            !isArchivedAt(p.archivedAt) &&
-            (p.collection === collection || p.collectionSlug === collection),
-        ),
-      );
-
     if (environment.demoMode) {
       return of(
         groupShopProducts(
@@ -209,12 +200,13 @@ export class CatalogService {
       map((col) => {
         // Public API already omits archived products; keep a front filter if an old
         // payload still embeds them (GET /api/collections/:slug).
+        // Do not fall back to the local catalog — an unknown/empty slug stays empty.
         const api = (col.products ?? [])
           .map(mapApiProduct)
           .filter((p) => !isArchivedAt(p.archivedAt));
-        return groupShopProducts(api.length > 0 ? api : fromLive());
+        return groupShopProducts(api);
       }),
-      catchError(() => of(fromLive())),
+      catchError(() => of([])),
     );
   }
 

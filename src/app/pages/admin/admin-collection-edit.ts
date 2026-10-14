@@ -49,6 +49,7 @@ import {
   orderProductId,
   productGender,
 } from '../../core/product-gender';
+import { itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
 import { isSoldOut } from '../../scene-engine/types';
 
 function slugify(value: string): string {
@@ -83,8 +84,9 @@ export class AdminCollectionEditPage implements OnInit {
   readonly highlightGender = signal(false);
   readonly todosHint = signal('');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
-  readonly showUnissexNotice = signal(false);
+  readonly showUnissexNotice = computed(() => this.genderFilter() === 'masculino');
   readonly dragStartDelay = coarsePointerDragDelay();
+  readonly orderLoading = signal(false);
 
   readonly listPath = ROUTES.adminCollections;
   readonly newProductPath = adminProductPath(ADMIN_NEW_PRODUCT_SLUG);
@@ -170,7 +172,6 @@ export class AdminCollectionEditPage implements OnInit {
     this.genderFilter.set(next);
     this.todosHint.set('');
     this.highlightGender.set(false);
-    this.showUnissexNotice.set(false);
     this.refreshVisible();
   }
 
@@ -180,10 +181,6 @@ export class AdminCollectionEditPage implements OnInit {
     event?.stopPropagation();
     this.todosHint.set(TODOS_DRAG_HINT);
     this.highlightGender.set(true);
-  }
-
-  onDragStarted(): void {
-    if (this.genderFilter() === 'masculino') this.showUnissexNotice.set(true);
   }
 
   onNameChange(value: string): void {
@@ -307,10 +304,17 @@ export class AdminCollectionEditPage implements OnInit {
       this.onTodosDragAttempt();
       return;
     }
-    if (event.previousIndex === event.currentIndex) return;
     const next = [...this.visibleProducts()];
+    const currentIndex = resolveCdkDropIndex(
+      event,
+      next.length,
+      itemMidpoints(
+        event.container.getSortedItems().map((item) => item.element.nativeElement.getBoundingClientRect()),
+      ),
+    );
+    if (event.previousIndex === currentIndex) return;
     const previousIds = next.map(orderProductId);
-    moveItemInArray(next, event.previousIndex, event.currentIndex);
+    moveItemInArray(next, event.previousIndex, currentIndex);
     this.visibleProducts.set(next);
     this.persistGenderOrder(previousIds);
   }
@@ -412,20 +416,25 @@ export class AdminCollectionEditPage implements OnInit {
   private refreshVisible(): void {
     const filter = this.genderFilter();
     const subset = this.products().filter((p) => matchesGenderFilter(p, filter));
+    this.visibleProducts.set(subset);
     if (!canReorderWithFilter(filter) || this.isNew()) {
-      this.visibleProducts.set(subset);
+      this.orderLoading.set(false);
       return;
     }
     const collectionSlug = this.slug();
     const gen = ++this.visibleGen;
+    this.orderLoading.set(true);
     this.collectionOrder.get(collectionSlug, filter).subscribe({
       next: (res) => {
         if (gen !== this.visibleGen) return;
+        this.orderLoading.set(false);
         this.visibleProducts.set(applyProductIdOrder(subset, res.productIds));
       },
-      error: () => {
+      error: (err) => {
         if (gen !== this.visibleGen) return;
+        this.orderLoading.set(false);
         this.visibleProducts.set(subset);
+        this.toast.error(collectionOrderErrorMessage(err, 'Não foi possível carregar a ordem.'));
       },
     });
   }

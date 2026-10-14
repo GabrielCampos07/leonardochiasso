@@ -128,4 +128,12 @@ describe('AdminCatalogService create payload contract', () => {
     expect(req.request.body.collectionSlug).toBe('teste-colecao');
     req.flush(createdDto(product));
   });
+
+  it('POSTs a negative stockQty without clamping it', () => {
+    const product = sampleProduct({ stockQty: -4 });
+    service.createPublishedProduct$(product).subscribe();
+    const req = http.expectOne('http://payload.test/api/admin/products');
+    expect(req.request.body.stockQty).toBe(-4);
+    req.flush(createdDto(product));
+  });
 });

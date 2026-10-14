@@ -42,11 +42,20 @@ import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-u
 
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
-/** Inteiro ≥ 0 para o campo de estoque do admin. */
+export const STOCK_NEGATIVE_MESSAGE = 'Estoque não pode ser negativo.';
+
+/** Parsed stock for the API — rounds, does not clamp negatives. */
 export function parseStockQty(raw: string | number | null | undefined): number {
-  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(/[^\d-]/g, ''));
+  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(',', '.'));
   if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.round(n));
+  return Math.round(n);
+}
+
+/** Client-side copy — same text the API returns for stock < 0. */
+export function stockQtyError(raw: string | number | null | undefined): string {
+  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(',', '.'));
+  if (Number.isFinite(n) && n < 0) return STOCK_NEGATIVE_MESSAGE;
+  return '';
 }
 
 function collectionLabelForSlug(slug: string, name?: string | null): Collection {
@@ -57,7 +66,12 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
   return (trimmed && trimmed !== slug ? trimmed : slug) as Collection;
 }
 
-/** Visible collection label — name only, never the slug. */
+/**
+ * Visible collection label — name only.
+ * While the admin list is loading, do not flash the raw slug (`blankProduct`
+ * copies `?colecao=` into `collection`). After the list arrives, use the
+ * catalog `name` even when it happens to equal the slug.
+ */
 export function collectionSelectLabel(
   slug: string,
   name?: string | null,
@@ -66,10 +80,10 @@ export function collectionSelectLabel(
   if (KNOWN_COLLECTION_SLUGS.has(slug)) {
     return collectionFromSlug(slug as CollectionSlug);
   }
+  const fromCatalog = catalog.find((item) => item.slug === slug)?.name?.trim();
+  if (fromCatalog) return fromCatalog;
   const trimmed = name?.trim();
   if (trimmed && trimmed !== slug) return trimmed;
-  const fromCatalog = catalog.find((item) => item.slug === slug)?.name?.trim();
-  if (fromCatalog && fromCatalog !== slug) return fromCatalog;
   return 'Coleção';
 }
 
@@ -120,6 +134,12 @@ export class AdminProductForm implements OnInit {
     if (extra) opts.push(extra);
     return opts.map((item) => ({ value: item.slug, label: item.label }));
   });
+  readonly selectedCollectionLabel = computed(() => {
+    const p = this.draft();
+    const slug = parseCollectionSlugParam(p?.collectionSlug) ?? parseCollectionSlugParam(this.product().collectionSlug);
+    if (!slug) return '';
+    return collectionSelectLabel(slug, p?.collection, this.apiCollections());
+  });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
@@ -131,6 +151,7 @@ export class AdminProductForm implements OnInit {
   readonly uploading = signal(false);
   readonly uploadError = signal('');
   readonly saveError = signal('');
+  readonly stockError = signal('');
   readonly pendingFileLabel = signal('Escolher fotos');
   private pendingFiles: File[] = [];
 
@@ -160,15 +181,23 @@ export class AdminProductForm implements OnInit {
   }
 
   private syncCollectionNameFromApi(): void {
-    const p = this.draft();
-    if (!p?.collectionSlug) return;
-    const name = collectionSelectLabel(
-      p.collectionSlug,
-      p.collection,
-      this.apiCollections(),
-    );
-    if (name === p.collection || name === 'Coleção') return;
-    this.draft.set({ ...p, collection: name as Collection });
+    const p = this.draft() ?? this.product();
+    const slug =
+      parseCollectionSlugParam(p?.collectionSlug) ??
+      parseCollectionSlugParam(this.product().collectionSlug);
+    if (!slug) return;
+    const name = collectionSelectLabel(slug, p.collection, this.apiCollections());
+    if (
+      p.collectionSlug === slug &&
+      p.collection === name
+    ) {
+      return;
+    }
+    this.draft.set({
+      ...p,
+      collectionSlug: slug as CollectionSlug,
+      collection: name as Collection,
+    });
   }
 
   loadDraft(p: Product): void {
@@ -260,6 +289,13 @@ export class AdminProductForm implements OnInit {
   onStockQtyChange(raw: string | number): void {
     const p = this.draft();
     if (!p) return;
+    const error = stockQtyError(raw);
+    this.stockError.set(error);
+    if (error) {
+      const n = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
+      this.draft.set({ ...p, stockQty: Number.isFinite(n) ? n : p.stockQty });
+      return;
+    }
     this.draft.set({ ...p, stockQty: parseStockQty(raw) });
   }
 
@@ -476,6 +512,11 @@ export class AdminProductForm implements OnInit {
       this.toast.info(this.isNew() ? 'Selecione a coleção do produto.' : 'Selecione uma coleção.');
       return;
     }
+    const stockMessage = stockQtyError(p.stockQty);
+    if (stockMessage) {
+      this.stockError.set(stockMessage);
+      this.saveError.set(stockMessage);
+    }
 
     const details = this.detailsText
       .split('\n')
@@ -514,7 +555,6 @@ export class AdminProductForm implements OnInit {
       ...syncPriceFields(p.price),
     };
 
-    this.saveError.set('');
     this.setSaving(true);
     this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
       next: (saved) => {

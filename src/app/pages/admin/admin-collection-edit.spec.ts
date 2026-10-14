@@ -1,8 +1,51 @@
-import { matchesGenderFilter, productGender } from '../../core/product-gender';
+import { HttpErrorResponse } from '@angular/common/http';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { Subject, of, throwError } from 'rxjs';
+import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
+import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
+import { AdminCollectionProductsService } from '../../core/admin-collection-products';
+import { ApiProductDto } from '../../core/catalog.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
+import { ToastService } from '../../core/feedback/toast.service';
+import { MASCULINO_UNISSEX_NOTICE, matchesGenderFilter, productGender } from '../../core/product-gender';
 import {
+  AdminCollectionEditPage,
   findAdminCollection,
   productsInCollection,
 } from './admin-collection-edit';
+
+function dto(patch: Partial<ApiProductDto> & Pick<ApiProductDto, 'slug' | 'name' | 'gender'>): ApiProductDto {
+  return {
+    id: patch.id ?? patch.slug,
+    description: '',
+    details: [],
+    shipping: null,
+    priceCents: 0,
+    currency: 'BRL',
+    color: null,
+    size: null,
+    fabric: null,
+    season: null,
+    category: patch.gender === 'masculino' ? 'masculino' : 'feminino',
+    collection: 'TESTE-COLECAO2',
+    collections: [{ slug: 'teste-colecao2', name: 'TESTE-COLECAO2' }],
+    thumb: '',
+    gallery: [],
+    stockQty: 1,
+    ...patch,
+  };
+}
+
+describe('Masculino unissex notice', () => {
+  it('is shown whenever the Masculino filter is active, not only during a drag', () => {
+    expect(MASCULINO_UNISSEX_NOTICE).toBe('peças unissex aparecem no site no bloco feminino');
+    const masculinoActive = (filter: 'todos' | 'feminino' | 'masculino') => filter === 'masculino';
+    expect(masculinoActive('masculino')).toBeTrue();
+    expect(masculinoActive('feminino')).toBeFalse();
+    expect(masculinoActive('todos')).toBeFalse();
+  });
+});
 
 describe('findAdminCollection', () => {
   const live = [{ slug: 'organic-dreams', name: 'Organic Dreams', archivedAt: null }];
@@ -65,5 +108,119 @@ describe('productsInCollection', () => {
     expect(productGender(uni)).toBe('unissex');
     expect(matchesGenderFilter(uni, 'feminino')).toBeTrue();
     expect(matchesGenderFilter(uni, 'masculino')).toBeTrue();
+  });
+});
+
+describe('AdminCollectionEditPage gender UX', () => {
+  let fixture: ComponentFixture<AdminCollectionEditPage>;
+  let toast: { error: jasmine.Spy; success: jasmine.Spy; info: jasmine.Spy };
+  let orderGet: Subject<{ collection: string; gender: 'masculino'; productIds: string[] }>;
+  let put: jasmine.Spy;
+
+  const pieces = [
+    dto({ slug: 'f1', name: 'F1', gender: 'feminino', id: 'id-f1' }),
+    dto({ slug: 'u1', name: 'U1', gender: 'unissex', id: 'id-u1' }),
+    dto({ slug: 'm1', name: 'M1', gender: 'masculino', id: 'id-m1' }),
+  ];
+
+  beforeEach(async () => {
+    toast = {
+      error: jasmine.createSpy('error'),
+      success: jasmine.createSpy('success'),
+      info: jasmine.createSpy('info'),
+    };
+    orderGet = new Subject();
+    put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
+    const meta = {
+      id: 'col-1',
+      slug: 'teste-colecao2',
+      name: 'TESTE-COLECAO2',
+      description: null,
+      sortOrder: 4,
+      publishedAt: null,
+    };
+
+    await TestBed.configureTestingModule({
+      imports: [AdminCollectionEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ slug: 'teste-colecao2' })) },
+        },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            list: (archived = false) => of(archived ? [] : [meta]),
+            getPublicDetail: () => of({ ...meta, products: pieces }),
+            listAdminProducts: () => of(pieces),
+            archive: () => of(meta),
+            restore: () => of(meta),
+            update: () => of(meta),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: {
+            get: () => orderGet.asObservable(),
+            put,
+          },
+        },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: toast },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(AdminCollectionEditPage);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => fixture.destroy());
+
+  it('shows the Masculino notice as soon as that filter is on', () => {
+    fixture.componentInstance.setGenderFilter('masculino');
+    fixture.detectChanges();
+    const notice = fixture.nativeElement.querySelector('.admin-col-products__notice') as HTMLElement;
+    expect(notice?.textContent?.trim()).toBe(MASCULINO_UNISSEX_NOTICE);
+    expect(fixture.componentInstance.showUnissexNotice()).toBeTrue();
+  });
+
+  it('filters client-side immediately while the order GET is in flight', () => {
+    fixture.componentInstance.setGenderFilter('masculino');
+    fixture.detectChanges();
+    const names = fixture.componentInstance.visibleProducts().map((p) => p.name);
+    expect(names).toEqual(['U1', 'M1']);
+    expect(fixture.componentInstance.orderLoading()).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('Ordenando…');
+  });
+
+  it('toasts when a gender-order PUT fails', () => {
+    fixture.componentInstance.setGenderFilter('masculino');
+    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
+    put.and.returnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            error: { message: 'productIds must match the gender list' },
+          }),
+      ),
+    );
+    fixture.componentInstance.onDrop({
+      previousIndex: 0,
+      currentIndex: 1,
+      distance: { x: 0, y: 80 },
+      dropPoint: { x: 10, y: 120 },
+      container: {
+        getSortedItems: () => [
+          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 0, bottom: 80, height: 80 }) } } },
+          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 80, bottom: 160, height: 80 }) } } },
+        ],
+      },
+    } as never);
+    expect(put).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalledWith('productIds must match the gender list');
   });
 });

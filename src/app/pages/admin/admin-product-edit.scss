@@ -1,3 +1,55 @@
+.admin-edit__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--lc-space-24);
+}
+
+.admin-edit__form fieldset {
+  margin: 0;
+  padding: 0 0 var(--lc-space-24);
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--lc-ash) 40%, transparent);
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-edit__form legend {
+  padding: 0;
+  margin-bottom: 14px;
+  font-family: var(--lc-font-display);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-edit__form label,
+.admin-edit__field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 1.1rem;
+}
+
+.admin-edit__form input,
+.admin-edit__form select,
+.admin-edit__form textarea {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-ash) 55%, transparent);
+  border-radius: 0;
+  font-size: 1.1rem;
+  font-family: inherit;
+  background: var(--lc-white);
+  color: var(--lc-void);
+}
+
+.admin-edit__form textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
 .admin-edit__head {
   margin-bottom: var(--lc-space-24);
 }

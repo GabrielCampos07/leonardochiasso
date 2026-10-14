@@ -7,7 +7,13 @@ import { AdminCollectionsApiService } from '../../core/admin-collections-api.ser
 import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { Product } from '../../core/product.model';
-import { AdminProductForm, collectionSelectLabel, parseStockQty } from './admin-product-form';
+import {
+  AdminProductForm,
+  STOCK_NEGATIVE_MESSAGE,
+  collectionSelectLabel,
+  parseStockQty,
+  stockQtyError,
+} from './admin-product-form';
 
 function sampleProduct(patch: Partial<Product> = {}): Product {
   return {
@@ -42,8 +48,8 @@ describe('parseStockQty', () => {
     expect(parseStockQty('8')).toBe(8);
   });
 
-  it('clamps negatives and rounds fractions', () => {
-    expect(parseStockQty(-3)).toBe(0);
+  it('keeps negatives and rounds fractions — does not clamp', () => {
+    expect(parseStockQty(-3)).toBe(-3);
     expect(parseStockQty(2.6)).toBe(3);
     expect(parseStockQty('')).toBe(0);
     expect(parseStockQty(null)).toBe(0);
@@ -64,9 +70,35 @@ describe('collectionSelectLabel', () => {
     expect(collectionSelectLabel('organic-dreams')).toBe('Organic Dreams');
   });
 
-  it('never flashes the slug as the visible label', () => {
-    expect(collectionSelectLabel('teste-colecao')).toBe('Coleção');
-    expect(collectionSelectLabel('teste-colecao', 'teste-colecao')).toBe('Coleção');
+  it('does not flash the slug before the admin list arrives', () => {
+    expect(collectionSelectLabel('teste-colecao2')).toBe('Coleção');
+    expect(collectionSelectLabel('teste-colecao2', 'teste-colecao2')).toBe('Coleção');
+  });
+
+  it('uses the catalog name after the list loads even when it matches the slug', () => {
+    expect(
+      collectionSelectLabel('teste-colecao2', 'teste-colecao2', [
+        { slug: 'teste-colecao2', name: 'teste-colecao2' },
+      ]),
+    ).toBe('teste-colecao2');
+    expect(
+      collectionSelectLabel('teste-colecao2', 'teste-colecao2', [
+        { slug: 'teste-colecao2', name: 'TESTE-COLECAO2' },
+      ]),
+    ).toBe('TESTE-COLECAO2');
+  });
+});
+
+describe('stockQtyError', () => {
+  it('uses the API copy for negatives', () => {
+    expect(stockQtyError(-1)).toBe(STOCK_NEGATIVE_MESSAGE);
+    expect(stockQtyError(-1)).toBe('Estoque não pode ser negativo.');
+  });
+
+  it('accepts zero, empty, and positive integers', () => {
+    expect(stockQtyError(0)).toBe('');
+    expect(stockQtyError('')).toBe('');
+    expect(stockQtyError(4)).toBe('');
   });
 });
 
@@ -99,6 +131,14 @@ describe('AdminProductForm', () => {
           name: 'TESTE-COLECAO',
           description: null,
           sortOrder: 4,
+          publishedAt: null,
+        },
+        {
+          id: '5',
+          slug: 'teste-colecao2',
+          name: 'TESTE-COLECAO2',
+          description: null,
+          sortOrder: 5,
           publishedAt: null,
         },
       ]),
@@ -139,6 +179,57 @@ describe('AdminProductForm', () => {
     expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO');
     expect(trigger.textContent).not.toContain('teste-colecao');
     expect(fixture.nativeElement.querySelector('select')).toBeNull();
+  });
+
+  it('preselects ?colecao=teste-colecao2 after the collections list loads', () => {
+    fixture.componentRef.setInput(
+      'product',
+      sampleProduct({
+        collectionSlug: 'teste-colecao2' as Product['collectionSlug'],
+        collection: 'teste-colecao2' as Product['collection'],
+      }),
+    );
+    fixture.componentRef.setInput('collectionFromContext', true);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(list).toHaveBeenCalledWith(false, { refresh: true });
+    expect(String(fixture.componentInstance.draft()?.collectionSlug)).toBe('teste-colecao2');
+    expect(fixture.componentInstance.selectedCollectionLabel()).toBe('TESTE-COLECAO2');
+    const trigger = fixture.nativeElement.querySelector('#atelier-product-collection') as HTMLElement;
+    expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO2');
+    expect(trigger.textContent).not.toContain('Selecione a coleção');
+  });
+
+  it('keeps a negative stock, validates with the API copy, and still sends it', () => {
+    const input = fixture.nativeElement.querySelector('#atelier-product-stock') as HTMLInputElement;
+    expect(input.min).toBe('0');
+
+    fixture.componentInstance.onStockQtyChange(-2);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.stockQty).toBe(-2);
+    expect(fixture.nativeElement.querySelector('#atelier-product-stock-error')?.textContent?.trim()).toBe(
+      STOCK_NEGATIVE_MESSAGE,
+    );
+
+    saveProduct$.and.returnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            error: { message: 'Estoque não pode ser negativo.' },
+          }),
+      ),
+    );
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+
+    expect(saveProduct$).toHaveBeenCalled();
+    expect(saveProduct$.calls.mostRecent().args[0].stockQty).toBe(-2);
+    const saveAlert = fixture.nativeElement.querySelector('#atelier-product-save-error') as HTMLElement;
+    expect(saveAlert?.textContent?.trim()).toBe(STOCK_NEGATIVE_MESSAGE);
+    expect(fixture.componentInstance.saveError()).toBe(STOCK_NEGATIVE_MESSAGE);
   });
 
   it('includes a newly created collection after a cache-busting refresh', () => {

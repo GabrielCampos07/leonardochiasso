@@ -2,7 +2,7 @@ import { Component, computed, HostListener, inject, OnInit, signal } from '@angu
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { UpperCasePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { combineLatest, switchMap } from 'rxjs';
+import { catchError, combineLatest, forkJoin, map, of, switchMap } from 'rxjs';
 import { LcProductCard } from '../../shared/components/product-card/product-card';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
 import { isArchivedAt } from '../../core/admin-archive';
@@ -23,6 +23,21 @@ import { JoiaPiece } from '../../core/joias.data';
 import { displayPriceLabel } from '../../core/pricing';
 
 const KNOWN_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
+
+/** Keep the route slug as-is. Never remap an unknown collection to Organic Dreams. */
+export function resolvePlpCollectionSlug(param: string | null | undefined): string {
+  return param?.trim() ?? '';
+}
+
+export function isCollectionNotFound(
+  slug: string,
+  meta: { slug?: string } | null | undefined,
+  productCount: number,
+): boolean {
+  if (!slug) return true;
+  if (productCount > 0 || meta) return false;
+  return !KNOWN_SLUGS.has(slug);
+}
 
 export type SortKey = 'recomendados' | 'menor' | 'maior' | 'novidades' | 'desconto';
 
@@ -52,7 +67,10 @@ export class PlpPage implements OnInit {
   readonly sortOptions = SORT_OPTIONS;
   readonly priceLabel = displayPriceLabel;
 
-  readonly collectionSlug = signal<CollectionSlug>(COLLECTION_SLUGS.organicDreams);
+  readonly collectionSlug = signal<string>('');
+  readonly missing = computed(() =>
+    isCollectionNotFound(this.collectionSlug(), this.collectionMeta(), this.rawProducts().length),
+  );
   readonly rawProducts = signal<Product[]>([]);
   readonly collectionMeta = signal<ApiCollectionDto | null>(null);
   /** Page-local: true until this PLP's collection Observable emits. */
@@ -64,9 +82,15 @@ export class PlpPage implements OnInit {
   readonly rtwFilter = signal<RtwType | null>(null);
   readonly categoryFilter = signal<'feminino' | 'masculino' | null>(null);
 
-  readonly collectionLabel = computed(
-    () => COLLECTION_LABELS[this.collectionSlug()] ?? this.collectionSlug(),
-  );
+  readonly collectionLabel = computed(() => {
+    if (this.missing()) return 'Coleção não encontrada';
+    const slug = this.collectionSlug();
+    return (
+      COLLECTION_LABELS[slug as CollectionSlug] ??
+      this.collectionMeta()?.name ??
+      slug
+    );
+  });
 
   readonly collectionRoute = computed(() => collectionPath(this.collectionSlug()));
 
@@ -90,15 +114,16 @@ export class PlpPage implements OnInit {
     () => SORT_OPTIONS.find((o) => o.key === this.sortKey())?.label ?? 'Recomendados',
   );
 
-  readonly coverUrl = computed(() =>
-    resolveCollectionCover({
+  readonly coverUrl = computed(() => {
+    if (this.missing()) return '';
+    return resolveCollectionCover({
       collection: this.collectionMeta() ?? {
         slug: this.collectionSlug(),
         name: this.collectionLabel(),
       },
       products: this.rawProducts().map((p, index) => ({ ...p, sortOrder: index })),
-    }),
-  );
+    });
+  });
 
   readonly products = computed(() => {
     let list = this.rawProducts().filter((p) => !isArchivedAt(p.archivedAt));
@@ -138,10 +163,7 @@ export class PlpPage implements OnInit {
       .pipe(
         takeUntilDestroyed(),
         switchMap(([params, query]) => {
-          const slugParam = params.get('collectionSlug') ?? COLLECTION_SLUGS.organicDreams;
-          const slug = (
-            KNOWN_SLUGS.has(slugParam) ? slugParam : COLLECTION_SLUGS.organicDreams
-          ) as CollectionSlug;
+          const slug = resolvePlpCollectionSlug(params.get('collectionSlug'));
           this.collectionSlug.set(slug);
 
           const tipo = query.get('tipo');
@@ -164,11 +186,15 @@ export class PlpPage implements OnInit {
           this.chrome.setActive(nav);
 
           this.loading.set(true);
-          this.catalog.getCollections().subscribe({
-            next: (list) => this.collectionMeta.set(list.find((row) => row.slug === slug) ?? null),
-            error: () => this.collectionMeta.set(null),
-          });
-          return this.catalog.getProductsByCollection(slug);
+          return forkJoin({
+            products: this.catalog.getProductsByCollection(slug),
+            collections: this.catalog.getCollections().pipe(catchError(() => of([] as ApiCollectionDto[]))),
+          }).pipe(
+            map(({ products, collections }) => {
+              this.collectionMeta.set(collections.find((row) => row.slug === slug) ?? null);
+              return products;
+            }),
+          );
         }),
       )
       .subscribe((list) => {

@@ -129,6 +129,9 @@
           <p class="admin-col-products__notice" role="status">{{ unissexNotice }}</p>
         }
 
+        @if (orderLoading()) {
+          <p class="admin-list__count">Ordenando…</p>
+        }
         @if (savingOrder()) {
           <p class="admin-list__count">Salvando ordem…</p>
         }
@@ -145,7 +148,6 @@
               cdkDrag
               [cdkDragDisabled]="!canDrag() || savingOrder()"
               [cdkDragStartDelay]="dragStartDelay"
-              (cdkDragStarted)="onDragStarted()"
             >
               <span
                 class="admin-col-products__handle"

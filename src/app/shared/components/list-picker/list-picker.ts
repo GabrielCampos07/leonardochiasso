@@ -134,6 +134,8 @@ export class LcListPicker {
   readonly placeholder = input('Selecione');
   readonly label = input('');
   readonly controlId = input('lc-list-picker');
+  /** Name resolved from the catalog — used so a preselected `?colecao=` shows after refresh. */
+  readonly resolvedLabel = input('');
   readonly valueChange = output<string>();
   readonly opened = output<void>();
 
@@ -145,8 +147,13 @@ export class LcListPicker {
 
   currentLabel(): string {
     const current = this.value();
+    const resolved = this.resolvedLabel().trim();
     const match = this.options().find((opt) => opt.value === current);
-    return match?.label || this.placeholder();
+    if (resolved && resolved !== 'Coleção') return resolved;
+    if (match?.label && match.label !== 'Coleção') return match.label;
+    if (resolved) return resolved;
+    if (match?.label) return match.label;
+    return current ? resolved || 'Coleção' : this.placeholder();
   }
 
   toggle(event: Event): void {

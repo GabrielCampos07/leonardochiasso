@@ -47,6 +47,7 @@
           placeholder="Selecione a coleção"
           [options]="collectionPickerOptions()"
           [value]="p.collectionSlug || ''"
+          [resolvedLabel]="selectedCollectionLabel()"
           (valueChange)="onCollectionSlugChange($event)"
           (opened)="refreshCollections()"
         />
@@ -152,9 +153,17 @@
           (ngModelChange)="onStockQtyChange($event)"
           name="stockQty"
           autocomplete="off"
+          [attr.aria-invalid]="stockError() ? 'true' : null"
+          [attr.aria-describedby]="stockError() ? 'atelier-product-stock-error' : null"
         />
       </label>
-      <p class="admin-edit__hint">Inteiro ≥ 0. Zero marca a peça como esgotada.</p>
+      @if (stockError()) {
+        <p id="atelier-product-stock-error" class="admin-edit__upload-error" role="alert">
+          {{ stockError() }}
+        </p>
+      } @else {
+        <p class="admin-edit__hint">Inteiro ≥ 0. Zero marca a peça como esgotada.</p>
+      }
       @if ((p.stockQty ?? 0) <= 0) {
         <span class="admin-row__sold-out">Esgotado</span>
       }
