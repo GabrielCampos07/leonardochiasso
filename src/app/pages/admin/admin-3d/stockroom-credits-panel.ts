@@ -13,7 +13,7 @@ export function restoreOpenerFocus(el: HTMLElement): void {
   };
   el.addEventListener('blur', clear);
   el.classList.add(RETURN_FOCUS_CLASS);
-  el.focus({ preventScroll: true, focusVisible: true } as FocusOptions);
+  el.focus({ preventScroll: true });
 }
 
 const CC0_URL = 'https://creativecommons.org/publicdomain/zero/1.0/';
