@@ -214,6 +214,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
   @ViewChild('stage') private stageRef?: ElementRef<HTMLElement>;
   @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('creditsButton') readonly creditsButtonRef?: ElementRef<HTMLButtonElement>;
   @ViewChild(CollectionAddPiecePanel) private addPanel?: CollectionAddPiecePanel;
 
   private readonly route = inject(ActivatedRoute);
@@ -521,7 +522,6 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   closeCredits(): void {
     this.creditsOpen.set(false);
-    this.sceneHostRef?.nativeElement.focus({ preventScroll: true });
   }
 
   toggleMore(event?: Event): void {

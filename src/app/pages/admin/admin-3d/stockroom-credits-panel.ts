@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, EventEmitter, OnDestroy, Output, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnDestroy, Output, ViewChild } from '@angular/core';
 import { STOCKROOM_B_CREDITS, type StockroomCredit } from '../../../scene-engine/stockroom/stockroom-b-assets';
 import { focusEditModal, listenDialogEscape } from './dialog-escape';
 
@@ -6,7 +6,7 @@ export const CREDITS_TITLE_ID = 'stockroom-credits-title';
 
 const CC0_URL = 'https://creativecommons.org/publicdomain/zero/1.0/';
 
-/** Kenney CC0 kits option B reuses for floor, walls, windows and rugs. No attribution required; listed anyway. */
+/** Kenney CC0 kits behind the floor, walls, windows and rugs. No attribution required; listed anyway. */
 export const STOCKROOM_B_CC0_SOURCES: readonly StockroomCredit[] = [
   {
     key: 'kenney-furniture-kit',
@@ -30,7 +30,10 @@ export const STOCKROOM_B_CC0_SOURCES: readonly StockroomCredit[] = [
   },
 ];
 
-/** Créditos screen for option B: every 3D model in the scene with author, source and licence. */
+/**
+ * Créditos screen for the stockroom: every 3D model in the scene with author, source and licence.
+ * Closes on ×, Esc or a backdrop click and hands focus back to `returnFocus` (the Créditos button).
+ */
 @Component({
   selector: 'lc-stockroom-credits-panel',
   standalone: true,
@@ -39,14 +42,19 @@ export const STOCKROOM_B_CC0_SOURCES: readonly StockroomCredit[] = [
 })
 export class StockroomCreditsPanel implements AfterViewInit, OnDestroy {
   @ViewChild('dialog') private dialogRef?: ElementRef<HTMLElement>;
+  /** Focused again when the panel goes away; defaults to whatever had focus when it opened. */
+  @Input() returnFocus: HTMLElement | null | undefined = null;
   @Output() readonly close = new EventEmitter<void>();
 
   readonly titleId = CREDITS_TITLE_ID;
   readonly ccBy = STOCKROOM_B_CREDITS;
   readonly cc0 = STOCKROOM_B_CC0_SOURCES;
   private stopEscape: (() => void) | null = null;
+  private opener: HTMLElement | null = null;
 
   ngAfterViewInit(): void {
+    const active = document.activeElement;
+    this.opener = this.returnFocus ?? (active instanceof HTMLElement && active !== document.body ? active : null);
     this.stopEscape = listenDialogEscape(() => this.close.emit());
     focusEditModal(this.dialogRef?.nativeElement);
   }
@@ -54,6 +62,8 @@ export class StockroomCreditsPanel implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.stopEscape?.();
     this.stopEscape = null;
+    if (this.opener?.isConnected) this.opener.focus({ preventScroll: true });
+    this.opener = null;
   }
 
   onBackdrop(event: MouseEvent): void {
