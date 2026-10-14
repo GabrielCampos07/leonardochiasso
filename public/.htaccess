@@ -17,7 +17,7 @@
   RewriteRule ^ index.html [L]
 </IfModule>
 
-# Content-hashed 3D assets (scripts/stockroom-3d-assets.mjs) never change in place.
+# Content-hashed 3D assets (scripts/stockroom-3d-assets.mjs, scripts/stockroom-sketchfab-assets.mjs) never change in place.
 <IfModule mod_headers.c>
   <FilesMatch "\.[0-9a-f]{8}\.glb$">
     Header set Cache-Control "public, max-age=31536000, immutable"
