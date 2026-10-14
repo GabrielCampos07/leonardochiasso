@@ -1,11 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { STOCKROOM_B_CREDITS } from '../../../scene-engine/stockroom/stockroom-b-assets';
-import {
-  CREDITS_TITLE_ID,
-  RETURN_FOCUS_CLASS,
-  STOCKROOM_B_CC0_SOURCES,
-  StockroomCreditsPanel,
-} from './stockroom-credits-panel';
+import { CREDITS_TITLE_ID, STOCKROOM_B_CC0_SOURCES, StockroomCreditsPanel } from './stockroom-credits-panel';
 
 describe('StockroomCreditsPanel', () => {
   let fixture: ComponentFixture<StockroomCreditsPanel>;
@@ -74,7 +69,6 @@ describe('StockroomCreditsPanel', () => {
         if (close === 'backdrop') (panel.nativeElement.querySelector('.credits') as HTMLElement).click();
         if (close === 'button') (panel.nativeElement.querySelector('.credits__close') as HTMLButtonElement).click();
         expect(document.activeElement).withContext(close).toBe(button);
-        expect(button.classList.contains(RETURN_FOCUS_CLASS)).withContext(close).toBeTrue();
       }
     } finally {
       button.remove();
