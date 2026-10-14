@@ -358,6 +358,12 @@
   background: var(--lc-white);
 }
 
+.admin-edit__site.is-off,
+.admin-edit__site:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .admin-edit__form input,
   .admin-edit__form select,

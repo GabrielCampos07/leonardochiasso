@@ -1,4 +1,4 @@
-import { indexFromClientY, itemMidpoints, resolveCdkDropIndex } from './cdk-drop-index';
+import { applyCdkListOrder, indexFromClientY, itemMidpoints, resolveCdkDropIndex } from './cdk-drop-index';
 
 describe('itemMidpoints / indexFromClientY', () => {
   const mids = itemMidpoints([
@@ -74,5 +74,17 @@ describe('resolveCdkDropIndex', () => {
         mids,
       ),
     ).toBe(1);
+  });
+});
+
+describe('applyCdkListOrder', () => {
+  it('writes the new order onto the bound list immediately', () => {
+    const bound = ['u1', 'm1'];
+    applyCdkListOrder(bound, ['m1', 'u1']);
+    expect(bound).toEqual(['m1', 'u1']);
+  });
+
+  it('leaves a missing list alone', () => {
+    expect(() => applyCdkListOrder(undefined, ['m1'])).not.toThrow();
   });
 });

@@ -9,7 +9,13 @@ export interface SegmentedOption {
   selector: 'lc-segmented',
   standalone: true,
   template: `
-    <div class="seg" role="radiogroup" [attr.aria-label]="label() || null">
+    <div
+      class="seg"
+      role="radiogroup"
+      [class.is-off]="disabled()"
+      [attr.aria-label]="label() || null"
+      [attr.aria-disabled]="disabled() || null"
+    >
       @for (opt of options(); track opt.value) {
         <button
           type="button"
@@ -18,6 +24,7 @@ export interface SegmentedOption {
           [attr.aria-checked]="value() === opt.value"
           [class.is-on]="value() === opt.value"
           [class.is-pulse]="pulse() && value() !== opt.value"
+          [disabled]="disabled()"
           (click)="select(opt.value)"
         >
           {{ opt.label }}
@@ -49,9 +56,15 @@ export interface SegmentedOption {
     .seg__btn:last-child {
       border-right: none;
     }
+    .seg.is-off {
+      opacity: 0.65;
+    }
     .seg__btn.is-on {
       background: var(--lc-void);
       color: var(--lc-white);
+    }
+    .seg__btn:disabled {
+      cursor: not-allowed;
     }
     .seg__btn.is-pulse {
       animation: lc-seg-pulse 0.9s ease 0s 2;
@@ -84,10 +97,11 @@ export class LcSegmented {
   readonly value = input('');
   readonly label = input('');
   readonly pulse = input(false);
+  readonly disabled = input(false);
   readonly valueChange = output<string>();
 
   select(next: string): void {
-    if (next === this.value()) return;
+    if (this.disabled() || next === this.value()) return;
     this.valueChange.emit(next);
   }
 }

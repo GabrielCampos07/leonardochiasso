@@ -247,6 +247,49 @@ describe('AdminCollectionEditPage gender UX', () => {
     );
   });
 
+  it('applies the dropped order immediately, before the PUT finishes', () => {
+    fixture.componentInstance.setGenderFilter('masculino');
+    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
+
+    const pending = new Subject<{ collection: string; gender: 'masculino'; productIds: string[] }>();
+    put.and.returnValue(pending.asObservable());
+    const bound = [...fixture.componentInstance.visibleProducts()];
+
+    fixture.componentInstance.onDrop({
+      previousIndex: 0,
+      currentIndex: 1,
+      distance: { x: 0, y: 80 },
+      dropPoint: { x: 10, y: 120 },
+      container: {
+        data: bound,
+        getSortedItems: () => [
+          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 0, bottom: 80, height: 80 }) } } },
+          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 80, bottom: 160, height: 80 }) } } },
+        ],
+      },
+    } as never);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['m1', 'u1']);
+    expect(bound.map((p) => p.slug)).toEqual(['m1', 'u1']);
+    expect(put).toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+
+    pending.error(
+      new HttpErrorResponse({
+        status: 400,
+        statusText: 'Bad Request',
+        error: { message: 'productIds must match the gender list' },
+      }),
+    );
+    fixture.detectChanges();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
+    expect(toast.error).toHaveBeenCalledWith('productIds must match the gender list', jasmine.any(Object));
+  });
+
   it('omits archived products from the reorder list and PUT body', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     orderGet.next({

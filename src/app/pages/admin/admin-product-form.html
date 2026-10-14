@@ -43,8 +43,9 @@
         <span>Status</span>
         <lc-segmented
           id="atelier-product-status"
-          [options]="statusOptions"
+          [options]="statusOptions()"
           [value]="currentStatus()"
+          [disabled]="isArchived()"
           label="Status"
           (valueChange)="onStatusChange($event)"
         />
@@ -368,9 +369,21 @@
         </button>
       }
       @if (!isNew() && showSiteLink()) {
-        <a class="admin-edit__site" [routerLink]="sitePath()" target="_blank" rel="noopener">
-          Ver no site
-        </a>
+        @if (canOpenOnSite()) {
+          <a class="admin-edit__site" [routerLink]="sitePath()" target="_blank" rel="noopener">
+            Ver no site
+          </a>
+        } @else {
+          <button
+            type="button"
+            class="admin-edit__site is-off"
+            disabled
+            [attr.title]="siteUnavailableHint"
+            [attr.aria-label]="'Ver no site. ' + siteUnavailableHint"
+          >
+            Ver no site
+          </button>
+        }
       }
     </div>
   </form>

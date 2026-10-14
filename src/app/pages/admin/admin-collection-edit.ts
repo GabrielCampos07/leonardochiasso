@@ -50,7 +50,7 @@ import {
   orderProductIds,
   productGender,
 } from '../../core/product-gender';
-import { itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
+import { applyCdkListOrder, itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
 import { isSoldOut } from '../../scene-engine/types';
 
 function slugify(value: string): string {
@@ -318,6 +318,7 @@ export class AdminCollectionEditPage implements OnInit {
     const previousIds = orderProductIds(next);
     moveItemInArray(next, event.previousIndex, currentIndex);
     this.visibleProducts.set(next);
+    applyCdkListOrder(event.container.data, next);
     this.persistGenderOrder(previousIds);
   }
 

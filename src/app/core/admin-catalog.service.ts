@@ -13,7 +13,7 @@ import {
   throwError,
 } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { filterArchivedList } from './admin-archive';
+import { filterArchivedList, isArchivedAt } from './admin-archive';
 import { ApiProductDto, mapApiProduct } from './catalog.service';
 import {
   COLLECTION_LABELS,
@@ -339,7 +339,10 @@ export class AdminCatalogService {
     const stockQty = Number.isFinite(Number(product.stockQty))
       ? Math.round(Number(product.stockQty))
       : 0;
-    const status = productStatusForApi(product.status, opts.isNew ? 'draft' : 'published');
+    const archived = isArchivedAt(product.archivedAt);
+    const status = archived
+      ? undefined
+      : productStatusForApi(product.status, opts.isNew ? 'draft' : 'published');
 
     if (opts.isNew) {
       return this.createViaApi({
@@ -383,7 +386,7 @@ export class AdminCatalogService {
       collectionSlug,
       priceCents,
       stockQty,
-      status,
+      ...(status ? { status } : {}),
       description: product.description,
       shippingCopy: product.shipping || undefined,
       color: product.color || undefined,

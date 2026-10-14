@@ -182,4 +182,19 @@ describe('AdminCatalogService create payload contract', () => {
     expect(req.request.body.status).toBe('draft');
     req.flush(createdDto(sampleProduct({ status: 'draft' })));
   });
+
+  it('omits status when saving an archived piece so it stays archived', () => {
+    service
+      .saveProduct$(
+        sampleProduct({ status: 'archived', archivedAt: '2026-10-01T00:00:00.000Z' }),
+        { isNew: false, details: [] },
+      )
+      .subscribe();
+    const req = http.expectOne('http://payload.test/api/admin/products/look-unissex');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body.status).toBeUndefined();
+    req.flush(
+      createdDto(sampleProduct({ status: 'archived', archivedAt: '2026-10-01T00:00:00.000Z' })),
+    );
+  });
 });
