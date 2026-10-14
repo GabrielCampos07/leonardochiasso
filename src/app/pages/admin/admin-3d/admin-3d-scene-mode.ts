@@ -1,15 +1,16 @@
 /**
  * Which admin 3D scene to mount.
- * - `stockroom` (default): Sketchfab CC-BY stockroom (hangers on wall rails).
- *   `?sketchfab=1` and the retired `?cc0=1` land here too.
- * - `atelier` (`?atelier=1`): the previous atelier scene, the only one that runs below 1280 px.
+ * - `atelier` (default): the current atelier scene.
+ * - `cc0` (`?cc0=1`): option A, Kenney CC0 stockroom (boxes on bookcases).
+ * - `sketchfab` (`?sketchfab=1`): option B, Sketchfab CC-BY stockroom (hangers on wall rails).
  */
-export type AdminSceneMode = 'atelier' | 'stockroom';
+export type AdminSceneMode = 'atelier' | 'cc0' | 'sketchfab';
 
-/** The stockroom is desktop-only. */
+/** Options A/B are desktop-only. */
 export const STOCKROOM_MIN_WIDTH = 1280;
 
-export const STOCKROOM_HINT_COPY = 'Clique na peça · arraste move · botão direito gira · scroll';
+export const STOCKROOM_HINT_COPY = 'Clique na caixa · arraste move · botão direito gira · scroll';
+export const STOCKROOM_B_HINT_COPY = 'Clique na peça · arraste move · botão direito gira · scroll';
 
 export const DESKTOP_ONLY_TITLE = 'Estoque 3D só no desktop';
 export const DESKTOP_ONLY_HINT = `Abra numa janela com pelo menos ${STOCKROOM_MIN_WIDTH} px de largura, ou use a Lista.`;
@@ -19,18 +20,20 @@ function flagOn(value: string | null | undefined): boolean {
 }
 
 export function adminSceneMode(params: { get(name: string): string | null }): AdminSceneMode {
-  return flagOn(params.get('atelier')) ? 'atelier' : 'stockroom';
+  if (flagOn(params.get('cc0'))) return 'cc0';
+  if (flagOn(params.get('sketchfab'))) return 'sketchfab';
+  return 'atelier';
 }
 
 export function isStockroomMode(mode: AdminSceneMode): boolean {
-  return mode === 'stockroom';
+  return mode !== 'atelier';
 }
 
 export function isDesktopOnlyBlocked(mode: AdminSceneMode, width: number): boolean {
   return isStockroomMode(mode) && width < STOCKROOM_MIN_WIDTH;
 }
 
-/** The stockroom ships CC-BY models, so it must offer the Créditos screen. */
+/** Option B ships CC-BY models, so it must offer the Créditos screen. */
 export function sceneNeedsCredits(mode: AdminSceneMode): boolean {
-  return isStockroomMode(mode);
+  return mode === 'sketchfab';
 }

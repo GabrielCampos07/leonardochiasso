@@ -1,5 +1,27 @@
 [
   {
+    "key": "shelf",
+    "file": "assets/3d/stockroom/kenney-bookcaseOpen.d0e67908.glb",
+    "bytes": 4276,
+    "rawBytes": 17720,
+    "source": "Furniture Kit / bookcaseOpen.glb",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "compressed": "meshopt+webp"
+  },
+  {
+    "key": "box",
+    "file": "assets/3d/stockroom/kenney-cardboardBoxClosed.5adfdd4e.glb",
+    "bytes": 3624,
+    "rawBytes": 4948,
+    "source": "Furniture Kit / cardboardBoxClosed.glb",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "compressed": "meshopt+webp"
+  },
+  {
     "key": "rug",
     "file": "assets/3d/stockroom/kenney-rugRectangle.4cc6979c.glb",
     "bytes": 3240,
@@ -33,11 +55,55 @@
     "compressed": "meshopt+webp"
   },
   {
+    "key": "counter",
+    "file": "assets/3d/stockroom/kenney-kitchenBar.b83cd2b9.glb",
+    "bytes": 4704,
+    "rawBytes": 5396,
+    "source": "Furniture Kit / kitchenBar.glb",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "compressed": "meshopt+webp"
+  },
+  {
+    "key": "plant",
+    "file": "assets/3d/stockroom/kenney-pottedPlant.9179970a.glb",
+    "bytes": 5204,
+    "rawBytes": 6832,
+    "source": "Furniture Kit / pottedPlant.glb",
+    "url": "https://kenney.nl/assets/furniture-kit",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "compressed": "meshopt+webp"
+  },
+  {
     "key": "floor",
     "file": "assets/3d/stockroom/kenney-floor.36468d86.glb",
     "bytes": 4832,
     "rawBytes": 12428,
     "source": "Mini Market / floor.glb",
+    "url": "https://kenney.nl/assets/mini-market",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "compressed": "meshopt+webp"
+  },
+  {
+    "key": "column",
+    "file": "assets/3d/stockroom/kenney-column.95c36be9.glb",
+    "bytes": 7084,
+    "rawBytes": 27460,
+    "source": "Mini Market / column.glb",
+    "url": "https://kenney.nl/assets/mini-market",
+    "author": "Kenney",
+    "license": "CC0-1.0",
+    "compressed": "meshopt+webp"
+  },
+  {
+    "key": "register",
+    "file": "assets/3d/stockroom/kenney-cash-register.ad5c81ee.glb",
+    "bytes": 7608,
+    "rawBytes": 28784,
+    "source": "Mini Market / cash-register.glb",
     "url": "https://kenney.nl/assets/mini-market",
     "author": "Kenney",
     "license": "CC0-1.0",
