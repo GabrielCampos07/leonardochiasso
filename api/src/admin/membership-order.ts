@@ -61,8 +61,9 @@ type GenderOrderDb = {
 };
 
 /**
- * Shadow copy of the one membership order into collection_gender_orders.
- * Not a second source of truth — Gabriel decides later whether to keep or drop the table.
+ * Derived copy of the one membership order into collection_gender_orders.
+ * Gabriel: keep the table as a shadow (“mantém a cópia”). It is rewritten on
+ * every membership save and is not read by 3D, Lista, or the public site.
  */
 export async function rewriteDerivedGenderOrders(
   db: GenderOrderDb,
