@@ -1,116 +1,45 @@
-# 3D sources — `/admin/3d` rebuild
+# 3D sources — `/admin/3d`
 
-Verified candidate models for the two scene options. Every row below had its model page opened and its licence confirmed on 2026-10-14; the screenshot in `licencas/` is the evidence. Rejected candidates live in [`REMOVIDOS.md`](REMOVIDOS.md).
+`/admin/3d` ships the Sketchfab stockroom (formerly "option B") by default; `?sketchfab=1` and `?cc0=1` are aliases for it and `?atelier=1` opens the previous atelier. The CC0-only "option A" scene was removed when Gabriel picked B. Rejected candidates live in [`REMOVIDOS.md`](REMOVIDOS.md).
 
-| Option | Route | Licences allowed |
-| --- | --- | --- |
-| A | `/admin/3d?cc0=1` | CC0 only — Poly Haven, Kenney (Quaternius rejected, see `REMOVIDOS.md`) |
-| B | `/admin/3d?sketchfab=1` | Sketchfab **CC-BY 4.0** + any CC0 row from option A |
+Forbidden everywhere: NC, ND, Editorial, NoAI. CC-BY rows require the in-app **Créditos** screen (author, model link, licence link, what was modified); its button sits in the fixed bottom bar of the scene.
 
-Forbidden everywhere: NC, ND, Editorial, NoAI. CC-BY rows require the in-app **Créditos** screen (author, model link, licence link, "modified: compressed/retextured").
+## Shipped scene — licences (re-verified 2026-10-14)
+
+Every Sketchfab model was checked twice: the `meta.json` delivered with it in `sketchfab-b.zip` and the live API `https://api.sketchfab.com/v3/models/<uid>`. Both give `license.slug: "by"`, label "CC Attribution", URL `http://creativecommons.org/licenses/by/4.0/` and requirements "Author must be credited. Commercial use is allowed."; the API also gives `isDownloadable: true` and no `noai` tag. The API fields are saved in [`licencas/sketchfab-api-2026-10-14.json`](licencas/sketchfab-api-2026-10-14.json). **No model is NC, ND or non-commercial, so no swap was needed.**
+
+| Used for | Model | Author | URL | Licence | Modifications |
+| --- | --- | --- | --- | --- | --- |
+| Wall rails | Clothes rack with hanger | [neverfollow81](https://sketchfab.com/neverfollow81) | <https://sketchfab.com/3d-models/clothes-rack-with-hanger-443cffc140bc403e975ca806192970b0> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px; one of the two finishes kept; wire hanger removed |
+| Hanger per piece | Hangers and Tee-shirt | [dudecon](https://sketchfab.com/dudecon) | <https://sketchfab.com/3d-models/hangers-and-tee-shirt-44e260855c7f4c1ca611af8d2370195a> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px; only the wooden hanger kept (other hangers and the tee removed) |
+| Mannequins | Store mannequin | [A-in Architecture](https://sketchfab.com/ainarchi) | <https://sketchfab.com/3d-models/store-mannequin-a404eb4a7297442d8168004cae1568ee> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px |
+| Counter | Store Counter | [VoidLance](https://sketchfab.com/VoidLance) | <https://sketchfab.com/3d-models/store-counter-c160eb255df34ad581c62b4dbc1ba9f8> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px |
+| Register | Caisse-enregistreuse | [codepromo](https://sketchfab.com/codepromo) | <https://sketchfab.com/3d-models/caisse-enregistreuse-4d64359fffbe421c8b6ff8a1d852b607> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px |
+| Corner display | shelves Display 2x2 | [Wans.Setiabudi](https://sketchfab.com/Wans.Setiabudi) | <https://sketchfab.com/3d-models/shelves-display-2x2-35a6444fd88b4697b770b95663c5c49f> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px; floor base removed |
+| Plants | Potted Plant, Mediterranean med leaf, low poly | [dudecon](https://sketchfab.com/dudecon) | <https://sketchfab.com/3d-models/potted-plant-mediterranean-med-leaf-low-poly-bc7f26baef2a45d18dbd9a5d6d2ec565> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px |
+| Plant | Potted Plant, Mediterranean flowering, low poly | [dudecon](https://sketchfab.com/dudecon) | <https://sketchfab.com/3d-models/potted-plant-mediterranean-flowering-low-poly-b8950690664342a497154a8ad2787566> | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) | Meshopt, WebP ≤ 1024 px |
+| Floor tiles | `floor.glb` (Mini Market) | Kenney | <https://kenney.nl/assets/mini-market> | CC0 1.0 | Meshopt, WebP ≤ 512 px |
+| Walls | `wall.glb` (Furniture Kit) | Kenney | <https://kenney.nl/assets/furniture-kit> | CC0 1.0 | Meshopt, WebP ≤ 512 px |
+| Windows | `wallWindow.glb` (Furniture Kit) | Kenney | <https://kenney.nl/assets/furniture-kit> | CC0 1.0 | Meshopt, WebP ≤ 512 px |
+| Area rugs | `rugRectangle.glb` (Furniture Kit) | Kenney | <https://kenney.nl/assets/furniture-kit> | CC0 1.0 | Meshopt, WebP ≤ 512 px; tinted per collection at runtime |
+
+Kenney licence: both kit pages read "Creative Commons CC0" and the `License.txt` in each zip says the same (`licencas/kenney-furniture-kit.webp`, `licencas/kenney-mini-market.webp`). CC0 needs no credit; the Créditos screen lists Kenney anyway. The same credits, in Portuguese, are generated into `STOCKROOM_B_CREDITS` (`src/app/scene-engine/stockroom/stockroom-b-assets.ts`) and rendered by the Créditos screen. Per-file sizes are in [`ASSETS.md`](ASSETS.md).
 
 ## Size columns
 
-- **Raw** — the `.glb` as obtained. Poly Haven: the 1K glTF packed to GLB (textures embedded). Kenney: the shipped GLB with its external `colormap.png` embedded. Sketchfab candidates: the GLB archive size reported by the Sketchfab API; shipped option B files: the GLB from `sketchfab-b.zip`.
-- **Meshopt / Draco** — `gltf-transform` 4.5.1 `optimize --compress meshopt|draco --texture-compress webp --texture-size 1024 --simplify false --join false --flatten false --instance false --palette false`. Measured on the real file for options A rows. For the Sketchfab candidate rows it is an **estimate** (`~`; the shipped option B files are measured in their own table): geometry × 0.3 plus ~60 KB per 1K WebP map (~20 KB at 512, ~2–6 KB at ≤256), calibrated on the Poly Haven files measured here; expect ±50 % until the file is downloaded.
-- Files under ~10 KB can grow slightly with Meshopt (extension overhead); Draco stays smaller.
+- **Raw** — the `.glb` as obtained. Kenney: the shipped GLB with its external `colormap.png` embedded. Sketchfab candidates: the GLB archive size reported by the Sketchfab API; shipped files: the GLB from `sketchfab-b.zip`.
+- **Est. compressed** — for the Sketchfab candidate rows an **estimate** (`~`): geometry × 0.3 plus ~60 KB per 1K WebP map (~20 KB at 512, ~2–6 KB at ≤256). The shipped files are measured in their own table.
 - **Budget** — target ≈ 5 MB (5 000 KB) per scene; percentages are of that figure. ⚠ marks a model that alone would take ≥ 40 % of it raw, exceed it, or ship > 1 MB compressed; the alternative is in the note.
 
-## Option A — CC0
+## Removed: option A (CC0 only)
 
-### Kenney (CC0)
+Option A (`?cc0=1`, Kenney boxes on bookcases) was retired when Gabriel chose B. Its code and the six Kenney files only it used (`bookcaseOpen`, `cardboardBoxClosed`, `kitchenBar`, `pottedPlant`, `column`, `cash-register`) were deleted; the four Kenney files B reuses stay above. The phase-1 research behind it found no CC0 clothing rail, hanger or mannequin in Poly Haven, Kenney or Sketchfab's CC0 filter, which is why it used boxes as stand-ins. The full candidate tables (Kenney and Poly Haven, all CC0) are in this file's git history.
 
-Licence: [Furniture Kit](https://kenney.nl/assets/furniture-kit) and [Mini Market](https://kenney.nl/assets/mini-market) pages both read "Creative Commons CC0"; the downloaded `License.txt` in each zip says the same. Author: Kenney (Mini Market additional credits: Fleur Keijsers, Guus Vermeulen). Screenshots: `licencas/kenney-furniture-kit.webp`, `licencas/kenney-mini-market.webp`.
-
-| Item | Model (file in kit) | Kit | Tris | Raw KB | Meshopt KB | Draco KB | Budget |
-| --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Floor | `floor.glb` | Mini Market | 24 | 12.1 | 4.7 | 3.5 | ok |
-| Floor | `floorFull.glb` | Furniture Kit | 12 | 1.9 | 2.0 | 1.1 | ok |
-| Wall | `wall.glb` | Mini Market | 32 | 12.5 | 4.8 | 3.7 | ok |
-| Wall | `wall-window.glb` | Mini Market | 146 | 23.2 | 7.7 | 5.1 | ok |
-| Wall / column | `column.glb` | Mini Market | 188 | 26.8 | 6.9 | 4.4 | ok |
-| Wall | `wall.glb` | Furniture Kit | 12 | 2.6 | 4.0 | 2.4 | ok |
-| Wall | `wallWindow.glb` | Furniture Kit | 108 | 9.5 | 7.2 | 4.2 | ok |
-| Wall | `wallDoorwayWide.glb` | Furniture Kit | 60 | 5.7 | 4.5 | 2.7 | ok |
-| Rack (gondola stand-in) | `shelf-end.glb` | Mini Market | 362 | 49.0 | 12.4 | 7.5 | ok |
-| Rack (gondola stand-in) | `shelf-boxes.glb` | Mini Market | 436 | 59.9 | 13.4 | 8.0 | ok |
-| Rack (coat-stand stand-in) | `coatRackStanding.glb` | Furniture Kit | 190 | 12.7 | 3.8 | 1.8 | ok |
-| Piece (stand-in) | `cardboardBoxClosed.glb` | Furniture Kit | 60 | 4.8 | 3.5 | 2.1 | ok |
-| Piece (stand-in) | `cardboardBoxOpen.glb` | Furniture Kit | 60 | 4.8 | 3.5 | 2.1 | ok |
-| Piece (wall hook stand-in) | `coatRack.glb` | Furniture Kit | 132 | 9.3 | 4.2 | 2.4 | ok |
-| Counter | `kitchenBar.glb` | Furniture Kit | 76 | 5.3 | 4.6 | 2.9 | ok |
-| Counter | `kitchenBarEnd.glb` | Furniture Kit | 152 | 10.4 | 4.6 | 2.4 | ok |
-| Counter | `cash-register.glb` | Mini Market | 203 | 28.1 | 7.4 | 4.6 | ok |
-| Shelves | `bookcaseOpen.glb` | Furniture Kit | 320 | 17.3 | 4.2 | 1.9 | ok |
-| Shelves | `bookcaseOpenLow.glb` | Furniture Kit | 184 | 11.0 | 3.4 | 1.6 | ok |
-| Shelves | `sideTableDrawers.glb` | Furniture Kit | 238 | 17.5 | 7.1 | 3.9 | ok |
-| Plant | `pottedPlant.glb` | Furniture Kit | 60 | 6.7 | 5.1 | 3.1 | ok |
-| Plant | `plantSmall1.glb` | Furniture Kit | 102 | 7.6 | 4.1 | 2.3 | ok |
-| Rug (extra) | `rugRectangle.glb` | Furniture Kit | 28 | 2.7 | 3.2 | 1.9 | ok |
-
-Downloads: [kenney_furniture-kit.zip](https://kenney.nl/media/pages/assets/furniture-kit/440e0608a4-1677580847/kenney_furniture-kit.zip), [kenney_mini-market.zip](https://kenney.nl/media/pages/assets/mini-market/463f38da51-1729865423/kenney_mini-market.zip).
-
-### Poly Haven (CC0)
-
-Licence: every asset page shows "CC0 License" under the author, and <https://polyhaven.com/license> states all assets are CC0 (`licencas/polyhaven-license.webp`). Downloaded through `https://api.polyhaven.com/files/<id>` at 1K.
-
-| Item | Model | URL | Author | Tris | Raw KB | Meshopt KB | Draco KB | Budget | Screenshot |
-| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |
-| Rack (stockroom shelving) | Steel Frame Shelves 01 | <https://polyhaven.com/a/steel_frame_shelves_01> | James Ray Cock | 4 348 | 1 559.0 | 178.7 | 159.9 | ok compressed; raw 31 % | `polyhaven-steel_frame_shelves_01.webp` |
-| Rack (stockroom shelving) | Worn Metal Rack | <https://polyhaven.com/a/worn_metal_rack> | Luca B | 6 372 | 1 961.0 | 259.8 | 224.4 | ok compressed; raw 39 % | `polyhaven-worn_metal_rack.webp` |
-| Counter | Classic Console 01 | <https://polyhaven.com/a/ClassicConsole_01> | Kirill Sannikov | 7 566 | 722.4 | 333.8 | 293.9 | ok | `polyhaven-ClassicConsole_01.webp` |
-| Counter | Modern Wooden Cabinet | <https://polyhaven.com/a/modern_wooden_cabinet> | Patrik Pangerl | 24 976 | 2 783.5 | 450.0 | 265.3 | ⚠ raw 56 % — use Classic Console 01 or Kenney `kitchenBar` | `polyhaven-modern_wooden_cabinet.webp` |
-| Shelves | Wooden Display Shelves 01 | <https://polyhaven.com/a/wooden_display_shelves_01> | James Ray Cock | 3 174 | 457.3 | 165.0 | 156.8 | ok | `polyhaven-wooden_display_shelves_01.webp` |
-| Shelves | Drawer Cabinet | <https://polyhaven.com/a/drawer_cabinet> | Ulan Cabanilla | 26 406 | 1 113.3 | 316.6 | 206.4 | ok | `polyhaven-drawer_cabinet.webp` |
-| Plant | Potted Plant 04 | <https://polyhaven.com/a/potted_plant_04> | James Ray Cock | 8 929 | 2 069.8 | 397.4 | 367.7 | ⚠ raw 41 % — ship compressed only, or Kenney `pottedPlant` | `polyhaven-potted_plant_04.webp` |
-
-### Option A gaps
-
-- **Clothing rail and garment hanger: no CC0 model exists** on Poly Haven or Kenney (full Kenney 3D catalogue checked), and Sketchfab's CC0 filter returns none either. Stand-ins above turn option A into a WareTrack-style **stockroom**: one shelving unit / gondola per collection, one box per piece. If Gabriel wants real rails and hangers in option A, the choices are (1) an in-house Blender model exported to `.glb` and released CC0 by Leonardo Chiasso, or (2) accept option B for those two items.
-- **Mannequin: no CC0 model** in the allowed sources. Optional item — drop it from option A.
-- Poly Haven models are photoreal PBR; Kenney is flat low-poly. Pick one style per scene (recommended: Kenney only — closest to the WareTrack look and ~80 KB total).
-
-### Option A — recommended set and budget
-
-| Item | Pick | Raw KB | Meshopt KB |
-| --- | --- | ---: | ---: |
-| Floor | Kenney `floor` | 12.1 | 4.7 |
-| Walls | Kenney `wall`, `wall-window`, `column` | 62.5 | 19.4 |
-| Rack per collection | Kenney `shelf-end` + `shelf-boxes` | 108.9 | 25.8 |
-| Piece | Kenney `cardboardBoxClosed` (instanced) | 4.8 | 3.5 |
-| Counter | Kenney `kitchenBar` + `cash-register` | 33.4 | 12.0 |
-| Shelves | Kenney `bookcaseOpen` | 17.3 | 4.2 |
-| Plants | Kenney `pottedPlant` + `plantSmall1` | 14.3 | 9.2 |
-| Rug | Kenney `rugRectangle` | 2.7 | 3.2 |
-| **Total** | | **≈ 256 KB** | **≈ 82 KB** |
-
-Photoreal variant (rack → Steel Frame Shelves 01, shelves → Wooden Display Shelves 01, counter → Classic Console 01, plant → Potted Plant 04): **≈ 4.99 MB raw / ≈ 1.13 MB Meshopt** — right at the budget raw, so it must ship compressed.
-
-### Option A — shipped in phase 2 (`?cc0=1`)
-
-Kenney only (CC0, licence rows and screenshots above). Built by `node scripts/stockroom-3d-assets.mjs`: downloads both kits, runs `gltf-transform` 4.5.1 `optimize --compress meshopt --texture-compress webp --texture-size 512 --simplify false --instance false --palette false --join false --flatten false`, names each file `kenney-<model>.<sha256:8>.glb`, and writes `src/assets/3d/stockroom/manifest.json` (source, author, licence, sizes) plus `src/app/scene-engine/stockroom/stockroom-assets.ts`. `public/.htaccess` serves `*.<8 hex>.glb` with `Cache-Control: public, max-age=31536000, immutable`.
-
-| Shipped file (`src/assets/3d/stockroom/`) | Source (kit / file) | Used for | Raw KB | Shipped KB |
-| --- | --- | --- | ---: | ---: |
-| `kenney-bookcaseOpen.d0e67908.glb` | Furniture Kit / bookcaseOpen.glb | Bay per 6 pieces (scaled 1.48 × 3.2 × 0.62 m) | 17.3 | 4.2 |
-| `kenney-cardboardBoxClosed.5adfdd4e.glb` | Furniture Kit / cardboardBoxClosed.glb | One box per piece (photo + badge on the front) | 4.8 | 3.5 |
-| `kenney-rugRectangle.4cc6979c.glb` | Furniture Kit / rugRectangle.glb | Area floor per collection (tinted) | 2.7 | 3.2 |
-| `kenney-wall.96e2bfa0.glb` | Furniture Kit / wall.glb | Back / left wall run | 2.6 | 4.0 |
-| `kenney-wallWindow.58aa64e9.glb` | Furniture Kit / wallWindow.glb | Every third wall piece | 9.5 | 7.2 |
-| `kenney-kitchenBar.b83cd2b9.glb` | Furniture Kit / kitchenBar.glb | Counter (×3) | 5.3 | 4.6 |
-| `kenney-pottedPlant.9179970a.glb` | Furniture Kit / pottedPlant.glb | Corner plants | 6.7 | 5.1 |
-| `kenney-floor.36468d86.glb` | Mini Market / floor.glb | 2 m floor tiles (instanced) | 12.1 | 4.7 |
-| `kenney-column.95c36be9.glb` | Mini Market / column.glb | Corner column | 26.8 | 6.9 |
-| `kenney-cash-register.ad5c81ee.glb` | Mini Market / cash-register.glb | Cash register on the counter | 28.1 | 7.4 |
-| **Total (10 files)** | | | **115.9** | **50.9** |
-
-Changes from the recommended set: Mini Market `shelf-end` + `shelf-boxes` replaced by Furniture Kit `bookcaseOpen` (three clear levels, two boxes per level, 4.2 KB instead of 25.8 KB); Mini Market `wall` / `wall-window` replaced by the Furniture Kit pair (same style as the shelves, 11.2 KB instead of 12.5 KB); `plantSmall1` dropped. Product photos are not part of this budget: they stream through the existing thumb pipeline (`thumb` for every box, `full` 512×640 for the focused collection).
-
-## Option B — Sketchfab CC-BY 4.0 (+ CC0 base)
+## Sketchfab CC-BY 4.0 — phase-1 candidates and shipped files
 
 Every row: Sketchfab page opened, licence shown as "CC Attribution" (Creative Commons Attribution 4.0, `http://creativecommons.org/licenses/by/4.0/`), `isDownloadable: true`, no `noai` tag and no NC/ND/editorial wording in the description (checked through `api.sketchfab.com/v3/models/<uid>`). Screenshots: `licencas/sketchfab-<uid8>-<item>.webp`.
 
-Raw and compressed sizes in this phase-1 table come from the API's GLB archive size plus an estimate (Sketchfab only serves the file to an authenticated account). The 8 picks were later delivered as `sketchfab-b.zip` (GLB + `meta.json` each) and measured for real — see **Option B — shipped in phase 2** below.
+Raw and compressed sizes in this phase-1 table come from the API's GLB archive size plus an estimate (Sketchfab only serves the file to an authenticated account). The 8 picks were later delivered as `sketchfab-b.zip` (GLB + `meta.json` each) and measured for real — see **Shipped files** below.
 
 | Item | Model | URL | Author | Faces | Textures | Raw KB | Est. compressed KB | Budget | Screenshot |
 | --- | --- | --- | --- | ---: | --- | ---: | ---: | --- | --- |
@@ -136,9 +65,9 @@ Raw and compressed sizes in this phase-1 table come from the API's GLB archive s
 | Floor + walls | Modular Interior Blocks – Stylized Wooden Kit | <https://sketchfab.com/3d-models/modular-interior-blocks-stylized-wooden-kit-dbfb9f6f2c6c4916bdfcdf184ee6746c> | Hermit1_CG | 19 266 | 9 × 2K | 10 006 | ~710 | ⚠ raw 2× the budget, medieval style — use Kenney floor/walls | `sketchfab-dbfb9f6f-floor-walls.webp` |
 | Floor | Floor Tile Material | <https://sketchfab.com/3d-models/floor-tile-material-138cae75f1cd45ffb2bca47ca4fae3ea> | YIK | 2 | 3 × 2K | 15 113 | ~180 | ⚠ raw 3× the budget for a single quad — use Kenney `floor` | `sketchfab-138cae75-floor.webp` |
 
-Floor and walls in option B: no Sketchfab candidate fits the budget, so option B reuses the Kenney CC0 floor/walls/column rows from option A.
+Floor and walls: no Sketchfab candidate fits the budget, so the scene uses Kenney CC0 floor, walls and windows.
 
-### Option B — recommended set and budget
+### Recommended set and budget (phase 1)
 
 | Item | Pick | Raw KB | Compressed KB |
 | --- | --- | ---: | ---: |
@@ -151,7 +80,7 @@ Floor and walls in option B: no Sketchfab candidate fits the budget, so option B
 | Plants | dudecon med leaf + flowering | 519 | ~85 |
 | **Total** | | **≈ 3.2 MB** | **≈ 0.45 MB (estimate)** |
 
-### Option B — shipped in phase 2 (`?sketchfab=1`)
+### Shipped files (default `/admin/3d`)
 
 Source: `sketchfab-b.zip` (8 folders, each `model.glb` + `meta.json` with author, licence and `viewerUrl`). Built by `node scripts/stockroom-sketchfab-assets.mjs <zip|dir>`, which:
 
@@ -171,11 +100,11 @@ Source: `sketchfab-b.zip` (8 folders, each `model.glb` + `meta.json` with author
 | `sketchfab-potted-plant-mediterranean-med-leaf-low-poly.b2e85f2f.glb` | Potted Plant, med leaf — dudecon | Plants | 233.4 | 35.9 |
 | `sketchfab-potted-plant-mediterranean-flowering-low-poly.fac81565.glb` | Potted Plant, flowering — dudecon | Plant | 285.9 | 43.6 |
 | **Sketchfab total (8 files)** | | | **3 143.5** | **348.2** |
-| Kenney CC0 reused from option A: `floor`, `wall`, `wallWindow`, `rugRectangle` | Kenney | Floor, walls, windows, area rugs, partitions | 26.9 | 19.1 |
-| **Option B scene total** | | | **≈ 3.1 MB** | **≈ 367 KB** (7 % of the 5 MB budget) |
+| Kenney CC0: `floor`, `wall`, `wallWindow`, `rugRectangle` | Kenney | Floor, walls, windows, area rugs, partitions | 26.9 | 19.1 |
+| **Scene total** | | | **≈ 3.1 MB** | **≈ 367 KB** (7 % of the 5 MB budget) |
 
 Measured KB = bytes / 1024; `stockroom-kit-sketchfab.spec.ts` sums both manifests for the kit's files and fails above 5 000 000 bytes. The phase-1 estimate (≈ 0.45 MB) was close; the hanger came in far lighter than estimated (4.4 KB vs ~99) because only the wooden hanger is kept. Product photos stream through the existing thumb pipeline and are not part of this budget.
 
-### Credits required for option B (Créditos screen)
+### Credits required (Créditos screen)
 
 Each CC-BY model used must show: model name linked to its Sketchfab URL, author linked to their profile, "CC BY 4.0" linked to <https://creativecommons.org/licenses/by/4.0/>, and "modified (compressed, textures resized)". Profiles: neverfollow81 <https://sketchfab.com/neverfollow81>, hirreyn <https://sketchfab.com/hradadiya0>, Khoa Nguyen <https://sketchfab.com/ngdkh>, Darky Vip 3D <https://sketchfab.com/darky.vip21>, Roberto Domínguez <https://sketchfab.com/vmmaniac>, dudecon <https://sketchfab.com/dudecon>, ROH3D <https://sketchfab.com/roh3d>, RED2000 <https://sketchfab.com/RED2000>, A-in Architecture <https://sketchfab.com/ainarchi>, Patrick Matthew <https://sketchfab.com/patrickmatthew>, VoidLance <https://sketchfab.com/VoidLance>, codepromo <https://sketchfab.com/codepromo>, Wans.Setiabudi <https://sketchfab.com/Wans.Setiabudi>, Nobby76 <https://sketchfab.com/nobbyt76>, billionlioe <https://sketchfab.com/billionlioe>, Nicholas-3D <https://sketchfab.com/Nicholas01>, Hermit1_CG <https://sketchfab.com/victorbaibakov>, YIK <https://sketchfab.com/Ykc>.
