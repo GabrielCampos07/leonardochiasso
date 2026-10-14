@@ -92,6 +92,36 @@ describe('StockroomCreditsPanel', () => {
     }
   });
 
+  it('scrolls the list inside the dialog and keeps the header and close button visible', () => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;width:640px;height:400px;overflow:hidden';
+    document.body.appendChild(wrap);
+    wrap.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+
+    try {
+      const dialog = fixture.nativeElement.querySelector('.credits__dialog') as HTMLElement;
+      const head = fixture.nativeElement.querySelector('.credits__head') as HTMLElement;
+      const close = fixture.nativeElement.querySelector('.credits__close') as HTMLElement;
+      const body = fixture.nativeElement.querySelector('.credits__body') as HTMLElement;
+      const last = fixture.nativeElement.querySelector('[data-credit="kenney-mini-market"]') as HTMLElement;
+      const wrapBox = wrap.getBoundingClientRect();
+
+      expect(dialog.getBoundingClientRect().height).toBeLessThanOrEqual(wrapBox.height);
+      expect(head.getBoundingClientRect().top).toBeGreaterThanOrEqual(wrapBox.top - 0.5);
+      expect(close.getBoundingClientRect().bottom).toBeLessThanOrEqual(head.getBoundingClientRect().bottom + 1);
+      expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
+
+      body.scrollTop = body.scrollHeight;
+      expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(body.getBoundingClientRect().bottom + 1);
+      expect(head.getBoundingClientRect().top).toBeGreaterThanOrEqual(wrapBox.top - 0.5);
+      expect(close.getBoundingClientRect().height).toBeGreaterThan(0);
+      expect(head.getBoundingClientRect().bottom).toBeLessThanOrEqual(last.getBoundingClientRect().top + 0.5);
+    } finally {
+      wrap.remove();
+    }
+  });
+
   it('stops listening for Escape once destroyed', () => {
     fixture.destroy();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));

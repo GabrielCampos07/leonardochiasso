@@ -13,10 +13,12 @@
 }
 
 .credits__dialog {
+  display: flex;
+  flex-direction: column;
   width: min(640px, 100%);
-  max-height: calc(100% - 48px);
-  overflow-y: auto;
-  padding: 24px 28px 28px;
+  min-height: 0;
+  max-height: min(100%, calc(100vh - 48px));
+  overflow: hidden;
   background: var(--lc-white);
   border: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
   box-shadow: 0 16px 40px rgb(20 16 12 / 16%);
@@ -26,10 +28,19 @@
 
 .credits__head {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 8px;
+  padding: 24px 28px 8px;
+}
+
+.credits__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0 28px 28px;
 }
 
 .credits__title {
