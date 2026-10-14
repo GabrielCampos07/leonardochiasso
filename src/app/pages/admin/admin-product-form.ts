@@ -35,7 +35,7 @@ import {
 } from '../../core/product.model';
 import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
-import { archiveAwareError, confirmArchivePiece } from '../../core/admin-archive';
+import { archiveAwareError, confirmArchivePiece, isArchivedAt } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
@@ -113,6 +113,7 @@ export class AdminProductForm implements OnInit {
   readonly archived = output<Product>();
 
   readonly archiving = signal(false);
+  readonly isArchived = computed(() => isArchivedAt(this.draft()?.archivedAt));
 
   readonly apiCollections = signal<{ slug: string; name: string }[]>([]);
   readonly collectionsLoading = signal(true);

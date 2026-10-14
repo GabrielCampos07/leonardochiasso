@@ -10,4 +10,5 @@ export const environment = {
   stagingBanner: '',
   /** Production never ships the 3D fixture catalog. */
   admin3dMock: false,
+  adminUnpublishedPreviewBadge: false,
 };

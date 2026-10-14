@@ -13,8 +13,8 @@ import { TOAST_BG, TOAST_ERROR_BG, TOAST_ERROR_TEXT, TOAST_TEXT } from './contra
         [class.lc-toast--success]="msg.kind === 'success'"
         [class.lc-toast--error]="msg.kind === 'error'"
         [class.lc-toast--info]="msg.kind === 'info'"
-        role="status"
-        aria-live="polite"
+        [attr.role]="msg.kind === 'error' ? 'alert' : 'status'"
+        [attr.aria-live]="msg.kind === 'error' ? 'assertive' : 'polite'"
       >
         <span>{{ msg.text }}</span>
         @if (msg.action; as action) {

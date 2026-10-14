@@ -17,4 +17,5 @@ export const environment = {
    * `localStorage.setItem('lc.admin.3d.mock','1')`.
    */
   admin3dMock: false,
+  adminUnpublishedPreviewBadge: false,
 };

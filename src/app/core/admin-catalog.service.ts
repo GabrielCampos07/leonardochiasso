@@ -220,12 +220,28 @@ export class AdminCatalogService {
   }
 
   get(slug: string): Product | undefined {
-    return this.list().find((p) => p.slug === slug);
+    return this.list().find((p) => p.slug === slug) ?? this.list(true).find((p) => p.slug === slug);
   }
 
   get$(slug: string): Observable<Product | undefined> {
     if (!this.useApi) return of(this.get(slug));
-    return this.list$().pipe(map((list) => list.find((p) => p.slug === slug)));
+    return this.list$(false).pipe(
+      switchMap((list) => {
+        const found = list.find((p) => p.slug === slug);
+        if (found) return of(found);
+        return this.http
+          .get<ApiProductDto[]>(`${this.baseUrl}/api/admin/products`, {
+            withCredentials: true,
+            params: { archived: 'true' },
+          })
+          .pipe(
+            map((rows) =>
+              filterArchivedList(rows.map(mapApiProduct), true).find((p) => p.slug === slug),
+            ),
+            catchError(() => of(undefined)),
+          );
+      }),
+    );
   }
 
   save(product: Product): void {

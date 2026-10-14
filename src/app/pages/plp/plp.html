@@ -37,6 +37,9 @@
           <span>{{ products().length }}</span>
         }
       </h1>
+      @if (showUnpublishedPreviewBadge()) {
+        <p class="plp__preview-badge" role="status">{{ unpublishedPreviewLabel }}</p>
+      }
     </div>
 
     <div class="plp__toolbar">

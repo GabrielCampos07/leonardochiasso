@@ -13,6 +13,22 @@
       </div>
     </header>
 
+    @if (isArchived()) {
+      <div class="admin-edit__archived" role="status">
+        <strong>Arquivado</strong>
+        <span>Esta peça não aparece no site.</span>
+        <button
+          type="button"
+          class="admin-row__order-btn"
+          (click)="restore()"
+          [disabled]="restoring()"
+          [attr.aria-busy]="restoring()"
+        >
+          {{ restoring() ? 'Restaurando…' : 'Restaurar' }}
+        </button>
+      </div>
+    }
+
     <lc-admin-product-form
       [product]="p"
       [isNew]="isNew()"

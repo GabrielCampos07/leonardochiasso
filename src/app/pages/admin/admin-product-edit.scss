@@ -1,3 +1,43 @@
+.admin-edit__archived {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 var(--lc-space-16);
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 16%, transparent);
+  background: color-mix(in srgb, var(--lc-ash) 14%, var(--lc-white));
+}
+
+.admin-edit__archived strong {
+  font-family: var(--lc-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-edit__archived span {
+  flex: 1 1 220px;
+  color: var(--lc-ash);
+}
+
+.admin-row__order-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--lc-void);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-row__order-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .admin-edit__form {
   display: flex;
   flex-direction: column;

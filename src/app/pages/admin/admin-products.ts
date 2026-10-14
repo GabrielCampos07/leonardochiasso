@@ -26,8 +26,9 @@ import {
   applyProductIdOrder,
   canReorderWithFilter,
   coarsePointerDragDelay,
+  livePiecesForOrder,
   matchesGenderFilter,
-  orderProductId,
+  orderProductIds,
   productGender,
 } from '../../core/product-gender';
 import { COLLECTIONS, Collection, Product } from '../../core/product.model';
@@ -40,6 +41,7 @@ import {
   adminLoadErrorMessage,
   archiveAwareError,
   confirmArchivePiece,
+  isArchivedAt,
   endAdminLoad,
   insertAt,
   removeBySlug,
@@ -47,7 +49,7 @@ import {
   upsertBySlug,
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { ToastService } from '../../core/feedback/toast.service';
+import { ERROR_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
 import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
 import { isSoldOut } from '../../scene-engine/types';
@@ -77,7 +79,8 @@ export class AdminProductsPage implements OnInit {
   readonly showUnissexNotice = computed(() => this.category() === 'masculino');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
   readonly dragStartDelay = coarsePointerDragDelay();
-  readonly canDrag = computed(() => canReorderWithFilter(this.category()));
+  readonly canDrag = computed(() => canReorderWithFilter(this.category()) && !this.showArchived());
+  readonly orderError = signal('');
   readonly showArchived = signal(false);
   readonly loading = signal(true);
   readonly error = signal('');
@@ -95,6 +98,7 @@ export class AdminProductsPage implements OnInit {
     const cat = this.category();
     const col = this.collection();
     return this.products().filter((p) => {
+      if (!this.showArchived() && isArchivedAt(p.archivedAt)) return false;
       if (!matchesGenderFilter(p, cat)) return false;
       if (col !== 'todas' && p.collection !== col && p.collectionSlug !== col) return false;
       if (q && !p.name.toLowerCase().includes(q)) return false;
@@ -279,7 +283,7 @@ export class AdminProductsPage implements OnInit {
       this.onTodosDragAttempt();
       return;
     }
-    const visible = [...this.filtered()];
+    const visible = livePiecesForOrder(this.filtered());
     const currentIndex = resolveCdkDropIndex(
       event,
       visible.length,
@@ -288,7 +292,7 @@ export class AdminProductsPage implements OnInit {
       ),
     );
     if (event.previousIndex === currentIndex) return;
-    const previousIds = visible.map(orderProductId);
+    const previousIds = orderProductIds(visible);
     moveItemInArray(visible, event.previousIndex, currentIndex);
     this.applyVisibleOrder(visible.map((p) => p.slug), previousIds);
   }
@@ -298,11 +302,12 @@ export class AdminProductsPage implements OnInit {
       this.onTodosDragAttempt();
       return;
     }
-    const vis = this.filtered().map((p) => p.slug);
+    const live = livePiecesForOrder(this.filtered());
+    const vis = live.map((p) => p.slug);
     const vi = vis.indexOf(slug);
     const vj = vi + direction;
     if (vi < 0 || vj < 0 || vj >= vis.length) return;
-    const previousIds = this.filtered().map(orderProductId);
+    const previousIds = orderProductIds(live);
     const nextVis = [...vis];
     nextVis[vi] = vis[vj]!;
     nextVis[vj] = slug;
@@ -333,11 +338,13 @@ export class AdminProductsPage implements OnInit {
     const filter = this.category();
     const collectionSlug = this.collectionSlugForOrder();
     if (collectionSlug && canReorderWithFilter(filter)) {
-      const productIds = this.filtered().map(orderProductId);
+      const productIds = orderProductIds(this.filtered());
+      this.orderError.set('');
       this.savingOrder.set(true);
       this.collectionOrder.put(collectionSlug, filter, productIds).subscribe({
         next: () => {
           this.savingOrder.set(false);
+          this.orderError.set('');
           this.toast.success(GENDER_ORDER_SAVED_TEXT, {
             durationMs: GENDER_ORDER_UNDO_MS,
             action: previousIds
@@ -352,12 +359,14 @@ export class AdminProductsPage implements OnInit {
           this.savingOrder.set(false);
           if (previousIds) {
             this.applyVisibleOrderLocal(
-              applyProductIdOrder(this.filtered(), previousIds).map((p) => p.slug),
+              applyProductIdOrder(livePiecesForOrder(this.filtered()), previousIds).map((p) => p.slug),
             );
           } else {
             this.refresh();
           }
-          this.toast.error(collectionOrderErrorMessage(err));
+          const message = collectionOrderErrorMessage(err);
+          this.orderError.set(message);
+          this.toast.error(message, { durationMs: ERROR_TOAST_MS });
         },
       });
       return;
@@ -406,14 +415,14 @@ export class AdminProductsPage implements OnInit {
     const restored = applyProductIdOrder(this.filtered(), previousIds);
     this.applyVisibleOrderLocal(restored.map((p) => p.slug));
     this.savingOrder.set(true);
-    this.collectionOrder.put(slug, filter, restored.map(orderProductId)).subscribe({
+    this.collectionOrder.put(slug, filter, orderProductIds(restored)).subscribe({
       next: () => {
         this.savingOrder.set(false);
         this.toast.success('Ordem restaurada.');
       },
       error: (err) => {
         this.savingOrder.set(false);
-        this.toast.error(collectionOrderErrorMessage(err));
+        this.toast.error(collectionOrderErrorMessage(err), { durationMs: ERROR_TOAST_MS });
         this.refresh();
       },
     });

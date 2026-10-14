@@ -21,6 +21,12 @@ import { groupShopProducts, matchesPublicGenderHub } from '../../core/product-ge
 import { AdminJoiasCatalogService } from '../../core/admin-joias-catalog.service';
 import { JoiaPiece } from '../../core/joias.data';
 import { displayPriceLabel } from '../../core/pricing';
+import { AdminSessionService } from '../../core/admin-session.service';
+import {
+  UNPUBLISHED_PREVIEW_LABEL,
+  isAdminUnpublishedPreviewEnabled,
+  shouldShowUnpublishedPreviewBadge,
+} from '../../core/admin-preview-badge';
 
 const KNOWN_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
@@ -60,6 +66,7 @@ export class PlpPage implements OnInit {
   private readonly chrome = inject(ChromeService);
   private readonly catalog = inject(CatalogService);
   private readonly joiasCatalog = inject(AdminJoiasCatalogService);
+  private readonly adminSession = inject(AdminSessionService);
   private readonly route = inject(ActivatedRoute);
 
   readonly home = ROUTES.home;
@@ -81,6 +88,15 @@ export class PlpPage implements OnInit {
   readonly gridCols = signal<2 | 4>(2);
   readonly rtwFilter = signal<RtwType | null>(null);
   readonly categoryFilter = signal<'feminino' | 'masculino' | null>(null);
+
+  readonly unpublishedPreviewLabel = UNPUBLISHED_PREVIEW_LABEL;
+  readonly showUnpublishedPreviewBadge = computed(() =>
+    shouldShowUnpublishedPreviewBadge(
+      isAdminUnpublishedPreviewEnabled(),
+      this.adminSession.isLoggedIn(),
+      this.collectionMeta(),
+    ),
+  );
 
   readonly collectionLabel = computed(() => {
     if (this.missing()) return 'Coleção não encontrada';
@@ -204,6 +220,9 @@ export class PlpPage implements OnInit {
   }
 
   ngOnInit(): void {
+    if (isAdminUnpublishedPreviewEnabled()) {
+      this.adminSession.hydrateStorefrontSession().subscribe();
+    }
     this.catalog.getCollections().subscribe({
       next: (list) => {
         const slug = this.collectionSlug();

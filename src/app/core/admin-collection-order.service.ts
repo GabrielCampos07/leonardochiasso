@@ -94,12 +94,6 @@ export class AdminCollectionOrderService {
         tap((res) => {
           if (res?.productIds) saveLocal(slug, gender, res.productIds);
         }),
-        catchError((err: HttpErrorResponse) => {
-          if (err.status === 404 || err.status === 0) {
-            return of(saveLocal(slug, gender, productIds));
-          }
-          return throwError(() => err);
-        }),
       );
   }
 }

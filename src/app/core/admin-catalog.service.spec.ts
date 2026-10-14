@@ -54,6 +54,7 @@ function createdDto(product: Product): ApiProductDto {
     collections: [{ slug: product.collectionSlug, name: product.collection }],
     thumb: '',
     gallery: [],
+    archivedAt: product.archivedAt ?? null,
   };
 }
 
@@ -135,5 +136,22 @@ describe('AdminCatalogService create payload contract', () => {
     const req = http.expectOne('http://payload.test/api/admin/products');
     expect(req.request.body.stockQty).toBe(-4);
     req.flush(createdDto(product));
+  });
+
+  it('loads an archived product after the live list misses it', () => {
+    const box: { value?: Product } = {};
+    service.get$('look-arquivo').subscribe((p) => {
+      if (p) box.value = p;
+    });
+    http.expectOne('http://payload.test/api/admin/products').flush([]);
+    const archived = http.expectOne(
+      (req) =>
+        req.url === 'http://payload.test/api/admin/products' && req.params.get('archived') === 'true',
+    );
+    archived.flush([
+      createdDto(sampleProduct({ slug: 'look-arquivo', name: 'Look arquivo', archivedAt: '2026-10-01T00:00:00.000Z' })),
+    ]);
+    expect(box.value?.slug).toBe('look-arquivo');
+    expect(box.value?.archivedAt).toBe('2026-10-01T00:00:00.000Z');
   });
 });

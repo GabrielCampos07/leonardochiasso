@@ -8,4 +8,5 @@ export const environment = {
   adminPassword: '',
   stagingBanner: 'Ambiente de teste, dados reais',
   admin3dMock: false,
+  adminUnpublishedPreviewBadge: false,
 };

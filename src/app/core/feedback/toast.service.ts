@@ -16,6 +16,7 @@ export interface ToastMessage {
 
 const DISMISS_MS = 3200;
 export const SAVE_TOAST_MS = 4000;
+export const ERROR_TOAST_MS = 8000;
 
 export interface ToastOptions {
   durationMs?: number;
