@@ -144,6 +144,11 @@ describe('StockroomEngine', () => {
     engine?.resize();
   }
 
+  /** Pieces stored in the bays the collection view frames (6 per bay). */
+  function piecesInWindow(e: StockroomEngine, id: string, pieces: number): number {
+    return Math.min(e.areaBayWindow(id)!.count * 6, pieces);
+  }
+
   function minPhotoEdge(e: StockroomEngine): number {
     return Math.min(...e.overlay().pieces.map((p) => e.pieceScreenRect(p.slug)!.edge));
   }
@@ -168,11 +173,12 @@ describe('StockroomEngine', () => {
     desktopStage();
     boot([17, 18, 12], () => {
       const e = engine!;
-      expect(e.overlay().pieces.length).toBe(17);
+      expect(e.overlay().pieces.length).toBeGreaterThanOrEqual(piecesInWindow(e, 'c0', 17));
       expect(minPhotoEdge(e)).toBeGreaterThanOrEqual(120);
       e.focusRack('c1', true);
       requestAnimationFrame(() => {
-        expect(e.overlay().pieces.filter((p) => p.slug.startsWith('c1-')).length).toBe(18);
+        const c1 = e.overlay().pieces.filter((p) => p.slug.startsWith('c1-')).length;
+        expect(c1).toBeGreaterThanOrEqual(piecesInWindow(e, 'c1', 18));
         expect(minPhotoEdge(e)).toBeGreaterThanOrEqual(120);
         done();
       });
@@ -187,7 +193,7 @@ describe('StockroomEngine', () => {
         (e as unknown as { pick(x: number, y: number): { slug: string | null } }).pick(x, y).slug;
       const canvas = host.querySelector('canvas')!.getBoundingClientRect();
       const pieces = e.overlay().pieces;
-      expect(pieces.length).toBe(17);
+      expect(pieces.length).toBeGreaterThanOrEqual(piecesInWindow(e, 'c0', 17));
       const missed = pieces
         .filter((p) => pick(canvas.left + p.x + p.w / 2, canvas.top + p.y + p.h / 2) !== p.slug)
         .map((p) => p.slug);
@@ -313,7 +319,7 @@ describe('StockroomEngine', () => {
     });
   });
 
-  it('opens the editor for a tapped box', (done) => {
+  it('opens the editor for a tapped piece photo', (done) => {
     boot([4, 3], () => {
       const e = engine!;
       e.focusRack('c0', true);
@@ -384,7 +390,7 @@ describe('StockroomEngine', () => {
     });
   });
 
-  it('adds, updates and removes boxes and areas', (done) => {
+  it('adds, updates and removes pieces and areas', (done) => {
     boot([2, 1], () => {
       const e = engine!;
       e.addHanger(hanger('c1', 5), true);
@@ -402,7 +408,7 @@ describe('StockroomEngine', () => {
   });
 });
 
-describe('StockroomEngine with the Sketchfab kit (option B)', () => {
+describe('StockroomEngine scene contents', () => {
   let canvas: HTMLCanvasElement;
   let host: HTMLDivElement;
   let engine: StockroomEngine | null;
@@ -415,7 +421,7 @@ describe('StockroomEngine with the Sketchfab kit (option B)', () => {
     document.body.appendChild(host);
     spyOn(canvas, 'setPointerCapture');
     spyOn(canvas, 'releasePointerCapture');
-    engine = createStockroomEngine(canvas, { reducedMotion: true, host, kit: SKETCHFAB_KIT });
+    engine = createStockroomEngine(canvas, { reducedMotion: true, host });
   });
 
   afterEach(() => {
@@ -439,7 +445,7 @@ describe('StockroomEngine with the Sketchfab kit (option B)', () => {
     base.racks[0].hangers[2] = hanger('c0', 2, { status: 'draft' });
     bootB(base, () => {
       const e = engine!;
-      expect(e.kit.id).toBe('sketchfab');
+      expect(e.kit).toBe(SKETCHFAB_KIT);
       expect(e.areaIds()).toEqual(['c0', 'c1']);
       expect(e.pieceBadge('c0-0')).toBe('stock');
       expect(e.pieceBadge('c0-1')).toBe('soldout');

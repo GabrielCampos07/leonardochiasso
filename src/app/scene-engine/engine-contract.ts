@@ -15,8 +15,8 @@ export type EmptyUnitHandler = (rackId: string) => void;
 export type PanChangeHandler = () => void;
 
 /**
- * What `/admin/3d` drives. The default atelier (`SceneEngine`) and the option A
- * stockroom (`StockroomEngine`, `?cc0=1`) both satisfy it.
+ * What `/admin/3d` drives. The default stockroom (`StockroomEngine`) and the
+ * previous atelier (`SceneEngine`, `?atelier=1`) both satisfy it.
  */
 export interface AtelierEngine {
   onClick(handler: HangerPickHandler): void;

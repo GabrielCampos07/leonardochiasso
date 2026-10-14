@@ -113,9 +113,6 @@
         @if (usingMock()) {
           <p class="admin-3d__badge" role="status">Dados de exemplo</p>
         }
-        @if (hasCredits && !stockroom) {
-          <button type="button" class="admin-3d__credits" (click)="openCredits()">Créditos</button>
-        }
       </div>
     }
   </div>
@@ -227,7 +224,16 @@
           </button>
         }
         @if (hasCredits) {
-          <button type="button" class="admin-3d__credits" (click)="openCredits()">Créditos</button>
+          <button
+            #creditsButton
+            type="button"
+            class="admin-3d__credits"
+            aria-haspopup="dialog"
+            [attr.aria-expanded]="creditsOpen()"
+            (click)="openCredits()"
+          >
+            Créditos
+          </button>
         }
         @if (canArchiveFocused()) {
           <button
@@ -354,9 +360,6 @@
             </button>
             @if (canArchiveFocused()) {
               <button type="button" role="menuitem" (click)="archiveFocusedCollection()">Arquivar coleção</button>
-            }
-            @if (hasCredits) {
-              <button type="button" role="menuitem" (click)="openCredits()">Créditos</button>
             }
           </div>
         }
@@ -491,7 +494,7 @@
   }
 
   @if (creditsOpen()) {
-    <lc-stockroom-credits-panel (close)="closeCredits()" />
+    <lc-stockroom-credits-panel [returnFocus]="creditsButtonRef?.nativeElement" (close)="closeCredits()" />
   }
 
   @if (desktopOnly()) {
