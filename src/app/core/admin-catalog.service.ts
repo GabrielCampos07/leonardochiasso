@@ -24,6 +24,7 @@ import {
   ProductPiece,
   SWATCH,
   formatPriceLabel,
+  productStatusForApi,
 } from './product.model';
 import { PRODUCTS } from './products';
 import { COLLECTION_SLUGS, CollectionSlug } from './routes';
@@ -220,12 +221,28 @@ export class AdminCatalogService {
   }
 
   get(slug: string): Product | undefined {
-    return this.list().find((p) => p.slug === slug);
+    return this.list().find((p) => p.slug === slug) ?? this.list(true).find((p) => p.slug === slug);
   }
 
   get$(slug: string): Observable<Product | undefined> {
     if (!this.useApi) return of(this.get(slug));
-    return this.list$().pipe(map((list) => list.find((p) => p.slug === slug)));
+    return this.list$(false).pipe(
+      switchMap((list) => {
+        const found = list.find((p) => p.slug === slug);
+        if (found) return of(found);
+        return this.http
+          .get<ApiProductDto[]>(`${this.baseUrl}/api/admin/products`, {
+            withCredentials: true,
+            params: { archived: 'true' },
+          })
+          .pipe(
+            map((rows) =>
+              filterArchivedList(rows.map(mapApiProduct), true).find((p) => p.slug === slug),
+            ),
+            catchError(() => of(undefined)),
+          );
+      }),
+    );
   }
 
   save(product: Product): void {
@@ -285,7 +302,7 @@ export class AdminCatalogService {
       stockQty: Number.isFinite(Number(product.stockQty))
         ? Math.round(Number(product.stockQty))
         : 0,
-      status: 'published',
+      status: productStatusForApi(product.status, 'published'),
       description: product.description || undefined,
       color: product.color || undefined,
       size: product.size || undefined,
@@ -322,6 +339,7 @@ export class AdminCatalogService {
     const stockQty = Number.isFinite(Number(product.stockQty))
       ? Math.round(Number(product.stockQty))
       : 0;
+    const status = productStatusForApi(product.status, opts.isNew ? 'draft' : 'published');
 
     if (opts.isNew) {
       return this.createViaApi({
@@ -332,7 +350,7 @@ export class AdminCatalogService {
         collectionSlug,
         priceCents,
         stockQty,
-        status: 'published',
+        status,
         description: product.description || undefined,
         color: product.color || undefined,
         size: product.size || undefined,
@@ -342,6 +360,7 @@ export class AdminCatalogService {
         switchMap((created) =>
           this.updateViaApi(created.slug, {
             stockQty,
+            status,
             details: opts.details,
             pieces: product.pieces?.length ? product.pieces : undefined,
             colorVariants: product.colors?.length
@@ -364,6 +383,7 @@ export class AdminCatalogService {
       collectionSlug,
       priceCents,
       stockQty,
+      status,
       description: product.description,
       shippingCopy: product.shipping || undefined,
       color: product.color || undefined,

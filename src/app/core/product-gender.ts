@@ -1,3 +1,4 @@
+import { isArchivedAt } from './admin-archive';
 import { sortByRecommendOrder } from './recommend-order';
 
 /** Piece gender from the catalog API. Unissex is a third value, not a hub. */
@@ -37,6 +38,7 @@ export interface GenderedPiece {
   category?: string | null;
   productId?: string | null;
   id?: string | null;
+  archivedAt?: string | Date | null;
 }
 
 export function parseProductGender(value: string | null | undefined): ProductGender | null {
@@ -82,6 +84,15 @@ export function canReorderWithFilter(
 export function orderProductId(piece: GenderedPiece): string {
   const id = piece.productId || piece.id || piece.slug;
   return String(id);
+}
+
+/** Live pieces only — archived rows must not appear in the reorder list or PUT body. */
+export function livePiecesForOrder<T extends GenderedPiece>(list: readonly T[]): T[] {
+  return list.filter((piece) => !isArchivedAt(piece.archivedAt));
+}
+
+export function orderProductIds(list: readonly GenderedPiece[]): string[] {
+  return livePiecesForOrder(list).map(orderProductId);
 }
 
 export function applyProductIdOrder<T extends GenderedPiece>(list: T[], productIds: string[]): T[] {

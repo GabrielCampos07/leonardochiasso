@@ -33,7 +33,7 @@ import {
   showArchiveUndo,
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { ToastService } from '../../core/feedback/toast.service';
+import { ERROR_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import {
   GENDER_FILTER_OPTIONS,
   GENDER_ORDER_SAVED_TEXT,
@@ -45,8 +45,9 @@ import {
   applyProductIdOrder,
   canReorderWithFilter,
   coarsePointerDragDelay,
+  livePiecesForOrder,
   matchesGenderFilter,
-  orderProductId,
+  orderProductIds,
   productGender,
 } from '../../core/product-gender';
 import { itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
@@ -122,6 +123,7 @@ export class AdminCollectionEditPage implements OnInit {
     }),
   );
   readonly savingOrder = signal(false);
+  readonly orderError = signal('');
   private loadGen = 0;
   private visibleGen = 0;
 
@@ -304,7 +306,7 @@ export class AdminCollectionEditPage implements OnInit {
       this.onTodosDragAttempt();
       return;
     }
-    const next = [...this.visibleProducts()];
+    const next = livePiecesForOrder(this.visibleProducts());
     const currentIndex = resolveCdkDropIndex(
       event,
       next.length,
@@ -313,7 +315,7 @@ export class AdminCollectionEditPage implements OnInit {
       ),
     );
     if (event.previousIndex === currentIndex) return;
-    const previousIds = next.map(orderProductId);
+    const previousIds = orderProductIds(next);
     moveItemInArray(next, event.previousIndex, currentIndex);
     this.visibleProducts.set(next);
     this.persistGenderOrder(previousIds);
@@ -324,11 +326,11 @@ export class AdminCollectionEditPage implements OnInit {
       this.onTodosDragAttempt();
       return;
     }
-    const next = [...this.visibleProducts()];
+    const next = livePiecesForOrder(this.visibleProducts());
     const i = next.findIndex((p) => p.slug === slug);
     const j = i + direction;
     if (i < 0 || j < 0 || j >= next.length) return;
-    const previousIds = next.map(orderProductId);
+    const previousIds = orderProductIds(next);
     const tmp = next[i]!;
     next[i] = next[j]!;
     next[j] = tmp;
@@ -372,11 +374,15 @@ export class AdminCollectionEditPage implements OnInit {
     const collectionSlug = this.slug();
     const filter = this.genderFilter();
     if (!collectionSlug || this.isNew() || !canReorderWithFilter(filter)) return;
-    const productIds = this.visibleProducts().map(orderProductId);
+    const live = livePiecesForOrder(this.visibleProducts());
+    this.visibleProducts.set(live);
+    const productIds = orderProductIds(live);
+    this.orderError.set('');
     this.savingOrder.set(true);
     this.collectionOrder.put(collectionSlug, filter, productIds).subscribe({
       next: () => {
         this.savingOrder.set(false);
+        this.orderError.set('');
         this.toast.success(GENDER_ORDER_SAVED_TEXT, {
           durationMs: GENDER_ORDER_UNDO_MS,
           action: {
@@ -387,8 +393,10 @@ export class AdminCollectionEditPage implements OnInit {
       },
       error: (err) => {
         this.savingOrder.set(false);
-        this.visibleProducts.set(applyProductIdOrder(this.visibleProducts(), previousIds));
-        this.toast.error(collectionOrderErrorMessage(err));
+        this.visibleProducts.set(applyProductIdOrder(live, previousIds));
+        const message = collectionOrderErrorMessage(err);
+        this.orderError.set(message);
+        this.toast.error(message, { durationMs: ERROR_TOAST_MS });
       },
     });
   }
@@ -400,14 +408,14 @@ export class AdminCollectionEditPage implements OnInit {
     const restored = applyProductIdOrder(this.visibleProducts(), productIds);
     this.visibleProducts.set(restored);
     this.savingOrder.set(true);
-    this.collectionOrder.put(collectionSlug, filter, restored.map(orderProductId)).subscribe({
+    this.collectionOrder.put(collectionSlug, filter, orderProductIds(restored)).subscribe({
       next: () => {
         this.savingOrder.set(false);
         this.toast.success('Ordem restaurada.');
       },
       error: (err) => {
         this.savingOrder.set(false);
-        this.toast.error(collectionOrderErrorMessage(err));
+        this.toast.error(collectionOrderErrorMessage(err), { durationMs: ERROR_TOAST_MS });
         this.refreshVisible();
       },
     });
@@ -415,7 +423,7 @@ export class AdminCollectionEditPage implements OnInit {
 
   private refreshVisible(): void {
     const filter = this.genderFilter();
-    const subset = this.products().filter((p) => matchesGenderFilter(p, filter));
+    const subset = livePiecesForOrder(this.products()).filter((p) => matchesGenderFilter(p, filter));
     if (!canReorderWithFilter(filter) || this.isNew()) {
       this.orderLoading.set(false);
       this.visibleProducts.set(subset);

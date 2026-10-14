@@ -20,6 +20,20 @@
   color: var(--lc-void);
 }
 
+.plp__preview-badge {
+  display: inline-flex;
+  align-items: center;
+  margin: 10px 0 0;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 22%, transparent);
+  background: color-mix(in srgb, var(--lc-ash) 16%, var(--lc-white));
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .plp__head {
   display: flex;
   flex-wrap: wrap;

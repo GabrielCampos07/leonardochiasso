@@ -16,6 +16,22 @@ export const COLLECTION_LABELS: Record<CollectionSlug, Collection> = {
   [COLLECTION_SLUGS.brazilianDreams]: 'Brazilian Dreams',
 };
 
+/** Admin / API publish state. The create/edit control uses draft | published. */
+export type ProductPublishStatus = 'draft' | 'published';
+
+export const PRODUCT_STATUS_OPTIONS: ReadonlyArray<{ value: ProductPublishStatus; label: string }> = [
+  { value: 'draft', label: 'Rascunho' },
+  { value: 'published', label: 'Publicado' },
+];
+
+/** Exact `status` values CreateProductDto / UpdateProductDto whitelist. */
+export function productStatusForApi(
+  raw: string | null | undefined,
+  fallback: ProductPublishStatus,
+): ProductPublishStatus {
+  return raw === 'draft' || raw === 'published' ? raw : fallback;
+}
+
 /** Crop focus on look photos until solo product shots exist. */
 export type PieceImageFocus = 'top' | 'bottom' | 'center' | 'waist';
 
@@ -222,8 +238,8 @@ export interface Product {
   artCouture?: boolean;
   /** Admin / API media links (ids needed for reorder). */
   media?: ProductMedia[];
-  /** Product status from API (draft | published | …). */
-  status?: string;
+  /** Product status from API (`draft` | `published` | `archived`). */
+  status?: ProductPublishStatus | string;
   /** Units on hand from Admin / catalog API. */
   stockQty?: number;
   /** Soft-archive timestamp from Admin / catalog API. */

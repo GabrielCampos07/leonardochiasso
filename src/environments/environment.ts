@@ -14,4 +14,6 @@ export const environment = {
    * Also enabled by `?mock=1` or localStorage `lc.admin.3d.mock=1`.
    */
   admin3dMock: true,
+  /** Off until confirmed — admin unpublished-collection preview badge. */
+  adminUnpublishedPreviewBadge: false,
 };
