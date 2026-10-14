@@ -42,6 +42,12 @@ export class CreateProductDto {
   @IsIn([...PRODUCT_GENDERS], { message: PRODUCT_GENDER_MESSAGE })
   category!: (typeof PRODUCT_GENDERS)[number];
 
+  /** Alias sent by the admin front; when present it wins over category. */
+  @IsOptional()
+  @IsString()
+  @IsIn([...PRODUCT_GENDERS], { message: 'gender must be feminino, masculino or unissex.' })
+  gender?: (typeof PRODUCT_GENDERS)[number];
+
   @IsString()
   @Matches(SLUG_PATTERN, {
     message: 'collectionSlug must be a valid kebab-case slug.',
@@ -117,6 +123,12 @@ export class UpdateProductDto {
   @IsString()
   @IsIn([...PRODUCT_GENDERS], { message: PRODUCT_GENDER_MESSAGE })
   category?: (typeof PRODUCT_GENDERS)[number];
+
+  /** Alias sent by the admin front; when present it wins over category. */
+  @IsOptional()
+  @IsString()
+  @IsIn([...PRODUCT_GENDERS], { message: 'gender must be feminino, masculino or unissex.' })
+  gender?: (typeof PRODUCT_GENDERS)[number];
 
   @IsOptional()
   @IsString()
