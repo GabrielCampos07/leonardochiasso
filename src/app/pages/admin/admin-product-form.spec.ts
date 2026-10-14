@@ -7,7 +7,7 @@ import { AdminCollectionsApiService } from '../../core/admin-collections-api.ser
 import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { Product } from '../../core/product.model';
-import { AdminProductForm, collectionSelectLabel, parseStockQty } from './admin-product-form';
+import { AdminProductForm, collectionSelectLabel, parseStockQty, stockQtyError } from './admin-product-form';
 
 function sampleProduct(patch: Partial<Product> = {}): Product {
   return {
@@ -64,9 +64,35 @@ describe('collectionSelectLabel', () => {
     expect(collectionSelectLabel('organic-dreams')).toBe('Organic Dreams');
   });
 
-  it('never flashes the slug as the visible label', () => {
-    expect(collectionSelectLabel('teste-colecao')).toBe('Coleção');
-    expect(collectionSelectLabel('teste-colecao', 'teste-colecao')).toBe('Coleção');
+  it('does not flash the slug before the admin list arrives', () => {
+    expect(collectionSelectLabel('teste-colecao2')).toBe('Coleção');
+    expect(collectionSelectLabel('teste-colecao2', 'teste-colecao2')).toBe('Coleção');
+  });
+
+  it('uses the catalog name after the list loads even when it matches the slug', () => {
+    expect(
+      collectionSelectLabel('teste-colecao2', 'teste-colecao2', [
+        { slug: 'teste-colecao2', name: 'teste-colecao2' },
+      ]),
+    ).toBe('teste-colecao2');
+    expect(
+      collectionSelectLabel('teste-colecao2', 'teste-colecao2', [
+        { slug: 'teste-colecao2', name: 'TESTE-COLECAO2' },
+      ]),
+    ).toBe('TESTE-COLECAO2');
+  });
+});
+
+describe('stockQtyError', () => {
+  it('rejects negatives and empty values', () => {
+    expect(stockQtyError(-1)).toBe('Estoque deve ser um inteiro ≥ 0.');
+    expect(stockQtyError('')).toBe('Estoque deve ser um inteiro ≥ 0.');
+    expect(stockQtyError('abc')).toBe('Estoque deve ser um inteiro ≥ 0.');
+  });
+
+  it('accepts zero and positive integers', () => {
+    expect(stockQtyError(0)).toBe('');
+    expect(stockQtyError(4)).toBe('');
   });
 });
 
@@ -99,6 +125,14 @@ describe('AdminProductForm', () => {
           name: 'TESTE-COLECAO',
           description: null,
           sortOrder: 4,
+          publishedAt: null,
+        },
+        {
+          id: '5',
+          slug: 'teste-colecao2',
+          name: 'TESTE-COLECAO2',
+          description: null,
+          sortOrder: 5,
           publishedAt: null,
         },
       ]),
@@ -139,6 +173,34 @@ describe('AdminProductForm', () => {
     expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO');
     expect(trigger.textContent).not.toContain('teste-colecao');
     expect(fixture.nativeElement.querySelector('select')).toBeNull();
+  });
+
+  it('preselects ?colecao=teste-colecao2 after the collections list loads', () => {
+    fixture.componentRef.setInput(
+      'product',
+      sampleProduct({
+        collectionSlug: 'teste-colecao2' as Product['collectionSlug'],
+        collection: 'teste-colecao2' as Product['collection'],
+      }),
+    );
+    fixture.componentRef.setInput('collectionFromContext', true);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(list).toHaveBeenCalledWith(false, { refresh: true });
+    expect(String(fixture.componentInstance.draft()?.collectionSlug)).toBe('teste-colecao2');
+    expect(fixture.componentInstance.selectedCollectionLabel()).toBe('TESTE-COLECAO2');
+    const trigger = fixture.nativeElement.querySelector('#atelier-product-collection') as HTMLElement;
+    expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO2');
+    expect(trigger.textContent).not.toContain('Selecione a coleção');
+  });
+
+  it('shows an inline stock error when the value is negative', () => {
+    fixture.componentInstance.onStockQtyChange(-2);
+    fixture.detectChanges();
+    const alert = fixture.nativeElement.querySelector('#atelier-product-stock-error') as HTMLElement;
+    expect(alert?.textContent?.trim()).toBe('Estoque deve ser um inteiro ≥ 0.');
+    expect(fixture.componentInstance.stockError()).toBe('Estoque deve ser um inteiro ≥ 0.');
   });
 
   it('includes a newly created collection after a cache-busting refresh', () => {
