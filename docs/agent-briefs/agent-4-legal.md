@@ -35,7 +35,7 @@
 | `PATH.legal` e `legalPath()` existem, mas nenhuma rota `/legal/*` registrada | `src/app/core/routes.ts:74` vs `src/app/app.routes.ts` |
 | Copy `"Devoluções em até 14 dias para peças sem uso"` duplicada em 16 lugares | `src/app/core/products.ts` (8×) + `api/prisma/seed.ts` (8×) |
 | Nenhum CNPJ, razão social, endereço ou telefone — footer só tem `© Leonardo Chiasso Labels` | `footer.ts` |
-| Contato único: `mailto:atelier@leonardochiasso.com`, sem prazo de resposta declarado | `nav.config.ts` |
+| Contato único: `mailto:Contact@leonardochiasso.com`, sem telefone/WhatsApp nem prazo de resposta declarado | `brand-lines.ts` (`PUBLIC_CONTACT_MAILTO`) |
 | Newsletter grava e-mail sem opt-in, finalidade ou link de privacidade (`done = true` local) | `src/app/shared/components/newsletter/newsletter.ts` |
 | Armazenamento local `lc-cart` / `lc-wishlist` não divulgado em nenhuma política | `cart.service.ts:5`, `wishlist.service.ts:4` |
 | Zero analytics/pixel → zero cookie não essencial hoje | busca global |

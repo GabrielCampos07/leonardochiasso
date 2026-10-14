@@ -28,7 +28,7 @@ Um item só vira "verde" quando o texto foi validado **e** está renderizado no 
 | Links legais do footer — **corrigido** (`legalPath` + rota `/legal/:page`) | `nav.config.ts`, `app.routes.ts`, `pages/legal/legal.ts` | Páginas modelo no ar; texto ainda **Pendente legal humano**. |
 | ~~`legalPath()` sem rota~~ | — | Resolvido após Agent 5 / G1. |
 | Nenhum CNPJ, razão social, endereço físico ou telefone no site | footer só tem `© {{ year }} Leonardo Chiasso Labels` | Descumpre Decreto 7.962/2013, art. 2º (identificação em destaque). Bloqueador. |
-| Único canal de contato é `mailto:atelier@leonardochiasso.com` | `src/app/core/nav.config.ts` (`FOOTER_LINKS.atendimento`) | Aceitável como atendimento eletrônico, mas sem prazo de resposta declarado nem registro de protocolo. |
+| Único canal de contato é `mailto:Contact@leonardochiasso.com` | `src/app/core/brand-lines.ts` (`PUBLIC_CONTACT_MAILTO`) — barra, footer, privacidade | Aceitável como atendimento eletrônico, mas sem prazo de resposta declarado nem registro de protocolo. Sem telefone/WhatsApp. |
 | Copy de frete/devolução — **corrigida no código** (separar arrependimento 7d × troca 14d); revalidar com jurídico | `products.ts` + `seed.ts` | Ver §9.4. Ainda falta página `/legal/trocas-devolucoes`. |
 | Preço sem frete/prazo calculáveis antes do checkout | PDP `src/app/pages/pdp/pdp.html:74` ("Frete + devoluções") | Frete e prazo precisam ser informados **antes** da finalização; hoje não há cálculo por CEP. |
 | Newsletter grava e-mail sem consentimento explícito, sem finalidade, sem link de privacidade e sem backend (`done = true` local) | `src/app/shared/components/newsletter/newsletter.ts` | Quando ligar no backend: base legal e registro de consentimento obrigatórios (LGPD). Hoje é inócuo — **não ligue antes de resolver**. |
@@ -50,7 +50,7 @@ Um item só vira "verde" quando o texto foi validado **e** está renderizado no 
 | 1.3 | Inscrição estadual (obrigatória para quem comercializa mercadoria/emite NF-e) | Obrigatório | Pendente legal humano | Contábil | Sem IE não há NF-e de venda. |
 | 1.4 | Inscrição municipal (se houver serviço, ex.: sob medida/ajuste cobrado) | Recomendado | Pendente legal humano | Contábil | Só se prestar serviço tributável por ISS. |
 | 1.5 | Domínio `leonardochiasso.com` (e `.com.br`, se houver) registrado no CNPJ da empresa, não em CPF pessoal | Obrigatório | Pendente legal humano | Ops | `.com.br` exige CNPJ no registro.br. Titularidade errada = risco de perda do domínio. |
-| 1.6 | E-mail corporativo no domínio próprio (`atelier@leonardochiasso.com` ✔) | Recomendado | Feito no código | — | Já é o contato do footer. |
+| 1.6 | E-mail corporativo no domínio próprio (`Contact@leonardochiasso.com` ✔) | Recomendado | Feito no código | — | `PUBLIC_CONTACT_MAILTO` na barra, footer e privacidade. |
 | 1.7 | Marca registrada no INPI (classe 25 — vestuário; avaliar 14 para jóia) para "Leonardo Chiasso" e "HempCouture" | Recomendado | Pendente legal humano | Jurídico | Não bloqueia venda; bloqueia defesa da marca. `HempCouture` é usado como linha em toda a copy de produto. |
 | 1.8 | Cadastro no [consumidor.gov.br](https://www.consumidor.gov.br) | Recomendado | Pendente legal humano | Ops | Gratuito, reduz escalada para Procon. |
 
@@ -71,7 +71,7 @@ Um item só vira "verde" quando o texto foi validado **e** está renderizado no 
 | 2.9 | Atendimento eletrônico com **resposta em até 5 dias** às demandas do consumidor | Obrigatório | Pendente código + legal | Ops + Eng | Decreto 7.962/2013, art. 4º, VII. Declarar o prazo no site; hoje é só um `mailto` sem promessa. |
 | 2.10 | Sumário do contrato acessível antes da contratação | Obrigatório | Pendente código + legal | Eng + Jurídico | Resumo de preço, frete, prazo, arrependimento e trocas na tela de checkout. |
 | 2.11 | SAC telefônico 24h nos termos do Decreto 11.034/2022 | **Não aplicável** | — | — | Aquele decreto alcança setores regulados por agência federal. Varejo de moda não entra. Registrar aqui para ninguém "cumprir" por medo. |
-| 2.12 | Canal de atendimento humano com horário declarado (e-mail + WhatsApp do atelier) | Recomendado | Pendente código | Ops | Proporcional à escala; substitui SAC formal. |
+| 2.12 | Canal de atendimento humano com horário declarado (e-mail do atelier) | Recomendado | Feito no código (e-mail) | Ops | Público é **e-mail only** (`mailto:Contact@leonardochiasso.com`). Sem telefone/`tel:`/`wa.me`/WhatsApp no site. Horário de resposta ainda não declarado. |
 | 2.13 | Etiquetagem têxtil: composição, país de origem, CNPJ do fabricante/importador, cuidados de conservação, tamanho | Obrigatório | Pendente legal humano | Ops | Conmetro/Inmetro (RTQ de produtos têxteis). É a etiqueta física da peça, não o site — mas é fiscalizável e a copy do site deve bater com ela. |
 | 2.14 | Claims de sustentabilidade verificáveis (evitar greenwashing) | Obrigatório | Pendente legal humano | Ops + Jurídico | CDC art. 37 + CONAR. A copy usa `100% cânhamo industrial`, `Seasonless`, `made to feel, not to rush` — precisa de lastro documental (certificado do fornecedor de tecido). |
 | 2.15 | Documentação de origem/importação do tecido de cânhamo (invoice, DI, NCM, laudo do fornecedor) | Obrigatório | Pendente legal humano | Contábil + Jurídico | `Cannabis sativa` aparece literalmente nos `details` de todos os produtos. Fibra industrial é têxtil, mas o tema é sensível no Brasil: pedir parecer específico e arquivar a documentação **antes** de escalar comunicação. |
@@ -160,11 +160,11 @@ Um item só vira "verde" quando o texto foi validado **e** está renderizado no 
 |---|------|-----------|--------|------|------|
 | 7.1 | Razão social + CNPJ visíveis no footer de todas as páginas | Obrigatório | Pendente código + legal | Eng + Ops | Footer é global (fora do `router-outlet`, em `LcShell`) → resolve o site inteiro de uma vez. |
 | 7.2 | Endereço físico completo (CEP incluído) | Obrigatório | Pendente código + legal | Eng + Ops | Se o atelier for endereço residencial, decidir com jurídico o que exibir — mas endereço físico é exigido. |
-| 7.3 | Endereço eletrônico de atendimento (`atelier@leonardochiasso.com` ✔) | Obrigatório | Feito no código | — | Já no footer. |
+| 7.3 | Endereço eletrônico de atendimento (`Contact@leonardochiasso.com` ✔) | Obrigatório | Feito no código | — | Barra ATENDIMENTO, footer Contato e privacidade usam `PUBLIC_CONTACT_MAILTO`. |
 | 7.4 | Bloco de links legais no footer funcional (Privacidade · Termos · Cookies · Trocas) | Obrigatório | Pendente código | Eng | Substituir os `route: null`. |
 | 7.5 | Frete, prazo e política de devolução acessíveis da PDP | Obrigatório | Pendente código | Eng | A seção "Frete + devoluções" da PDP deve linkar `/legal/trocas-devolucoes` e `/legal/entrega`. |
 | 7.6 | Preço em BRL, à vista, sem valor oculto | Obrigatório | Feito no código | — | `priceLabel` derivado de centavos; `R$ 4.000,00` exibido. |
-| 7.7 | Telefone/WhatsApp de atendimento | Recomendado | Pendente código | Ops | Aumenta conversão em ticket alto. |
+| 7.7 | Telefone/WhatsApp de atendimento | Não aplicar no site público | — | — | Decisão de produto: canal público só e-mail. Telefone do comprador no checkout/conta é entrega/NF, não contato do ateliê. |
 | 7.8 | Selo/aviso de conexão segura e checkout externo (Stripe) | Recomendado | Pendente código | Eng | Fase 3. |
 
 ---
@@ -229,7 +229,7 @@ E no `footer.ts`, junto do `footer__copy`, o bloco de identificação (texto exa
 ```html
 <p class="footer__legal">
   {{ RAZAO_SOCIAL }} · CNPJ {{ CNPJ }}<br />
-  {{ ENDERECO }} · <a href="mailto:atelier@leonardochiasso.com">atelier@leonardochiasso.com</a>
+  {{ ENDERECO }} · <a href="mailto:Contact@leonardochiasso.com">Contact@leonardochiasso.com</a>
 </p>
 ```
 
