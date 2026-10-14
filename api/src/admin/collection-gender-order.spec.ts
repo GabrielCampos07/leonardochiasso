@@ -120,7 +120,7 @@ describe('AdminCollectionsService gender order', () => {
     const { service, tx } = make();
     await expect(
       service.setGenderOrder('organic-dreams', 'feminino', [FEM, FEM]),
-    ).rejects.toThrow('productIds must not contain duplicates.');
+    ).rejects.toThrow('A lista de peças contém itens repetidos.');
     expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
   });
 
@@ -129,7 +129,7 @@ describe('AdminCollectionsService gender order', () => {
     await expect(
       service.setGenderOrder('organic-dreams', 'feminino', [FEM, UNI, EXTRA]),
     ).rejects.toThrow(
-      `Product ids do not belong to this collection: ${EXTRA}`,
+      `Peças que não pertencem a esta coleção: ${EXTRA}`,
     );
   });
 
@@ -138,7 +138,7 @@ describe('AdminCollectionsService gender order', () => {
     await expect(
       service.setGenderOrder('organic-dreams', 'feminino', [FEM, UNI, MAS]),
     ).rejects.toThrow(
-      `Products must be feminino or unissex for gender=feminino: ${MAS}`,
+      `Peças fora do filtro feminino (aceita feminino ou unissex): ${MAS}`,
     );
   });
 
@@ -147,7 +147,7 @@ describe('AdminCollectionsService gender order', () => {
     await expect(
       service.setGenderOrder('organic-dreams', 'feminino', [FEM]),
     ).rejects.toThrow(
-      `productIds must contain exactly the feminino (including unissex) products in this collection (missing ${UNI}).`,
+      `A ordem deve conter exatamente as peças ativas feminino (incluindo unissex) desta coleção (faltando ${UNI}).`,
     );
   });
 });

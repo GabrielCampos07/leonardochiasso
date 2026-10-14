@@ -203,8 +203,10 @@ export class AdminCollectionsService {
       throw new NotFoundException(`Collection not found: ${slug}`);
     }
 
-    const matching = collection.products.filter((pc) =>
-      matchesGenderList(pc.product.category.slug, gender),
+    const matching = collection.products.filter(
+      (pc) =>
+        !pc.product.archivedAt &&
+        matchesGenderList(pc.product.category.slug, gender),
     );
     const productIds = orderIdsByGenderList(
       matching.map((pc) => pc.productId),
@@ -233,18 +235,22 @@ export class AdminCollectionsService {
       throw new NotFoundException(`Collection not found: ${slug}`);
     }
 
-    const uniqueIds = new Set(productIds);
-    if (uniqueIds.size !== productIds.length) {
-      throw new BadRequestException('productIds must not contain duplicates.');
+    if (new Set(productIds).size !== productIds.length) {
+      throw new BadRequestException('A lista de peças contém itens repetidos.');
     }
 
     const members = new Map(
       collection.products.map((pc) => [pc.productId, pc]),
     );
+    // Peças arquivadas não entram na ordenação: são ignoradas se enviadas.
+    productIds = productIds.filter(
+      (id) => !members.get(id)?.product.archivedAt,
+    );
+    const uniqueIds = new Set(productIds);
     const notInCollection = productIds.filter((id) => !members.has(id));
     if (notInCollection.length > 0) {
       throw new BadRequestException(
-        `Product ids do not belong to this collection: ${notInCollection.join(', ')}`,
+        `Peças que não pertencem a esta coleção: ${notInCollection.join(', ')}`,
       );
     }
 
@@ -254,12 +260,16 @@ export class AdminCollectionsService {
     });
     if (wrongGender.length > 0) {
       throw new BadRequestException(
-        `Products must be ${gender} or unissex for gender=${gender}: ${wrongGender.join(', ')}`,
+        `Peças fora do filtro ${gender} (aceita ${gender} ou unissex): ${wrongGender.join(', ')}`,
       );
     }
 
     const expected = collection.products
-      .filter((pc) => matchesGenderList(pc.product.category.slug, gender))
+      .filter(
+        (pc) =>
+          !pc.product.archivedAt &&
+          matchesGenderList(pc.product.category.slug, gender),
+      )
       .map((pc) => pc.productId);
     const expectedSet = new Set(expected);
     const missing = expected.filter((id) => !uniqueIds.has(id));
@@ -267,13 +277,13 @@ export class AdminCollectionsService {
     if (missing.length > 0 || extra.length > 0) {
       const parts: string[] = [];
       if (missing.length > 0) {
-        parts.push(`missing ${missing.join(', ')}`);
+        parts.push(`faltando ${missing.join(', ')}`);
       }
       if (extra.length > 0) {
-        parts.push(`extra ${extra.join(', ')}`);
+        parts.push(`sobrando ${extra.join(', ')}`);
       }
       throw new BadRequestException(
-        `productIds must contain exactly the ${gender} (including unissex) products in this collection (${parts.join('; ')}).`,
+        `A ordem deve conter exatamente as peças ativas ${gender} (incluindo unissex) desta coleção (${parts.join('; ')}). Recarregue a página e tente de novo.`,
       );
     }
 
