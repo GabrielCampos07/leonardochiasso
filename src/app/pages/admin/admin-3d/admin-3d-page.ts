@@ -66,6 +66,7 @@ import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '.
 import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
 import { clampTooltip } from '../../../scene-engine/photo-url';
 import type { AtelierEngine } from '../../../scene-engine/engine-contract';
+import type { StockroomEngine, StockroomOverlay } from '../../../scene-engine/stockroom/stockroom-engine';
 import type {
   SceneCollectionInput,
   SceneLayout,
@@ -142,6 +143,13 @@ export function isCreateSheetViewport(
   return width <= 768;
 }
 
+/** Bottom-bar counter: "2/5" on a collection, the total on the overview. */
+export function rackCounterLabel(items: ReadonlyArray<{ id: string }>, focusedId: string): string {
+  if (!items.length) return '0/0';
+  const at = items.findIndex((item) => item.id === focusedId);
+  return at < 0 ? `${items.length}` : `${at + 1}/${items.length}`;
+}
+
 /** Click slug → edit modal. Blocked only while creating / adding pieces. */
 export function pieceModalFromHangerClick(
   slug: string | null,
@@ -178,6 +186,7 @@ export function clampCreatePanel(
 })
 export class Admin3dPage implements AfterViewInit, OnDestroy {
   @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
+  @ViewChild('stage') private stageRef?: ElementRef<HTMLElement>;
   @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild(CollectionAddPiecePanel) private addPanel?: CollectionAddPiecePanel;
 
@@ -208,6 +217,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
   readonly sceneMode = adminSceneMode(this.route.snapshot.queryParamMap);
+  /** Options A / B: nav in a fixed bar under the canvas, names and captions as HTML labels. */
+  readonly stockroom = isStockroomMode(this.sceneMode);
+  readonly overlay = signal<StockroomOverlay | null>(null);
   readonly hintCopy =
     this.sceneMode === 'cc0'
       ? STOCKROOM_HINT_COPY
@@ -240,13 +252,21 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id && !this.engine?.canPan(-1);
+    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id && (this.stockroom || !this.engine?.canPan(-1));
   });
   readonly atLast = computed(() => {
     this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id && !this.engine?.canPan(1);
+    return (
+      id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id && (this.stockroom || !this.engine?.canPan(1))
+    );
+  });
+  readonly rackCounter = computed(() => rackCounterLabel(this.racks(), this.focusedId()));
+  readonly focusedUnpublished = computed(() => {
+    this.layoutRev();
+    const id = this.focusedId();
+    return this.layout.racks.some((r) => r.id === id && r.unpublished === true);
   });
   readonly rackPan = computed(() => {
     this.panTick();
@@ -351,17 +371,24 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     }
     if (this.engine || this.booting) return;
     this.booting = true;
-    const host = this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas;
+    const host =
+      (this.stockroom ? this.stageRef?.nativeElement : this.sceneHostRef?.nativeElement) ??
+      canvas.parentElement ??
+      canvas;
     const opts = { reducedMotion: this.reducedMotion, host };
     try {
-      if (isStockroomMode(this.sceneMode)) {
+      if (this.stockroom) {
         const [{ createStockroomEngine }, { SKETCHFAB_KIT }] = await Promise.all([
           import('../../../scene-engine/stockroom/stockroom-engine'),
           this.sceneMode === 'sketchfab'
             ? import('../../../scene-engine/stockroom/stockroom-kit-sketchfab')
             : Promise.resolve({ SKETCHFAB_KIT: undefined }),
         ]);
-        if (!this.engine) this.engine = createStockroomEngine(canvas, { ...opts, kit: SKETCHFAB_KIT });
+        if (!this.engine) {
+          const stockroom: StockroomEngine | null = createStockroomEngine(canvas, { ...opts, kit: SKETCHFAB_KIT });
+          stockroom?.onOverlay((frame) => this.overlay.set(frame));
+          this.engine = stockroom;
+        }
       } else {
         const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
         if (!this.engine) this.engine = createSceneEngine(canvas, opts);
@@ -648,8 +675,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     if (this.engine?.panRack(delta)) this.panTick.update((n) => n + 1);
   }
 
+  /** Stockroom arrows always change collection; bays inside one page with the rail buttons. */
   stepRack(delta: -1 | 1): void {
-    if (this.engine?.panRack(delta)) {
+    if (!this.stockroom && this.engine?.panRack(delta)) {
       this.panTick.update((n) => n + 1);
       return;
     }
@@ -931,7 +959,8 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       return;
     }
     const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
-    if (!hanger) {
+    const captioned = this.overlay()?.pieces.some((p) => p.slug === slug) ?? false;
+    if (!hanger || captioned) {
       this.hoverTip.set(null);
       return;
     }

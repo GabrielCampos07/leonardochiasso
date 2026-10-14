@@ -17,13 +17,258 @@
   overflow: hidden;
 }
 
-.admin-3d::after {
+.admin-3d__stage {
+  position: absolute;
+  inset: 0;
+}
+
+.admin-3d--stockroom .admin-3d__stage {
+  position: relative;
+  inset: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-3d__stage::after {
   content: '';
   pointer-events: none;
   position: absolute;
   inset: 0;
   z-index: 2;
   background: radial-gradient(ellipse at 50% 42%, transparent 58%, rgb(32 24 18 / 22%) 100%);
+}
+
+.admin-3d__overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.admin-3d__area-label {
+  position: absolute;
+  margin: 0;
+  transform: translate(-50%, -100%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 560px;
+  padding: 4px 14px 5px;
+  background: rgb(255 255 255 / 92%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 12%, transparent);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.admin-3d__area-label.is-focused {
+  font-size: 30px;
+  border-color: var(--lc-void);
+}
+
+.admin-3d__area-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-3d__area-count {
+  flex: none;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lc-void) 72%, white);
+}
+
+.admin-3d__pill {
+  flex: none;
+  display: inline-block;
+  padding: 3px 7px;
+  font-family: var(--lc-font-display);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  background: #0e0c0e;
+  color: #fff;
+}
+
+.admin-3d__pill--draft {
+  background: #e3b341;
+  color: #1a1408;
+}
+
+.admin-3d__pill--soldout {
+  background: #8b1e2d;
+  color: #fff;
+}
+
+.admin-3d__piece {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.admin-3d__piece > .admin-3d__pill {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 28%);
+}
+
+.admin-3d__caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 6px 4px;
+  background: rgb(14 12 14 / 80%);
+  color: #fff;
+  font-family: var(--lc-font-display);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.admin-3d__caption b {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-3d__caption b,
+.admin-3d__caption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-3d__piece.is-hover {
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.admin-3d__dock {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--lc-white);
+  border-top: 1px solid color-mix(in srgb, var(--lc-void) 14%, transparent);
+}
+
+.admin-3d__dock-nav {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-3d__dock-arrow {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.admin-3d__dock-current {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 440px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 18%, transparent);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  cursor: pointer;
+}
+
+.admin-3d__dock-current[aria-expanded='true'] {
+  border-color: var(--lc-void);
+}
+
+.admin-3d__dock-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.admin-3d__dock-count {
+  flex: none;
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--lc-void) 70%, white);
+}
+
+.admin-3d__dock-switcher {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 10px);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  max-height: min(360px, 50vh);
+  overflow: auto;
+  padding: 6px;
+  transform: translateX(-50%);
+  background: rgb(255 255 255 / 98%);
+  border: 1px solid color-mix(in srgb, var(--lc-void) 16%, transparent);
+}
+
+.admin-3d__dock-switcher button {
+  min-height: 44px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-3d__dock-switcher button.is-on {
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
+.admin-3d__dock-actions {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-3d__dock .admin-3d__credits {
+  min-height: 48px;
+}
+
+.admin-3d--stockroom .admin-3d__rail-count {
+  bottom: 12px;
 }
 
 .admin-3d:focus,
