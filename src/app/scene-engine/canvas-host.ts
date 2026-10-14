@@ -48,7 +48,11 @@ const NON_PASSIVE_TYPES = new Set([
 
 export const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 
-/** Window/document keydown that calls preventDefault (Shift+arrows, Escape). */
+/**
+ * Window/document keydown that calls preventDefault (Shift+arrows, Escape).
+ * A passive listener only logs "Unable to preventDefault"; it does not skip the
+ * 3D order PUT — that bug was GET-before-PUT plus a missing hovered-piece slug.
+ */
 export function bindNonPassiveKeydown(
   target: Pick<Window, 'addEventListener' | 'removeEventListener'>,
   handler: (event: KeyboardEvent) => void,
