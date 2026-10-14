@@ -5,7 +5,7 @@ import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { Product } from '../../core/product.model';
+import { Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import { ToastService } from '../../core/feedback/toast.service';
 import { AdminProductEditPage } from './admin-product-edit';
 
@@ -86,5 +86,16 @@ describe('AdminProductEditPage archived product', () => {
     expect(restore.textContent?.trim()).toBe('Restaurar');
     restore.click();
     expect(restoreViaApi).toHaveBeenCalledWith('look-arquivo');
+  });
+
+  it('shows locked Arquivado status and a disabled Ver no site', () => {
+    const status = fixture.nativeElement.querySelector('#atelier-product-status') as HTMLElement;
+    expect(status.querySelector('.is-on')?.textContent?.trim()).toBe('Arquivado');
+    expect(status.querySelector('[role="radiogroup"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect((status.querySelector('button') as HTMLButtonElement).disabled).toBeTrue();
+
+    const site = fixture.nativeElement.querySelector('.admin-edit__site') as HTMLButtonElement;
+    expect(site.disabled).toBeTrue();
+    expect(site.getAttribute('title')).toBe(SITE_UNAVAILABLE_HINT);
   });
 });

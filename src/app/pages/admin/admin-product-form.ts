@@ -25,6 +25,7 @@ import { parseCollectionSlugParam } from '../../core/admin-collection-context';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import {
+  ARCHIVED_STATUS_OPTION,
   COLLECTION_LABELS,
   Collection,
   PRODUCT_STATUS_OPTIONS,
@@ -32,7 +33,9 @@ import {
   ProductColor,
   ProductMedia,
   ProductPiece,
-  ProductPublishStatus,
+  ProductStatusValue,
+  SITE_UNAVAILABLE_HINT,
+  canOpenProductOnSite,
   formatPriceLabel,
   productStatusForApi,
 } from '../../core/product.model';
@@ -154,7 +157,10 @@ export class AdminProductForm implements OnInit {
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
-  readonly statusOptions = PRODUCT_STATUS_OPTIONS;
+  readonly statusOptions = computed(() =>
+    this.isArchived() ? [...PRODUCT_STATUS_OPTIONS, ARCHIVED_STATUS_OPTION] : PRODUCT_STATUS_OPTIONS,
+  );
+  readonly siteUnavailableHint = SITE_UNAVAILABLE_HINT;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
   readonly useApi = this.adminCatalog.useApi;
 
@@ -218,20 +224,27 @@ export class AdminProductForm implements OnInit {
   loadDraft(p: Product): void {
     this.draft.set({
       ...p,
-      status: productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
+      status: isArchivedAt(p.archivedAt)
+        ? 'archived'
+        : productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
     });
     this.detailsText = (p.details ?? []).join('\n');
     this.selectedSwatchIds = (p.colors ?? []).map((c) => c.id);
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
   }
 
-  currentStatus(): ProductPublishStatus {
+  currentStatus(): ProductStatusValue {
+    if (this.isArchived()) return 'archived';
     return productStatusForApi(this.draft()?.status, this.isNew() ? 'draft' : 'published');
+  }
+
+  canOpenOnSite(): boolean {
+    return canOpenProductOnSite(this.currentStatus(), this.draft()?.archivedAt);
   }
 
   onStatusChange(raw: string): void {
     const p = this.draft();
-    if (!p) return;
+    if (!p || this.isArchived()) return;
     this.draft.set({ ...p, status: productStatusForApi(raw, this.isNew() ? 'draft' : 'published') });
   }
 
@@ -579,7 +592,7 @@ export class AdminProductForm implements OnInit {
       pieces: pieces.length ? pieces : undefined,
       media: this.galleryItems(),
       stockQty: parseStockQty(p.stockQty),
-      status: this.currentStatus(),
+      status: this.isArchived() ? 'archived' : this.currentStatus(),
       ...syncPriceFields(p.price),
     };
 

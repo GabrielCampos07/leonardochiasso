@@ -6,7 +6,7 @@ import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
-import { PRODUCT_STATUS_OPTIONS, Product, productStatusForApi } from '../../core/product.model';
+import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
@@ -279,6 +279,59 @@ describe('AdminProductForm', () => {
     expect(alert?.textContent?.trim()).toBe('property gender should not exist');
     expect(toast.error).toHaveBeenCalledWith('property gender should not exist');
     expect(fixture.componentInstance.saveError()).toBe('property gender should not exist');
+  });
+
+  it('disables Ver no site on a draft with a tooltip', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', sampleProduct({ status: 'draft' }));
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.currentStatus()).toBe('draft');
+    expect(fixture.componentInstance.canOpenOnSite()).toBeFalse();
+    const site = fixture.nativeElement.querySelector('.admin-edit__site') as HTMLButtonElement;
+    expect(site.tagName).toBe('BUTTON');
+    expect(site.disabled).toBeTrue();
+    expect(site.getAttribute('title')).toBe(SITE_UNAVAILABLE_HINT);
+    expect(site.textContent?.trim()).toBe('Ver no site');
+  });
+
+  it('shows Ver no site as a link on a published piece', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', sampleProduct({ status: 'published' }));
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.canOpenOnSite()).toBeTrue();
+    const site = fixture.nativeElement.querySelector('.admin-edit__site') as HTMLAnchorElement;
+    expect(site.tagName).toBe('A');
+    expect(site.getAttribute('href')).toContain('look-novo');
+  });
+
+  it('locks Status on Arquivado and disables Ver no site when archived', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput(
+      'product',
+      sampleProduct({ status: 'published', archivedAt: '2026-10-01T00:00:00.000Z' }),
+    );
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.isArchived()).toBeTrue();
+    expect(fixture.componentInstance.currentStatus()).toBe('archived');
+    expect(fixture.componentInstance.draft()?.status).toBe('archived');
+    const group = fixture.nativeElement.querySelector('#atelier-product-status') as HTMLElement;
+    expect(group.querySelector('.is-on')?.textContent?.trim()).toBe('Arquivado');
+    expect(group.querySelector('[role="radiogroup"]')?.getAttribute('aria-disabled')).toBe('true');
+    expect((group.querySelector('.is-on') as HTMLButtonElement).disabled).toBeTrue();
+    fixture.componentInstance.onStatusChange('published');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.currentStatus()).toBe('archived');
+
+    const site = fixture.nativeElement.querySelector('.admin-edit__site') as HTMLButtonElement;
+    expect(site.tagName).toBe('BUTTON');
+    expect(site.disabled).toBeTrue();
+    expect(site.getAttribute('title')).toBe(SITE_UNAVAILABLE_HINT);
   });
 
   it('shows the API error on edit 500', () => {

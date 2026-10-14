@@ -50,7 +50,7 @@ import {
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ERROR_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
-import { itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
+import { applyCdkListOrder, itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
 import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
 import { isSoldOut } from '../../scene-engine/types';
 
@@ -294,6 +294,7 @@ export class AdminProductsPage implements OnInit {
     if (event.previousIndex === currentIndex) return;
     const previousIds = orderProductIds(visible);
     moveItemInArray(visible, event.previousIndex, currentIndex);
+    applyCdkListOrder(event.container.data, visible);
     this.applyVisibleOrder(visible.map((p) => p.slug), previousIds);
   }
 
