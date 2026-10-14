@@ -19,10 +19,26 @@ export const COLLECTION_LABELS: Record<CollectionSlug, Collection> = {
 /** Admin / API publish state. The create/edit control uses draft | published. */
 export type ProductPublishStatus = 'draft' | 'published';
 
+/** Status shown on the product form, including locked Arquivado. */
+export type ProductStatusValue = ProductPublishStatus | 'archived';
+
 export const PRODUCT_STATUS_OPTIONS: ReadonlyArray<{ value: ProductPublishStatus; label: string }> = [
   { value: 'draft', label: 'Rascunho' },
   { value: 'published', label: 'Publicado' },
 ];
+
+export const ARCHIVED_STATUS_OPTION = { value: 'archived' as const, label: 'Arquivado' };
+
+export const SITE_UNAVAILABLE_HINT = 'Esta peça não está no site.';
+
+/** Live storefront link — drafts and archived pieces are not on the site. */
+export function canOpenProductOnSite(
+  status: string | null | undefined,
+  archivedAt?: string | Date | null,
+): boolean {
+  if (archivedAt != null && archivedAt !== '') return false;
+  return status === 'published';
+}
 
 /** Exact `status` values CreateProductDto / UpdateProductDto whitelist. */
 export function productStatusForApi(

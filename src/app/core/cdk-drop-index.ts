@@ -65,3 +65,12 @@ export function resolveCdkDropIndex(
   }
   return fromEvent;
 }
+
+/**
+ * Write the dropped order onto CDK’s bound array so the list does not snap
+ * back to the pre-drop order while the save is still in flight.
+ */
+export function applyCdkListOrder<T>(list: T[] | null | undefined, next: readonly T[]): void {
+  if (!list || list === next) return;
+  list.splice(0, list.length, ...next);
+}
