@@ -61,6 +61,24 @@ describe('stockroom piece order', () => {
     piece.remove();
   });
 
+  it('saves from a hovered piece when the event target is the canvas, not the card', () => {
+    const canvas = document.createElement('canvas');
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'target', { value: canvas });
+    const save = jasmine.createSpy('save');
+    expect(saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save)).toBeFalse();
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save, 'b'),
+    ).toBeTrue();
+    expect(save).toHaveBeenCalledWith('organic-dreams', ['a', 'b', 'c'], ['a', 'c', 'b']);
+  });
+
   it('triggers the same save as drop immediately on Shift+arrow (not debounced)', () => {
     const piece = document.createElement('div');
     piece.setAttribute('data-slug', 'b');

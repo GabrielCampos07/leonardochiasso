@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, tap, delay, throwError } from 'rxjs';
+import { NEVER, of, tap, delay, throwError } from 'rxjs';
 import {
   ADD_PIECE_STAGGER_MS,
   AdminCollectionProductsService,
@@ -85,7 +85,11 @@ describe('AdminCollectionProductsService', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   function setup(
-    setProducts: (slug: string, productSlugs: string[]) => ReturnType<AdminCollectionsApiService['setProducts']>,
+    setProducts: (
+      slug: string,
+      productSlugs: string[],
+      opts?: { keepMissing?: boolean },
+    ) => ReturnType<AdminCollectionsApiService['setProducts']>,
     getProducts: (slug: string) => ReturnType<AdminCollectionsApiService['getProducts']> = () =>
       of({ productSlugs: [] }),
   ): AdminCollectionProductsService {
@@ -172,23 +176,22 @@ describe('AdminCollectionProductsService', () => {
     expect(service.current('organic-dreams')).toEqual(['vestido', 'boa']);
   });
 
-  it('keeps archived members on the collection when a 3D drag reorders live hangers', async () => {
-    const puts: string[][] = [];
+  it('PUTs live order immediately with keepMissing even when GET membership never emits', async () => {
+    const puts: { slugs: string[]; keepMissing?: boolean }[] = [];
     const service = setup(
-      (_slug, productSlugs) => {
-        puts.push([...productSlugs]);
-        return of(result('organic-dreams', productSlugs));
+      (_slug, productSlugs, opts) => {
+        puts.push({ slugs: [...productSlugs], keepMissing: opts?.keepMissing });
+        return of(result('organic-dreams', ['arquivo', ...productSlugs]));
       },
-      () => of({ productSlugs: ['arquivo', 'a', 'b', 'c'] }),
+      () => NEVER,
     );
 
     const saved = await new Promise<SetCollectionProductsResult>((resolve, reject) => {
       service.replaceLiveOrder('organic-dreams', ['c', 'a', 'b']).subscribe({ next: resolve, error: reject });
     });
 
-    expect(puts).toEqual([['arquivo', 'c', 'a', 'b']]);
+    expect(puts).toEqual([{ slugs: ['c', 'a', 'b'], keepMissing: true }]);
     expect(saved.productSlugs).toContain('arquivo');
-    expect(service.current('organic-dreams')).toEqual(['arquivo', 'c', 'a', 'b']);
   });
 });
 

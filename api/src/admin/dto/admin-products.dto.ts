@@ -317,6 +317,11 @@ export class SetCollectionProductsDto {
     message: 'productSlugs must contain valid kebab-case slugs.',
   })
   productSlugs!: string[];
+
+  /** 3D reorder: keep members that are not in productSlugs (archived / unloaded). */
+  @IsOptional()
+  @IsBoolean()
+  keepMissing?: boolean;
 }
 
 export class CollectionGenderQueryDto {

@@ -92,10 +92,14 @@ export class AdminCollectionsApiService {
     });
   }
 
-  setProducts(slug: string, productSlugs: string[]): Observable<SetCollectionProductsResult> {
+  setProducts(
+    slug: string,
+    productSlugs: string[],
+    opts: { keepMissing?: boolean } = {},
+  ): Observable<SetCollectionProductsResult> {
     return this.http.put<SetCollectionProductsResult>(
       `${this.url}/${encodeURIComponent(slug)}/products`,
-      { productSlugs },
+      { productSlugs, ...(opts.keepMissing ? { keepMissing: true } : {}) },
       { withCredentials: true },
     );
   }
