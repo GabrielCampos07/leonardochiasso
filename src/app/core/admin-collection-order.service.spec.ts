@@ -90,4 +90,18 @@ describe('AdminCollectionOrderService', () => {
     expect(box.err?.status).toBe(400);
     expect((box.err?.error as { message?: string })?.message).toBe('Lista incompleta para este gênero.');
   });
+
+  it('does not swallow a failed PUT as a local success', () => {
+    const box: { err?: HttpErrorResponse } = {};
+    service.put('organic-dreams', 'masculino', ['id-a']).subscribe({
+      next: () => fail('expected error'),
+      error: (e: unknown) => {
+        box.err = e as HttpErrorResponse;
+      },
+    });
+    http
+      .expectOne('http://order.test/api/admin/collections/organic-dreams/order?gender=masculino')
+      .flush('gone', { status: 404, statusText: 'Not Found' });
+    expect(box.err?.status).toBe(404);
+  });
 });

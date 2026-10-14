@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AdminCatalogService, adminHttpErrorMessage, collectionFromSlug } from '../../core/admin-catalog.service';
 import { resolveAdminCollectionContext } from '../../core/admin-collection-context';
@@ -9,7 +9,7 @@ import {
   CollectionSlug,
   ROUTES,
 } from '../../core/routes';
-import { archiveAwareError, showArchiveUndo } from '../../core/admin-archive';
+import { archiveAwareError, isArchivedAt, showArchiveUndo } from '../../core/admin-archive';
 import { ToastService } from '../../core/feedback/toast.service';
 import { AdminProductForm } from './admin-product-form';
 
@@ -50,6 +50,7 @@ function blankProduct(collectionSlug: string | null): Product {
     collectionSlug: (collectionSlug ?? '') as CollectionSlug,
     pieces: [],
     stockQty: 1,
+    status: 'draft',
   };
 }
 
@@ -72,6 +73,8 @@ export class AdminProductEditPage implements OnInit {
   readonly isNew = signal(false);
   readonly collectionFromContext = signal(false);
   readonly collectionRequired = signal(false);
+  readonly restoring = signal(false);
+  readonly isArchived = computed(() => isArchivedAt(this.draft()?.archivedAt));
 
   ngOnInit(): void {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
@@ -126,5 +129,24 @@ export class AdminProductEditPage implements OnInit {
 
   cancel(): void {
     void this.router.navigateByUrl(ROUTES.adminProducts);
+  }
+
+  restore(): void {
+    const p = this.draft();
+    if (!p || this.restoring()) return;
+    this.restoring.set(true);
+    this.adminCatalog.restoreViaApi(p.slug).subscribe({
+      next: (restored) => {
+        this.draft.set({ ...structuredClone(restored), archivedAt: null });
+        this.restoring.set(false);
+        this.toast.success('Restaurado.');
+      },
+      error: (err) => {
+        this.restoring.set(false);
+        this.toast.error(
+          archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível restaurar.')),
+        );
+      },
+    });
   }
 }

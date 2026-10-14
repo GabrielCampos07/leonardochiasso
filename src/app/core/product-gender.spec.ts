@@ -6,7 +6,9 @@ import {
   matchesGenderFilter,
   matchesPublicGenderHub,
   MASCULINO_UNISSEX_NOTICE,
+  livePiecesForOrder,
   orderProductId,
+  orderProductIds,
   productGender,
   publicGenderBlock,
   storefrontCategory,
@@ -88,6 +90,13 @@ describe('orderProductId / applyProductIdOrder', () => {
       'a',
       'b',
     ]);
+  });
+
+  it('drops archived pieces from the reorder list and PUT ids', () => {
+    const live = piece('u1', 'unissex', { productId: 'id-u1' });
+    const archived = { ...piece('old', 'masculino', { productId: 'id-old' }), archivedAt: '2026-10-01T00:00:00.000Z' };
+    expect(livePiecesForOrder([live, archived]).map((p) => p.slug)).toEqual(['u1']);
+    expect(orderProductIds([live, archived])).toEqual(['id-u1']);
   });
 });
 

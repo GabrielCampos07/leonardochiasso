@@ -27,15 +27,18 @@ import { CatalogService } from '../../core/catalog.service';
 import {
   COLLECTION_LABELS,
   Collection,
+  PRODUCT_STATUS_OPTIONS,
   Product,
   ProductColor,
   ProductMedia,
   ProductPiece,
+  ProductPublishStatus,
   formatPriceLabel,
+  productStatusForApi,
 } from '../../core/product.model';
 import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
-import { archiveAwareError, confirmArchivePiece } from '../../core/admin-archive';
+import { archiveAwareError, confirmArchivePiece, isArchivedAt } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
@@ -113,6 +116,7 @@ export class AdminProductForm implements OnInit {
   readonly archived = output<Product>();
 
   readonly archiving = signal(false);
+  readonly isArchived = computed(() => isArchivedAt(this.draft()?.archivedAt));
 
   readonly apiCollections = signal<{ slug: string; name: string }[]>([]);
   readonly collectionsLoading = signal(true);
@@ -150,6 +154,7 @@ export class AdminProductForm implements OnInit {
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
+  readonly statusOptions = PRODUCT_STATUS_OPTIONS;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
   readonly useApi = this.adminCatalog.useApi;
 
@@ -211,10 +216,23 @@ export class AdminProductForm implements OnInit {
   }
 
   loadDraft(p: Product): void {
-    this.draft.set(p);
+    this.draft.set({
+      ...p,
+      status: productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
+    });
     this.detailsText = (p.details ?? []).join('\n');
     this.selectedSwatchIds = (p.colors ?? []).map((c) => c.id);
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
+  }
+
+  currentStatus(): ProductPublishStatus {
+    return productStatusForApi(this.draft()?.status, this.isNew() ? 'draft' : 'published');
+  }
+
+  onStatusChange(raw: string): void {
+    const p = this.draft();
+    if (!p) return;
+    this.draft.set({ ...p, status: productStatusForApi(raw, this.isNew() ? 'draft' : 'published') });
   }
 
   onNameChange(name: string): void {
@@ -561,6 +579,7 @@ export class AdminProductForm implements OnInit {
       pieces: pieces.length ? pieces : undefined,
       media: this.galleryItems(),
       stockQty: parseStockQty(p.stockQty),
+      status: this.currentStatus(),
       ...syncPriceFields(p.price),
     };
 

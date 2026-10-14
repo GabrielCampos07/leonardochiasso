@@ -121,6 +121,13 @@ describe('AdminCollectionEditPage gender UX', () => {
     dto({ slug: 'f1', name: 'F1', gender: 'feminino', id: 'id-f1' }),
     dto({ slug: 'u1', name: 'U1', gender: 'unissex', id: 'id-u1' }),
     dto({ slug: 'm1', name: 'M1', gender: 'masculino', id: 'id-m1' }),
+    dto({
+      slug: 'old',
+      name: 'Old',
+      gender: 'masculino',
+      id: 'id-old',
+      archivedAt: '2026-10-01T00:00:00.000Z',
+    }),
   ];
 
   beforeEach(async () => {
@@ -229,7 +236,32 @@ describe('AdminCollectionEditPage gender UX', () => {
         ],
       },
     } as never);
+    fixture.detectChanges();
     expect(put).toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith('productIds must match the gender list');
+    expect(toast.error).toHaveBeenCalled();
+    expect(String(toast.error.calls.mostRecent().args[0])).toBe('productIds must match the gender list');
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.orderError()).toBe('productIds must match the gender list');
+    expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+      'productIds must match the gender list',
+    );
+  });
+
+  it('omits archived products from the reorder list and PUT body', () => {
+    fixture.componentInstance.setGenderFilter('masculino');
+    orderGet.next({
+      collection: 'teste-colecao2',
+      gender: 'masculino',
+      productIds: ['id-u1', 'id-m1', 'id-old'],
+    });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).not.toContain('old');
+
+    fixture.componentInstance.move('u1', 1);
+    expect(put).toHaveBeenCalled();
+    const ids = put.calls.mostRecent().args[2] as string[];
+    expect(ids).toEqual(['id-m1', 'id-u1']);
+    expect(ids).not.toContain('id-old');
   });
 });

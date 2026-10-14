@@ -73,6 +73,9 @@
   @if (showUnissexNotice()) {
     <p class="admin-list__notice" role="status">{{ unissexNotice }}</p>
   }
+  @if (orderError()) {
+    <p class="admin-list__notice" role="alert">{{ orderError() }}</p>
+  }
 
   <p class="admin-list__count">
     @if (loading() || orderLoading()) {

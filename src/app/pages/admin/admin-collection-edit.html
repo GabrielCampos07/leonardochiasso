@@ -128,6 +128,9 @@
         @if (showUnissexNotice()) {
           <p class="admin-col-products__notice" role="status">{{ unissexNotice }}</p>
         }
+        @if (orderError()) {
+          <p class="admin-col-products__notice" role="alert">{{ orderError() }}</p>
+        }
 
         @if (savingOrder()) {
           <p class="admin-list__count">Salvando ordem…</p>

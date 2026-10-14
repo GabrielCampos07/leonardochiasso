@@ -40,6 +40,19 @@
         />
       </div>
       <div class="admin-edit__field">
+        <span>Status</span>
+        <lc-segmented
+          id="atelier-product-status"
+          [options]="statusOptions"
+          [value]="currentStatus()"
+          label="Status"
+          (valueChange)="onStatusChange($event)"
+        />
+      </div>
+      @if (currentStatus() === 'draft') {
+        <p class="admin-edit__hint">Rascunho — a peça não aparece no site até ser publicada.</p>
+      }
+      <div class="admin-edit__field">
         <span>Coleção</span>
         <lc-list-picker
           controlId="atelier-product-collection"
@@ -344,7 +357,7 @@
       <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving() || archiving()">
         Cancelar
       </button>
-      @if (!isNew()) {
+      @if (!isNew() && !isArchived()) {
         <button
           type="button"
           class="admin-edit__archive"

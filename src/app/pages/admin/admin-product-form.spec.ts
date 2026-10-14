@@ -6,7 +6,7 @@ import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
-import { Product } from '../../core/product.model';
+import { PRODUCT_STATUS_OPTIONS, Product, productStatusForApi } from '../../core/product.model';
 import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
@@ -172,6 +172,23 @@ describe('AdminProductForm', () => {
   });
 
   afterEach(() => fixture.destroy());
+
+  it('defaults a new product to Rascunho on our segmented control', () => {
+    expect(fixture.componentInstance.currentStatus()).toBe('draft');
+    expect(fixture.componentInstance.draft()?.status).toBe('draft');
+    const group = fixture.nativeElement.querySelector('#atelier-product-status') as HTMLElement;
+    expect(group).toBeTruthy();
+    expect(group.querySelector('[role="radiogroup"]')).toBeTruthy();
+    const on = group.querySelector('.is-on') as HTMLElement;
+    expect(on?.textContent?.trim()).toBe('Rascunho');
+    expect(PRODUCT_STATUS_OPTIONS.map((o) => o.value)).toEqual(['draft', 'published']);
+    fixture.componentInstance.onStatusChange('published');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.currentStatus()).toBe('published');
+    expect(fixture.nativeElement.querySelector('#atelier-product-status .is-on')?.textContent?.trim()).toBe(
+      'Publicado',
+    );
+  });
 
   it('shows the collection name only and skips a native select', () => {
     expect(list).toHaveBeenCalledWith(false, { refresh: true });

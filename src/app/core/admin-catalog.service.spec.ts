@@ -54,6 +54,7 @@ function createdDto(product: Product): ApiProductDto {
     collections: [{ slug: product.collectionSlug, name: product.collection }],
     thumb: '',
     gallery: [],
+    archivedAt: product.archivedAt ?? null,
   };
 }
 
@@ -94,7 +95,7 @@ describe('AdminCatalogService create payload contract', () => {
         collectionSlug: 'organic-dreams',
         priceCents: 120000,
         stockQty: 3,
-        status: 'published',
+        status: 'draft',
         description: 'Peça unissex',
         color: 'Off-white',
         size: 'ÚNICO',
@@ -135,5 +136,50 @@ describe('AdminCatalogService create payload contract', () => {
     const req = http.expectOne('http://payload.test/api/admin/products');
     expect(req.request.body.stockQty).toBe(-4);
     req.flush(createdDto(product));
+  });
+
+  it('loads an archived product after the live list misses it', () => {
+    const box: { value?: Product } = {};
+    service.get$('look-arquivo').subscribe((p) => {
+      if (p) box.value = p;
+    });
+    http.expectOne('http://payload.test/api/admin/products').flush([]);
+    const archived = http.expectOne(
+      (req) =>
+        req.url === 'http://payload.test/api/admin/products' && req.params.get('archived') === 'true',
+    );
+    archived.flush([
+      createdDto(sampleProduct({ slug: 'look-arquivo', name: 'Look arquivo', archivedAt: '2026-10-01T00:00:00.000Z' })),
+    ]);
+    expect(box.value?.slug).toBe('look-arquivo');
+    expect(box.value?.archivedAt).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('POSTs status draft by default and published when chosen', () => {
+    service.saveProduct$(sampleProduct(), { isNew: true, details: [] }).subscribe();
+    const draftReq = http.expectOne('http://payload.test/api/admin/products');
+    expect(draftReq.request.body.status).toBe('draft');
+    draftReq.flush(createdDto(sampleProduct()));
+    http.expectOne('http://payload.test/api/admin/products/look-unissex').flush(createdDto(sampleProduct()));
+
+    service
+      .saveProduct$(sampleProduct({ status: 'published' }), { isNew: true, details: [] })
+      .subscribe();
+    const pubReq = http.expectOne('http://payload.test/api/admin/products');
+    expect(pubReq.request.body.status).toBe('published');
+    pubReq.flush(createdDto(sampleProduct({ status: 'published' })));
+    http
+      .expectOne('http://payload.test/api/admin/products/look-unissex')
+      .flush(createdDto(sampleProduct({ status: 'published' })));
+  });
+
+  it('PATCHes status on edit', () => {
+    service
+      .saveProduct$(sampleProduct({ status: 'draft' }), { isNew: false, details: [] })
+      .subscribe();
+    const req = http.expectOne('http://payload.test/api/admin/products/look-unissex');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body.status).toBe('draft');
+    req.flush(createdDto(sampleProduct({ status: 'draft' })));
   });
 });
