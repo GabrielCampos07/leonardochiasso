@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
@@ -9,6 +9,7 @@ import { ToastService } from '../../core/feedback/toast.service';
 import { Product } from '../../core/product.model';
 import {
   AdminProductForm,
+  COLLECTION_PICKER_LOADING,
   STOCK_NEGATIVE_MESSAGE,
   collectionSelectLabel,
   parseStockQty,
@@ -70,9 +71,9 @@ describe('collectionSelectLabel', () => {
     expect(collectionSelectLabel('organic-dreams')).toBe('Organic Dreams');
   });
 
-  it('pre-fills ?colecao= with the slug until the catalog name arrives', () => {
-    expect(collectionSelectLabel('teste-colecao2')).toBe('teste-colecao2');
-    expect(collectionSelectLabel('teste-colecao2', 'teste-colecao2')).toBe('teste-colecao2');
+  it('does not use the raw slug as a label before the catalog arrives', () => {
+    expect(collectionSelectLabel('teste-colecao2')).toBe('');
+    expect(collectionSelectLabel('teste-colecao2', 'teste-colecao2')).toBe('');
   });
 
   it('uses the catalog name after the list loads even when it matches the slug', () => {
@@ -199,6 +200,7 @@ describe('AdminProductForm', () => {
     const trigger = fixture.nativeElement.querySelector('#atelier-product-collection') as HTMLElement;
     expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO2');
     expect(trigger.textContent).not.toContain('Selecione a coleção');
+    expect(trigger.textContent).not.toContain('teste-colecao2');
   });
 
   it('keeps a negative stock, validates with the API copy, and still sends it', () => {
@@ -283,5 +285,71 @@ describe('AdminProductForm', () => {
       'Falha interna ao salvar.',
     );
     expect(toast.error).toHaveBeenCalledWith('Falha interna ao salvar.');
+  });
+});
+
+describe('AdminProductForm collection picker while catalog loads', () => {
+  it('shows Carregando… for ?colecao= and never the raw slug, then the name', async () => {
+    const pending = new Subject<
+      { id: string; slug: string; name: string; description: null; sortOrder: number; publishedAt: null }[]
+    >();
+    await TestBed.configureTestingModule({
+      imports: [AdminProductForm],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            mediaOf: () => [],
+            slugExists: () => false,
+            saveProduct$: jasmine.createSpy('saveProduct$'),
+          },
+        },
+        { provide: AdminCollectionsApiService, useValue: { list: () => pending.asObservable() } },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        {
+          provide: ToastService,
+          useValue: { error: () => undefined, success: () => undefined, info: () => undefined },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductForm);
+    fixture.componentRef.setInput(
+      'product',
+      sampleProduct({
+        collectionSlug: 'teste-colecao2' as Product['collectionSlug'],
+        collection: 'teste-colecao2' as Product['collection'],
+      }),
+    );
+    fixture.componentRef.setInput('isNew', true);
+    fixture.componentRef.setInput('collectionFromContext', true);
+    fixture.detectChanges();
+
+    const trigger = () =>
+      fixture.nativeElement.querySelector('#atelier-product-collection') as HTMLElement;
+    expect(fixture.componentInstance.collectionPickerLoading()).toBeTrue();
+    expect(trigger().textContent?.replace(/\s+/g, ' ').trim()).toBe(COLLECTION_PICKER_LOADING);
+    expect(trigger().textContent).not.toContain('teste-colecao2');
+
+    pending.next([
+      {
+        id: '5',
+        slug: 'teste-colecao2',
+        name: 'TESTE-COLECAO2',
+        description: null,
+        sortOrder: 5,
+        publishedAt: null,
+      },
+    ]);
+    pending.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.collectionPickerLoading()).toBeFalse();
+    expect(fixture.componentInstance.selectedCollectionLabel()).toBe('TESTE-COLECAO2');
+    expect(trigger().textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO2');
+    expect(trigger().textContent).not.toContain('teste-colecao2');
+    fixture.destroy();
   });
 });

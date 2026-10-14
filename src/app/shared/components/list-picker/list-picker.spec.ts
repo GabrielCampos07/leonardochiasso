@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { LcListPicker } from './list-picker';
+import { LIST_PICKER_LOADING, LcListPicker } from './list-picker';
 
 describe('LcListPicker', () => {
   let fixture: ComponentFixture<LcListPicker>;
@@ -16,22 +16,25 @@ describe('LcListPicker', () => {
     fixture.detectChanges();
   });
 
-  it('shows the ?colecao= slug instead of an empty Coleção label', () => {
+  it('shows Carregando… for a preselected value while the catalog loads — never the slug', () => {
     fixture.componentRef.setInput('value', 'teste-colecao2');
-    fixture.componentRef.setInput('resolvedLabel', 'Coleção');
+    fixture.componentRef.setInput('resolvedLabel', '');
+    fixture.componentRef.setInput('loading', true);
     fixture.detectChanges();
     const trigger = fixture.nativeElement.querySelector('#lc-list-picker') as HTMLElement;
-    expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('teste-colecao2');
+    expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe(LIST_PICKER_LOADING);
+    expect(trigger.getAttribute('aria-busy')).toBe('true');
+    expect(trigger.textContent).not.toContain('teste-colecao2');
     expect(trigger.textContent).not.toContain('Selecione a coleção');
-    expect(trigger.textContent).not.toContain('Coleção');
   });
 
-  it('replaces the slug with the catalog name once it arrives', () => {
+  it('shows the catalog name once it arrives', () => {
     fixture.componentRef.setInput('value', 'teste-colecao2');
     fixture.componentRef.setInput('resolvedLabel', 'TESTE-COLECAO2');
+    fixture.componentRef.setInput('loading', false);
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector('#lc-list-picker')?.textContent?.trim()).toBe(
-      'TESTE-COLECAO2',
-    );
+    const trigger = fixture.nativeElement.querySelector('#lc-list-picker') as HTMLElement;
+    expect(trigger.textContent?.trim()).toBe('TESTE-COLECAO2');
+    expect(trigger.textContent).not.toContain('teste-colecao2');
   });
 });

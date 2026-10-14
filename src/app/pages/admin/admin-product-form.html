@@ -48,6 +48,7 @@
           [options]="collectionPickerOptions()"
           [value]="p.collectionSlug || ''"
           [resolvedLabel]="selectedCollectionLabel()"
+          [loading]="collectionPickerLoading()"
           (valueChange)="onCollectionSlugChange($event)"
           (opened)="refreshCollections()"
         />
