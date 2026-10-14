@@ -4,6 +4,7 @@ import {
   isCreateSheetViewport,
   pieceModalFromHangerClick,
 } from './admin-3d-page';
+import { collectionSwitcherItems } from '../../../scene-engine/camera-guide';
 import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
 
 describe('clampCreatePanel', () => {
@@ -42,6 +43,17 @@ describe('atelier hint copy', () => {
   it('is only the gesture line — Fechar stays off the hint', () => {
     expect(ATELIER_HINT_COPY).not.toMatch(/fechar/i);
     expect(ATELIER_HINT_COPY).toContain('Clique');
+  });
+});
+
+describe('collection switcher', () => {
+  it('lists Ver todas plus each rack and never uses a native select', () => {
+    const items = collectionSwitcherItems([
+      { id: 'organic-dreams', name: 'Organic Dreams' },
+      { id: 'niponic-dreams', name: 'Niponic Dreams' },
+    ]);
+    expect(items[0]).toEqual({ id: 'all', name: 'Ver todas' });
+    expect(items.map((item) => item.name)).toEqual(['Ver todas', 'Organic Dreams', 'Niponic Dreams']);
   });
 });
 

@@ -32,6 +32,7 @@ export function blankAtelierProduct(collectionSlug: string): Product {
     gallery: [],
     media: [],
     category: 'feminino',
+    gender: 'feminino',
     collection: collectionSlug as Collection,
     collectionSlug: collectionSlug as CollectionSlug,
     pieces: [],

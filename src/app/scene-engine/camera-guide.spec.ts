@@ -5,8 +5,10 @@ import {
   CREATE_TWEEN_MS,
   computeEyeLevelFit,
   chromeBandTargetY,
+  collectionSwitcherItems,
   computePortraitOverviewFit,
   isPortraitAtelierViewport,
+  portraitOverviewTargetY,
   OVERVIEW_MAX_DISTANCE,
   OVERVIEW_MAX_DISTANCE_COMPACT,
   PORTRAIT_STACK_PITCH,
@@ -43,6 +45,13 @@ describe('rackNavItems', () => {
     expect(rackNavItems([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }])).toEqual([
       { id: 'a', name: 'A', index: 0 },
       { id: 'b', name: 'B', index: 1 },
+    ]);
+  });
+
+  it('lists Ver todas first for the mobile collection switcher', () => {
+    expect(collectionSwitcherItems(rackNavItems([{ id: 'organic-dreams', name: 'Organic Dreams' }]))).toEqual([
+      { id: 'all', name: 'Ver todas' },
+      { id: 'organic-dreams', name: 'Organic Dreams' },
     ]);
   });
 
@@ -278,11 +287,11 @@ describe('portrait Ver todas stack', () => {
     const stackVisible = 2 * Math.tan((38 * Math.PI) / 360) * stacked.distance * (393 / 852);
     expect(6.8 / stackVisible).toBeLessThan(1.02);
     expect(6.8 / stackVisible).toBeGreaterThan(0.7);
-    const stackCy = (stack.minY + stack.maxY) / 2;
-    const stackH = stack.maxY - stack.minY;
-    const band = chromeBandTargetY(stackCy, stackH, chrome);
-    expect(stacked.target.y).toBeCloseTo(stackCy + (band - stackCy) * 0.4, 5);
-    expect(stacked.target.y).toBeLessThan(stackCy);
+    const viewH = 2 * Math.tan((38 * Math.PI) / 360) * stacked.distance;
+    expect(stacked.target.y).toBeCloseTo(portraitOverviewTargetY(stack.maxY, viewH, chrome), 5);
+    const stackTopOnScreen = 0.5 - (stack.maxY - stacked.target.y) / viewH;
+    expect(stackTopOnScreen).toBeGreaterThan(chrome.top - 0.05);
+    expect(stackTopOnScreen).toBeLessThan(chrome.top + 0.03);
   });
 });
 

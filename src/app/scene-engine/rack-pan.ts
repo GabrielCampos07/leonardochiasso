@@ -132,9 +132,9 @@ export function rackArrowDelta(key: string): -1 | 1 | 0 {
 
 /**
  * Wheel vs zoom:
- * 1. Wheel over ANY rack (frame / hangers / photos / rug) → never zoom,
- *    even when that rack cannot pan. Capture-phase stop + enableZoom off.
- * 2. Wheel elsewhere (floor, wall, empty) → zoom.
+ * 1. Wheel over the focused rack silhouette + rug (or any rack in Ver todas)
+ *    → never zoom, even when that rack cannot pan.
+ * 2. Wheel on the open floor / wall → zoom.
  * 3. Ctrl+wheel / trackpad pinch (`ctrlKey`, also meta) → zoom toward the
  *    cursor anywhere, including over a rack, so a piece can go close-up.
  */

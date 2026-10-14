@@ -2,6 +2,13 @@ import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-
 import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { LcSegmented } from '../../shared/components/segmented/segmented';
+import {
+  PRODUCT_GENDER_OPTIONS,
+  ProductGender,
+  productGender,
+  storefrontCategory,
+} from '../../core/product-gender';
 import {
   ADMIN_SWATCH_OPTIONS,
   AdminCatalogService,
@@ -67,7 +74,7 @@ export function collectionSelectLabel(
 @Component({
   selector: 'lc-admin-product-form',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule],
+  imports: [FormsModule, RouterLink, DragDropModule, LcSegmented],
   templateUrl: './admin-product-form.html',
   styleUrl: './admin-product-form.scss',
 })
@@ -103,6 +110,7 @@ export class AdminProductForm implements OnInit {
     return [...known, ...extras];
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
+  readonly genderOptions = PRODUCT_GENDER_OPTIONS;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
   readonly useApi = this.adminCatalog.useApi;
 
@@ -150,6 +158,23 @@ export class AdminProductForm implements OnInit {
     this.slugLocked = true;
     const clean = slugifyName(slug) || slug.trim().toLowerCase();
     this.draft.set({ ...p, slug: clean, id: clean });
+  }
+
+  currentGender(): ProductGender {
+    const p = this.draft();
+    return p ? productGender(p) : 'feminino';
+  }
+
+  onGenderChange(raw: string): void {
+    const p = this.draft();
+    if (!p) return;
+    const gender: ProductGender =
+      raw === 'masculino' || raw === 'unissex' ? raw : 'feminino';
+    this.draft.set({
+      ...p,
+      gender,
+      category: storefrontCategory({ slug: p.slug, gender }),
+    });
   }
 
   onCollectionSlugChange(raw: string): void {

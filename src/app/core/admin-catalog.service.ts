@@ -27,6 +27,7 @@ import {
 } from './product.model';
 import { PRODUCTS } from './products';
 import { COLLECTION_SLUGS, CollectionSlug } from './routes';
+import { ProductGender, storefrontCategory } from './product-gender';
 import { recommendRank, sortByRecommendOrder } from './recommend-order';
 
 const STORAGE_KEY = 'lc-admin-catalog';
@@ -37,6 +38,7 @@ export interface AdminCreateProductPayload {
   name: string;
   slug: string;
   category: 'feminino' | 'masculino';
+  gender?: ProductGender;
   collectionSlug: string;
   priceCents: number;
   status?: string;
@@ -52,6 +54,7 @@ export interface AdminUpdateProductPayload {
   name?: string;
   slug?: string;
   category?: 'feminino' | 'masculino';
+  gender?: ProductGender;
   collectionSlug?: string;
   priceCents?: number;
   status?: string;
@@ -275,7 +278,8 @@ export class AdminCatalogService {
     return this.createViaApi({
       name: product.name.trim(),
       slug: product.slug.trim(),
-      category: product.category,
+      category: storefrontCategory(product),
+      gender: product.gender ?? storefrontCategory(product),
       collectionSlug,
       priceCents: product.priceCents ?? Math.round(product.price * 100),
       stockQty: Math.max(0, Math.round(product.stockQty ?? 0)),
@@ -319,7 +323,8 @@ export class AdminCatalogService {
       return this.createViaApi({
         name: product.name.trim(),
         slug: product.slug.trim(),
-        category: product.category,
+        category: storefrontCategory(product),
+        gender: product.gender ?? storefrontCategory(product),
         collectionSlug,
         priceCents,
         stockQty,
@@ -350,7 +355,8 @@ export class AdminCatalogService {
 
     return this.updateViaApi(product.slug, {
       name: product.name.trim(),
-      category: product.category,
+      category: storefrontCategory(product),
+      gender: product.gender ?? storefrontCategory(product),
       collectionSlug,
       priceCents,
       stockQty,

@@ -170,7 +170,8 @@ describe('SceneEngine portrait Ver todas stack', () => {
     const organic = engine.unitScreenBounds('organic-dreams');
     const brazilian = engine.unitScreenBounds('brazilian-dreams');
     expect(organic && brazilian).toBeTruthy();
-    expect(organic!.top).toBeGreaterThan(8);
+    expect(organic!.top).toBeGreaterThan(12);
+    expect(organic!.top).toBeLessThan(90);
     expect(organic!.bottom - organic!.top).toBeGreaterThan(90);
     expect(brazilian!.bottom).toBeLessThan(852 - 110);
     await saveShot(engine, 'mobile-ver-todas-393x852');
@@ -205,6 +206,12 @@ describe('SceneEngine portrait Ver todas stack', () => {
     expect(organicPan.label).toBe('4 de 8');
     expect(engine.orbitDistance()).toBeGreaterThan(6);
     expect(engine.orbitDistance()).toBeLessThan(16);
+    const organic = engine.unitScreenBounds('organic-dreams');
+    expect(organic).toBeTruthy();
+    expect(organic!.top).toBeGreaterThan(4);
+    expect(organic!.bottom).toBeGreaterThan(400);
+    expect(organic!.bottom).toBeLessThan(852 - 110);
+    expect(organic!.right).toBeGreaterThan(320);
     await saveShot(engine, 'mobile-organic-default-393x852', organicPan.label);
 
     engine.focusRack('brazilian-dreams', true);

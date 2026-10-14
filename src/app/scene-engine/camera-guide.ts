@@ -144,7 +144,7 @@ export function pieceFocusBox(
 /** Side inset so hangers fill ~85% of the viewport width. */
 export const FIT_WIDTH_MARGIN = 0.075;
 /** Tight side air so a 4-column compact frame fills the phone width. */
-export const FIT_WIDTH_MARGIN_COMPACT = 0.055;
+export const FIT_WIDTH_MARGIN_COMPACT = 0.03;
 /** Sit a compact focused rack higher so the wall does not eat the top 40%. */
 export const COMPACT_RACK_RAISE = 0.5;
 /** Portrait 8-col Organic needs ~23 units; the old 10 cap cropped the posts. */
@@ -183,8 +183,10 @@ export function isPortraitAtelierViewport(
 export const PORTRAIT_STACK_PITCH = 2.42;
 /** Pull the stack off the plaster so the wall never covers Organic. */
 export const PORTRAIT_STACK_Z = 0.62;
-export const PORTRAIT_OVERVIEW_FILL = 1.12;
+export const PORTRAIT_OVERVIEW_FILL = 1;
 export const PORTRAIT_OVERVIEW_ELEVATION = 0.035;
+/** Tiny world air so Organic's title sits just below the header, not under it. */
+export const PORTRAIT_OVERVIEW_TOP_AIR = 0;
 
 /** Same X, first collection on top, last rack standing on the floor. */
 export function portraitStackOffset(index: number, count: number): { x: number; y: number; z: number } {
@@ -228,6 +230,13 @@ export function rackNavItems(
     name: rack.name,
     index,
   }));
+}
+
+/** Ver todas first, then each collection — mobile bottom-bar switcher list. */
+export function collectionSwitcherItems(
+  racks: ReadonlyArray<{ id: string; name: string }>,
+): Array<{ id: string; name: string }> {
+  return [{ id: OVERVIEW_FOCUS_ID, name: 'Ver todas' }, ...racks.map((rack) => ({ id: rack.id, name: rack.name }))];
 }
 
 /** Distance that fits `width` in the horizontal FOV, with a side margin on each edge. */
@@ -307,9 +316,11 @@ export function computeEyeLevelFit(
   let targetY = cy + bandShift - (mode === 'piece' ? 0.08 : 0);
   if (compact && mode === 'rack') {
     const slack = Math.max(0, viewH * visibleH - height);
-    targetY -= height * COMPACT_RACK_RAISE * 0.45 + slack * 0.2;
+    // Use little of the leftover height as raise — dumping slack below the rack
+    // left a tall empty floor on Organic and clipped tall Brazilian titles.
+    targetY -= height * COMPACT_RACK_RAISE * 0.38 + slack * 0.06;
   }
-  const elevation = compact ? 0.07 : mode === 'piece' ? 0.3 : 0.22;
+  const elevation = compact ? (mode === 'rack' ? 0.045 : 0.07) : mode === 'piece' ? 0.3 : 0.22;
   return poseFromElevation(cx, targetY, cz, distance, elevation);
 }
 
@@ -321,6 +332,13 @@ export function chromeBandTargetY(cy: number, height: number, chrome: ChromeInse
   const visibleH = Math.max(0.38, 1 - chrome.top - chrome.bottom);
   const bandCenter = chrome.bottom + visibleH / 2;
   return cy + ((0.5 - bandCenter) / visibleH) * height;
+}
+
+/** Look-at Y that pins `boxMaxY` just below the header in a portrait stack. */
+export function portraitOverviewTargetY(boxMaxY: number, viewH: number, chrome: ChromeInsets): number {
+  // Elevation looks slightly down, which drops the stack on screen — compensate so
+  // Organic's title sits under the header instead of a plaster band.
+  return boxMaxY - (0.5 - chrome.top) * viewH - viewH * 0.018 + PORTRAIT_OVERVIEW_TOP_AIR;
 }
 
 /**
@@ -337,7 +355,6 @@ export function computePortraitOverviewFit(
   const height = Math.max(box.maxY - box.minY, 0.4);
   const depth = Math.max(box.maxZ - box.minZ, 0.2);
   const cx = (box.minX + box.maxX) / 2;
-  const cy = (box.minY + box.maxY) / 2;
   const cz = (box.minZ + box.maxZ) / 2;
   const pads = chrome ?? defaultChromeInsets(true);
   const visibleH = Math.max(0.38, 1 - pads.top - pads.bottom);
@@ -346,7 +363,8 @@ export function computePortraitOverviewFit(
   const fitW = distanceToFitWidth(width, aspect, fovDeg, FIT_WIDTH_MARGIN_COMPACT);
   let distance = Math.max(fitH * PORTRAIT_OVERVIEW_FILL, fitW) + depth * 0.08;
   distance = Math.min(Math.max(distance, 2.2), OVERVIEW_MAX_DISTANCE);
-  const targetY = cy + (chromeBandTargetY(cy, height, pads) - cy) * 0.4;
+  const viewH = 2 * Math.tan(fov / 2) * distance;
+  const targetY = portraitOverviewTargetY(box.maxY, viewH, pads);
   return poseFromElevation(cx, targetY, cz, distance, PORTRAIT_OVERVIEW_ELEVATION);
 }
 

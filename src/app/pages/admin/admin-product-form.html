@@ -29,19 +29,16 @@
         </label>
         <p class="admin-edit__hint">Gerado automaticamente a partir do nome. Pode ajustar.</p>
       }
-      <label>
-        Gênero
-        <select
+      <div class="admin-edit__field">
+        <span>Gênero</span>
+        <lc-segmented
           id="atelier-product-category"
-          [ngModel]="p.category"
-          (ngModelChange)="patchField('category', $event)"
-          name="category"
-          autocomplete="off"
-        >
-          <option value="feminino">Feminino</option>
-          <option value="masculino">Masculino</option>
-        </select>
-      </label>
+          [options]="genderOptions"
+          [value]="currentGender()"
+          label="Gênero"
+          (valueChange)="onGenderChange($event)"
+        />
+      </div>
       <label>
         Coleção
         <select
@@ -167,6 +164,9 @@
         />
       </label>
       <p class="admin-edit__hint">Inteiro ≥ 0. Zero marca a peça como esgotada.</p>
+      @if ((p.stockQty ?? 0) <= 0) {
+        <span class="admin-row__sold-out">Esgotado</span>
+      }
     </fieldset>
 
     <fieldset>
