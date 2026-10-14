@@ -26,12 +26,14 @@ describe('LcUtility public contact', () => {
   it('shows the atelier e-mail as a mailto link and never a phone number', () => {
     const link = fixture.nativeElement.querySelector('.utility__contact') as HTMLAnchorElement;
     expect(link.getAttribute('href')).toBe(PUBLIC_CONTACT_MAILTO);
+    expect(link.getAttribute('href')).toBe('mailto:contact@leonardochiasso.com');
     expect(link.textContent).toContain(PUBLIC_CONTACT_EMAIL);
+    expect(link.textContent).toContain('contact@leonardochiasso.com');
     expect(link.textContent).not.toContain('99999-0000');
     expect(link.textContent).not.toContain('(62)');
     expect(fixture.nativeElement.querySelector('.utility__phone')).toBeNull();
     expect(fixture.nativeElement.querySelector('.utility__email')?.textContent?.trim()).toBe(
-      PUBLIC_CONTACT_EMAIL,
+      'contact@leonardochiasso.com',
     );
   });
 });

@@ -189,7 +189,7 @@ docs/             # checklists e backlog
 
 Configurados no footer / atendimento:
 
-- `Contact@leonardochiasso.com`
+- `contact@leonardochiasso.com`
 - `ArtCouture@leonardochiasso.com`
 - `Uomo@leonardochiasso.com`
 - `Donna@leonardochiasso.com`

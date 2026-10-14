@@ -6,9 +6,10 @@ const FORBIDDEN_PUBLIC_CONTACT = /tel:|wa\.me|whatsapp/i;
 
 describe('public atelier contact', () => {
   it('is email-only — mailto, no tel: or WhatsApp', () => {
-    expect(PUBLIC_CONTACT_EMAIL).toBe('Contact@leonardochiasso.com');
+    expect(PUBLIC_CONTACT_EMAIL).toBe('contact@leonardochiasso.com');
+    expect(PUBLIC_CONTACT_EMAIL).toBe(PUBLIC_CONTACT_EMAIL.toLowerCase());
     expect(PUBLIC_CONTACT_MAILTO).toBe(`mailto:${PUBLIC_CONTACT_EMAIL}`);
-    expect(PUBLIC_CONTACT_MAILTO).toMatch(/^mailto:/);
+    expect(PUBLIC_CONTACT_MAILTO).toMatch(/^mailto:contact@/);
     expect(PUBLIC_CONTACT_MAILTO).not.toMatch(FORBIDDEN_PUBLIC_CONTACT);
     expect(PUBLIC_CONTACT_EMAIL).not.toMatch(/\d{2}\s*\d{4,5}/);
   });

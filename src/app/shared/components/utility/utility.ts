@@ -99,6 +99,7 @@ import { WishlistService } from '../../../core/wishlist.service';
       gap: 12px;
       min-width: 0;
       flex: 1;
+      overflow: hidden;
     }
     .utility__menu {
       display: inline-flex;
@@ -134,6 +135,7 @@ import { WishlistService } from '../../../core/wishlist.service';
       opacity: 0.7;
     }
     .utility__contact-label {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -155,7 +157,14 @@ import { WishlistService } from '../../../core/wishlist.service';
       }
     }
     .utility__email {
-      flex-shrink: 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    @media (max-width: 359px) {
+      .utility__email {
+        display: none;
+      }
     }
     .utility__actions {
       display: flex;

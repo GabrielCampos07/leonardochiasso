@@ -89,7 +89,7 @@ export function headerBrandMark(opts: {
 export const CONTACT_EMAILS = {
   geral: {
     label: 'Contatos em geral',
-    email: 'Contact@leonardochiasso.com',
+    email: 'contact@leonardochiasso.com',
   },
   artCouture: {
     label: 'Alta costura',
