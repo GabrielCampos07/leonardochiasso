@@ -11,7 +11,9 @@ import {
   fitOrthoBox,
   lerpPose,
   offsetDirection,
+  stockroomInsetsPx,
   stockroomZoomLimits,
+  uprightScreenPx,
   viewBasis,
 } from './stockroom-camera';
 
@@ -95,5 +97,23 @@ describe('stockroom camera', () => {
     expect(end.zoom).toBeCloseTo(4, 6);
     expect(end.target.distanceTo(b.target)).toBeLessThan(1e-6);
     expect(lerpPose(a, b, 0.5).zoom).toBeCloseTo(2, 6);
+  });
+});
+
+describe('stockroom pixel helpers', () => {
+  it('measures an upright plane on screen from the ortho zoom and tilt', () => {
+    const viewportH = 600;
+    const polar = Math.PI / 3;
+    const zoom = 2;
+    const px = uprightScreenPx(0.5, polar, zoom, viewportH);
+    expect(px).toBeCloseTo((0.5 * Math.sin(polar) * zoom * viewportH) / (2 * STOCKROOM_FRUSTUM_HALF), 6);
+    expect(uprightScreenPx(0.5, polar, zoom * 2, viewportH)).toBeCloseTo(px * 2, 6);
+  });
+
+  it('turns fixed pixel bands into fractional insets', () => {
+    const insets = stockroomInsetsPx(640, 64, 16);
+    expect(insets.top).toBeCloseTo(0.1, 6);
+    expect(insets.bottom).toBeCloseTo(0.025, 6);
+    expect(stockroomInsetsPx(100, 400, 400).top).toBeLessThanOrEqual(0.4);
   });
 });

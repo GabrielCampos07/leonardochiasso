@@ -293,6 +293,45 @@ export function areaFocusBox(
   };
 }
 
+/** Consecutive bays `[start, start + count)` of an area, clamped to the bays it has. */
+export function clampBayWindow(area: StockroomArea, start: number, count: number): { start: number; count: number } {
+  const total = Math.max(1, area.bayX.length);
+  const n = Math.min(total, Math.max(1, Math.floor(count)));
+  return { start: Math.min(total - n, Math.max(0, Math.floor(start))), count: n };
+}
+
+/**
+ * Camera box for a window of bays: just the piece fronts, lowest to highest level
+ * (frame tops and the floor are cropped). The collection name is an HTML label
+ * above it, so no sign height.
+ */
+export function bayWindowBox(
+  area: StockroomArea,
+  start: number,
+  count: number,
+  spec: StockroomBaySpec = CC0_BAY,
+): {
+  min: [number, number, number];
+  max: [number, number, number];
+} {
+  const w = clampBayWindow(area, start, count);
+  const first = area.bayX[w.start] ?? area.x;
+  const last = area.bayX[w.start + w.count - 1] ?? area.x;
+  const front = area.bayFrontZ - spec.pieceInset + spec.piece.d / 2;
+  const half = spec.piece.h / 2 + BAY_WINDOW_PAD_Y;
+  return {
+    min: [first - spec.width / 2 - 0.08, Math.min(...spec.levelY) - half, front - 0.05],
+    max: [last + spec.width / 2 + 0.08, Math.max(...spec.levelY) + half, front + 0.05],
+  };
+}
+
+export const BAY_WINDOW_PAD_Y = 0.06;
+
+/** Slugs of the pieces stored in bays `[start, start + count)`. */
+export function slotsInWindow(area: StockroomArea, start: number, count: number): StockroomSlot[] {
+  return area.slots.filter((s) => s.bay >= start && s.bay < start + count);
+}
+
 export function slotFocusBox(
   slot: StockroomSlot,
   spec: StockroomBaySpec = CC0_BAY,

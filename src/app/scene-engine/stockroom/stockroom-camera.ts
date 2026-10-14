@@ -10,6 +10,15 @@ export const STOCKROOM_POLAR_DEFAULT = 44 * DEG;
 /** Zoomed views tilt a little toward the box fronts so photos read larger. */
 export const STOCKROOM_POLAR_AREA = 52 * DEG;
 export const STOCKROOM_POLAR_PIECE = 56 * DEG;
+/** Collection view: steep enough that box / card photos read without zooming. */
+export const STOCKROOM_POLAR_SHELF = 58 * DEG;
+/** Smaller swing than the room view: each bay of a wide window would otherwise skew the frame taller. */
+export const STOCKROOM_AZIMUTH_SHELF = 4 * DEG;
+/** A collection view frames as many bays as keep every photo at least this tall (CSS px). */
+export const STOCKROOM_MIN_PHOTO_PX = 125;
+/** Band kept free above the bays for the HTML collection name, and below them. */
+export const STOCKROOM_LABEL_BAND_PX = 64;
+export const STOCKROOM_FLOOR_BAND_PX = 16;
 /** Limited swing either side of the front view. */
 export const STOCKROOM_AZIMUTH_LIMIT = 30 * DEG;
 export const STOCKROOM_AZIMUTH_DEFAULT = 14 * DEG;
@@ -110,6 +119,21 @@ export function fitOrthoBox(
   const shift = (insets.bottom - insets.top) * (visibleH / 2);
   const target = projectedCenter.addScaledVector(up, -shift);
   return { zoom, target };
+}
+
+/** On-screen height (CSS px) of an upright plane `worldH` tall under an ortho pose. */
+export function uprightScreenPx(worldH: number, polar: number, zoom: number, viewportH: number): number {
+  return (worldH * Math.sin(polar) * zoom * viewportH) / (2 * STOCKROOM_FRUSTUM_HALF);
+}
+
+/** Fractional insets for fixed pixel bands at the top and bottom of a viewport. */
+export function stockroomInsetsPx(
+  viewportH: number,
+  top = STOCKROOM_LABEL_BAND_PX,
+  bottom = STOCKROOM_FLOOR_BAND_PX,
+): StockroomInsets {
+  const h = Math.max(1, viewportH);
+  return { top: Math.min(0.4, top / h), bottom: Math.min(0.3, bottom / h) };
 }
 
 export function clampStockroomTarget(target: Vector3, room: StockroomBounds, maxY = 3.6): Vector3 {

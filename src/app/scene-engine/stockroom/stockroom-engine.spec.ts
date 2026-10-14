@@ -1,7 +1,7 @@
 import { OVERVIEW_FOCUS_ID } from '../camera-guide';
 import type { SceneHanger, SceneLayout } from '../types';
 import { DRAFT_UNIT_ID } from '../unit-layout';
-import { StockroomEngine, createStockroomEngine, upsertHanger } from './stockroom-engine';
+import { StockroomEngine, compactPrice, createStockroomEngine, upsertHanger } from './stockroom-engine';
 import { SKETCHFAB_KIT } from './stockroom-kit-sketchfab';
 
 function hanger(rackId: string, j: number, extra: Partial<SceneHanger> = {}): SceneHanger {
@@ -31,11 +31,32 @@ function layout(counts: number[]): SceneLayout {
   };
 }
 
+/** First client point (coarse grid) whose pick lands on the area itself, not a piece. */
+function areaPick(e: StockroomEngine, id: string): { x: number; y: number } | null {
+  const pick = (e as unknown as { pick(x: number, y: number): { slug: string | null; areaId: string | null } }).pick.bind(e);
+  for (let y = 20; y < 720; y += 16) {
+    for (let x = 20; x < 1280; x += 16) {
+      const hit = pick(x, y);
+      if (!hit.slug && hit.areaId === id) return { x, y };
+    }
+  }
+  return null;
+}
+
 function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number): void {
   canvas.dispatchEvent(
     new PointerEvent(type, { clientX: x, clientY: y, button: 0, buttons: type === 'pointerdown' ? 1 : 0, pointerId: 7, bubbles: true }),
   );
 }
+
+describe('compactPrice', () => {
+  it('drops whole cents and the site-wide hidden-price note', () => {
+    expect(compactPrice('R$ 7.200,00 (oculto no site)')).toBe('R$ 7.200');
+    expect(compactPrice('R$ 7.200,50')).toBe('R$ 7.200,50');
+    expect(compactPrice('Sob consulta')).toBe('Sob consulta');
+    expect(compactPrice(null)).toBe('');
+  });
+});
 
 describe('upsertHanger', () => {
   it('updates a piece in place without reordering its collection', () => {
@@ -117,18 +138,146 @@ describe('StockroomEngine', () => {
     e.setLayout(base);
   });
 
-  it('has no per-rack pan window', (done) => {
-    boot([9], () => {
-      expect(engine!.panRack(1)).toBeFalse();
-      expect(engine!.canPan(-1)).toBeFalse();
-      expect(engine!.rackPanState().showChrome).toBeFalse();
+  /** Canvas of the admin 3D at a 1280×800 window: header above, nav bar below. */
+  function desktopStage(): void {
+    host.style.height = '636px';
+    engine?.resize();
+  }
+
+  function minPhotoEdge(e: StockroomEngine): number {
+    return Math.min(...e.overlay().pieces.map((p) => e.pieceScreenRect(p.slug)!.edge));
+  }
+
+  it('lands on the first collection, not the whole room', (done) => {
+    boot([6, 6, 6], () => {
+      const e = engine!;
+      expect(e.focusedRackId()).toBe('c0');
+      const labels = e.overlay().areas;
+      expect(labels.find((a) => a.focused)?.id).toBe('c0');
+      expect(labels.find((a) => a.focused)?.name).toBe('Coleção 0');
       done();
+    });
+  });
+
+  it('keeps every framed photo at least 120 px tall on a 1280×800 desktop', (done) => {
+    desktopStage();
+    boot([17, 18, 12], () => {
+      const e = engine!;
+      expect(e.overlay().pieces.length).toBe(17);
+      expect(minPhotoEdge(e)).toBeGreaterThanOrEqual(120);
+      e.focusRack('c1', true);
+      requestAnimationFrame(() => {
+        expect(e.overlay().pieces.filter((p) => p.slug.startsWith('c1-')).length).toBe(18);
+        expect(minPhotoEdge(e)).toBeGreaterThanOrEqual(120);
+        done();
+      });
+    });
+  });
+
+  it('frames a short collection whole, without bay paging', (done) => {
+    desktopStage();
+    boot([9], () => {
+      const e = engine!;
+      expect(e.areaBayWindow('c0')).toEqual({ start: 0, count: 2, total: 2 });
+      expect(e.panRack(1)).toBeFalse();
+      expect(e.canPan(-1)).toBeFalse();
+      expect(e.rackPanState().showChrome).toBeFalse();
+      done();
+    });
+  });
+
+  it('pages the bays of a long collection and reports the pieces in view', (done) => {
+    desktopStage();
+    boot([40], () => {
+      const e = engine!;
+      const win = e.areaBayWindow('c0')!;
+      expect(win.total).toBe(7);
+      expect(win.count).toBeLessThan(7);
+      const first = e.rackPanState();
+      expect(first.showChrome).toBeTrue();
+      expect(first.canPrev).toBeFalse();
+      expect(first.canNext).toBeTrue();
+      expect(first.label).toBe(`1–${win.count * 6} de 40`);
+      const pans: number[] = [];
+      e.onPanChange(() => pans.push(e.areaBayWindow('c0')!.start));
+      expect(e.panRack(1)).toBeTrue();
+      expect(e.rackPanState().first).toBe(win.count * 6 + 1);
+      expect(e.canPan(-1)).toBeTrue();
+      while (e.panRack(1)) {
+        /* to the last page */
+      }
+      const last = e.rackPanState();
+      expect(last.canNext).toBeFalse();
+      expect(last.last).toBe(40);
+      expect(pans.length).toBeGreaterThan(0);
+      expect(minPhotoEdge(e)).toBeGreaterThanOrEqual(120);
+      done();
+    });
+  });
+
+  it('captions legible photos in HTML and hides their painted badge', (done) => {
+    const base = layout([3, 2]);
+    base.racks[0].hangers[1] = hanger('c0', 1, { stockQty: 0, priceLabel: 'R$ 7.200,00 (oculto no site)' });
+    base.racks[0].hangers[2] = hanger('c0', 2, { status: 'draft' });
+    base.racks[1] = { ...base.racks[1]!, unpublished: true };
+    if (!engine) {
+      pending('WebGL not available in this browser');
+      return;
+    }
+    const e = engine;
+    e.start();
+    e.onFirstFrame(() => {
+      const seen: number[] = [];
+      e.onOverlay((frame) => seen.push(frame.pieces.length));
+      requestAnimationFrame(() => {
+        const pieces = new Map(e.overlay().pieces.map((p) => [p.slug, p]));
+        expect(pieces.get('c0-1')?.badge).toBe('soldout');
+        expect(pieces.get('c0-1')?.badgeText).toBe('ESGOTADO');
+        expect(pieces.get('c0-1')?.price).toBe('R$ 7.200');
+        expect(pieces.get('c0-2')?.badge).toBe('draft');
+        expect(pieces.get('c0-0')?.name).toBe('Peça 0');
+        expect(pieces.get('c0-0')!.h).toBeGreaterThanOrEqual(90);
+        const boxes = (e as unknown as { boxes: Map<string, { badge: { visible: boolean } }> }).boxes;
+        expect(boxes.get('c0-1')!.badge.visible).toBeFalse();
+        expect(seen.length).toBeGreaterThan(0);
+        e.focusRack('c1', true);
+        requestAnimationFrame(() => {
+          const label = e.overlay().areas.find((a) => a.focused)!;
+          expect(label.id).toBe('c1');
+          expect(label.unpublished).toBeTrue();
+          expect(label.count).toBe(2);
+          done();
+        });
+      });
+    });
+    e.setLayout(base);
+  });
+
+  it('outlines the hovered piece and shows a pointer', (done) => {
+    boot([4], () => {
+      const e = engine!;
+      requestAnimationFrame(() => {
+        const at = e.boxScreenPoint('c0-1')!;
+        canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: at.x, clientY: at.y, buttons: 0, bubbles: true }));
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            expect(e.isHoverOutlined('c0-1')).toBeTrue();
+            expect(e.isHoverOutlined('c0-0')).toBeFalse();
+            expect(canvas.style.cursor).toBe('pointer');
+            expect(e.overlay().pieces.find((p) => p.hover)?.slug).toBe('c0-1');
+            canvas.dispatchEvent(new PointerEvent('pointerleave', { bubbles: true }));
+            expect(e.isHoverOutlined('c0-1')).toBeFalse();
+            done();
+          });
+        });
+      });
     });
   });
 
   it('zooms in when a collection is focused and back out for the overview', (done) => {
     boot([6, 6, 6, 6], () => {
       const e = engine!;
+      e.focusOverview(true);
       const overview = e.cameraZoom();
       const focused: string[] = [];
       e.onFocusChange((id) => focused.push(id));
@@ -162,6 +311,7 @@ describe('StockroomEngine', () => {
   it('focuses an area when its floor is tapped, and offers to add pieces to an empty one', (done) => {
     boot([3, 0], () => {
       const e = engine!;
+      e.focusOverview(true);
       const empty: string[] = [];
       e.onEmptyUnit((id) => empty.push(id));
       requestAnimationFrame(() => {
@@ -171,7 +321,9 @@ describe('StockroomEngine', () => {
         expect(e.focusedRackId()).toBe('c1');
         expect(empty).toEqual([]);
         requestAnimationFrame(() => {
-          const again = e.areaScreenPoint('c1')!;
+          // The collection view crops the rug, so tap the empty bay itself.
+          const again = areaPick(e, 'c1')!;
+          expect(again).not.toBeNull();
           pointer(canvas, 'pointerdown', again.x, again.y);
           pointer(canvas, 'pointerup', again.x, again.y);
           expect(empty).toEqual(['c1']);
@@ -281,6 +433,20 @@ describe('StockroomEngine with the Sketchfab kit (option B)', () => {
     bootB(base, () => {
       expect(engine!.areaUnpublished('c0')).toBeFalse();
       expect(engine!.areaUnpublished('c1')).toBeTrue();
+      done();
+    });
+  });
+
+  it('lands on the first collection with photos at least 120 px tall on a 1280×800 desktop', (done) => {
+    host.style.height = '636px';
+    engine?.resize();
+    bootB(layout([17, 18]), () => {
+      const e = engine!;
+      expect(e.focusedRackId()).toBe('c0');
+      const edges = e.overlay().pieces.map((p) => e.pieceScreenRect(p.slug)!.edge);
+      expect(edges.length).toBeGreaterThan(0);
+      expect(Math.min(...edges)).toBeGreaterThanOrEqual(120);
+      expect(e.rackPanState().showChrome).toBeTrue();
       done();
     });
   });

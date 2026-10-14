@@ -10,8 +10,12 @@ import {
   BOX_W,
   SIGN_TOP_Y,
   SLOTS_PER_BAY,
+  CC0_BAY,
   areaFocusBox,
   bayCount,
+  bayWindowBox,
+  clampBayWindow,
+  slotsInWindow,
   packRows,
   planStockroom,
   slotCell,
@@ -95,5 +99,33 @@ describe('stockroom layout', () => {
     const plan = planStockroom([unit('a', 4), unit('b', 30)]);
     expect(plan.room.minX).toBeLessThan(plan.bounds.minX);
     expect(plan.room.maxZ).toBeGreaterThan(plan.bounds.maxZ);
+  });
+
+  it('clamps a bay window to the bays a collection has', () => {
+    const area = planStockroom([unit('a', SLOTS_PER_BAY * 3)]).areas[0];
+    expect(clampBayWindow(area, 0, 2)).toEqual({ start: 0, count: 2 });
+    expect(clampBayWindow(area, 2, 2)).toEqual({ start: 1, count: 2 });
+    expect(clampBayWindow(area, -4, 9)).toEqual({ start: 0, count: 3 });
+    expect(clampBayWindow(area, 1, 0)).toEqual({ start: 1, count: 1 });
+  });
+
+  it('frames a bay window from the lowest to the highest piece, at the piece fronts', () => {
+    const area = planStockroom([unit('a', SLOTS_PER_BAY * 2)]).areas[0];
+    const one = bayWindowBox(area, 0, 1);
+    const two = bayWindowBox(area, 0, 2);
+    expect(one.min[1]).toBeCloseTo(Math.min(...CC0_BAY.levelY) - BOX_H / 2 - 0.06, 5);
+    expect(one.max[1]).toBeCloseTo(Math.max(...CC0_BAY.levelY) + BOX_H / 2 + 0.06, 5);
+    expect(one.max[1]).toBeLessThan(BAY_H);
+    expect(one.max[0] - one.min[0]).toBeCloseTo(BAY_W + 0.16, 5);
+    expect(two.max[0] - two.min[0]).toBeCloseTo(BAY_W * 2 + 0.16, 5);
+    expect(one.max[2] - one.min[2]).toBeLessThan(0.2);
+    const second = bayWindowBox(area, 1, 1);
+    expect(second.min[0]).toBeCloseTo(one.min[0] + BAY_W, 5);
+  });
+
+  it('lists the pieces stored in a bay window', () => {
+    const area = planStockroom([unit('a', SLOTS_PER_BAY + 2)]).areas[0];
+    expect(slotsInWindow(area, 0, 1).length).toBe(SLOTS_PER_BAY);
+    expect(slotsInWindow(area, 1, 1).map((s) => s.index)).toEqual([SLOTS_PER_BAY, SLOTS_PER_BAY + 1]);
   });
 });

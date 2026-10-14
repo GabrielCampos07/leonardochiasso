@@ -30,7 +30,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createAtelierLoadingManager, loadGlb } from '../atelier-assets';
-import { OVERVIEW_FOCUS_ID, easeInOutCubic, measureAtelierChrome } from '../camera-guide';
+import { OVERVIEW_FOCUS_ID, easeInOutCubic } from '../camera-guide';
 import { disposeRenderer } from '../dispose';
 import type {
   AtelierEngine,
@@ -45,6 +45,7 @@ import type {
   SceneCompleteHandler,
 } from '../engine-contract';
 import { insertUnitBeforeUncollected, removeUnitFromLayout } from '../mapping';
+import { HIDDEN_ON_SITE_SUFFIX } from '../hanger-price';
 import { makePhotoMaterial, applyPhotoMap } from '../photo-material';
 import { hangerTextureUrls, type HangerTextureQuality } from '../photo-url';
 import { EMPTY_RACK_PAN, type RackPanProgress } from '../rack-pan';
@@ -72,31 +73,46 @@ import { placeMatrix, type KitBuilder, type PlaceOptions, type StockroomKit } fr
 import {
   STOCKROOM_AZIMUTH_DEFAULT,
   STOCKROOM_AZIMUTH_LIMIT,
+  STOCKROOM_AZIMUTH_SHELF,
   STOCKROOM_CAMERA_DISTANCE,
   STOCKROOM_FRUSTUM_HALF,
-  STOCKROOM_POLAR_AREA,
+  STOCKROOM_MIN_PHOTO_PX,
   STOCKROOM_POLAR_DEFAULT,
   STOCKROOM_POLAR_MAX,
   STOCKROOM_POLAR_PIECE,
   STOCKROOM_POLAR_MIN,
+  STOCKROOM_POLAR_SHELF,
+  STOCKROOM_SIDE_INSET,
   STOCKROOM_TWEEN_MS,
   clampStockroomTarget,
   fitOrthoBox,
   lerpPose,
   offsetDirection,
+  stockroomInsetsPx,
   stockroomZoomLimits,
+  uprightScreenPx,
+  viewBasis,
   type StockroomInsets,
   type StockroomPose,
 } from './stockroom-camera';
-import { areaTint, boxBadge, boxPhotoTint, makeBadgeTexture, makeSignTexture } from './stockroom-labels';
+import {
+  areaTint,
+  boxBadge,
+  boxPhotoTint,
+  makeBadgeTexture,
+  makeSignTexture,
+  type BoxBadgeKind,
+} from './stockroom-labels';
 import {
   AREA_BACK_INSET,
   SIGN_H,
   SIGN_TILT,
-  areaFocusBox,
+  bayWindowBox,
+  clampBayWindow,
   planStockroom,
   signY,
   slotFocusBox,
+  slotsInWindow,
   type StockroomArea,
   type StockroomPlan,
   type StockroomUnitInput,
@@ -107,7 +123,53 @@ export { placeMatrix } from './stockroom-kit';
 export interface StockroomEngineOptions extends SceneEngineOptions {
   /** Option A (`CC0_KIT`, default) or option B (`SKETCHFAB_KIT`). */
   kit?: StockroomKit;
+  /** First camera: the first collection's bays (default) or the whole room. */
+  initialFocus?: 'first' | 'overview';
 }
+
+/** Collection name pinned above its bays, in canvas-local CSS px (bottom-centre anchor). */
+export interface StockroomAreaLabel {
+  id: string;
+  name: string;
+  count: number;
+  unpublished: boolean;
+  draft: boolean;
+  focused: boolean;
+  x: number;
+  y: number;
+}
+
+/** Caption over a piece photo, in canvas-local CSS px (photo rect). */
+export interface StockroomPieceLabel {
+  slug: string;
+  name: string;
+  price: string;
+  badge: BoxBadgeKind;
+  badgeText: string;
+  hover: boolean;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface StockroomOverlay {
+  width: number;
+  height: number;
+  areas: StockroomAreaLabel[];
+  pieces: StockroomPieceLabel[];
+}
+
+export type StockroomOverlayHandler = (overlay: StockroomOverlay) => void;
+
+/** Photos shorter than this on screen keep their painted 3D badge and get no HTML caption. */
+export const STOCKROOM_CAPTION_MIN_PX = 90;
+const HOVER_OUTLINE = 0x2563eb;
+/** Bay windows hug the piece fronts, so they need less fit padding than whole-room views. */
+const WINDOW_FIT_PAD = 1.04;
+/** A wider window may cost this much zoom (≈ photo size) and still count as "fits". */
+const WINDOW_ZOOM_SLACK = 0.97;
+const OUTLINE_PAD = 0.07;
 
 const CLEAR = 0xd9d2c7;
 const SHARED = 'stockroomShared';
@@ -116,13 +178,13 @@ const TAP_MAX_MS = 650;
 const ARCHIVE_MS = 500;
 const POP_MS = 420;
 const PHOTO_CONCURRENCY = 6;
-const CUTAWAY_MS = 260;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 
 interface BoxNode {
   group: Group;
   photo: Mesh<PlaneGeometry, MeshBasicMaterial>;
   badge: Mesh<PlaneGeometry, MeshBasicMaterial>;
+  outline: Mesh<PlaneGeometry, MeshBasicMaterial>;
   hanger: SceneHanger;
   areaId: string;
 }
@@ -203,6 +265,10 @@ export class StockroomEngine implements AtelierEngine {
   private readonly anims = new Set<Anim>();
   private readonly photoGeometry: PlaneGeometry;
   private readonly badgeGeometry: PlaneGeometry;
+  private readonly outlineGeometry: PlaneGeometry;
+  private readonly initialFocus: 'first' | 'overview';
+  /** areaId → first bay of the framed window. */
+  private readonly bayStart = new Map<string, number>();
   private readonly restoreAddEventListener: (() => void) | null;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -211,8 +277,11 @@ export class StockroomEngine implements AtelierEngine {
   private plan: StockroomPlan;
   private focus: Focus = { kind: 'overview' };
   private focusedId = OVERVIEW_FOCUS_ID;
-  private insets: StockroomInsets = { top: 0.1, bottom: 0.18 };
+  private insets: StockroomInsets = stockroomInsetsPx(720);
   private overviewZoom = 1;
+  private defaultFocusPending = true;
+  private overlayKey = '';
+  private lastOverlay: StockroomOverlay = { width: 0, height: 0, areas: [], pieces: [] };
   private tween: Tween | null = null;
   private userMoved = false;
   private needsRender = true;
@@ -238,12 +307,16 @@ export class StockroomEngine implements AtelierEngine {
   private onProgressCb: LoadProgressHandler | null = null;
   private onDraftAnchorCb: DraftAnchorHandler | null = null;
   private onEmptyUnitCb: EmptyUnitHandler | null = null;
+  private onPanCb: PanChangeHandler | null = null;
+  private onOverlayCb: StockroomOverlayHandler | null = null;
 
   constructor(canvas: HTMLCanvasElement, options: StockroomEngineOptions = {}) {
     this.kit = options.kit ?? CC0_KIT;
+    this.initialFocus = options.initialFocus ?? 'first';
     this.plan = planStockroom([], undefined, this.kit.bay);
     this.photoGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.photo.h);
     this.badgeGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.badge.h);
+    this.outlineGeometry = new PlaneGeometry(this.kit.photo.w + OUTLINE_PAD, this.kit.photo.h + OUTLINE_PAD);
     this.builder = {
       bbox: (id) => this.templates.get(id)?.bbox ?? null,
       clone: (id, tint) => this.cloneAsset(id, tint),
@@ -304,6 +377,7 @@ export class StockroomEngine implements AtelierEngine {
     this.scene.add(this.roomRoot, this.areasRoot);
     this.photoGeometry.userData[SHARED] = true;
     this.badgeGeometry.userData[SHARED] = true;
+    this.outlineGeometry.userData[SHARED] = true;
 
     this.assetsReady = this.loadAssets();
 
@@ -352,20 +426,51 @@ export class StockroomEngine implements AtelierEngine {
     this.onEmptyUnitCb = handler;
   }
 
-  onPanChange(_handler: PanChangeHandler): void {
-    /* Areas are framed whole; there is no per-rack pan window. */
+  onPanChange(handler: PanChangeHandler): void {
+    this.onPanCb = handler;
   }
 
-  panRack(_delta: -1 | 1): boolean {
-    return false;
+  /** Fires after a render whenever the HTML labels (collection names, piece captions) move. */
+  onOverlay(handler: StockroomOverlayHandler | null): void {
+    this.onOverlayCb = handler;
+    this.overlayKey = '';
+    this.requestRender();
   }
 
-  canPan(_delta: -1 | 1): boolean {
-    return false;
+  /** Page the focused collection's bay window when it has more bays than fit legibly. */
+  panRack(delta: -1 | 1): boolean {
+    const step = this.bayStep(delta);
+    if (!step) return false;
+    this.bayStart.set(step.area.id, step.start);
+    this.userMoved = false;
+    const pose = this.areaPose(step.area.id);
+    if (pose) this.moveTo(pose, this.reducedMotion);
+    this.onPanCb?.();
+    return true;
+  }
+
+  canPan(delta: -1 | 1): boolean {
+    return this.bayStep(delta) !== null;
   }
 
   rackPanState(): RackPanProgress {
-    return { ...EMPTY_RACK_PAN };
+    const area = this.focusedArea();
+    if (!area || !area.slots.length) return { ...EMPTY_RACK_PAN };
+    const win = this.bayWindow(area);
+    if (win.count >= area.bayX.length) return { ...EMPTY_RACK_PAN };
+    const slots = slotsInWindow(area, win.start, win.count);
+    const total = area.slots.length;
+    const first = slots.length ? slots[0]!.index + 1 : 0;
+    const last = slots.length ? slots[slots.length - 1]!.index + 1 : 0;
+    return {
+      first,
+      last,
+      total,
+      label: `${first}–${last} de ${total}`,
+      canPrev: win.start > 0,
+      canNext: win.start + win.count < area.bayX.length,
+      showChrome: true,
+    };
   }
 
   start(): void {
@@ -411,6 +516,34 @@ export class StockroomEngine implements AtelierEngine {
     return (this.boxes.get(slug)?.badge.userData['badge'] as string | undefined) ?? null;
   }
 
+  /** Canvas-local CSS px rect of a piece photo, or null when it is not mounted. */
+  pieceScreenRect(slug: string): { x: number; y: number; w: number; h: number; edge: number } | null {
+    const node = this.boxes.get(slug);
+    if (!node) return null;
+    this.camera.updateMatrixWorld(true);
+    const top = node.photo.localToWorld(new Vector3(-this.kit.photo.w / 2, this.kit.photo.h / 2, 0));
+    const bottom = node.photo.localToWorld(new Vector3(-this.kit.photo.w / 2, -this.kit.photo.h / 2, 0));
+    const a = this.project(top.x, top.y, top.z);
+    const b = this.project(bottom.x, bottom.y, bottom.z);
+    return { ...this.photoRect(node), edge: Math.hypot(a.x - b.x, a.y - b.y) };
+  }
+
+  /** Latest overlay frame (also pushed through `onOverlay`). */
+  overlay(): StockroomOverlay {
+    return this.lastOverlay;
+  }
+
+  /** Bays framed for a collection right now: `[start, start + count)`. */
+  areaBayWindow(id: string): { start: number; count: number; total: number } | null {
+    const area = this.plan.areas.find((a) => a.id === id);
+    if (!area) return null;
+    return { ...this.bayWindow(area), total: area.bayX.length };
+  }
+
+  isHoverOutlined(slug: string): boolean {
+    return this.boxes.get(slug)?.outline.visible === true;
+  }
+
   /** Client-space point on an area's rug, in front of its bays. */
   areaScreenPoint(id: string): { x: number; y: number } | null {
     const area = this.plan.areas.find((a) => a.id === id);
@@ -427,13 +560,28 @@ export class StockroomEngine implements AtelierEngine {
       this.focus = { kind: 'overview' };
       this.userMoved = false;
       this.setFocusedId(OVERVIEW_FOCUS_ID);
+      this.defaultFocusPending = true;
     }
     void this.assetsReady.then(() => {
       if (this.disposed) return;
       const first = !this.built;
       this.rebuild();
+      this.applyDefaultFocus();
       this.refocus(first || this.reducedMotion);
     });
+  }
+
+  /** First build (or the focused collection vanished): land on the first collection, not the room. */
+  private applyDefaultFocus(): void {
+    if (!this.defaultFocusPending) return;
+    this.defaultFocusPending = false;
+    if (this.initialFocus !== 'first' || this.focus.kind !== 'overview') return;
+    const first = this.plan.areas.find((a) => a.id !== DRAFT_UNIT_ID);
+    if (!first) return;
+    this.focus = { kind: 'area', id: first.id };
+    this.userMoved = false;
+    this.setFocusedId(first.id);
+    this.upgradeArea(first.id);
   }
 
   resize(): void {
@@ -446,13 +594,15 @@ export class StockroomEngine implements AtelierEngine {
     this.renderer.setSize(size.width, size.height, false);
     applyCanvasHostCss(this.canvas);
     this.applyFrustum();
+    this.insets = stockroomInsetsPx(size.height);
     if (changed && this.built && !this.userMoved) this.refocus(true);
     this.requestRender();
   }
 
+  /** The nav lives outside the canvas, so only the fixed label / floor bands are kept free. */
   refitToChrome(): void {
     if (this.disposed) return;
-    this.insets = measureAtelierChrome(this.host);
+    this.insets = stockroomInsetsPx(this.lastSize.height || this.host.clientHeight);
     if (this.built && !this.userMoved) this.refocus(true);
   }
 
@@ -484,6 +634,9 @@ export class StockroomEngine implements AtelierEngine {
     if (!area || !this.built) return false;
     this.focus = { kind: 'piece', slug };
     this.userMoved = false;
+    const slot = area.slots.find((s) => s.slug === slug)!;
+    const win = this.bayWindow(area);
+    if (slot.bay < win.start || slot.bay >= win.start + win.count) this.bayStart.set(area.id, slot.bay);
     this.setFocusedId(area.id);
     const pose = this.piecePose(slug);
     if (pose) this.moveTo(pose, immediate);
@@ -642,6 +795,7 @@ export class StockroomEngine implements AtelierEngine {
     }
     this.photoGeometry.dispose();
     this.badgeGeometry.dispose();
+    this.outlineGeometry.dispose();
     for (const resource of this.sharedGpu.values()) resource.dispose();
     this.sharedGpu.clear();
     photoTextureCache.clear();
@@ -654,6 +808,8 @@ export class StockroomEngine implements AtelierEngine {
     this.onProgressCb = null;
     this.onDraftAnchorCb = null;
     this.onEmptyUnitCb = null;
+    this.onPanCb = null;
+    this.onOverlayCb = null;
   }
 
   // ---------------------------------------------------------------- assets
@@ -770,7 +926,6 @@ export class StockroomEngine implements AtelierEngine {
     this.controls.maxZoom = limits.max;
     this.fitShadowCamera();
     this.built = true;
-    this.applyCutaway(true);
     for (const node of this.boxes.values()) {
       const slug = node.hanger.slug;
       if (this.photos.has(slug)) continue;
@@ -834,6 +989,8 @@ export class StockroomEngine implements AtelierEngine {
     );
     sign.name = 'sign';
     sign.userData['unpublished'] = rack?.unpublished === true;
+    // The name is an HTML label (see `onOverlay`) so it stays upright and sharp; the mesh keeps the state.
+    sign.visible = false;
     sign.position.set(area.x, signY(bay), area.z - area.depth / 2 + AREA_BACK_INSET + bay.depth * 0.4);
     sign.rotation.x = SIGN_TILT;
     group.add(sign);
@@ -866,7 +1023,17 @@ export class StockroomEngine implements AtelierEngine {
     const badge = new Mesh(this.badgeGeometry, makePhotoMaterial(null, { polygonOffset: -2 }));
     badge.position.set(0, -photoSpec.h / 2 + badgeSpec.h / 2, badgeSpec.z);
     group.add(badge);
-    const node: BoxNode = { group, photo, badge, hanger, areaId };
+    const outline = new Mesh(
+      this.outlineGeometry,
+      this.sharedResource('hoverOutline', () =>
+        makePhotoMaterial(null, { color: HOVER_OUTLINE, polygonOffset: -0.5 }),
+      ),
+    );
+    outline.position.set(0, 0, photoSpec.z - 0.001);
+    outline.visible = false;
+    outline.raycast = () => undefined;
+    group.add(outline);
+    const node: BoxNode = { group, photo, badge, outline, hanger, areaId };
     this.paintBox(node);
     return node;
   }
@@ -998,10 +1165,11 @@ export class StockroomEngine implements AtelierEngine {
     min: [number, number, number],
     max: [number, number, number],
     polar = STOCKROOM_POLAR_DEFAULT,
+    pad?: number,
+    azimuth = STOCKROOM_AZIMUTH_DEFAULT,
   ): StockroomPose {
     const box = new Box3(new Vector3(...min), new Vector3(...max));
-    const azimuth = STOCKROOM_AZIMUTH_DEFAULT;
-    const { zoom, target } = fitOrthoBox(box, polar, azimuth, this.aspect(), this.insets);
+    const { zoom, target } = fitOrthoBox(box, polar, azimuth, this.aspect(), this.insets, pad);
     return { polar, azimuth, target, zoom };
   }
 
@@ -1013,8 +1181,67 @@ export class StockroomEngine implements AtelierEngine {
   private areaPose(id: string): StockroomPose | null {
     const area = this.plan.areas.find((a) => a.id === id);
     if (!area) return null;
-    const box = areaFocusBox(area, this.kit.bay);
-    return this.fitPose(box.min, box.max, STOCKROOM_POLAR_AREA);
+    const win = this.bayWindow(area);
+    return this.scrollAlign(area, win.start, this.windowPose(area, win.start, win.count));
+  }
+
+  /**
+   * Bay height limits the zoom, so the screen is wider than the window. Slide the
+   * view (like a scroll position) so the window sits at the left and the next bays
+   * fill the rest, without running past the collection's last bay.
+   */
+  private scrollAlign(area: StockroomArea, start: number, pose: StockroomPose): StockroomPose {
+    const { right } = viewBasis(pose.polar, pose.azimuth);
+    const bay = this.kit.bay;
+    const y = (Math.min(...bay.levelY) + Math.max(...bay.levelY)) / 2;
+    const z = area.bayFrontZ;
+    const r = (x: number) => new Vector3(x, y, z).dot(right);
+    const half = ((STOCKROOM_FRUSTUM_HALF * this.aspect()) / pose.zoom) * (1 - 2 * STOCKROOM_SIDE_INSET);
+    const centred = pose.target.dot(right);
+    const left = r(area.bayX[start]! - bay.width / 2 - 0.08) + half;
+    const end = r(area.bayX[area.bayX.length - 1]! + bay.width / 2 + 0.08) - half;
+    const c = Math.max(centred, Math.min(left, end));
+    if (Math.abs(c - centred) < 1e-6) return pose;
+    return { ...pose, target: pose.target.clone().addScaledVector(right, c - centred) };
+  }
+
+  private windowPose(area: StockroomArea, start: number, count: number): StockroomPose {
+    const box = bayWindowBox(area, start, count, this.kit.bay);
+    return this.fitPose(box.min, box.max, STOCKROOM_POLAR_SHELF, WINDOW_FIT_PAD, STOCKROOM_AZIMUTH_SHELF);
+  }
+
+  /**
+   * Widest run of bays that still frames at (about) the single-bay zoom — bay
+   * height limits that zoom, so extra bays come free until the width runs out —
+   * or that keeps photos at least `STOCKROOM_MIN_PHOTO_PX` tall.
+   */
+  private windowSize(area: StockroomArea): number {
+    const viewportH = this.lastSize.height || 720;
+    const single = this.windowPose(area, 0, 1).zoom;
+    for (let count = area.bayX.length; count > 1; count -= 1) {
+      const pose = this.windowPose(area, 0, count);
+      if (pose.zoom >= single * WINDOW_ZOOM_SLACK) return count;
+      if (uprightScreenPx(this.kit.photo.h, pose.polar, pose.zoom, viewportH) >= STOCKROOM_MIN_PHOTO_PX) return count;
+    }
+    return 1;
+  }
+
+  private bayWindow(area: StockroomArea): { start: number; count: number } {
+    return clampBayWindow(area, this.bayStart.get(area.id) ?? 0, this.windowSize(area));
+  }
+
+  private focusedArea(): StockroomArea | null {
+    if (this.focus.kind !== 'area') return null;
+    const id = this.focus.id;
+    return this.plan.areas.find((a) => a.id === id) ?? null;
+  }
+
+  private bayStep(delta: -1 | 1): { area: StockroomArea; start: number } | null {
+    const area = this.focusedArea();
+    if (!area) return null;
+    const win = this.bayWindow(area);
+    const next = clampBayWindow(area, win.start + delta * win.count, win.count);
+    return next.start === win.start ? null : { area, start: next.start };
   }
 
   private piecePose(slug: string): StockroomPose | null {
@@ -1119,34 +1346,113 @@ export class StockroomEngine implements AtelierEngine {
   private setFocusedId(id: string): void {
     if (this.focusedId === id) return;
     this.focusedId = id;
-    this.applyCutaway(false);
+    this.requestRender();
     this.onFocusCb?.(id);
   }
 
-  /** Signs of rows in front of the focused area fade out so they never cover its shelves. */
-  private applyCutaway(immediate: boolean): void {
-    const focused = this.plan.areas.find((a) => a.id === this.focusedId);
-    for (const area of this.plan.areas) {
-      const sign = this.areaNodes.get(area.id)?.getObjectByName('sign') as Mesh | undefined;
-      if (!sign) continue;
-      const material = sign.material as MeshBasicMaterial;
-      const to = focused && area.row > focused.row ? 0 : 1;
-      const from = sign.visible ? material.opacity : 0;
-      if (Math.abs(from - to) < 1e-3 && sign.visible === (to > 0)) continue;
-      const set = (opacity: number) => {
-        material.opacity = opacity;
-        material.transparent = opacity < 1;
-        sign.visible = opacity > 0.001;
-        material.needsUpdate = true;
-      };
-      if (immediate || this.reducedMotion) {
-        set(to);
-        continue;
-      }
-      sign.visible = true;
-      this.animate(CUTAWAY_MS, (t) => set(from + (to - from) * easeInOutCubic(t)));
+  // ---------------------------------------------------------------- overlay
+
+  private project(x: number, y: number, z: number): { x: number; y: number } {
+    const p = new Vector3(x, y, z).project(this.camera);
+    return { x: ((p.x + 1) / 2) * this.lastSize.width, y: ((1 - p.y) / 2) * this.lastSize.height };
+  }
+
+  /** Canvas-local photo rect; the camera matrices must be current. */
+  private photoRect(node: BoxNode): { x: number; y: number; w: number; h: number } {
+    const { w, h } = this.kit.photo;
+    node.photo.updateMatrixWorld(true);
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    const corner = new Vector3();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      corner.set((sx * w) / 2, (sy * h) / 2, 0);
+      node.photo.localToWorld(corner);
+      const p = this.project(corner.x, corner.y, corner.z);
+      minX = Math.min(minX, p.x);
+      maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y);
+      maxY = Math.max(maxY, p.y);
     }
-    this.requestRender();
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
+  /**
+   * Collection names above their bays and captions over legible photos. Rows in
+   * front of the focused collection lose their name so it never covers its shelves.
+   * Captioned pieces hide the painted 3D badge (the HTML one is sharper).
+   */
+  private computeOverlay(): StockroomOverlay {
+    const { width, height } = this.lastSize;
+    this.camera.updateMatrixWorld(true);
+    const focused = this.plan.areas.find((a) => a.id === this.focusedId) ?? null;
+    const racks = new Map(this.layout.racks.map((r) => [r.id, r]));
+    const bay = this.kit.bay;
+    const labelY = Math.min(bay.height + 0.04, Math.max(...bay.levelY) + bay.piece.h / 2 + 0.1);
+    const areas: StockroomAreaLabel[] = [];
+    const visibleAreas = new Set<string>();
+    for (const area of this.plan.areas) {
+      if (focused && area.row > focused.row) continue;
+      if (!this.areaNodes.get(area.id)?.visible) continue;
+      visibleAreas.add(area.id);
+      const isFocused = area.id === this.focusedId;
+      let cx = area.x;
+      if (isFocused) {
+        const win = this.bayWindow(area);
+        cx = (area.bayX[win.start]! + area.bayX[win.start + win.count - 1]!) / 2;
+      }
+      const p = this.project(cx, labelY, area.bayFrontZ - bay.pieceInset);
+      const offscreen = p.x < -160 || p.x > width + 160 || p.y < -40 || p.y > height + 40;
+      if (offscreen && !isFocused) continue;
+      const rack = racks.get(area.id);
+      const draft = area.id === DRAFT_UNIT_ID;
+      areas.push({
+        id: area.id,
+        name: draft ? (this.draft?.name ?? area.name) : area.name,
+        count: rack?.hangers.length ?? 0,
+        unpublished: rack?.unpublished === true,
+        draft,
+        focused: isFocused,
+        x: Math.round(width > 440 ? Math.min(width - 220, Math.max(220, p.x)) : width / 2),
+        y: Math.round(Math.min(height - 8, Math.max(52, p.y - 6))),
+      });
+    }
+    const pieces: StockroomPieceLabel[] = [];
+    for (const node of this.boxes.values()) {
+      let captioned = false;
+      if (visibleAreas.has(node.areaId) && node.group.visible) {
+        const r = this.photoRect(node);
+        const onScreen = r.x + r.w > 0 && r.x < width && r.y + r.h > 0 && r.y < height;
+        if (onScreen && r.h >= STOCKROOM_CAPTION_MIN_PX) {
+          captioned = true;
+          const badge = boxBadge(node.hanger);
+          pieces.push({
+            slug: node.hanger.slug,
+            name: node.hanger.name,
+            price: compactPrice(node.hanger.priceLabel),
+            badge: badge.kind,
+            badgeText: badge.text,
+            hover: node.hanger.slug === this.hoverSlug,
+            x: Math.round(r.x),
+            y: Math.round(r.y),
+            w: Math.round(r.w),
+            h: Math.round(r.h),
+          });
+        }
+      }
+      node.badge.visible = !captioned;
+    }
+    return { width, height, areas, pieces };
+  }
+
+  private emitOverlay(overlay: StockroomOverlay): void {
+    this.lastOverlay = overlay;
+    if (!this.onOverlayCb) return;
+    const key = JSON.stringify(overlay);
+    if (key === this.overlayKey) return;
+    this.overlayKey = key;
+    this.onOverlayCb(overlay);
   }
 
   // ---------------------------------------------------------------- loop
@@ -1191,7 +1497,9 @@ export class StockroomEngine implements AtelierEngine {
     }
     if (!this.needsRender) return;
     this.needsRender = false;
+    const overlay = this.built ? this.computeOverlay() : null;
     this.renderer.render(this.scene, this.camera);
+    if (overlay) this.emitOverlay(overlay);
     if (this.built && !this.firstFrameSent) {
       this.firstFrameSent = true;
       this.onFirstFrameCb?.();
@@ -1299,10 +1607,16 @@ export class StockroomEngine implements AtelierEngine {
 
   private setHover(slug: string | null): void {
     const prev = this.hoverSlug ? this.boxes.get(this.hoverSlug) : null;
-    if (prev) prev.group.scale.setScalar(1);
+    if (prev) {
+      prev.group.scale.setScalar(1);
+      prev.outline.visible = false;
+    }
     this.hoverSlug = slug;
     const next = slug ? this.boxes.get(slug) : null;
-    if (next) next.group.scale.setScalar(1.06);
+    if (next) {
+      next.group.scale.setScalar(1.06);
+      next.outline.visible = true;
+    }
     if (!slug) this.onHoverCb?.(null);
     this.requestRender();
   }
@@ -1322,6 +1636,16 @@ export function upsertHanger(layout: SceneLayout, next: SceneHanger): SceneLayou
   const target = racks.find((r) => r.id === next.rackId);
   if (target) target.hangers = [...target.hangers, next];
   return { racks };
+}
+
+/**
+ * "R$ 7.200,00 (oculto no site)" → "R$ 7.200": the suffix is the same on every
+ * piece (site-wide prices-on-request), and whole-real prices fit a narrow caption.
+ */
+export function compactPrice(label: string | null | undefined): string {
+  let text = (label ?? '').trim();
+  if (text.endsWith(HIDDEN_ON_SITE_SUFFIX.trim())) text = text.slice(0, -HIDDEN_ON_SITE_SUFFIX.trim().length).trim();
+  return text.replace(/,00$/, '');
 }
 
 function easeOutBackSoft(t: number): number {
