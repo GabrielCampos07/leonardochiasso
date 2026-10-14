@@ -47,11 +47,21 @@ export function resolveCdkDropIndex(
   const fromEvent = clampIndex(event.currentIndex, count);
   const traveled = Math.abs(event.distance?.y ?? 0);
   const pointY = event.dropPoint?.y;
-  const stale =
-    fromEvent === clampIndex(event.previousIndex, count) && traveled >= STALE_TRAVEL_PX;
+  const longDrag = traveled >= STALE_TRAVEL_PX;
 
-  if (mids.length && Number.isFinite(pointY) && (stale || fromEvent < 0 || fromEvent >= count)) {
+  // After auto-scroll CDK often reports a stale or only-slightly-moved index.
+  // Prefer the pointer vs row midpoints on any long drag.
+  if (mids.length && Number.isFinite(pointY) && longDrag) {
     return clampIndex(indexFromClientY(pointY as number, mids), count);
+  }
+  if (longDrag && mids.length >= 2) {
+    const rowH = Math.abs(mids[1]! - mids[0]!);
+    if (rowH > 0) {
+      return clampIndex(
+        clampIndex(event.previousIndex, count) + Math.round((event.distance?.y ?? 0) / rowH),
+        count,
+      );
+    }
   }
   return fromEvent;
 }

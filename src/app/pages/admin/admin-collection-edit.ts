@@ -416,24 +416,25 @@ export class AdminCollectionEditPage implements OnInit {
   private refreshVisible(): void {
     const filter = this.genderFilter();
     const subset = this.products().filter((p) => matchesGenderFilter(p, filter));
-    this.visibleProducts.set(subset);
     if (!canReorderWithFilter(filter) || this.isNew()) {
       this.orderLoading.set(false);
+      this.visibleProducts.set(subset);
       return;
     }
     const collectionSlug = this.slug();
     const gen = ++this.visibleGen;
     this.orderLoading.set(true);
+    this.visibleProducts.set([]);
     this.collectionOrder.get(collectionSlug, filter).subscribe({
       next: (res) => {
         if (gen !== this.visibleGen) return;
-        this.orderLoading.set(false);
         this.visibleProducts.set(applyProductIdOrder(subset, res.productIds));
+        this.orderLoading.set(false);
       },
       error: (err) => {
         if (gen !== this.visibleGen) return;
-        this.orderLoading.set(false);
         this.visibleProducts.set(subset);
+        this.orderLoading.set(false);
         this.toast.error(collectionOrderErrorMessage(err, 'Não foi possível carregar a ordem.'));
       },
     });

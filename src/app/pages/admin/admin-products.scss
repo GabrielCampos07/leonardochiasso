@@ -447,3 +447,11 @@
     font-size: 1.05rem;
   }
 }
+
+.admin-list__loading {
+  margin: 0 0 var(--lc-space-16);
+  padding: 28px 14px;
+  font-size: 1.05rem;
+  color: var(--lc-ash);
+  border: 1px dashed color-mix(in srgb, var(--lc-ash) 45%, transparent);
+}

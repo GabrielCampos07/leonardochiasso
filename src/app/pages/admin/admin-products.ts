@@ -83,6 +83,7 @@ export class AdminProductsPage implements OnInit {
   readonly error = signal('');
   readonly restoringSlug = signal<string | null>(null);
   readonly savingOrder = signal(false);
+  readonly orderLoading = signal(false);
   readonly useApi = this.adminCatalog.useApi;
   readonly collections = COLLECTIONS;
   readonly newPath = adminNewProductPath();
@@ -187,14 +188,20 @@ export class AdminProductsPage implements OnInit {
   private applyCollectionGenderOrder(): void {
     const slug = this.collectionSlugForOrder();
     const filter = this.category();
-    if (!slug || !canReorderWithFilter(filter)) return;
+    if (!slug || !canReorderWithFilter(filter)) {
+      this.orderLoading.set(false);
+      return;
+    }
+    this.orderLoading.set(true);
     this.collectionOrder.get(slug, filter).subscribe({
       next: (res) => {
+        this.orderLoading.set(false);
         if (!res.productIds.length) return;
         const visible = applyProductIdOrder(this.filtered(), res.productIds);
         this.applyVisibleOrderLocal(visible.map((p) => p.slug));
       },
       error: (err) => {
+        this.orderLoading.set(false);
         this.toast.error(collectionOrderErrorMessage(err, 'Não foi possível carregar a ordem.'));
       },
     });
