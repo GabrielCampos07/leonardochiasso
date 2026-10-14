@@ -31,10 +31,24 @@
     </label>
   </div>
 
-  @if (loading()) {
+  @if (showSkeleton()) {
     <p class="admin-list__count">Carregando…</p>
+    <ul class="admin-list__rows" aria-busy="true" aria-label="Carregando coleções">
+      @for (row of skeletonRows; track row) {
+        <li class="admin-row admin-row--collection admin-row--skel" aria-hidden="true">
+          <span class="admin-row__skel admin-row__skel--thumb"></span>
+          <span class="admin-row__skel admin-row__skel--copy"></span>
+          <span class="admin-row__skel admin-row__skel--actions"></span>
+        </li>
+      }
+    </ul>
   } @else {
-    <p class="admin-list__count">{{ filtered().length }} coleção(ões)</p>
+    <p class="admin-list__count">
+      {{ filtered().length }} coleção(ões)
+      @if (loading()) {
+        · atualizando…
+      }
+    </p>
 
     <ul class="admin-list__rows">
       @for (c of filtered(); track c.slug) {

@@ -12,6 +12,7 @@ import { MASCULINO_UNISSEX_NOTICE, matchesGenderFilter, productGender } from '..
 import {
   AdminCollectionEditPage,
   findAdminCollection,
+  orderByMembership,
   productsInCollection,
 } from './admin-collection-edit';
 
@@ -103,6 +104,14 @@ describe('productsInCollection', () => {
     expect(rows.map((p) => p.slug)).toEqual(['calca-pantalona-rasgo']);
   });
 
+  it('orders members from the admin membership list, not the public catalog', () => {
+    const rows = orderByMembership(
+      [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }],
+      ['c', 'a'],
+    );
+    expect(rows.map((p) => p.slug)).toEqual(['c', 'a', 'b']);
+  });
+
   it('keeps unissex in both admin gender filters', () => {
     const uni = { slug: 'trench', gender: 'unissex', category: 'feminino' };
     expect(productGender(uni)).toBe('unissex');
@@ -159,7 +168,10 @@ describe('AdminCollectionEditPage gender UX', () => {
           provide: AdminCollectionsApiService,
           useValue: {
             list: (archived = false) => of(archived ? [] : [meta]),
-            getPublicDetail: () => of({ ...meta, products: pieces }),
+            getPublicDetail: jasmine.createSpy('getPublicDetail').and.callFake(() => {
+              throw new Error('admin must not GET /api/collections/:slug');
+            }),
+            getProducts: () => of({ productSlugs: pieces.map((p) => p.slug) }),
             listAdminProducts: () => of(pieces),
             archive: () => of(meta),
             restore: () => of(meta),
@@ -185,6 +197,13 @@ describe('AdminCollectionEditPage gender UX', () => {
 
   afterEach(() => fixture.destroy());
 
+  it('does not GET the public /api/collections/:slug from the admin detail', () => {
+    const api = TestBed.inject(AdminCollectionsApiService) as unknown as {
+      getPublicDetail: jasmine.Spy;
+    };
+    expect(api.getPublicDetail).not.toHaveBeenCalled();
+  });
+
   it('shows the Masculino notice as soon as that filter is on', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
@@ -193,22 +212,18 @@ describe('AdminCollectionEditPage gender UX', () => {
     expect(fixture.componentInstance.showUnissexNotice()).toBeTrue();
   });
 
-  it('hides the old list and shows a loading state while the order GET is in flight', () => {
+  it('keeps the current pieces visible while the order GET is in flight', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
     expect(fixture.componentInstance.orderLoading()).toBeTrue();
-    expect(fixture.componentInstance.visibleProducts()).toEqual([]);
-    expect(fixture.nativeElement.querySelector('.admin-col-products__loading')?.textContent?.trim()).toBe(
-      'Carregando…',
-    );
-    expect(fixture.nativeElement.querySelectorAll('.admin-col-products__row').length).toBe(0);
-    expect(fixture.nativeElement.textContent).not.toContain('F1');
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
+    expect(fixture.nativeElement.querySelectorAll('.admin-col-products__row').length).toBe(2);
+    expect(fixture.nativeElement.textContent).toContain('U1');
 
-    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
+    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-m1', 'id-u1'] });
     fixture.detectChanges();
     expect(fixture.componentInstance.orderLoading()).toBeFalse();
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
-    expect(fixture.nativeElement.querySelector('.admin-col-products__loading')).toBeNull();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['M1', 'U1']);
   });
 
   it('toasts when a gender-order PUT fails', () => {

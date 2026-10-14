@@ -27,7 +27,7 @@ export function archiveCollectionMessage(pieceCount: number): string {
   return pieces ? `${ARCHIVE_COLLECTION_MESSAGE} ${pieces}` : ARCHIVE_COLLECTION_MESSAGE;
 }
 
-export const ADMIN_LOAD_TIMEOUT_MS = 15_000;
+export const ADMIN_LOAD_TIMEOUT_MS = 10_000;
 export const ADMIN_LOAD_TIMEOUT_MESSAGE = 'A lista demorou demais. Tente de novo.';
 
 export type AdminLoadResult<T> =

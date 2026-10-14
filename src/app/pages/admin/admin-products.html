@@ -78,18 +78,30 @@
   }
 
   <p class="admin-list__count">
-    @if (loading() || orderLoading()) {
+    @if (showSkeleton()) {
       Carregando…
     } @else {
       {{ filtered().length }} produto(s)
+      @if (loading() || orderLoading()) {
+        · atualizando…
+      }
       @if (savingOrder()) {
         · salvando ordem…
       }
     }
   </p>
 
-  @if (orderLoading()) {
-    <p class="admin-list__loading" role="status" aria-live="polite">Carregando…</p>
+  @if (showSkeleton()) {
+    <ul class="admin-list__rows" aria-busy="true" aria-label="Carregando produtos">
+      @for (row of skeletonRows; track row) {
+        <li class="admin-row admin-row--skel" aria-hidden="true">
+          <span class="admin-row__skel admin-row__skel--handle"></span>
+          <span class="admin-row__skel admin-row__skel--thumb"></span>
+          <span class="admin-row__skel admin-row__skel--copy"></span>
+          <span class="admin-row__skel admin-row__skel--actions"></span>
+        </li>
+      }
+    </ul>
   } @else {
   <ul
     class="admin-list__rows"
