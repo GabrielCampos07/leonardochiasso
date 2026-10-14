@@ -115,6 +115,7 @@ import { CollectionCreatePanel } from './collection-create-panel';
 import { StockroomCreditsPanel } from './stockroom-credits-panel';
 import {
   PIECE_ORDER_SAVE_ERROR,
+  flashPieceOrderSaved,
   REORDER_AUTOSCROLL_MS,
   REORDER_DRAG_THRESHOLD_PX,
   autoScrollDelta,
@@ -647,6 +648,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.engine?.reorderHangers?.(rackId, next);
     this.bumpLayout();
     this.collectionProducts.replaceLiveOrder(collectionSlug, next).subscribe({
+      next: () => flashPieceOrderSaved(this.toast),
       error: (err: unknown) => {
         this.toast.error(adminHttpErrorMessage(err, PIECE_ORDER_SAVE_ERROR), { durationMs: ERROR_TOAST_MS });
         const rolled = reorderRackHangers(this.layout, rackId, previous);

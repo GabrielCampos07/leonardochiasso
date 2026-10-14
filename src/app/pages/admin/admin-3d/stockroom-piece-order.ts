@@ -6,6 +6,11 @@ export const REORDER_DRAG_THRESHOLD_PX = 8;
 export const REORDER_EDGE_PX = 80;
 export const REORDER_AUTOSCROLL_MS = 420;
 export const PIECE_ORDER_SAVE_ERROR = 'Não foi possível salvar a ordem.';
+export const PIECE_ORDER_SAVED_TEXT = 'Ordem salva';
+
+export function flashPieceOrderSaved(toast: { success: (text: string) => void }): void {
+  toast.success(PIECE_ORDER_SAVED_TEXT);
+}
 
 export interface PieceRect {
   slug: string;

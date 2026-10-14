@@ -1,5 +1,7 @@
 import {
+  PIECE_ORDER_SAVED_TEXT,
   PIECE_REORDER_KEYSHORTCUTS,
+  flashPieceOrderSaved,
   REORDER_AUTOSCROLL_MIN_PIECES,
   applyHangerOrder,
   autoScrollDelta,
@@ -29,6 +31,13 @@ function hanger(slug: string): SceneHanger {
 }
 
 describe('stockroom piece order', () => {
+  it('toasts Ordem salva when a drag or keyboard save succeeds', () => {
+    const toast = { success: jasmine.createSpy('success') };
+    flashPieceOrderSaved(toast);
+    expect(PIECE_ORDER_SAVED_TEXT).toBe('Ordem salva');
+    expect(toast.success).toHaveBeenCalledOnceWith('Ordem salva');
+  });
+
   it('moves a slug to another index', () => {
     expect(moveSlug(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd']);
     expect(moveSlug(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b']);
