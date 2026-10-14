@@ -1,7 +1,7 @@
-import { Component, HostBinding, HostListener, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, HostBinding, HostListener, computed, inject, signal } from '@angular/core';
 import { NavigationEnd, NavigationStart, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { environment } from '../../../environments/environment';
-import { Admin3dBootService } from '../../core/admin-3d-boot.service';
+import { Admin3dBootService, hideStaticAtelierBoot } from '../../core/admin-3d-boot.service';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { AdminViewMode, AdminViewModeService } from '../../core/admin-view-mode.service';
 import { adminAtelierSectionLabel } from '../../core/admin-archive';
@@ -17,7 +17,7 @@ import { LcToastHost } from '../../shared/components/feedback/toast-host';
   templateUrl: './admin-shell.html',
   styleUrl: './admin-shell.scss',
 })
-export class AdminShell {
+export class AdminShell implements AfterViewInit {
   private readonly session = inject(AdminSessionService);
   private readonly router = inject(Router);
   private readonly viewMode = inject(AdminViewModeService);
@@ -77,6 +77,12 @@ export class AdminShell {
         }
       }
     });
+  }
+
+  ngAfterViewInit(): void {
+    // Chrome is in the DOM. Drop the full-viewport HTML overlay so the
+    // header stays visible while "Montando o ateliê…" paints in <main>.
+    hideStaticAtelierBoot();
   }
 
   setViewMode(mode: AdminViewMode): void {

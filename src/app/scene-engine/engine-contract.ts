@@ -51,6 +51,8 @@ export interface AtelierEngine {
   addHanger(next: SceneHanger, immediate?: boolean): void;
   updateHanger(next: SceneHanger): void;
   removeHanger(slug: string, immediate?: boolean): void;
+  /** Stockroom only: restack hangers of one collection without a camera jump. */
+  reorderHangers?(rackId: string, slugs: readonly string[]): boolean;
   sinkUnit(id: string, immediate?: boolean): void;
   restoreUnit(unit: SceneRack): void;
 }

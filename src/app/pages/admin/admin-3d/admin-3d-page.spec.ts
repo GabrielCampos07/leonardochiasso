@@ -61,6 +61,7 @@ describe('stockroom first-open hint', () => {
     expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'cc0' ? '1' : null) }))).toBe(STOCKROOM_HINT_COPY);
     expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'sketchfab' ? '1' : null) }))).toBe(STOCKROOM_HINT_COPY);
     expect(STOCKROOM_HINT_COPY).toContain('Clique na peça · arraste move');
+    expect(STOCKROOM_HINT_COPY).toContain('segure a foto e solte sobre outra peça para reordenar');
   });
 
   it('keeps the atelier line only for ?atelier=1', () => {
