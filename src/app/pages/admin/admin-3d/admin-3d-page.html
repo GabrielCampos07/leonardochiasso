@@ -294,7 +294,27 @@
     </div>
   }
 
-  @if (webglUnavailable()) {
+  @if (sketchfabPending) {
+    <div class="admin-3d__cover" role="status">
+      <div class="admin-3d__panel">
+        <p><strong>{{ sketchfabTitle }}</strong></p>
+        <p>{{ sketchfabHint }}</p>
+        <div class="admin-3d__actions">
+          <button type="button" (click)="backToList()">{{ webglAction }}</button>
+        </div>
+      </div>
+    </div>
+  } @else if (desktopOnly()) {
+    <div class="admin-3d__cover" role="status">
+      <div class="admin-3d__panel">
+        <p><strong>{{ desktopOnlyTitle }}</strong></p>
+        <p>{{ desktopOnlyHint }}</p>
+        <div class="admin-3d__actions">
+          <button type="button" (click)="backToList()">{{ webglAction }}</button>
+        </div>
+      </div>
+    </div>
+  } @else if (webglUnavailable()) {
     <div class="admin-3d__panel" role="status">
       <p><strong>{{ webglTitle }}</strong></p>
       <p>{{ webglHint }}</p>

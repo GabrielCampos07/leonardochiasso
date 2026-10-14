@@ -64,7 +64,7 @@ import {
 import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
 import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
 import { clampTooltip, mergeProductPhotos } from '../../../scene-engine/photo-url';
-import type { SceneEngine } from '../../../scene-engine/scene-engine';
+import type { AtelierEngine } from '../../../scene-engine/engine-contract';
 import type {
   SceneCollectionInput,
   SceneLayout,
@@ -84,6 +84,15 @@ import {
   readAdmin3dMockStorage,
   shouldUseLocalAdmin3dCatalog,
 } from './admin-3d-guards';
+import {
+  DESKTOP_ONLY_HINT,
+  DESKTOP_ONLY_TITLE,
+  SKETCHFAB_PENDING_HINT,
+  SKETCHFAB_PENDING_TITLE,
+  STOCKROOM_HINT_COPY,
+  adminSceneMode,
+  isDesktopOnlyBlocked,
+} from './admin-3d-scene-mode';
 import {
   admin3dFixtureProducts,
   admin3dFixtureSceneCollections,
@@ -195,11 +204,21 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly hoverTip = signal<{ text: string; x: number; y: number } | null>(null);
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
-  readonly hintCopy = ATELIER_HINT_COPY;
+  readonly sceneMode = adminSceneMode(this.route.snapshot.queryParamMap);
+  readonly hintCopy = this.sceneMode === 'cc0' ? STOCKROOM_HINT_COPY : ATELIER_HINT_COPY;
+  readonly viewportWidth = signal(typeof window === 'undefined' ? 1280 : window.innerWidth);
+  readonly desktopOnly = computed(() => isDesktopOnlyBlocked(this.sceneMode, this.viewportWidth()));
+  readonly sketchfabPending = this.sceneMode === 'sketchfab';
+  readonly desktopOnlyTitle = DESKTOP_ONLY_TITLE;
+  readonly desktopOnlyHint = DESKTOP_ONLY_HINT;
+  readonly sketchfabTitle = SKETCHFAB_PENDING_TITLE;
+  readonly sketchfabHint = SKETCHFAB_PENDING_HINT;
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
       !this.webglUnavailable() &&
+      !this.sketchfabPending &&
+      !this.desktopOnly() &&
       !this.error() &&
       (this.loading() || !this.firstFrame() || this.bootFading()),
   );
@@ -275,7 +294,8 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly addCanUpload = true;
   readonly addPriceRequired = computed(() => this.line() !== 'joias');
 
-  private engine: SceneEngine | null = null;
+  private engine: AtelierEngine | null = null;
+  private booting = false;
   private layout: SceneLayout = { racks: [] };
   private collections: SceneCollectionInput[] = [];
   private knownRackIds = new Set<string>();
@@ -312,6 +332,10 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private async bootScene(): Promise<void> {
+    if (this.sketchfabPending || this.desktopOnly()) {
+      this.boot.markFirstFrame();
+      return;
+    }
     const canvas = this.canvasRef?.nativeElement;
     if (!canvas) {
       this.webglUnavailable.set(true);
@@ -319,12 +343,21 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.boot.markFirstFrame();
       return;
     }
-    const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
-    if (this.engine) return;
-    this.engine = createSceneEngine(canvas, {
-      reducedMotion: this.reducedMotion,
-      host: this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas,
-    });
+    if (this.engine || this.booting) return;
+    this.booting = true;
+    const host = this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas;
+    const opts = { reducedMotion: this.reducedMotion, host };
+    try {
+      if (this.sceneMode === 'cc0') {
+        const { createStockroomEngine } = await import('../../../scene-engine/stockroom/stockroom-engine');
+        if (!this.engine) this.engine = createStockroomEngine(canvas, opts);
+      } else {
+        const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
+        if (!this.engine) this.engine = createSceneEngine(canvas, opts);
+      }
+    } finally {
+      this.booting = false;
+    }
     if (!this.engine) {
       this.webglUnavailable.set(true);
       this.loading.set(false);
@@ -361,6 +394,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   @HostListener('window:resize')
   @HostListener('window:orientationchange')
   onViewport(): void {
+    const wasBlocked = this.desktopOnly();
+    this.viewportWidth.set(window.innerWidth);
+    if (wasBlocked && !this.desktopOnly() && !this.engine) void this.bootScene();
     this.createSheet.set(isCreateSheetViewport());
     this.addSheet.set(isCreateSheetViewport());
     this.engine?.resize();
@@ -645,11 +681,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       storageMock: readAdmin3dMockStorage(),
     });
     if (mock) {
-      this.cacheProducts(admin3dFixtureProducts());
+      const full = this.route.snapshot.queryParamMap.get('mock') === 'full';
+      this.cacheProducts(admin3dFixtureProducts(full));
       this.cacheJoias(this.joiasAdmin.list());
       this.applyInputs(
         admin3dFixtureSceneCollections(),
-        admin3dFixtureSceneProducts(),
+        admin3dFixtureSceneProducts(full),
         this.joiasAdmin.list().map(joiaToSceneInput),
         true,
         gen,

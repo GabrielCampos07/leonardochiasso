@@ -12,7 +12,7 @@ export interface Admin3dMockFlags {
 export function isAdmin3dMockEnabled(flags: Admin3dMockFlags): boolean {
   if (flags.production) return false;
   if (flags.envMock) return true;
-  if (flags.queryMock === '1' || flags.queryMock === 'true') return true;
+  if (flags.queryMock === '1' || flags.queryMock === 'true' || flags.queryMock === 'full') return true;
   return flags.storageMock === '1' || flags.storageMock === 'true';
 }
 

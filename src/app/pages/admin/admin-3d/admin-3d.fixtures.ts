@@ -21,16 +21,21 @@ const STOCK_BY_SLUG: Record<string, number> = {
   'colete-bermuda-saia-echarpe': 3,
 };
 
-const DRAFT_SLUGS = new Set<string>();
+const DRAFT_SLUGS = new Set<string>(['colete-bermuda-saia-echarpe']);
 
 function cloneProduct(slug: string): Product | null {
   const found = PRODUCTS.find((p) => p.slug === slug);
   return found ? structuredClone(found) : null;
 }
 
-/** Curated atelier sample — used when the Nest API is off or `?mock=1`. */
-export function admin3dFixtureProducts(): Product[] {
-  const picked = FIXTURE_SLUGS.map(cloneProduct).filter((p): p is Product => p != null);
+/**
+ * Curated atelier sample — used when the Nest API is off or `?mock=1`.
+ * `full` (`?mock=full`) takes every local product, to exercise multi-bay layouts.
+ */
+export function admin3dFixtureProducts(full = false): Product[] {
+  const picked = full
+    ? PRODUCTS.map((p) => structuredClone(p))
+    : FIXTURE_SLUGS.map(cloneProduct).filter((p): p is Product => p != null);
   const loose: Product = {
     id: 'peca-avulsa-atelier',
     slug: 'peca-avulsa-atelier',
@@ -97,8 +102,8 @@ export function admin3dFixtureSceneCollections(): SceneCollectionInput[] {
   }));
 }
 
-export function admin3dFixtureSceneProducts(): SceneProductInput[] {
-  return admin3dFixtureProducts().map((p) => ({
+export function admin3dFixtureSceneProducts(full = false): SceneProductInput[] {
+  return admin3dFixtureProducts(full).map((p) => ({
     ...productToSceneInput(p),
     collectionSlugs: p.collectionSlug ? [p.collectionSlug] : [],
   }));
