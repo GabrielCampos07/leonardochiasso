@@ -40,6 +40,13 @@ describe('AdminShell', () => {
     document.getElementById('lc-atelier-boot')?.remove();
   });
 
+  it('opens Abrir o site in a new tab', () => {
+    const link = fixture.nativeElement.querySelector('.admin-bar__nav a[href="/"]') as HTMLAnchorElement | null;
+    expect(link?.textContent?.trim()).toBe('Abrir o site');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener');
+  });
+
   it('keeps the admin header visible while Montando o ateliê… is showing', () => {
     expect(boot.ready()).toBeFalse();
     expect(fixture.componentInstance.showSceneBoot()).toBeTrue();

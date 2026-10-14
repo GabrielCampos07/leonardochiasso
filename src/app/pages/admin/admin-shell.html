@@ -56,7 +56,7 @@
         <a [routerLink]="products" (click)="closeNav()">Produtos</a>
         <a [routerLink]="collections" (click)="closeNav()">Coleções</a>
         <a [routerLink]="joias" (click)="closeNav()">Joias</a>
-        <a [routerLink]="home" (click)="closeNav()">Abrir o site</a>
+        <a [routerLink]="home" target="_blank" rel="noopener" (click)="closeNav()">Abrir o site</a>
       </nav>
       <button type="button" class="admin-bar__out" (click)="logout()">Sair</button>
     </div>
