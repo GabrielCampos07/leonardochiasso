@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { PUBLIC_CONTACT_EMAIL, PUBLIC_CONTACT_MAILTO } from '../../../core/brand-lines';
 import { ChromeService } from '../../../core/chrome.service';
 import { ROUTES } from '../../../core/routes';
 import { WishlistService } from '../../../core/wishlist.service';
@@ -24,10 +25,10 @@ import { WishlistService } from '../../../core/wishlist.service';
               <rect x="0" y="11.5" width="14" height="1.5" fill="currentColor" />
             </svg>
           </button>
-          <a class="utility__contact" href="mailto:Contact&#64;leonardochiasso.com">
+          <a class="utility__contact" [href]="contactMailto">
             <span class="utility__contact-label">ATENDIMENTO PERSONALIZADO</span>
             <span class="utility__sep" aria-hidden="true"></span>
-            <span class="utility__phone">(62) 99999-0000</span>
+            <span class="utility__email">{{ contactEmail }}</span>
           </a>
         </div>
 
@@ -153,13 +154,8 @@ import { WishlistService } from '../../../core/wishlist.service';
         display: block;
       }
     }
-    .utility__phone {
+    .utility__email {
       flex-shrink: 0;
-    }
-    @media (max-width: 359px) {
-      .utility__phone {
-        display: none;
-      }
     }
     .utility__actions {
       display: flex;
@@ -204,4 +200,6 @@ export class LcUtility {
   readonly chrome = inject(ChromeService);
   readonly wishlist = inject(WishlistService);
   readonly wishlistRoute = ROUTES.wishlist;
+  readonly contactEmail = PUBLIC_CONTACT_EMAIL;
+  readonly contactMailto = PUBLIC_CONTACT_MAILTO;
 }
