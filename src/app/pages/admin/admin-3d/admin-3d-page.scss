@@ -65,9 +65,35 @@
   white-space: nowrap;
 }
 
-.admin-3d__area-label.is-focused {
+.admin-3d__title {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 24px;
+  background: var(--lc-white);
+  border-bottom: 1px solid color-mix(in srgb, var(--lc-void) 14%, transparent);
+  color: var(--lc-void);
+}
+
+.admin-3d__title-name {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--lc-font-display);
   font-size: 30px;
-  border-color: var(--lc-void);
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-3d__title .admin-3d__area-count {
+  white-space: nowrap;
 }
 
 .admin-3d__area-name {
@@ -145,16 +171,59 @@
   font-variant-numeric: tabular-nums;
 }
 
-.admin-3d__caption b,
-.admin-3d__caption span {
+.admin-3d__caption b {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.admin-3d__piece.is-hover {
+.admin-3d__caption-name {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.admin-3d__piece.is-hover,
+.admin-3d__piece:focus-visible {
+  z-index: 1;
   outline: 3px solid #2563eb;
   outline-offset: 2px;
+}
+
+.admin-3d__tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  display: none;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 9px;
+  transform: translateX(-50%);
+  background: var(--lc-void);
+  color: #fff;
+  font-family: var(--lc-font-display);
+  font-size: 13px;
+  line-height: 1.3;
+  text-align: center;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 30%);
+}
+
+.admin-3d__tip b {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-3d__piece.is-top .admin-3d__tip {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.admin-3d__piece.is-hover .admin-3d__tip,
+.admin-3d__piece:focus-visible .admin-3d__tip {
+  display: block;
 }
 
 .admin-3d__dock {

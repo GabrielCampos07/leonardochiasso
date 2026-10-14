@@ -84,6 +84,7 @@ import {
   STOCKROOM_POLAR_SHELF,
   STOCKROOM_SIDE_INSET,
   STOCKROOM_TWEEN_MS,
+  STOCKROOM_WINDOW_TOP_PX,
   clampStockroomTarget,
   fitOrthoBox,
   lerpPose,
@@ -1167,9 +1168,10 @@ export class StockroomEngine implements AtelierEngine {
     polar = STOCKROOM_POLAR_DEFAULT,
     pad?: number,
     azimuth = STOCKROOM_AZIMUTH_DEFAULT,
+    insets = this.insets,
   ): StockroomPose {
     const box = new Box3(new Vector3(...min), new Vector3(...max));
-    const { zoom, target } = fitOrthoBox(box, polar, azimuth, this.aspect(), this.insets, pad);
+    const { zoom, target } = fitOrthoBox(box, polar, azimuth, this.aspect(), insets, pad);
     return { polar, azimuth, target, zoom };
   }
 
@@ -1207,7 +1209,8 @@ export class StockroomEngine implements AtelierEngine {
 
   private windowPose(area: StockroomArea, start: number, count: number): StockroomPose {
     const box = bayWindowBox(area, start, count, this.kit.bay);
-    return this.fitPose(box.min, box.max, STOCKROOM_POLAR_SHELF, WINDOW_FIT_PAD, STOCKROOM_AZIMUTH_SHELF);
+    const insets = stockroomInsetsPx(this.lastSize.height || 720, STOCKROOM_WINDOW_TOP_PX);
+    return this.fitPose(box.min, box.max, STOCKROOM_POLAR_SHELF, WINDOW_FIT_PAD, STOCKROOM_AZIMUTH_SHELF, insets);
   }
 
   /**
@@ -1379,9 +1382,10 @@ export class StockroomEngine implements AtelierEngine {
   }
 
   /**
-   * Collection names above their bays and captions over legible photos. Rows in
-   * front of the focused collection lose their name so it never covers its shelves.
-   * Captioned pieces hide the painted 3D badge (the HTML one is sharper).
+   * Collection names above their bays and captions over legible photos. With a
+   * collection focused only its own label is emitted: the page shows that name
+   * outside the canvas, since the shelves run past the top edge and no in-canvas
+   * spot clears them. Captioned pieces hide the painted 3D badge (the HTML one is sharper).
    */
   private computeOverlay(): StockroomOverlay {
     const { width, height } = this.lastSize;
@@ -1397,6 +1401,7 @@ export class StockroomEngine implements AtelierEngine {
       if (!this.areaNodes.get(area.id)?.visible) continue;
       visibleAreas.add(area.id);
       const isFocused = area.id === this.focusedId;
+      if (focused && !isFocused) continue;
       let cx = area.x;
       if (isFocused) {
         const win = this.bayWindow(area);
@@ -1569,6 +1574,7 @@ export class StockroomEngine implements AtelierEngine {
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const hits = this.raycaster.intersectObjects(this.areasRoot.children, true);
     for (const hit of hits) {
+      if (!shownInScene(hit.object)) continue;
       let node: Object3D | null = hit.object;
       let areaId: string | null = null;
       while (node) {
@@ -1620,6 +1626,14 @@ export class StockroomEngine implements AtelierEngine {
     if (!slug) this.onHoverCb?.(null);
     this.requestRender();
   }
+}
+
+/** Raycasts ignore `visible`, so hidden meshes (signs, hover outlines) would block picks. */
+function shownInScene(object: Object3D): boolean {
+  for (let node: Object3D | null = object; node; node = node.parent) {
+    if (!node.visible) return false;
+  }
+  return true;
 }
 
 /** Replace in place (keeps box order); append when new or moved to another collection. */

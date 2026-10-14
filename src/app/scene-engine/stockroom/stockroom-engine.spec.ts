@@ -138,9 +138,9 @@ describe('StockroomEngine', () => {
     e.setLayout(base);
   });
 
-  /** Canvas of the admin 3D at a 1280×800 window: header above, nav bar below. */
+  /** Canvas of the admin 3D at a 1280×800 window: header and title strip above, nav bar below. */
   function desktopStage(): void {
-    host.style.height = '636px';
+    host.style.height = '584px';
     engine?.resize();
   }
 
@@ -153,9 +153,14 @@ describe('StockroomEngine', () => {
       const e = engine!;
       expect(e.focusedRackId()).toBe('c0');
       const labels = e.overlay().areas;
-      expect(labels.find((a) => a.focused)?.id).toBe('c0');
-      expect(labels.find((a) => a.focused)?.name).toBe('Coleção 0');
-      done();
+      expect(labels.map((a) => a.id)).toEqual(['c0']);
+      expect(labels[0]!.focused).toBeTrue();
+      expect(labels[0]!.name).toBe('Coleção 0');
+      e.focusOverview(true);
+      requestAnimationFrame(() => {
+        expect(e.overlay().areas.length).toBeGreaterThan(1);
+        done();
+      });
     });
   });
 
@@ -171,6 +176,23 @@ describe('StockroomEngine', () => {
         expect(minPhotoEdge(e)).toBeGreaterThanOrEqual(120);
         done();
       });
+    });
+  });
+
+  it('picks every captioned piece at its centre, past the hidden signs of the row in front', (done) => {
+    desktopStage();
+    boot([17, 18, 12, 6], () => {
+      const e = engine!;
+      const pick = (x: number, y: number) =>
+        (e as unknown as { pick(x: number, y: number): { slug: string | null } }).pick(x, y).slug;
+      const canvas = host.querySelector('canvas')!.getBoundingClientRect();
+      const pieces = e.overlay().pieces;
+      expect(pieces.length).toBe(17);
+      const missed = pieces
+        .filter((p) => pick(canvas.left + p.x + p.w / 2, canvas.top + p.y + p.h / 2) !== p.slug)
+        .map((p) => p.slug);
+      expect(missed).toEqual([]);
+      done();
     });
   });
 
@@ -438,7 +460,7 @@ describe('StockroomEngine with the Sketchfab kit (option B)', () => {
   });
 
   it('lands on the first collection with photos at least 120 px tall on a 1280×800 desktop', (done) => {
-    host.style.height = '636px';
+    host.style.height = '584px';
     engine?.resize();
     bootB(layout([17, 18]), () => {
       const e = engine!;
