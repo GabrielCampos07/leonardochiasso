@@ -2,6 +2,7 @@ import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-
 import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { LcListPicker, ListPickerOption } from '../../shared/components/list-picker/list-picker';
 import { LcSegmented } from '../../shared/components/segmented/segmented';
 import {
   PRODUCT_GENDER_OPTIONS,
@@ -56,6 +57,7 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
   return (trimmed && trimmed !== slug ? trimmed : slug) as Collection;
 }
 
+/** Visible collection label — name only, never the slug. */
 export function collectionSelectLabel(
   slug: string,
   name?: string | null,
@@ -67,14 +69,14 @@ export function collectionSelectLabel(
   const trimmed = name?.trim();
   if (trimmed && trimmed !== slug) return trimmed;
   const fromCatalog = catalog.find((item) => item.slug === slug)?.name?.trim();
-  if (fromCatalog) return fromCatalog;
-  return slug;
+  if (fromCatalog && fromCatalog !== slug) return fromCatalog;
+  return 'Coleção';
 }
 
 @Component({
   selector: 'lc-admin-product-form',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule, LcSegmented],
+  imports: [FormsModule, RouterLink, DragDropModule, LcSegmented, LcListPicker],
   templateUrl: './admin-product-form.html',
   styleUrl: './admin-product-form.scss',
 })
@@ -106,8 +108,17 @@ export class AdminProductForm implements OnInit {
     const knownSlugs = new Set(known.map((item) => item.slug));
     const extras = this.apiCollections()
       .filter((item) => item.slug && !knownSlugs.has(item.slug as CollectionSlug))
-      .map((item) => ({ slug: item.slug, label: item.name || item.slug }));
+      .map((item) => ({
+        slug: item.slug,
+        label: collectionSelectLabel(item.slug, item.name),
+      }));
     return [...known, ...extras];
+  });
+  readonly collectionPickerOptions = computed<ListPickerOption[]>(() => {
+    const opts = [...this.collectionOptions()];
+    const extra = this.extraCollectionOption();
+    if (extra) opts.push(extra);
+    return opts.map((item) => ({ value: item.slug, label: item.label }));
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
@@ -119,6 +130,7 @@ export class AdminProductForm implements OnInit {
   readonly saving = signal(false);
   readonly uploading = signal(false);
   readonly uploadError = signal('');
+  readonly saveError = signal('');
   readonly pendingFileLabel = signal('Escolher fotos');
   private pendingFiles: File[] = [];
 
@@ -128,10 +140,35 @@ export class AdminProductForm implements OnInit {
 
   ngOnInit(): void {
     this.loadDraft(structuredClone(this.product()));
-    this.collectionsApi.list().subscribe({
-      next: (list) => this.apiCollections.set(list.map((c) => ({ slug: c.slug, name: c.name }))),
-      error: () => this.apiCollections.set([]),
+    this.refreshCollections();
+  }
+
+  refreshCollections(): void {
+    this.collectionsApi.list(false, { refresh: true }).subscribe({
+      next: (list) => {
+        this.apiCollections.set(
+          list
+            .filter((item) => item.slug)
+            .map((item) => ({ slug: item.slug, name: item.name })),
+        );
+        this.syncCollectionNameFromApi();
+      },
+      error: () => {
+        if (!this.apiCollections().length) this.apiCollections.set([]);
+      },
     });
+  }
+
+  private syncCollectionNameFromApi(): void {
+    const p = this.draft();
+    if (!p?.collectionSlug) return;
+    const name = collectionSelectLabel(
+      p.collectionSlug,
+      p.collection,
+      this.apiCollections(),
+    );
+    if (name === p.collection || name === 'Coleção') return;
+    this.draft.set({ ...p, collection: name as Collection });
   }
 
   loadDraft(p: Product): void {
@@ -428,6 +465,7 @@ export class AdminProductForm implements OnInit {
 
   save(): void {
     if (this.saving()) return;
+    this.saveError.set('');
     const p = this.draft();
     if (!p) return;
     if (!p.name.trim()) {
@@ -476,10 +514,12 @@ export class AdminProductForm implements OnInit {
       ...syncPriceFields(p.price),
     };
 
+    this.saveError.set('');
     this.setSaving(true);
     this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
       next: (saved) => {
         this.setSaving(false);
+        this.saveError.set('');
         if (!this.useApi) this.catalog.refreshLocalCatalog();
         if (this.isNew()) this.slugLocked = true;
         this.loadDraft(structuredClone(saved));
@@ -491,7 +531,9 @@ export class AdminProductForm implements OnInit {
       },
       error: (err) => {
         this.setSaving(false);
-        this.toast.error(adminHttpErrorMessage(err));
+        const message = adminHttpErrorMessage(err);
+        this.saveError.set(message);
+        this.toast.error(message);
       },
     });
   }

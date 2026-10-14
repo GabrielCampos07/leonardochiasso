@@ -47,11 +47,17 @@ export class AdminCollectionsApiService {
     return `${this.base}/api/admin/collections`;
   }
 
-  list(archived = false): Observable<AdminCollectionDto[]> {
+  list(archived = false, opts: { refresh?: boolean } = {}): Observable<AdminCollectionDto[]> {
+    const params: Record<string, string> = {};
+    if (archived) params['archived'] = 'true';
+    if (opts.refresh) params['_'] = String(Date.now());
     return this.http
       .get<AdminCollectionDto[]>(this.url, {
         withCredentials: true,
-        params: archived ? { archived: 'true' } : {},
+        params,
+        headers: opts.refresh
+          ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+          : undefined,
       })
       .pipe(map((list) => filterArchivedList(list, archived)));
   }
