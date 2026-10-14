@@ -9,7 +9,8 @@ export type AdminSceneMode = 'atelier' | 'stockroom';
 /** The stockroom is desktop-only. */
 export const STOCKROOM_MIN_WIDTH = 1280;
 
-export const STOCKROOM_HINT_COPY = 'Clique na peça · arraste move · botão direito gira · scroll';
+export const STOCKROOM_HINT_COPY =
+  'Clique na peça · arraste move · botão direito gira · scroll\nsegure a foto e solte sobre outra peça para reordenar';
 
 export const DESKTOP_ONLY_TITLE = 'Estoque 3D só no desktop';
 export const DESKTOP_ONLY_HINT = `Abra numa janela com pelo menos ${STOCKROOM_MIN_WIDTH} px de largura, ou use a Lista.`;

@@ -1,7 +1,9 @@
 import {
+  PIECE_REORDER_KEYSHORTCUTS,
   REORDER_AUTOSCROLL_MIN_PIECES,
   applyHangerOrder,
   autoScrollDelta,
+  consumePieceReorderKey,
   dropIndexForSlug,
   dropTargetSlug,
   moveSlug,
@@ -36,6 +38,53 @@ describe('stockroom piece order', () => {
     expect(moveSlugById(['a', 'b', 'c'], 'b', 1)).toEqual(['a', 'c', 'b']);
     expect(moveSlugById(['a', 'b', 'c'], 'a', -1)).toBeNull();
     expect(moveSlugById(['a', 'b', 'c'], 'gone', 1)).toBeNull();
+  });
+
+  it('calls preventDefault and stopPropagation when a piece is focused', () => {
+    expect(PIECE_REORDER_KEYSHORTCUTS).toBe('Shift+ArrowLeft Shift+ArrowRight');
+    const piece = document.createElement('div');
+    piece.setAttribute('data-slug', 'a');
+    document.body.appendChild(piece);
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const prevent = spyOn(event, 'preventDefault').and.callThrough();
+    const stop = spyOn(event, 'stopPropagation').and.callThrough();
+    Object.defineProperty(event, 'target', { value: piece });
+    expect(consumePieceReorderKey(event)).toEqual({ slug: 'a', delta: 1 });
+    expect(prevent).toHaveBeenCalled();
+    expect(stop).toHaveBeenCalled();
+    piece.remove();
+  });
+
+  it('does not consume Alt+arrows (browser history) or arrows without a focused piece', () => {
+    const piece = document.createElement('div');
+    piece.setAttribute('data-slug', 'a');
+    document.body.appendChild(piece);
+    const alt = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const preventAlt = spyOn(alt, 'preventDefault');
+    Object.defineProperty(alt, 'target', { value: piece });
+    expect(consumePieceReorderKey(alt)).toBeNull();
+    expect(preventAlt).not.toHaveBeenCalled();
+
+    const bare = new KeyboardEvent('keydown', {
+      key: 'ArrowLeft',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const preventBare = spyOn(bare, 'preventDefault');
+    expect(consumePieceReorderKey(bare)).toBeNull();
+    expect(preventBare).not.toHaveBeenCalled();
+    piece.remove();
   });
 
   it('picks the piece under the pointer and its index', () => {

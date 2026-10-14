@@ -118,6 +118,7 @@ import {
   REORDER_AUTOSCROLL_MS,
   REORDER_DRAG_THRESHOLD_PX,
   autoScrollDelta,
+  consumePieceReorderKey,
   dropIndexForSlug,
   dropTargetSlug,
   moveSlug,
@@ -507,16 +508,13 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.cancelCreate();
       return;
     }
-    const arrow = rackArrowDelta(event.key);
-    if (!arrow) return;
-    if (event.altKey) {
-      const slug = (event.target as HTMLElement | null)?.closest?.('[data-slug]')?.getAttribute('data-slug');
-      if (slug) {
-        event.preventDefault();
-        this.movePieceByKey(slug, arrow);
-      }
+    const reorder = consumePieceReorderKey(event);
+    if (reorder) {
+      this.movePieceByKey(reorder.slug, reorder.delta);
       return;
     }
+    const arrow = rackArrowDelta(event.key);
+    if (!arrow) return;
     if (this.creating() || this.adding()) return;
     if (this.webglUnavailable() || this.loading() || !this.firstFrame() || this.error()) return;
     const target = event.target as HTMLElement | null;
@@ -526,6 +524,11 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     if (this.modalOpen || document.querySelector('.lc-product-edit-dialog')) return;
     event.preventDefault();
     this.stepRack(arrow);
+  }
+
+  onPieceReorderKey(event: KeyboardEvent): void {
+    const reorder = consumePieceReorderKey(event);
+    if (reorder) this.movePieceByKey(reorder.slug, reorder.delta);
   }
 
   /** Enter / Space on a captioned piece opens it like a click on its photo. */

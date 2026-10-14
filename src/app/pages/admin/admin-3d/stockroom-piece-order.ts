@@ -23,6 +23,27 @@ export function moveSlug(slugs: readonly string[], from: number, to: number): st
   return next;
 }
 
+/** Shift, not Alt: Chrome/Firefox treat Alt+←/→ as history back/forward. */
+export const PIECE_REORDER_KEYSHORTCUTS = 'Shift+ArrowLeft Shift+ArrowRight';
+
+export function pieceSlugFromKeyTarget(target: EventTarget | null): string | null {
+  return (target as HTMLElement | null)?.closest?.('[data-slug]')?.getAttribute('data-slug') ?? null;
+}
+
+/**
+ * When a hanger is focused, Shift+←/→ reorders it. Always cancel the event so
+ * the arrow does not also pan the rack (or leak to the browser).
+ */
+export function consumePieceReorderKey(event: KeyboardEvent): { slug: string; delta: -1 | 1 } | null {
+  const delta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
+  if (!delta || !event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return null;
+  const slug = pieceSlugFromKeyTarget(event.target);
+  if (!slug) return null;
+  event.preventDefault();
+  event.stopPropagation();
+  return { slug, delta };
+}
+
 export function moveSlugById(slugs: readonly string[], slug: string, delta: -1 | 1): string[] | null {
   const from = slugs.indexOf(slug);
   if (from < 0) return null;
