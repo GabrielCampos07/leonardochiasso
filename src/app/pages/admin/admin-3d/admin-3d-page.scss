@@ -555,6 +555,7 @@
 .admin-3d__chrome {
   pointer-events: none;
   position: absolute;
+  z-index: 6;
   top: 12px;
   right: 12px;
   left: auto;
@@ -695,9 +696,16 @@
 }
 
 .admin-3d__credits:hover,
-.admin-3d__credits:focus-visible {
+.admin-3d__credits:focus-visible,
+.admin-3d__credits.is-return-focus {
   background: var(--lc-white);
   border-color: var(--lc-void);
+}
+
+.admin-3d__credits:focus-visible,
+.admin-3d__credits.is-return-focus {
+  outline: 2px solid var(--lc-void);
+  outline-offset: 2px;
 }
 
 .admin-3d__add-piece {
