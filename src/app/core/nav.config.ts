@@ -1,5 +1,5 @@
 import { MegaKey, NavActive } from './chrome.service';
-import { CONTACT_EMAILS } from './brand-lines';
+import { CONTACT_EMAILS, PUBLIC_CONTACT_MAILTO } from './brand-lines';
 import {
   ABOUT_FRAGMENTS,
   ALTA_COSTURA_PUBLIC,
@@ -313,7 +313,7 @@ export const FOOTER_LINKS = {
   atendimento: [
     {
       label: 'Contato',
-      route: `mailto:${CONTACT_EMAILS.geral.email}`,
+      route: PUBLIC_CONTACT_MAILTO,
       external: true,
     },
     {

@@ -1,6 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { PUBLIC_CONTACT_EMAIL, PUBLIC_CONTACT_MAILTO } from '../../core/brand-lines';
 import { ChromeService } from '../../core/chrome.service';
 import { legalPath, ROUTES } from '../../core/routes';
 
@@ -107,7 +108,7 @@ function isLegalPage(value: string | null): value is LegalPageSlug {
                 Você pode solicitar confirmação de tratamento, acesso, correção,
                 anonimização, portabilidade, eliminação e revogação de
                 consentimento pelo canal
-                <a href="mailto:atelier@leonardochiasso.com">atelier@leonardochiasso.com</a>.
+                <a [href]="contactMailto">{{ contactEmail }}</a>.
                 Responderemos em prazo razoável, conforme a LGPD.
               </p>
             </section>
@@ -334,6 +335,8 @@ export class LegalPage implements OnInit {
   private readonly chrome = inject(ChromeService);
 
   readonly home = ROUTES.home;
+  readonly contactEmail = PUBLIC_CONTACT_EMAIL;
+  readonly contactMailto = PUBLIC_CONTACT_MAILTO;
   readonly page = signal<LegalPageSlug>('privacidade');
   readonly meta = signal(PAGE_META.privacidade);
 
