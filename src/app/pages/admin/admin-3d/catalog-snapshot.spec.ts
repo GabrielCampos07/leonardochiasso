@@ -57,6 +57,20 @@ describe('catalogFingerprint', () => {
     expect(a).toBe(catalogFingerprint(collections, products, []));
   });
 
+  it('changes when membership sortOrder changes', () => {
+    const a = catalogFingerprint(
+      collections,
+      [{ ...products[0]!, collectionOrders: [{ slug: 'niponic-dreams', sortOrder: 0 }] }],
+      [],
+    );
+    const b = catalogFingerprint(
+      collections,
+      [{ ...products[0]!, collectionOrders: [{ slug: 'niponic-dreams', sortOrder: 2 }] }],
+      [],
+    );
+    expect(a).not.toBe(b);
+  });
+
   it('changes when a piece sells out, turns draft, or a collection is unpublished', () => {
     const a = catalogFingerprint(collections, products, []);
     const soldOut = catalogFingerprint(collections, [{ ...products[0]!, stockQty: 0 }], []);

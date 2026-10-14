@@ -19,6 +19,7 @@ export function leanSceneProduct(product: SceneProductInput): SceneProductInput 
     name: product.name,
     collectionSlug: product.collectionSlug,
     collectionSlugs: product.collectionSlugs,
+    collectionOrders: product.collectionOrders,
     status: product.status,
     stockQty: product.stockQty,
     price: product.price,
@@ -44,7 +45,7 @@ export function catalogFingerprint(
     rows
       .map(
         (p) =>
-          `${p.slug}|${p.thumb ?? p.imageUrl ?? ''}|${(p.collectionSlugs ?? []).join(',')}|${p.archivedAt ?? ''}|${p.status ?? ''}|${p.stockQty ?? ''}`,
+          `${p.slug}|${p.thumb ?? p.imageUrl ?? ''}|${(p.collectionSlugs ?? []).join(',')}|${(p.collectionOrders ?? []).map((c) => `${c.slug}:${c.sortOrder}`).join(',')}|${p.archivedAt ?? ''}|${p.status ?? ''}|${p.stockQty ?? ''}`,
       )
       .join(';');
   return `${cols}#${pieces(products)}#${pieces(joias)}`;

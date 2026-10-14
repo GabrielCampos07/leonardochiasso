@@ -4,6 +4,7 @@ import {
   isArchivedProduct,
   isUnpublishedCollection,
   mapCatalogToScene,
+  membershipSortOrder,
   mapJoiasToVitrines,
   racksForFirstFrame,
   omitHanger,
@@ -63,6 +64,36 @@ describe('mapCatalogToScene', () => {
       UNCOLLECTED_RACK_ID,
     ]);
     expect(layout.racks[2]?.name).toBe(UNCOLLECTED_RACK_NAME);
+  });
+
+  it('hangs pieces by product_collections.sortOrder, not GET list order', () => {
+    const layout = mapCatalogToScene(collections, [
+      {
+        slug: 'cinto',
+        name: 'Cinto',
+        collectionSlug: 'organic-dreams',
+        collectionSlugs: ['organic-dreams'],
+        collectionOrders: [{ slug: 'organic-dreams', sortOrder: 2 }],
+      },
+      {
+        slug: 'vestido',
+        name: 'Vestido',
+        collectionSlug: 'organic-dreams',
+        collectionSlugs: ['organic-dreams'],
+        collectionOrders: [{ slug: 'organic-dreams', sortOrder: 0 }],
+      },
+      {
+        slug: 'saia',
+        name: 'Saia',
+        collectionSlug: 'organic-dreams',
+        collectionSlugs: ['organic-dreams'],
+        collectionOrders: [{ slug: 'organic-dreams', sortOrder: 1 }],
+      },
+    ]);
+    expect(layout.racks[0]?.hangers.map((h) => h.slug)).toEqual(['vestido', 'saia', 'cinto']);
+    expect(membershipSortOrder({ collectionOrders: [{ slug: 'organic-dreams', sortOrder: 4 }] }, 'organic-dreams')).toBe(
+      4,
+    );
   });
 
   it('places products on the matching rack and orphans on Sem coleção', () => {
