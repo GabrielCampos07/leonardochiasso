@@ -1,11 +1,15 @@
 import {
   ATELIER_HINT_COPY,
+  HINT_AUTO_HIDE_MS,
+  armHintAutoHide,
   clampCreatePanel,
+  gestureHintCopy,
   isCreateSheetViewport,
   pieceModalFromHangerClick,
   rackCounterLabel,
   stockroomTitle,
 } from './admin-3d-page';
+import { STOCKROOM_HINT_COPY, adminSceneMode } from './admin-3d-scene-mode';
 import { OVERVIEW_FOCUS_ID, collectionSwitcherItems } from '../../../scene-engine/camera-guide';
 import { DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
@@ -46,6 +50,37 @@ describe('atelier hint copy', () => {
   it('is only the gesture line — Fechar stays off the hint', () => {
     expect(ATELIER_HINT_COPY).not.toMatch(/fechar/i);
     expect(ATELIER_HINT_COPY).toContain('Clique');
+  });
+});
+
+describe('stockroom first-open hint', () => {
+  const empty = { get: () => null };
+
+  it('uses the stockroom line on /admin/3d with no flag, and on the retired aliases', () => {
+    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_COPY);
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'cc0' ? '1' : null) }))).toBe(STOCKROOM_HINT_COPY);
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'sketchfab' ? '1' : null) }))).toBe(STOCKROOM_HINT_COPY);
+    expect(STOCKROOM_HINT_COPY).toContain('Clique na peça · arraste move');
+  });
+
+  it('keeps the atelier line only for ?atelier=1', () => {
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'atelier' ? '1' : null) }))).toBe(ATELIER_HINT_COPY);
+  });
+
+  it('hides the hint 5s after the first frame, not sooner', () => {
+    jasmine.clock().install();
+    try {
+      let hidden = false;
+      armHintAutoHide(() => {
+        hidden = true;
+      });
+      jasmine.clock().tick(HINT_AUTO_HIDE_MS - 1);
+      expect(hidden).toBeFalse();
+      jasmine.clock().tick(1);
+      expect(hidden).toBeTrue();
+    } finally {
+      jasmine.clock().uninstall();
+    }
   });
 });
 

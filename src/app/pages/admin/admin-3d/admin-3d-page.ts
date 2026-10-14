@@ -124,9 +124,19 @@ export type AtelierLine = 'roupas' | 'joias';
 
 export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
-const HINT_AUTO_HIDE_MS = 5000;
+export const HINT_AUTO_HIDE_MS = 5000;
 /** Visible hint only — dismiss is aria-label so "Fechar" cannot leak into the copy. */
 export const ATELIER_HINT_COPY = 'Clique · arraste · ← → · scroll';
+
+/** Same stockroom line for `/admin/3d`, `?cc0=1` and `?sketchfab=1`. */
+export function gestureHintCopy(mode: ReturnType<typeof adminSceneMode>): string {
+  return isStockroomMode(mode) ? STOCKROOM_HINT_COPY : ATELIER_HINT_COPY;
+}
+
+/** Count the 5s hide from the first painted frame, not from boot, so a slow kit still shows the hint. */
+export function armHintAutoHide(hide: () => void): number {
+  return window.setTimeout(hide, HINT_AUTO_HIDE_MS);
+}
 
 export function prefersReducedMotion(): boolean {
   try {
@@ -247,7 +257,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   /** Stockroom: nav in a fixed bar under the canvas, names and captions as HTML labels. */
   readonly stockroom = isStockroomMode(this.sceneMode);
   readonly overlay = signal<StockroomOverlay | null>(null);
-  readonly hintCopy = this.stockroom ? STOCKROOM_HINT_COPY : ATELIER_HINT_COPY;
+  readonly hintCopy = gestureHintCopy(this.sceneMode);
   readonly viewportWidth = signal(typeof window === 'undefined' ? 1280 : window.innerWidth);
   readonly desktopOnly = computed(() => isDesktopOnlyBlocked(this.sceneMode, this.viewportWidth()));
   readonly desktopOnlyTitle = DESKTOP_ONLY_TITLE;
@@ -448,7 +458,6 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.engine.setLayout(this.pendingLayout);
       this.pendingLayout = null;
     }
-    this.hintTimer = window.setTimeout(() => this.showHint.set(false), HINT_AUTO_HIDE_MS);
   }
 
   @HostListener('window:resize')
@@ -1006,6 +1015,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private markFirstFrame(): void {
     this.boot.markFirstFrame();
     this.firstFrame.set(true);
+    if (!this.hintTimer) this.hintTimer = armHintAutoHide(() => this.showHint.set(false));
     afterOverlayPaint(() => this.engine?.refitToChrome());
     const piece = this.route.snapshot.queryParamMap.get('piece');
     if (piece) {

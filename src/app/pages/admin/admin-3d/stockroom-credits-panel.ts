@@ -3,6 +3,18 @@ import { STOCKROOM_B_CREDITS, type StockroomCredit } from '../../../scene-engine
 import { focusEditModal, listenDialogEscape } from './dialog-escape';
 
 export const CREDITS_TITLE_ID = 'stockroom-credits-title';
+export const RETURN_FOCUS_CLASS = 'is-return-focus';
+
+/** Programmatic focus after a pointer close does not set :focus-visible; the class draws the ring. */
+export function restoreOpenerFocus(el: HTMLElement): void {
+  const clear = (): void => {
+    el.classList.remove(RETURN_FOCUS_CLASS);
+    el.removeEventListener('blur', clear);
+  };
+  el.addEventListener('blur', clear);
+  el.classList.add(RETURN_FOCUS_CLASS);
+  el.focus({ preventScroll: true, focusVisible: true } as FocusOptions);
+}
 
 const CC0_URL = 'https://creativecommons.org/publicdomain/zero/1.0/';
 
@@ -62,7 +74,7 @@ export class StockroomCreditsPanel implements AfterViewInit, OnDestroy {
   ngOnDestroy(): void {
     this.stopEscape?.();
     this.stopEscape = null;
-    if (this.opener?.isConnected) this.opener.focus({ preventScroll: true });
+    if (this.opener?.isConnected) restoreOpenerFocus(this.opener);
     this.opener = null;
   }
 
