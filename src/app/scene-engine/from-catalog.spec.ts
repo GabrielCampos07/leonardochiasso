@@ -56,6 +56,36 @@ describe('from-catalog prices', () => {
     expect(hangerPriceFromFields(input)).toMatch(/R\$\s*289,00/);
   });
 
+  it('keeps product_collections.sortOrder so the scene can hang in membership order', () => {
+    const input = apiProductToSceneInput({
+      id: '1',
+      slug: 'cinto',
+      name: 'Cinto',
+      description: '',
+      details: [],
+      shipping: null,
+      priceCents: 10000,
+      currency: 'BRL',
+      color: null,
+      size: null,
+      fabric: null,
+      season: null,
+      stockQty: 1,
+      category: 'feminino',
+      collection: 'Organic Dreams',
+      collections: [
+        { slug: 'organic-dreams', name: 'Organic Dreams', sortOrder: 3 },
+        { slug: 'niponic-dreams', name: 'Niponic Dreams', sortOrder: 1 },
+      ],
+      thumb: '',
+      gallery: [],
+    });
+    expect(input.collectionOrders).toEqual([
+      { slug: 'organic-dreams', sortOrder: 3 },
+      { slug: 'niponic-dreams', sortOrder: 1 },
+    ]);
+  });
+
   it('keeps jewelry editorial labels when there is no numeric price', () => {
     const input = joiaToSceneInput({
       id: 'colar',

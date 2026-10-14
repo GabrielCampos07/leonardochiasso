@@ -53,6 +53,11 @@ export class AdminCollectionsController {
     return this.collections.restore(slug);
   }
 
+  @Get(':slug/products')
+  getProducts(@Param('slug') slug: string) {
+    return this.collections.getProducts(slug);
+  }
+
   @Put(':slug/products')
   setProducts(
     @Param('slug') slug: string,

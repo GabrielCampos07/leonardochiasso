@@ -6,6 +6,7 @@ import {
   CollectionProductsLock,
   addPieceStaggerDelay,
   appendCollectionProductSlugs,
+  mergeLiveOrderIntoMembership,
   partitionAppendResults,
 } from './admin-collection-products';
 import {
@@ -42,6 +43,18 @@ describe('appendCollectionProductSlugs', () => {
   });
 });
 
+describe('mergeLiveOrderIntoMembership', () => {
+  it('keeps archived members in their slots when live hangers are reordered', () => {
+    expect(mergeLiveOrderIntoMembership(['arquivo', 'a', 'b', 'c'], ['c', 'a', 'b'])).toEqual([
+      'arquivo',
+      'c',
+      'a',
+      'b',
+    ]);
+    expect(mergeLiveOrderIntoMembership(['a', 'arquivo', 'b'], ['b', 'a'])).toEqual(['b', 'arquivo', 'a']);
+  });
+});
+
 describe('addPieceStaggerDelay', () => {
   it('keeps 80 ms between each added piece', () => {
     expect(ADD_PIECE_STAGGER_MS).toBe(80);
@@ -73,11 +86,13 @@ describe('AdminCollectionProductsService', () => {
 
   function setup(
     setProducts: (slug: string, productSlugs: string[]) => ReturnType<AdminCollectionsApiService['setProducts']>,
+    getProducts: (slug: string) => ReturnType<AdminCollectionsApiService['getProducts']> = () =>
+      of({ productSlugs: [] }),
   ): AdminCollectionProductsService {
     TestBed.configureTestingModule({
       providers: [
         AdminCollectionProductsService,
-        { provide: AdminCollectionsApiService, useValue: { setProducts } },
+        { provide: AdminCollectionsApiService, useValue: { setProducts, getProducts } },
       ],
     });
     return TestBed.inject(AdminCollectionProductsService);
@@ -155,6 +170,25 @@ describe('AdminCollectionProductsService', () => {
     expect(batch.added).toEqual(['boa']);
     expect(batch.failed.map((item) => item.slug)).toEqual(['ruim']);
     expect(service.current('organic-dreams')).toEqual(['vestido', 'boa']);
+  });
+
+  it('keeps archived members on the collection when a 3D drag reorders live hangers', async () => {
+    const puts: string[][] = [];
+    const service = setup(
+      (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
+        return of(result('organic-dreams', productSlugs));
+      },
+      () => of({ productSlugs: ['arquivo', 'a', 'b', 'c'] }),
+    );
+
+    const saved = await new Promise<SetCollectionProductsResult>((resolve, reject) => {
+      service.replaceLiveOrder('organic-dreams', ['c', 'a', 'b']).subscribe({ next: resolve, error: reject });
+    });
+
+    expect(puts).toEqual([['arquivo', 'c', 'a', 'b']]);
+    expect(saved.productSlugs).toContain('arquivo');
+    expect(service.current('organic-dreams')).toEqual(['arquivo', 'c', 'a', 'b']);
   });
 });
 

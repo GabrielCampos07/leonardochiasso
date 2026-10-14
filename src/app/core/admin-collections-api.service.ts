@@ -85,6 +85,13 @@ export class AdminCollectionsApiService {
     });
   }
 
+  /** Full membership in `sortOrder`, including archived members. */
+  getProducts(slug: string): Observable<{ productSlugs: string[] }> {
+    return this.http.get<{ productSlugs: string[] }>(`${this.url}/${encodeURIComponent(slug)}/products`, {
+      withCredentials: true,
+    });
+  }
+
   setProducts(slug: string, productSlugs: string[]): Observable<SetCollectionProductsResult> {
     return this.http.put<SetCollectionProductsResult>(
       `${this.url}/${encodeURIComponent(slug)}/products`,

@@ -125,4 +125,17 @@ describe('AdminCollectionsService archive', () => {
     await expect(service.archive('sumiu')).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.collection.update).not.toHaveBeenCalled();
   });
+
+  it('returns every member slug in sortOrder, including archived', async () => {
+    prisma.collection.findUnique.mockResolvedValue({
+      ...collectionRow(),
+      products: [
+        { sortOrder: 0, product: { slug: 'arquivo' } },
+        { sortOrder: 1, product: { slug: 'vestido' } },
+      ],
+    });
+    await expect(service.getProducts('organic-dreams')).resolves.toEqual({
+      productSlugs: ['arquivo', 'vestido'],
+    });
+  });
 });
