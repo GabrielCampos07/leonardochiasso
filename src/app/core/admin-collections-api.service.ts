@@ -55,9 +55,6 @@ export class AdminCollectionsApiService {
       .get<AdminCollectionDto[]>(this.url, {
         withCredentials: true,
         params,
-        headers: opts.refresh
-          ? { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
-          : undefined,
       })
       .pipe(map((list) => filterArchivedList(list, archived)));
   }

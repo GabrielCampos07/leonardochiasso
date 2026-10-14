@@ -282,7 +282,9 @@ export class AdminCatalogService {
       gender: product.gender ?? storefrontCategory(product),
       collectionSlug,
       priceCents: product.priceCents ?? Math.round(product.price * 100),
-      stockQty: Math.max(0, Math.round(product.stockQty ?? 0)),
+      stockQty: Number.isFinite(Number(product.stockQty))
+        ? Math.round(Number(product.stockQty))
+        : 0,
       status: 'published',
       description: product.description || undefined,
       color: product.color || undefined,
@@ -317,7 +319,9 @@ export class AdminCatalogService {
 
     const collectionSlug = product.collectionSlug || slugFromCollection(product.collection);
     const priceCents = product.priceCents ?? Math.round(product.price * 100);
-    const stockQty = Math.max(0, Math.round(product.stockQty ?? 0));
+    const stockQty = Number.isFinite(Number(product.stockQty))
+      ? Math.round(Number(product.stockQty))
+      : 0;
 
     if (opts.isNew) {
       return this.createViaApi({

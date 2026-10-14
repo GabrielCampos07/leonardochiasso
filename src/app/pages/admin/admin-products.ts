@@ -48,6 +48,7 @@ import {
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
+import { itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
 import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
 import { isSoldOut } from '../../scene-engine/types';
 
@@ -73,7 +74,7 @@ export class AdminProductsPage implements OnInit {
   readonly genderFilters = GENDER_FILTER_OPTIONS;
   readonly highlightGender = signal(false);
   readonly todosHint = signal('');
-  readonly showUnissexNotice = signal(false);
+  readonly showUnissexNotice = computed(() => this.category() === 'masculino');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
   readonly dragStartDelay = coarsePointerDragDelay();
   readonly canDrag = computed(() => canReorderWithFilter(this.category()));
@@ -160,7 +161,6 @@ export class AdminProductsPage implements OnInit {
     this.category.set(next);
     this.todosHint.set('');
     this.highlightGender.set(false);
-    this.showUnissexNotice.set(false);
     this.applyCollectionGenderOrder();
   }
 
@@ -177,9 +177,6 @@ export class AdminProductsPage implements OnInit {
     this.highlightGender.set(true);
   }
 
-  onDragStarted(): void {
-    if (this.category() === 'masculino') this.showUnissexNotice.set(true);
-  }
 
   private collectionSlugForOrder(): string | null {
     const col = this.collection();
@@ -196,6 +193,9 @@ export class AdminProductsPage implements OnInit {
         if (!res.productIds.length) return;
         const visible = applyProductIdOrder(this.filtered(), res.productIds);
         this.applyVisibleOrderLocal(visible.map((p) => p.slug));
+      },
+      error: (err) => {
+        this.toast.error(collectionOrderErrorMessage(err, 'Não foi possível carregar a ordem.'));
       },
     });
   }
@@ -272,10 +272,17 @@ export class AdminProductsPage implements OnInit {
       this.onTodosDragAttempt();
       return;
     }
-    if (event.previousIndex === event.currentIndex) return;
     const visible = [...this.filtered()];
+    const currentIndex = resolveCdkDropIndex(
+      event,
+      visible.length,
+      itemMidpoints(
+        event.container.getSortedItems().map((item) => item.element.nativeElement.getBoundingClientRect()),
+      ),
+    );
+    if (event.previousIndex === currentIndex) return;
     const previousIds = visible.map(orderProductId);
-    moveItemInArray(visible, event.previousIndex, event.currentIndex);
+    moveItemInArray(visible, event.previousIndex, currentIndex);
     this.applyVisibleOrder(visible.map((p) => p.slug), previousIds);
   }
 
