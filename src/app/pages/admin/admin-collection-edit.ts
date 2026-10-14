@@ -7,10 +7,15 @@ import {
   AdminCollectionDto,
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
+import {
+  AdminCollectionOrderService,
+  collectionOrderErrorMessage,
+} from '../../core/admin-collection-order.service';
 import { AdminCollectionProductsService } from '../../core/admin-collection-products';
 import { ApiProductDto } from '../../core/catalog.service';
 import { productBelongsToCollection, resolveCollectionCover } from '../../core/collection-cover';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
+import { LcSegmented } from '../../shared/components/segmented/segmented';
 import {
   ADMIN_NEW_COLLECTION_SLUG,
   ADMIN_NEW_PRODUCT_SLUG,
@@ -29,6 +34,21 @@ import {
 } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
+import {
+  GENDER_FILTER_OPTIONS,
+  GENDER_ORDER_SAVED_TEXT,
+  GENDER_ORDER_UNDO_LABEL,
+  GENDER_ORDER_UNDO_MS,
+  GenderFilter,
+  MASCULINO_UNISSEX_NOTICE,
+  TODOS_DRAG_HINT,
+  applyProductIdOrder,
+  canReorderWithFilter,
+  coarsePointerDragDelay,
+  matchesGenderFilter,
+  orderProductId,
+  productGender,
+} from '../../core/product-gender';
 import { isSoldOut } from '../../scene-engine/types';
 
 function slugify(value: string): string {
@@ -45,7 +65,7 @@ function slugify(value: string): string {
 @Component({
   selector: 'lc-admin-collection-edit',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule, CollectionCover],
+  imports: [FormsModule, RouterLink, DragDropModule, CollectionCover, LcSegmented],
   templateUrl: './admin-collection-edit.html',
   styleUrls: ['./admin-product-edit.scss', './admin-products.scss', './admin-collection-edit.scss'],
 })
@@ -54,8 +74,17 @@ export class AdminCollectionEditPage implements OnInit {
   private readonly router = inject(Router);
   private readonly api = inject(AdminCollectionsApiService);
   private readonly collectionProducts = inject(AdminCollectionProductsService);
+  private readonly collectionOrder = inject(AdminCollectionOrderService);
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
+
+  readonly genderFilters = GENDER_FILTER_OPTIONS;
+  readonly genderFilter = signal<GenderFilter>('todos');
+  readonly highlightGender = signal(false);
+  readonly todosHint = signal('');
+  readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
+  readonly showUnissexNotice = signal(false);
+  readonly dragStartDelay = coarsePointerDragDelay();
 
   readonly listPath = ROUTES.adminCollections;
   readonly newProductPath = adminProductPath(ADMIN_NEW_PRODUCT_SLUG);
@@ -76,6 +105,8 @@ export class AdminCollectionEditPage implements OnInit {
   private slugLocked = false;
 
   readonly products = signal<ApiProductDto[]>([]);
+  readonly visibleProducts = signal<ApiProductDto[]>([]);
+  readonly canDrag = computed(() => canReorderWithFilter(this.genderFilter()));
   readonly coverUrl = computed(() =>
     resolveCollectionCover({
       collection: {
@@ -90,6 +121,7 @@ export class AdminCollectionEditPage implements OnInit {
   );
   readonly savingOrder = signal(false);
   private loadGen = 0;
+  private visibleGen = 0;
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -108,6 +140,7 @@ export class AdminCollectionEditPage implements OnInit {
         this.originalPublishedAt = null;
         this.archivedAt.set(null);
         this.products.set([]);
+        this.visibleProducts.set([]);
         return;
       }
       this.isNew.set(false);
@@ -126,6 +159,31 @@ export class AdminCollectionEditPage implements OnInit {
 
   soldOut(p: ApiProductDto): boolean {
     return isSoldOut(p.stockQty);
+  }
+
+  genderLabel(p: ApiProductDto): string {
+    return productGender(p);
+  }
+
+  setGenderFilter(raw: string): void {
+    const next = raw === 'masculino' || raw === 'feminino' ? raw : 'todos';
+    this.genderFilter.set(next);
+    this.todosHint.set('');
+    this.highlightGender.set(false);
+    this.showUnissexNotice.set(false);
+    this.refreshVisible();
+  }
+
+  onTodosDragAttempt(event?: Event): void {
+    if (this.canDrag()) return;
+    event?.preventDefault();
+    event?.stopPropagation();
+    this.todosHint.set(TODOS_DRAG_HINT);
+    this.highlightGender.set(true);
+  }
+
+  onDragStarted(): void {
+    if (this.genderFilter() === 'masculino') this.showUnissexNotice.set(true);
   }
 
   onNameChange(value: string): void {
@@ -245,11 +303,33 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   onDrop(event: CdkDragDrop<ApiProductDto[]>): void {
+    if (!this.canDrag()) {
+      this.onTodosDragAttempt();
+      return;
+    }
     if (event.previousIndex === event.currentIndex) return;
-    const next = [...this.products()];
+    const next = [...this.visibleProducts()];
+    const previousIds = next.map(orderProductId);
     moveItemInArray(next, event.previousIndex, event.currentIndex);
-    this.products.set(next);
-    this.persistOrder();
+    this.visibleProducts.set(next);
+    this.persistGenderOrder(previousIds);
+  }
+
+  move(slug: string, direction: -1 | 1): void {
+    if (!this.canDrag()) {
+      this.onTodosDragAttempt();
+      return;
+    }
+    const next = [...this.visibleProducts()];
+    const i = next.findIndex((p) => p.slug === slug);
+    const j = i + direction;
+    if (i < 0 || j < 0 || j >= next.length) return;
+    const previousIds = next.map(orderProductId);
+    const tmp = next[i]!;
+    next[i] = next[j]!;
+    next[j] = tmp;
+    this.visibleProducts.set(next);
+    this.persistGenderOrder(previousIds);
   }
 
   async removeProduct(productSlug: string): Promise<void> {
@@ -261,10 +341,11 @@ export class AdminCollectionEditPage implements OnInit {
     });
     if (!ok) return;
     this.products.set(this.products().filter((p) => p.slug !== productSlug));
-    this.persistOrder();
+    this.visibleProducts.set(this.visibleProducts().filter((p) => p.slug !== productSlug));
+    this.persistMembership();
   }
 
-  private persistOrder(): void {
+  private persistMembership(): void {
     const collectionSlug = this.slug();
     if (!collectionSlug || this.isNew()) return;
     this.savingOrder.set(true);
@@ -273,12 +354,78 @@ export class AdminCollectionEditPage implements OnInit {
     this.collectionProducts.replace(collectionSlug, slugs).subscribe({
       next: () => {
         this.savingOrder.set(false);
-        this.flash('Ordem dos produtos atualizada.');
+        this.flash('Coleção atualizada.');
       },
       error: (err: { error?: { message?: string | string[] } }) => {
         this.savingOrder.set(false);
-        this.error.set(this.formatError(err, 'Não foi possível salvar a ordem.'));
+        this.error.set(this.formatError(err, 'Não foi possível salvar a coleção.'));
         this.loadExisting(collectionSlug);
+      },
+    });
+  }
+
+  private persistGenderOrder(previousIds: string[]): void {
+    const collectionSlug = this.slug();
+    const filter = this.genderFilter();
+    if (!collectionSlug || this.isNew() || !canReorderWithFilter(filter)) return;
+    const productIds = this.visibleProducts().map(orderProductId);
+    this.savingOrder.set(true);
+    this.collectionOrder.put(collectionSlug, filter, productIds).subscribe({
+      next: () => {
+        this.savingOrder.set(false);
+        this.toast.success(GENDER_ORDER_SAVED_TEXT, {
+          durationMs: GENDER_ORDER_UNDO_MS,
+          action: {
+            label: GENDER_ORDER_UNDO_LABEL,
+            run: () => this.restoreGenderOrder(previousIds),
+          },
+        });
+      },
+      error: (err) => {
+        this.savingOrder.set(false);
+        this.visibleProducts.set(applyProductIdOrder(this.visibleProducts(), previousIds));
+        this.toast.error(collectionOrderErrorMessage(err));
+      },
+    });
+  }
+
+  private restoreGenderOrder(productIds: string[]): void {
+    const collectionSlug = this.slug();
+    const filter = this.genderFilter();
+    if (!collectionSlug || !canReorderWithFilter(filter)) return;
+    const restored = applyProductIdOrder(this.visibleProducts(), productIds);
+    this.visibleProducts.set(restored);
+    this.savingOrder.set(true);
+    this.collectionOrder.put(collectionSlug, filter, restored.map(orderProductId)).subscribe({
+      next: () => {
+        this.savingOrder.set(false);
+        this.toast.success('Ordem restaurada.');
+      },
+      error: (err) => {
+        this.savingOrder.set(false);
+        this.toast.error(collectionOrderErrorMessage(err));
+        this.refreshVisible();
+      },
+    });
+  }
+
+  private refreshVisible(): void {
+    const filter = this.genderFilter();
+    const subset = this.products().filter((p) => matchesGenderFilter(p, filter));
+    if (!canReorderWithFilter(filter) || this.isNew()) {
+      this.visibleProducts.set(subset);
+      return;
+    }
+    const collectionSlug = this.slug();
+    const gen = ++this.visibleGen;
+    this.collectionOrder.get(collectionSlug, filter).subscribe({
+      next: (res) => {
+        if (gen !== this.visibleGen) return;
+        this.visibleProducts.set(applyProductIdOrder(subset, res.productIds));
+      },
+      error: () => {
+        if (gen !== this.visibleGen) return;
+        this.visibleProducts.set(subset);
       },
     });
   }
@@ -330,6 +477,7 @@ export class AdminCollectionEditPage implements OnInit {
           slug,
           this.products().map((p) => p.slug),
         );
+        this.refreshVisible();
         this.loading.set(false);
       },
       error: (err) => {

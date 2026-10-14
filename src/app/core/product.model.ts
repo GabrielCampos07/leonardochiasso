@@ -197,6 +197,13 @@ export interface Product {
   thumb: string;
   gallery: string[];
   category: 'feminino' | 'masculino';
+  /**
+   * Catalog gender. Unissex is a third value; storefront hubs still use `category`
+   * (unissex maps to the feminine hub / feminine public block).
+   */
+  gender?: 'feminino' | 'masculino' | 'unissex';
+  /** API UUID for collection gender-order endpoints. Storefront `id` stays the slug. */
+  productId?: string;
   /** Display label (UI) */
   collection: Collection;
   /** URL-safe slug — pairs with `/colecao/:collectionSlug` */

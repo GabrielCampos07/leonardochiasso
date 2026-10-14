@@ -23,7 +23,8 @@
   text-transform: uppercase;
 }
 
-.admin-edit__form label {
+.admin-edit__form label,
+.admin-edit__field {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -55,6 +56,23 @@
   font-size: 1.05rem;
   line-height: 1.4;
   color: var(--lc-ash);
+}
+
+.admin-row__sold-out {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 18px;
+  margin: 0 0 12px;
+  padding: 2px 7px;
+  background: #8b1e2d;
+  color: #fff;
+  font-family: var(--lc-font-display);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .admin-edit__swatches {

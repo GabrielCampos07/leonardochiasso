@@ -1,3 +1,4 @@
+import { matchesGenderFilter, productGender } from '../../core/product-gender';
 import {
   findAdminCollection,
   productsInCollection,
@@ -57,5 +58,12 @@ describe('productsInCollection', () => {
       [],
     );
     expect(rows.map((p) => p.slug)).toEqual(['calca-pantalona-rasgo']);
+  });
+
+  it('keeps unissex in both admin gender filters', () => {
+    const uni = { slug: 'trench', gender: 'unissex', category: 'feminino' };
+    expect(productGender(uni)).toBe('unissex');
+    expect(matchesGenderFilter(uni, 'feminino')).toBeTrue();
+    expect(matchesGenderFilter(uni, 'masculino')).toBeTrue();
   });
 });

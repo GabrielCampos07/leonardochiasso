@@ -31,17 +31,19 @@
       Buscar pelo nome
       <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
     </label>
-    <label>
-      Gênero
-      <select [ngModel]="category()" (ngModelChange)="category.set($event)">
-        <option value="todos">Todos</option>
-        <option value="feminino">Feminino</option>
-        <option value="masculino">Masculino</option>
-      </select>
-    </label>
+    <div class="admin-list__filter-block">
+      <span>Gênero</span>
+      <lc-segmented
+        [options]="genderFilters"
+        [value]="category()"
+        [pulse]="highlightGender()"
+        label="Filtrar por gênero"
+        (valueChange)="setGenderFilter($event)"
+      />
+    </div>
     <label>
       Coleção
-      <select [ngModel]="collection()" (ngModelChange)="collection.set($event)">
+      <select [ngModel]="collection()" (ngModelChange)="setCollectionFilter($event)">
         <option value="todas">Todas</option>
         @for (c of collections; track c) {
           <option [value]="c">{{ c }}</option>
@@ -65,6 +67,13 @@
     </p>
   }
 
+  @if (todosHint()) {
+    <p class="admin-list__hint" role="status">{{ todosHint() }}</p>
+  }
+  @if (showUnissexNotice()) {
+    <p class="admin-list__notice" role="status">{{ unissexNotice }}</p>
+  }
+
   <p class="admin-list__count">
     @if (loading()) {
       Carregando…
@@ -83,14 +92,26 @@
     (cdkDropListDropped)="drop($event)"
   >
     @for (p of filtered(); track p.slug; let i = $index) {
-      <li class="admin-row" cdkDrag [cdkDragDisabled]="savingOrder()">
-        <button type="button" class="admin-row__handle" cdkDragHandle aria-label="Arrastar para reordenar">
+      <li
+        class="admin-row"
+        cdkDrag
+        [cdkDragDisabled]="savingOrder() || !canDrag()"
+        [cdkDragStartDelay]="dragStartDelay"
+        (cdkDragStarted)="onDragStarted()"
+      >
+        <button
+          type="button"
+          class="admin-row__handle"
+          cdkDragHandle
+          aria-label="Arrastar para reordenar"
+          (pointerdown)="onTodosDragAttempt($event)"
+        >
           ⋮⋮
         </button>
         <img [src]="p.thumb" [alt]="p.name" width="160" height="213" />
         <div class="admin-row__info">
           <strong>{{ p.name }}</strong>
-          <span>@if (p.collection) { {{ p.collection }} · }{{ p.category }}</span>
+          <span>@if (p.collection) { {{ p.collection }} · }{{ genderLabel(p) }}</span>
           <span>{{ priceLabel(p) }}</span>
           @if (soldOut(p)) {
             <span class="admin-row__sold-out">Esgotado</span>
@@ -118,7 +139,7 @@
               type="button"
               class="admin-row__order-btn"
               (click)="move(p.slug, -1)"
-              [disabled]="i === 0 || savingOrder()"
+              [disabled]="i === 0 || savingOrder() || !canDrag()"
             >
               <span aria-hidden="true">↑</span> Subir
             </button>
@@ -126,7 +147,7 @@
               type="button"
               class="admin-row__order-btn"
               (click)="move(p.slug, 1)"
-              [disabled]="i === filtered().length - 1 || savingOrder()"
+              [disabled]="i === filtered().length - 1 || savingOrder() || !canDrag()"
             >
               <span aria-hidden="true">↓</span> Descer
             </button>

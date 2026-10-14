@@ -9,6 +9,7 @@ import {
 } from '../../../core/product.model';
 import { productPath } from '../../../core/routes';
 import { displayPriceLabel } from '../../../core/pricing';
+import { isSoldOut } from '../../../scene-engine/types';
 import { AdminSessionService } from '../../../core/admin-session.service';
 import { ConfirmService } from '../../../core/feedback/confirm.service';
 import { WishlistService } from '../../../core/wishlist.service';
@@ -61,6 +62,9 @@ import { WishlistService } from '../../../core/wishlist.service';
               />
             </svg>
           </button>
+          @if (soldOut()) {
+            <span class="card__sold-out">Esgotado</span>
+          }
           @if (admin.editMode()) {
             <a
               class="card__edit"
@@ -189,6 +193,25 @@ import { WishlistService } from '../../../core/wishlist.service';
       object-position: center 48%;
       transform: scale(2.05);
       transform-origin: center 48%;
+    }
+    .card__sold-out {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      min-height: 18px;
+      padding: 2px 7px;
+      background: #8b1e2d;
+      color: #fff;
+      font-family: var(--lc-font-display);
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      line-height: 1;
+      text-transform: uppercase;
+      pointer-events: none;
     }
     .card__edit {
       position: absolute;
@@ -320,6 +343,10 @@ export class LcProductCard implements OnChanges {
     const first = this.product?.pieces?.[0]?.id ?? null;
     this.selectedPieceId.set(first);
     this.thumbFailed.set(false);
+  }
+
+  soldOut(): boolean {
+    return isSoldOut(this.product?.stockQty);
   }
 
   hasPieces(): boolean {

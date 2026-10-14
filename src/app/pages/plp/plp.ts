@@ -17,7 +17,7 @@ import {
   ROUTES,
   collectionPath,
 } from '../../core/routes';
-import { sortByRecommendOrder } from '../../core/recommend-order';
+import { groupShopProducts, matchesPublicGenderHub } from '../../core/product-gender';
 import { AdminJoiasCatalogService } from '../../core/admin-joias-catalog.service';
 import { JoiaPiece } from '../../core/joias.data';
 import { displayPriceLabel } from '../../core/pricing';
@@ -104,7 +104,7 @@ export class PlpPage implements OnInit {
     let list = this.rawProducts().filter((p) => !isArchivedAt(p.archivedAt));
     const category = this.categoryFilter();
     if (category) {
-      list = list.filter((p) => p.category === category);
+      list = list.filter((p) => matchesPublicGenderHub(p, category));
     }
     const rtw = this.rtwFilter();
     if (rtw) {
@@ -121,7 +121,7 @@ export class PlpPage implements OnInit {
         return list;
       case 'recomendados':
       default:
-        return sortByRecommendOrder(list);
+        return groupShopProducts(list);
     }
   });
 
