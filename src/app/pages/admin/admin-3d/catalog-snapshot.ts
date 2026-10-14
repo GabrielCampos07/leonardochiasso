@@ -1,7 +1,7 @@
 import type { SceneCollectionInput, SceneProductInput } from '../../../scene-engine/types';
 
-export const CATALOG_SNAPSHOT_KEY = 'lc.admin.3d.catalog.v1';
-export const CATALOG_SNAPSHOT_VERSION = 1;
+export const CATALOG_SNAPSHOT_KEY = 'lc.admin.3d.catalog.v2';
+export const CATALOG_SNAPSHOT_VERSION = 2;
 /** Short TTL — enough to paint racks on reload, then the API revalidates. */
 export const CATALOG_SNAPSHOT_TTL_MS = 15 * 60 * 1000;
 
@@ -38,13 +38,13 @@ export function catalogFingerprint(
   joias: ReadonlyArray<SceneProductInput>,
 ): string {
   const cols = collections
-    .map((c) => `${c.slug}|${c.name}|${c.sortOrder}|${c.archivedAt ?? ''}`)
+    .map((c) => `${c.slug}|${c.name}|${c.sortOrder}|${c.archivedAt ?? ''}|${c.publishedAt === null ? 'unpublished' : ''}`)
     .join(';');
   const pieces = (rows: ReadonlyArray<SceneProductInput>) =>
     rows
       .map(
         (p) =>
-          `${p.slug}|${p.thumb ?? p.imageUrl ?? ''}|${(p.collectionSlugs ?? []).join(',')}|${p.archivedAt ?? ''}`,
+          `${p.slug}|${p.thumb ?? p.imageUrl ?? ''}|${(p.collectionSlugs ?? []).join(',')}|${p.archivedAt ?? ''}|${p.status ?? ''}|${p.stockQty ?? ''}`,
       )
       .join(';');
   return `${cols}#${pieces(products)}#${pieces(joias)}`;
@@ -99,6 +99,7 @@ export function writeCatalogSnapshot(
       name: c.name,
       sortOrder: c.sortOrder,
       archivedAt: c.archivedAt ?? null,
+      ...(c.publishedAt !== undefined ? { publishedAt: c.publishedAt } : {}),
     })),
     products: payload.products.map(leanSceneProduct),
     joias: payload.joias.map(leanSceneProduct),

@@ -56,6 +56,28 @@ describe('catalogFingerprint', () => {
     expect(a).not.toBe(c);
     expect(a).toBe(catalogFingerprint(collections, products, []));
   });
+
+  it('changes when a piece sells out, turns draft, or a collection is unpublished', () => {
+    const a = catalogFingerprint(collections, products, []);
+    const soldOut = catalogFingerprint(collections, [{ ...products[0]!, stockQty: 0 }], []);
+    const draft = catalogFingerprint(collections, [{ ...products[0]!, status: 'draft' }], []);
+    const unpublished = catalogFingerprint(
+      collections.map((c) => ({ ...c, publishedAt: null })),
+      products,
+      [],
+    );
+    expect(new Set([a, soldOut, draft, unpublished]).size).toBe(4);
+  });
+
+  it('keeps publishedAt in the stored snapshot', () => {
+    const store = memoryStore();
+    writeCatalogSnapshot(
+      { collections: collections.map((c) => ({ ...c, publishedAt: null })), products, joias: [] },
+      store,
+      1_000,
+    );
+    expect(readCatalogSnapshot(1_000, store)?.collections.every((c) => c.publishedAt === null)).toBeTrue();
+  });
 });
 
 describe('catalog session snapshot', () => {

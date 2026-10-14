@@ -1,4 +1,5 @@
 import {
+  DRAFT_BADGE,
   BADGE_TEXTURE_H,
   BADGE_TEXTURE_W,
   SIGN_TEXTURE_H,
@@ -37,6 +38,23 @@ describe('stockroom labels', () => {
     expect(signImage.height).toBe(SIGN_TEXTURE_H);
     expect(signImage.width).toBe(signTextureWidth(9));
     sign.dispose();
+  });
+
+  it('paints the amber RASCUNHO pill on an unpublished collection sign only', () => {
+    const amberPixels = (texture: ReturnType<typeof makeSignTexture>) => {
+      const canvas = texture.image as HTMLCanvasElement;
+      const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] === 0xe3 && data[i + 1] === 0xb3 && data[i + 2] === 0x41) count++;
+      }
+      texture.dispose();
+      return count;
+    };
+    expect(DRAFT_BADGE.text).toBe('RASCUNHO');
+    expect(DRAFT_BADGE.fill).toBe('#E3B341');
+    expect(amberPixels(makeSignTexture('Cápsula', 3, false, 6, true))).toBeGreaterThan(1000);
+    expect(amberPixels(makeSignTexture('Cápsula', 3, false, 6, false))).toBe(0);
   });
 
   it('matches the sign canvas to the plane aspect so letters are not stretched', () => {

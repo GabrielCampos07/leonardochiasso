@@ -1,6 +1,8 @@
 import {
   VITRINE_CAPACITY,
   insertUnitBeforeUncollected,
+  isArchivedProduct,
+  isUnpublishedCollection,
   mapCatalogToScene,
   mapJoiasToVitrines,
   racksForFirstFrame,
@@ -315,5 +317,56 @@ describe('archive layout helpers', () => {
     const withoutHanger = removeHangerFromLayout(layout, 'vestido');
     expect(withoutHanger.racks[0]?.hangers.map((h) => h.slug)).toEqual(['jaqueta']);
     expect(removeUnitFromLayout(layout, 'organic-dreams').racks).toEqual([]);
+  });
+});
+
+describe('admin catalog visibility (drafts, unpublished, archived)', () => {
+  const collections = [
+    { slug: 'publicada', name: 'Publicada', sortOrder: 1, publishedAt: '2024-01-01T00:00:00.000Z' },
+    { slug: 'nao-publicada', name: 'Não publicada', sortOrder: 2, publishedAt: null },
+    { slug: 'legado', name: 'Sem campo', sortOrder: 3 },
+    { slug: 'arquivada', name: 'Arquivada', sortOrder: 4, publishedAt: null, archivedAt: '2026-10-01T00:00:00.000Z' },
+  ];
+  const products = [
+    { slug: 'rascunho', name: 'Rascunho', collectionSlug: 'publicada', status: 'draft', stockQty: 2 },
+    { slug: 'esgotada', name: 'Esgotada', collectionSlug: 'nao-publicada', status: 'published', stockQty: 0 },
+    { slug: 'arq-data', name: 'Arq', collectionSlug: 'publicada', status: 'published', archivedAt: '2026-10-01' },
+    { slug: 'arq-status', name: 'Arq', collectionSlug: 'publicada', status: 'archived' },
+    { slug: 'na-arquivada', name: 'Na arquivada', collectionSlug: 'arquivada', status: 'published', stockQty: 1 },
+  ];
+
+  it('flags only collections with publishedAt null as unpublished and drops archived ones', () => {
+    const layout = mapCatalogToScene(collections, products);
+    const byId = new Map(layout.racks.map((r) => [r.id, r]));
+    expect(byId.get('publicada')?.unpublished).toBeUndefined();
+    expect(byId.get('nao-publicada')?.unpublished).toBeTrue();
+    expect(byId.get('legado')?.unpublished).toBeUndefined();
+    expect(byId.has('arquivada')).toBeFalse();
+    expect(isUnpublishedCollection({ publishedAt: null })).toBeTrue();
+    expect(isUnpublishedCollection({})).toBeFalse();
+  });
+
+  it('keeps drafts and sold-out pieces, excludes archived by timestamp or status', () => {
+    const layout = mapCatalogToScene(collections, products);
+    const slugs = layout.racks.flatMap((r) => r.hangers.map((h) => h.slug));
+    expect(slugs).toContain('rascunho');
+    expect(slugs).toContain('esgotada');
+    expect(slugs).not.toContain('arq-data');
+    expect(slugs).not.toContain('arq-status');
+    const hangers = new Map(layout.racks.flatMap((r) => r.hangers).map((h) => [h.slug, h]));
+    expect(hangers.get('rascunho')?.status).toBe('draft');
+    expect(hangers.get('esgotada')?.stockQty).toBe(0);
+    expect(hangers.get('na-arquivada')?.rackId).toBe(UNCOLLECTED_RACK_ID);
+    expect(isArchivedProduct({ status: 'ARCHIVED' })).toBeTrue();
+    expect(isArchivedProduct({ status: 'draft' })).toBeFalse();
+  });
+
+  it('flags a vitrine whose jewelry collection is unpublished', () => {
+    const units = mapJoiasToVitrines(collections, [
+      { slug: 'anel', name: 'Anel', collectionSlug: 'nao-publicada', pieceKind: 'jewelry' },
+      { slug: 'brinco', name: 'Brinco', collectionSlug: 'publicada', pieceKind: 'jewelry' },
+    ]);
+    expect(units.find((u) => u.id === 'vitrine:nao-publicada')?.unpublished).toBeTrue();
+    expect(units.find((u) => u.id === 'vitrine:publicada')?.unpublished).toBeUndefined();
   });
 });

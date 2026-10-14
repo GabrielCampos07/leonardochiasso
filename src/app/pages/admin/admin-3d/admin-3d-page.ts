@@ -52,6 +52,7 @@ import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/uni
 import {
   findHanger,
   insertUnitBeforeUncollected,
+  isUnpublishedCollection,
   mapAtelierToScene,
   omitHanger,
   removeHangerFromLayout,
@@ -63,7 +64,7 @@ import {
 } from '../../../scene-engine/mapping';
 import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
 import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
-import { clampTooltip, mergeProductPhotos } from '../../../scene-engine/photo-url';
+import { clampTooltip } from '../../../scene-engine/photo-url';
 import type { AtelierEngine } from '../../../scene-engine/engine-contract';
 import type {
   SceneCollectionInput,
@@ -742,19 +743,18 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     }
 
     this.prefetch.prefetchCatalog().subscribe({
-      next: ({ collections, products, storefront, joias }) => {
+      next: ({ collections, products, joias }) => {
         if (gen !== this.loadGen) return;
-        const storefrontBySlug = new Map(storefront.map((p) => [p.slug, p]));
-        const merged = products.map((dto) => mergeProductPhotos(dto, storefrontBySlug.get(dto.slug)));
-        this.cacheProducts(merged.map(mapApiProduct));
+        this.cacheProducts(products.map(mapApiProduct));
         this.cacheJoias(joias);
         this.applyInputs(
           collections.map((c) => ({
             slug: c.slug,
             name: c.name,
             sortOrder: c.sortOrder,
+            publishedAt: c.publishedAt ?? null,
           })),
-          merged.map(apiProductToSceneInput),
+          products.map(apiProductToSceneInput),
           joias.map(joiaToSceneInput),
           false,
           gen,
@@ -837,11 +837,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       sortOrder: created.sortOrder,
       hangers: [],
       kind,
+      ...(isUnpublishedCollection(created) ? { unpublished: true } : {}),
     };
     this.knownRackIds.add(created.slug);
     this.collections = [
       ...this.collections,
-      { slug: created.slug, name: created.name, sortOrder: created.sortOrder },
+      { slug: created.slug, name: created.name, sortOrder: created.sortOrder, publishedAt: created.publishedAt ?? null },
     ];
     this.layout = insertUnitBeforeUncollected(this.layout, unit);
     this.collectionProducts.remember(created.slug, []);
@@ -999,7 +1000,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
               this.knownRackIds.add(restored.slug);
               this.collections = [
                 ...this.collections,
-                { slug: restored.slug, name: restored.name, sortOrder: restored.sortOrder },
+                {
+                  slug: restored.slug,
+                  name: restored.name,
+                  sortOrder: restored.sortOrder,
+                  publishedAt: restored.publishedAt ?? null,
+                },
               ];
               this.layout = snapshots.reduce(
                 (layout, snapshot) => insertUnitBeforeUncollected(layout, snapshot),

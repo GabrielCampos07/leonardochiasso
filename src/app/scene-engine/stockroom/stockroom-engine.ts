@@ -403,6 +403,10 @@ export class StockroomEngine implements AtelierEngine {
   }
 
   /** Badge kind painted on a piece (`draft` / `soldout` / `stock`), or null when it is not mounted. */
+  areaUnpublished(id: string): boolean {
+    return this.areaNodes.get(id)?.getObjectByName('sign')?.userData['unpublished'] === true;
+  }
+
   pieceBadge(slug: string): string | null {
     return (this.boxes.get(slug)?.badge.userData['badge'] as string | undefined) ?? null;
   }
@@ -826,9 +830,10 @@ export class StockroomEngine implements AtelierEngine {
     const signW = Math.min(area.width - 0.16, Math.max(2.2, area.bayX.length * bay.width));
     const sign = new Mesh(
       new PlaneGeometry(signW, SIGN_H),
-      makePhotoMaterial(makeSignTexture(area.name, pieces, isDraft, signW / SIGN_H)),
+      makePhotoMaterial(makeSignTexture(area.name, pieces, isDraft, signW / SIGN_H, rack?.unpublished === true)),
     );
     sign.name = 'sign';
+    sign.userData['unpublished'] = rack?.unpublished === true;
     sign.position.set(area.x, signY(bay), area.z - area.depth / 2 + AREA_BACK_INSET + bay.depth * 0.4);
     sign.rotation.x = SIGN_TILT;
     group.add(sign);

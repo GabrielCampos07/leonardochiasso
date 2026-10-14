@@ -90,8 +90,20 @@ export function signTextureWidth(aspect: number): number {
   return Math.min(2048, Math.max(512, Math.round(SIGN_TEXTURE_H * aspect)));
 }
 
-/** Header sign above a collection's bays: name large, piece count small. */
-export function makeSignTexture(name: string, pieces: number, draft = false, aspect = 4): CanvasTexture {
+export const DRAFT_BADGE = boxBadge({ status: 'draft' });
+
+/**
+ * Header sign above a collection's bays: name large, piece count small.
+ * `draft` is the unsaved "Nova coleção" placeholder; `unpublished` is a saved collection
+ * hidden from the storefront, flagged with the same RASCUNHO pill as draft pieces.
+ */
+export function makeSignTexture(
+  name: string,
+  pieces: number,
+  draft = false,
+  aspect = 4,
+  unpublished = false,
+): CanvasTexture {
   const width = signTextureWidth(aspect);
   return canvasTexture(width, SIGN_TEXTURE_H, (ctx) => {
     ctx.fillStyle = draft ? '#F4EFE6' : '#0E0C0E';
@@ -108,9 +120,30 @@ export function makeSignTexture(name: string, pieces: number, draft = false, asp
     const name1 = fitText(ctx, name, width - 64, 128, 56);
     ctx.font = name1.font;
     ctx.fillText(name1.label, width / 2, 100);
-    ctx.font = `500 52px ${FONT}`;
+    const count = draft ? 'nova coleção' : sectorCountLabel(pieces);
+    if (!unpublished || draft) {
+      ctx.font = `500 52px ${FONT}`;
+      ctx.globalAlpha = 0.78;
+      ctx.fillText(count, width / 2, 200);
+      return;
+    }
+    const pillFont = `800 40px ${FONT}`;
+    const countFont = `500 52px ${FONT}`;
+    ctx.font = pillFont;
+    const pillW = ctx.measureText(DRAFT_BADGE.text).width + 40;
+    ctx.font = countFont;
+    const gap = 24;
+    const left = width / 2 - (pillW + gap + ctx.measureText(count).width) / 2;
+    ctx.fillStyle = DRAFT_BADGE.fill;
+    ctx.fillRect(left, 172, pillW, 58);
+    ctx.fillStyle = DRAFT_BADGE.color;
+    ctx.font = pillFont;
+    ctx.textAlign = 'left';
+    ctx.fillText(DRAFT_BADGE.text, left + 20, 203);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = countFont;
     ctx.globalAlpha = 0.78;
-    ctx.fillText(draft ? 'nova coleção' : sectorCountLabel(pieces), width / 2, 200);
+    ctx.fillText(count, left + pillW + gap, 200);
   });
 }
 

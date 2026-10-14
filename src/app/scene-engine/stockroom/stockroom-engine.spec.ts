@@ -97,6 +97,26 @@ describe('StockroomEngine', () => {
     e.setLayout(layout([7, 2, 0]));
   });
 
+  it('badges an unpublished collection sign and a collection created from the 3D', (done) => {
+    if (!engine) {
+      pending('WebGL not available in this browser');
+      return;
+    }
+    const e = engine;
+    const base = layout([3, 1]);
+    base.racks[0] = { ...base.racks[0]!, unpublished: true };
+    e.onSceneComplete(() => {
+      expect(e.areaUnpublished('c0')).toBeTrue();
+      expect(e.areaUnpublished('c1')).toBeFalse();
+      e.showDraft('rack', 'Nova', true);
+      e.commitDraft({ id: 'nova', name: 'Nova', sortOrder: 9, kind: 'rack', hangers: [], unpublished: true }, true);
+      expect(e.areaUnpublished('nova')).toBeTrue();
+      done();
+    });
+    e.start();
+    e.setLayout(base);
+  });
+
   it('has no per-rack pan window', (done) => {
     boot([9], () => {
       expect(engine!.panRack(1)).toBeFalse();
@@ -251,6 +271,16 @@ describe('StockroomEngine with the Sketchfab kit (option B)', () => {
       expect(e.pieceBadge('c0-1')).toBe('soldout');
       expect(e.pieceBadge('c0-2')).toBe('draft');
       expect(e.pieceBadge('missing')).toBeNull();
+      done();
+    });
+  });
+
+  it('badges only the unpublished collection sign', (done) => {
+    const base = layout([2, 2]);
+    base.racks[1] = { ...base.racks[1]!, unpublished: true };
+    bootB(base, () => {
+      expect(engine!.areaUnpublished('c0')).toBeFalse();
+      expect(engine!.areaUnpublished('c1')).toBeTrue();
       done();
     });
   });
