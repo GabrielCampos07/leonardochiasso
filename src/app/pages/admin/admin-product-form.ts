@@ -42,11 +42,20 @@ import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-u
 
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
-/** Inteiro ≥ 0 para o campo de estoque do admin. */
+export const STOCK_NEGATIVE_MESSAGE = 'Estoque não pode ser negativo.';
+
+/** Parsed stock for the API — rounds, does not clamp negatives. */
 export function parseStockQty(raw: string | number | null | undefined): number {
-  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(/[^\d-]/g, ''));
+  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(',', '.'));
   if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.round(n));
+  return Math.round(n);
+}
+
+/** Client-side copy — same text the API returns for stock < 0. */
+export function stockQtyError(raw: string | number | null | undefined): string {
+  const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(',', '.'));
+  if (Number.isFinite(n) && n < 0) return STOCK_NEGATIVE_MESSAGE;
+  return '';
 }
 
 function collectionLabelForSlug(slug: string, name?: string | null): Collection {
@@ -76,14 +85,6 @@ export function collectionSelectLabel(
   const trimmed = name?.trim();
   if (trimmed && trimmed !== slug) return trimmed;
   return 'Coleção';
-}
-
-/** Inline error when stock is missing, negative, or not a number. */
-export function stockQtyError(raw: string | number | null | undefined): string {
-  if (raw === '' || raw == null) return 'Estoque deve ser um inteiro ≥ 0.';
-  const n = typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
-  if (!Number.isFinite(n) || n < 0) return 'Estoque deve ser um inteiro ≥ 0.';
-  return '';
 }
 
 @Component({
@@ -514,7 +515,7 @@ export class AdminProductForm implements OnInit {
     const stockMessage = stockQtyError(p.stockQty);
     if (stockMessage) {
       this.stockError.set(stockMessage);
-      return;
+      this.saveError.set(stockMessage);
     }
 
     const details = this.detailsText
@@ -554,7 +555,6 @@ export class AdminProductForm implements OnInit {
       ...syncPriceFields(p.price),
     };
 
-    this.saveError.set('');
     this.setSaving(true);
     this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
       next: (saved) => {

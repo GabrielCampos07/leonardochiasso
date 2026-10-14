@@ -7,7 +7,13 @@ import { AdminCollectionsApiService } from '../../core/admin-collections-api.ser
 import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { Product } from '../../core/product.model';
-import { AdminProductForm, collectionSelectLabel, parseStockQty, stockQtyError } from './admin-product-form';
+import {
+  AdminProductForm,
+  STOCK_NEGATIVE_MESSAGE,
+  collectionSelectLabel,
+  parseStockQty,
+  stockQtyError,
+} from './admin-product-form';
 
 function sampleProduct(patch: Partial<Product> = {}): Product {
   return {
@@ -42,8 +48,8 @@ describe('parseStockQty', () => {
     expect(parseStockQty('8')).toBe(8);
   });
 
-  it('clamps negatives and rounds fractions', () => {
-    expect(parseStockQty(-3)).toBe(0);
+  it('keeps negatives and rounds fractions — does not clamp', () => {
+    expect(parseStockQty(-3)).toBe(-3);
     expect(parseStockQty(2.6)).toBe(3);
     expect(parseStockQty('')).toBe(0);
     expect(parseStockQty(null)).toBe(0);
@@ -84,14 +90,14 @@ describe('collectionSelectLabel', () => {
 });
 
 describe('stockQtyError', () => {
-  it('rejects negatives and empty values', () => {
-    expect(stockQtyError(-1)).toBe('Estoque deve ser um inteiro ≥ 0.');
-    expect(stockQtyError('')).toBe('Estoque deve ser um inteiro ≥ 0.');
-    expect(stockQtyError('abc')).toBe('Estoque deve ser um inteiro ≥ 0.');
+  it('uses the API copy for negatives', () => {
+    expect(stockQtyError(-1)).toBe(STOCK_NEGATIVE_MESSAGE);
+    expect(stockQtyError(-1)).toBe('Estoque não pode ser negativo.');
   });
 
-  it('accepts zero and positive integers', () => {
+  it('accepts zero, empty, and positive integers', () => {
     expect(stockQtyError(0)).toBe('');
+    expect(stockQtyError('')).toBe('');
     expect(stockQtyError(4)).toBe('');
   });
 });
@@ -195,12 +201,35 @@ describe('AdminProductForm', () => {
     expect(trigger.textContent).not.toContain('Selecione a coleção');
   });
 
-  it('shows an inline stock error when the value is negative', () => {
+  it('keeps a negative stock, validates with the API copy, and still sends it', () => {
+    const input = fixture.nativeElement.querySelector('#atelier-product-stock') as HTMLInputElement;
+    expect(input.min).toBe('0');
+
     fixture.componentInstance.onStockQtyChange(-2);
     fixture.detectChanges();
-    const alert = fixture.nativeElement.querySelector('#atelier-product-stock-error') as HTMLElement;
-    expect(alert?.textContent?.trim()).toBe('Estoque deve ser um inteiro ≥ 0.');
-    expect(fixture.componentInstance.stockError()).toBe('Estoque deve ser um inteiro ≥ 0.');
+    expect(fixture.componentInstance.draft()?.stockQty).toBe(-2);
+    expect(fixture.nativeElement.querySelector('#atelier-product-stock-error')?.textContent?.trim()).toBe(
+      STOCK_NEGATIVE_MESSAGE,
+    );
+
+    saveProduct$.and.returnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            error: { message: 'Estoque não pode ser negativo.' },
+          }),
+      ),
+    );
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+
+    expect(saveProduct$).toHaveBeenCalled();
+    expect(saveProduct$.calls.mostRecent().args[0].stockQty).toBe(-2);
+    const saveAlert = fixture.nativeElement.querySelector('#atelier-product-save-error') as HTMLElement;
+    expect(saveAlert?.textContent?.trim()).toBe(STOCK_NEGATIVE_MESSAGE);
+    expect(fixture.componentInstance.saveError()).toBe(STOCK_NEGATIVE_MESSAGE);
   });
 
   it('includes a newly created collection after a cache-busting refresh', () => {

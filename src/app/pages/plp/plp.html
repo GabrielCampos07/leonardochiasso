@@ -1,4 +1,17 @@
 <section class="plp">
+  @if (missing() && !loading()) {
+    <nav class="plp__crumb lc-caption" aria-label="Breadcrumb">
+      <a [routerLink]="home">Home</a>
+      <span>/</span>
+      <span>Coleção</span>
+    </nav>
+    <div class="plp__head">
+      <div class="plp__title">
+        <h1>Coleção não encontrada</h1>
+      </div>
+    </div>
+    <p class="plp__empty" role="status">Coleção não encontrada</p>
+  } @else {
   <nav class="plp__crumb lc-caption" aria-label="Breadcrumb">
     <a [routerLink]="home">Home</a>
     <span>/</span>
@@ -138,5 +151,6 @@
         }
       </div>
     </section>
+  }
   }
 </section>
