@@ -641,8 +641,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.layout = layout;
     this.engine?.reorderHangers?.(rackId, next);
     this.bumpLayout();
-    this.collectionProducts.remember(collectionSlug, next);
-    this.collectionProducts.replace(collectionSlug, next).subscribe({
+    this.collectionProducts.replaceLiveOrder(collectionSlug, next).subscribe({
       error: (err: unknown) => {
         this.toast.error(adminHttpErrorMessage(err, PIECE_ORDER_SAVE_ERROR), { durationMs: ERROR_TOAST_MS });
         const rolled = reorderRackHangers(this.layout, rackId, previous);
