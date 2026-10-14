@@ -6,43 +6,63 @@
   tabindex="0"
   aria-label="Ateliê 3D de produtos"
 >
+  @if (stockroom && !webglUnavailable() && !desktopOnly()) {
+    <header class="admin-3d__title" aria-live="polite">
+      <h2 class="admin-3d__title-name">{{ stageTitle().name }}</h2>
+      @if (stageTitle().unpublished) {
+        <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
+      }
+      <span class="admin-3d__area-count">{{ stageTitle().detail }}</span>
+    </header>
+  }
+
   <div #stage class="admin-3d__stage">
     @if (!webglUnavailable()) {
       <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
     }
 
     @if (stockroom && firstFrame() && overlay(); as ov) {
-      <div class="admin-3d__overlay" aria-hidden="true">
+      <div class="admin-3d__overlay">
         @for (area of ov.areas; track area.id) {
-          <p
-            class="admin-3d__area-label"
-            [class.is-focused]="area.focused"
-            [style.left.px]="area.x"
-            [style.top.px]="area.y"
-          >
-            <span class="admin-3d__area-name">{{ area.name }}</span>
-            @if (area.unpublished || area.draft) {
-              <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
-            }
-            <span class="admin-3d__area-count">{{ area.count === 1 ? '1 peça' : area.count + ' peças' }}</span>
-          </p>
+          @if (!area.focused) {
+            <p class="admin-3d__area-label" aria-hidden="true" [style.left.px]="area.x" [style.top.px]="area.y">
+              <span class="admin-3d__area-name">{{ area.name }}</span>
+              @if (area.unpublished || area.draft) {
+                <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
+              }
+              <span class="admin-3d__area-count">{{ area.count === 1 ? '1 peça' : area.count + ' peças' }}</span>
+            </p>
+          }
         }
         @for (piece of ov.pieces; track piece.slug) {
           <div
             class="admin-3d__piece"
+            role="button"
+            tabindex="0"
             [class.is-hover]="piece.hover"
+            [class.is-top]="piece.y < 72"
             [attr.data-slug]="piece.slug"
+            [attr.aria-label]="piece.name"
+            [attr.aria-describedby]="'piece-tip-' + piece.slug"
             [style.left.px]="piece.x"
             [style.top.px]="piece.y"
             [style.width.px]="piece.w"
             [style.height.px]="piece.h"
+            (keydown.enter)="openPieceFromKey($event, piece.slug)"
+            (keydown.space)="openPieceFromKey($event, piece.slug)"
           >
             <span class="admin-3d__pill admin-3d__pill--{{ piece.badge }}">{{ piece.badgeText }}</span>
-            <span class="admin-3d__caption">
+            <span class="admin-3d__caption" aria-hidden="true">
               @if (piece.price) {
                 <b>{{ piece.price }}</b>
               }
-              <span>{{ piece.name }}</span>
+              <span class="admin-3d__caption-name">{{ piece.name }}</span>
+            </span>
+            <span class="admin-3d__tip" role="tooltip" [id]="'piece-tip-' + piece.slug">
+              {{ piece.name }}
+              @if (piece.price) {
+                <b>{{ piece.price }}</b>
+              }
             </span>
           </div>
         }
