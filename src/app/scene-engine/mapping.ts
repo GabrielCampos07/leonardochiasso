@@ -1,4 +1,5 @@
 import { hangerPriceFromFields } from './hanger-price';
+import { markComingSoonRacks, mergeArtProducts, mergeStudioLineCollections } from './studio-line';
 import {
   SceneCollectionInput,
   SceneHanger,
@@ -205,9 +206,11 @@ export function mapAtelierToScene(
   products: SceneProductInput[],
   joias: SceneProductInput[] = [],
 ): SceneLayout {
-  return {
-    racks: [...mapCatalogToScene(collections, products).racks, ...mapJoiasToVitrines(collections, joias)],
-  };
+  const cols = mergeStudioLineCollections(collections);
+  const garments = mergeArtProducts(products);
+  return markComingSoonRacks({
+    racks: [...mapCatalogToScene(cols, garments).racks, ...mapJoiasToVitrines(cols, joias)],
+  });
 }
 
 export function unitsOfKind(layout: SceneLayout, kind: SceneRack['kind']): SceneRack[] {

@@ -30,7 +30,9 @@
               @if (area.unpublished || area.draft) {
                 <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
               }
-              <span class="admin-3d__area-count">{{ area.count === 1 ? '1 peça' : area.count + ' peças' }}</span>
+              <span class="admin-3d__area-count">{{
+                area.comingSoon ? 'Em breve' : area.count === 1 ? '1 peça' : area.count + ' peças'
+              }}</span>
             </p>
           }
         }

@@ -63,6 +63,7 @@ import {
   unitsOfKind,
 } from '../../../scene-engine/mapping';
 import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
+import { isEditorialArtSlug } from '../../../scene-engine/studio-line';
 import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
 import { clampTooltip } from '../../../scene-engine/photo-url';
 import type { AtelierEngine } from '../../../scene-engine/engine-contract';
@@ -177,26 +178,39 @@ export interface StockroomTitle {
   name: string;
   detail: string;
   unpublished: boolean;
+  comingSoon: boolean;
 }
 
 /** Title strip above the stockroom canvas: the focused collection, or the room on the overview. */
 export function stockroomTitle(
-  racks: ReadonlyArray<Pick<SceneRack, 'id' | 'name' | 'hangers' | 'unpublished'>>,
+  racks: ReadonlyArray<Pick<SceneRack, 'id' | 'name' | 'hangers' | 'unpublished' | 'comingSoon'>>,
   focusedId: string,
   draftName = '',
 ): StockroomTitle {
   if (focusedId === OVERVIEW_FOCUS_ID) {
-    return { name: 'Todas as coleções', detail: racks.length === 1 ? '1 coleção' : `${racks.length} coleções`, unpublished: false };
+    return {
+      name: 'Todas as coleções',
+      detail: racks.length === 1 ? '1 coleção' : `${racks.length} coleções`,
+      unpublished: false,
+      comingSoon: false,
+    };
   }
   if (focusedId === DRAFT_UNIT_ID) {
-    return { name: draftName.trim() || DRAFT_PLACEHOLDER_NAME, detail: '0 peças', unpublished: true };
+    return {
+      name: draftName.trim() || DRAFT_PLACEHOLDER_NAME,
+      detail: '0 peças',
+      unpublished: true,
+      comingSoon: false,
+    };
   }
   const rack = racks.find((r) => r.id === focusedId);
   const count = rack?.hangers.length ?? 0;
+  const comingSoon = rack?.comingSoon === true;
   return {
     name: rack?.name ?? 'Coleção',
-    detail: count === 1 ? '1 peça' : `${count} peças`,
+    detail: comingSoon ? 'Em breve' : count === 1 ? '1 peça' : `${count} peças`,
     unpublished: rack?.unpublished === true,
+    comingSoon,
   };
 }
 
@@ -1092,6 +1106,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   private openEditor(slug: string): void {
     if (this.modalOpen) return;
+    if (isEditorialArtSlug(slug) && !this.productsBySlug.has(slug)) return;
     const next = pieceModalFromHangerClick(slug, { creating: this.creating(), adding: this.adding() });
     if (!next.open) return;
     this.hoverTip.set(null);

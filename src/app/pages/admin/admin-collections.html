@@ -54,10 +54,19 @@
                 type="button"
                 class="admin-row__order-btn"
                 (click)="restore(c)"
-                [disabled]="restoringSlug() === c.slug"
+                [disabled]="restoringSlug() === c.slug || deletingSlug() === c.slug"
                 [attr.aria-busy]="restoringSlug() === c.slug"
               >
                 {{ restoringSlug() === c.slug ? 'Restaurando…' : 'Restaurar' }}
+              </button>
+              <button
+                type="button"
+                class="admin-row__archive"
+                (click)="remove(c)"
+                [disabled]="deletingSlug() === c.slug || restoringSlug() === c.slug"
+                [attr.aria-busy]="deletingSlug() === c.slug"
+              >
+                {{ deletingSlug() === c.slug ? 'Excluindo…' : 'Excluir' }}
               </button>
             } @else {
               <button type="button" class="admin-row__archive" (click)="archive(c)">

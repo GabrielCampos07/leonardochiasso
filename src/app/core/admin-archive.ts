@@ -164,6 +164,24 @@ export function confirmArchiveCollection(
   });
 }
 
+export function confirmDeletePiece(confirm: ConfirmService, name: string): Promise<boolean> {
+  return confirm.confirm({
+    title: 'Excluir peça',
+    message: `Excluir “${name}”? Esta ação não pode ser desfeita.`,
+    confirmLabel: 'Excluir',
+    destructive: true,
+  });
+}
+
+export function confirmDeleteCollection(confirm: ConfirmService, name: string): Promise<boolean> {
+  return confirm.confirm({
+    title: 'Excluir coleção',
+    message: `Excluir “${name}”? Esta ação não pode ser desfeita.`,
+    confirmLabel: 'Excluir',
+    destructive: true,
+  });
+}
+
 export function showArchiveUndo(toast: ToastService, restore: () => void): void {
   toast.success(ARCHIVE_TOAST_TEXT, {
     durationMs: ARCHIVE_UNDO_MS,

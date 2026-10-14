@@ -132,13 +132,37 @@ describe('stockroomTitle', () => {
   ];
 
   it('names the focused collection with its piece count and draft state', () => {
-    expect(stockroomTitle(racks, 'od')).toEqual({ name: 'Organic Dreams', detail: '17 peças', unpublished: false });
-    expect(stockroomTitle(racks, 'cap')).toEqual({ name: 'Cápsula', detail: '1 peça', unpublished: true });
+    expect(stockroomTitle(racks, 'od')).toEqual({
+      name: 'Organic Dreams',
+      detail: '17 peças',
+      unpublished: false,
+      comingSoon: false,
+    });
+    expect(stockroomTitle(racks, 'cap')).toEqual({
+      name: 'Cápsula',
+      detail: '1 peça',
+      unpublished: true,
+      comingSoon: false,
+    });
   });
 
   it('names the room on the overview and a draft by its typed name', () => {
     expect(stockroomTitle(racks, OVERVIEW_FOCUS_ID).name).toBe('Todas as coleções');
     expect(stockroomTitle(racks, OVERVIEW_FOCUS_ID).detail).toBe('2 coleções');
-    expect(stockroomTitle(racks, DRAFT_UNIT_ID, '  Verão  ')).toEqual({ name: 'Verão', detail: '0 peças', unpublished: true });
+    expect(stockroomTitle(racks, DRAFT_UNIT_ID, '  Verão  ')).toEqual({
+      name: 'Verão',
+      detail: '0 peças',
+      unpublished: true,
+      comingSoon: false,
+    });
+  });
+
+  it('shows Em breve on an empty Casa rack', () => {
+    expect(
+      stockroomTitle(
+        [{ id: 'casa', name: 'Casa', hangers: [], unpublished: true, comingSoon: true }],
+        'casa',
+      ),
+    ).toEqual({ name: 'Casa', detail: 'Em breve', unpublished: true, comingSoon: true });
   });
 });

@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
 import { CatalogService } from '../../core/catalog.service';
@@ -35,6 +35,69 @@ function sample(patch: Partial<Product> & Pick<Product, 'slug' | 'name'>): Produ
   };
 }
 
+describe('AdminProductsPage delete archived', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('toasts the API 409 when hard-delete is refused', async () => {
+    TestBed.resetTestingModule();
+    const toast = {
+      error: jasmine.createSpy('error'),
+      success: jasmine.createSpy('success'),
+      info: jasmine.createSpy('info'),
+    };
+    const archived = sample({
+      slug: 'arquivo',
+      name: 'Arquivo',
+      archivedAt: '2026-10-14T00:00:00.000Z',
+    });
+    const confirm = jasmine.createSpy('confirm').and.returnValue(Promise.resolve(true));
+    await TestBed.configureTestingModule({
+      imports: [AdminProductsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            list$: () => of([archived]),
+            setOrder: () => undefined,
+            reorderViaApi: () => of(undefined),
+            archiveViaApi: () => of(archived),
+            restoreViaApi: () => of(archived),
+            removeViaApi: () =>
+              throwError(
+                () =>
+                  new HttpErrorResponse({
+                    status: 409,
+                    error: { message: 'Esta peça está em um pedido e não pode ser excluída.' },
+                  }),
+              ),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
+        },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm } },
+        { provide: ToastService, useValue: toast },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductsPage);
+    fixture.componentInstance.showArchived.set(true);
+    fixture.detectChanges();
+    await fixture.componentInstance.remove(archived);
+    fixture.detectChanges();
+
+    expect(confirm).toHaveBeenCalledWith(
+      jasmine.objectContaining({ message: 'Excluir “Arquivo”? Esta ação não pode ser desfeita.' }),
+    );
+    expect(toast.error).toHaveBeenCalledWith('Esta peça está em um pedido e não pode ser excluída.');
+    fixture.destroy();
+  });
+});
+
 describe('AdminProductsPage reorder', () => {
   let fixture: ComponentFixture<AdminProductsPage>;
   let toast: { error: jasmine.Spy; success: jasmine.Spy; info: jasmine.Spy };
@@ -66,6 +129,7 @@ describe('AdminProductsPage reorder', () => {
             reorderViaApi: () => reorderViaApi.asObservable(),
             archiveViaApi: () => of(pieces[0]),
             restoreViaApi: () => of(pieces[0]),
+            removeViaApi: () => of(undefined),
           },
         },
         {

@@ -200,6 +200,25 @@ export class AdminCatalogService {
       );
   }
 
+  /** Hard delete. API returns 409 unless the piece is archived (or is on an order). */
+  removeViaApi(slug: string): Observable<void> {
+    if (!this.useApi) {
+      const store = this.store();
+      const { [slug]: _removed, ...patches } = store.patches;
+      this.persist({
+        ...store,
+        patches,
+        order: (store.order ?? []).filter((row) => row !== slug),
+      });
+      return of(undefined);
+    }
+    return this.http
+      .delete<void>(`${this.baseUrl}/api/admin/products/${encodeURIComponent(slug)}`, {
+        withCredentials: true,
+      })
+      .pipe(tap(() => this.dropFromApiCache(slug)));
+  }
+
   restoreViaApi(slug: string): Observable<Product> {
     if (!this.useApi) {
       const current = this.list(true).find((p) => p.slug === slug) ?? this.get(slug);
@@ -638,6 +657,12 @@ export class AdminCatalogService {
       sortOrder: i,
       isPrimary: i === 0,
     }));
+  }
+
+  private dropFromApiCache(slug: string): void {
+    const cached = this.apiCache();
+    if (!cached) return;
+    this.apiCache.set(cached.filter((p) => p.slug !== slug));
   }
 
   private patchApiCache(product: Product, append: boolean, oldSlug?: string): void {

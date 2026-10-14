@@ -9,7 +9,13 @@ import {
   CollectionSlug,
   ROUTES,
 } from '../../core/routes';
-import { archiveAwareError, isArchivedAt, showArchiveUndo } from '../../core/admin-archive';
+import {
+  archiveAwareError,
+  confirmDeletePiece,
+  isArchivedAt,
+  showArchiveUndo,
+} from '../../core/admin-archive';
+import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { AdminProductForm } from './admin-product-form';
 
@@ -66,6 +72,7 @@ export class AdminProductEditPage implements OnInit {
   private readonly router = inject(Router);
   private readonly adminCatalog = inject(AdminCatalogService);
   private readonly toast = inject(ToastService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly listPath = ROUTES.adminProducts;
   readonly draft = signal<Product | null>(null);
@@ -74,6 +81,7 @@ export class AdminProductEditPage implements OnInit {
   readonly collectionFromContext = signal(false);
   readonly collectionRequired = signal(false);
   readonly restoring = signal(false);
+  readonly deleting = signal(false);
   readonly isArchived = computed(() => isArchivedAt(this.draft()?.archivedAt));
 
   ngOnInit(): void {
@@ -129,6 +137,25 @@ export class AdminProductEditPage implements OnInit {
 
   cancel(): void {
     void this.router.navigateByUrl(ROUTES.adminProducts);
+  }
+
+  async remove(): Promise<void> {
+    const p = this.draft();
+    if (!p || !this.isArchived() || this.deleting()) return;
+    const ok = await confirmDeletePiece(this.confirm, p.name);
+    if (!ok) return;
+    this.deleting.set(true);
+    this.adminCatalog.removeViaApi(p.slug).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.toast.success('Excluída.');
+        void this.router.navigateByUrl(ROUTES.adminProducts);
+      },
+      error: (err) => {
+        this.deleting.set(false);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível excluir.'));
+      },
+    });
   }
 
   restore(): void {

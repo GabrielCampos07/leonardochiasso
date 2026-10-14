@@ -20,6 +20,7 @@ import {
   adminLoadErrorMessage,
   archiveAwareError,
   confirmArchiveCollection,
+  confirmDeleteCollection,
   endAdminLoad,
   insertAt,
   isArchivedAt,
@@ -49,6 +50,7 @@ export class AdminCollectionsPage implements OnInit {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly restoringSlug = signal<string | null>(null);
+  readonly deletingSlug = signal<string | null>(null);
   readonly collections = signal<AdminCollectionDto[]>([]);
   readonly covers = signal<Record<string, string | null>>({});
   private coverProducts: ApiProductDto[] = [];
@@ -141,6 +143,24 @@ export class AdminCollectionsPage implements OnInit {
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
         );
+      },
+    });
+  }
+
+  async remove(c: AdminCollectionDto): Promise<void> {
+    if (!isArchivedAt(c.archivedAt) || this.deletingSlug()) return;
+    const ok = await confirmDeleteCollection(this.confirm, c.name);
+    if (!ok) return;
+    this.deletingSlug.set(c.slug);
+    this.api.remove(c.slug).subscribe({
+      next: () => {
+        this.deletingSlug.set(null);
+        this.collections.set(removeBySlug(this.collections(), c.slug));
+        this.toast.success('Excluída.');
+      },
+      error: (err) => {
+        this.deletingSlug.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível excluir.'));
       },
     });
   }

@@ -75,6 +75,13 @@ export class AdminCollectionsApiService {
     );
   }
 
+  /** Hard delete. API returns 409 unless the collection is archived and empty. */
+  remove(slug: string): Observable<void> {
+    return this.http.delete<void>(`${this.url}/${encodeURIComponent(slug)}`, {
+      withCredentials: true,
+    });
+  }
+
   create(payload: CreateCollectionPayload): Observable<AdminCollectionDto> {
     return this.http.post<AdminCollectionDto>(this.url, payload, { withCredentials: true });
   }

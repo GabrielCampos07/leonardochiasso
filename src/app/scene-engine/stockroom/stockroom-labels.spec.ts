@@ -69,4 +69,11 @@ describe('stockroom labels', () => {
     expect(areaTint(0)).toBe(areaTint(6));
     expect(areaTint(-1)).toBe(areaTint(5));
   });
+
+  it('writes Em breve on an empty Casa sign', () => {
+    const sign = makeSignTexture('Casa', 0, false, 6, true, true);
+    const canvas = sign.image as HTMLCanvasElement;
+    expect(canvas.getContext('2d')).toBeTruthy();
+    sign.dispose();
+  });
 });

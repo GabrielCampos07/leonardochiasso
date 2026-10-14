@@ -38,11 +38,15 @@ function archivedProduct(): Product {
 describe('AdminProductEditPage archived product', () => {
   let fixture: ComponentFixture<AdminProductEditPage>;
   let restoreViaApi: jasmine.Spy;
+  let removeViaApi: jasmine.Spy;
+  let confirm: jasmine.Spy;
 
   beforeEach(async () => {
     restoreViaApi = jasmine.createSpy('restoreViaApi').and.returnValue(
       of({ ...archivedProduct(), archivedAt: null }),
     );
+    removeViaApi = jasmine.createSpy('removeViaApi').and.returnValue(of(undefined));
+    confirm = jasmine.createSpy('confirm').and.returnValue(Promise.resolve(true));
     await TestBed.configureTestingModule({
       imports: [AdminProductEditPage],
       providers: [
@@ -56,13 +60,14 @@ describe('AdminProductEditPage archived product', () => {
           useValue: {
             get$: () => of(archivedProduct()),
             restoreViaApi,
+            removeViaApi,
             useApi: true,
             mediaOf: () => [],
           },
         },
         { provide: AdminCollectionsApiService, useValue: { list: () => of([]) } },
         { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
-        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ConfirmService, useValue: { confirm } },
         {
           provide: ToastService,
           useValue: { success: () => undefined, error: () => undefined, info: () => undefined },
@@ -97,5 +102,21 @@ describe('AdminProductEditPage archived product', () => {
     const site = fixture.nativeElement.querySelector('.admin-edit__site') as HTMLButtonElement;
     expect(site.disabled).toBeTrue();
     expect(site.getAttribute('title')).toBe(SITE_UNAVAILABLE_HINT);
+  });
+
+  it('deletes an archived piece through the confirm modal with its name', async () => {
+    const exclude = [...fixture.nativeElement.querySelectorAll('.admin-edit__archived button')].find(
+      (btn) => (btn as HTMLButtonElement).textContent?.trim() === 'Excluir',
+    ) as HTMLButtonElement;
+    expect(exclude).toBeTruthy();
+    exclude.click();
+    await fixture.whenStable();
+    expect(confirm).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        title: 'Excluir peça',
+        message: 'Excluir “Look arquivo”? Esta ação não pode ser desfeita.',
+      }),
+    );
+    expect(removeViaApi).toHaveBeenCalledWith('look-arquivo');
   });
 });

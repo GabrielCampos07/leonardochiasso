@@ -134,6 +134,7 @@ export interface StockroomAreaLabel {
   name: string;
   count: number;
   unpublished: boolean;
+  comingSoon: boolean;
   draft: boolean;
   focused: boolean;
   x: number;
@@ -1011,7 +1012,16 @@ export class StockroomEngine implements AtelierEngine {
     const signW = Math.min(area.width - 0.16, Math.max(2.2, area.bayX.length * bay.width));
     const sign = new Mesh(
       new PlaneGeometry(signW, SIGN_H),
-      makePhotoMaterial(makeSignTexture(area.name, pieces, isDraft, signW / SIGN_H, rack?.unpublished === true)),
+      makePhotoMaterial(
+        makeSignTexture(
+          area.name,
+          pieces,
+          isDraft,
+          signW / SIGN_H,
+          rack?.unpublished === true,
+          rack?.comingSoon === true,
+        ),
+      ),
     );
     sign.name = 'sign';
     sign.userData['unpublished'] = rack?.unpublished === true;
@@ -1442,6 +1452,7 @@ export class StockroomEngine implements AtelierEngine {
         name: draft ? (this.draft?.name ?? area.name) : area.name,
         count: rack?.hangers.length ?? 0,
         unpublished: rack?.unpublished === true,
+        comingSoon: rack?.comingSoon === true,
         draft,
         focused: isFocused,
         x: Math.round(width > 440 ? Math.min(width - 220, Math.max(220, p.x)) : width / 2),

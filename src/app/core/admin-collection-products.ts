@@ -5,6 +5,7 @@ import {
   AdminCollectionsApiService,
   SetCollectionProductsResult,
 } from './admin-collections-api.service';
+import { omitEditorialArtFromLiveOrder } from '../scene-engine/studio-line';
 
 /** Visual gap between hangers when several pieces are added in one confirm. */
 export const ADD_PIECE_STAGGER_MS = 80;
@@ -146,7 +147,8 @@ export class AdminCollectionProductsService {
   ): Observable<SetCollectionProductsResult> {
     return this.enqueue(collectionSlug, async () => {
       const membership = await firstValueFrom(this.api.getProducts(collectionSlug));
-      const next = mergeLiveOrderIntoMembership(membership.productSlugs, liveOrdered);
+      const live = omitEditorialArtFromLiveOrder(liveOrdered, membership.productSlugs);
+      const next = mergeLiveOrderIntoMembership(membership.productSlugs, live);
       return this.write(collectionSlug, next);
     });
   }
