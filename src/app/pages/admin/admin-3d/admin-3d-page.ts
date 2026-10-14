@@ -89,6 +89,7 @@ import {
 import {
   DESKTOP_ONLY_HINT,
   DESKTOP_ONLY_TITLE,
+  STOCKROOM_B_HINT_COPY,
   STOCKROOM_HINT_COPY,
   adminSceneMode,
   isDesktopOnlyBlocked,
@@ -124,19 +125,9 @@ export type AtelierLine = 'roupas' | 'joias';
 
 export { ADMIN_3D_MOCK_KEY, isAdmin3dMockEnabled } from './admin-3d-guards';
 
-export const HINT_AUTO_HIDE_MS = 5000;
+const HINT_AUTO_HIDE_MS = 5000;
 /** Visible hint only — dismiss is aria-label so "Fechar" cannot leak into the copy. */
 export const ATELIER_HINT_COPY = 'Clique · arraste · ← → · scroll';
-
-/** Same stockroom line for `/admin/3d`, `?cc0=1` and `?sketchfab=1`. */
-export function gestureHintCopy(mode: ReturnType<typeof adminSceneMode>): string {
-  return isStockroomMode(mode) ? STOCKROOM_HINT_COPY : ATELIER_HINT_COPY;
-}
-
-/** Count the 5s hide from the first painted frame, not from boot, so a slow kit still shows the hint. */
-export function armHintAutoHide(hide: () => void): number {
-  return window.setTimeout(hide, HINT_AUTO_HIDE_MS);
-}
 
 export function prefersReducedMotion(): boolean {
   try {
@@ -224,7 +215,6 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
   @ViewChild('stage') private stageRef?: ElementRef<HTMLElement>;
   @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
-  @ViewChild('creditsButton') readonly creditsButtonRef?: ElementRef<HTMLButtonElement>;
   @ViewChild(CollectionAddPiecePanel) private addPanel?: CollectionAddPiecePanel;
 
   private readonly route = inject(ActivatedRoute);
@@ -254,10 +244,15 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
   readonly sceneMode = adminSceneMode(this.route.snapshot.queryParamMap);
-  /** Stockroom: nav in a fixed bar under the canvas, names and captions as HTML labels. */
+  /** Options A / B: nav in a fixed bar under the canvas, names and captions as HTML labels. */
   readonly stockroom = isStockroomMode(this.sceneMode);
   readonly overlay = signal<StockroomOverlay | null>(null);
-  readonly hintCopy = gestureHintCopy(this.sceneMode);
+  readonly hintCopy =
+    this.sceneMode === 'cc0'
+      ? STOCKROOM_HINT_COPY
+      : this.sceneMode === 'sketchfab'
+        ? STOCKROOM_B_HINT_COPY
+        : ATELIER_HINT_COPY;
   readonly viewportWidth = signal(typeof window === 'undefined' ? 1280 : window.innerWidth);
   readonly desktopOnly = computed(() => isDesktopOnlyBlocked(this.sceneMode, this.viewportWidth()));
   readonly desktopOnlyTitle = DESKTOP_ONLY_TITLE;
@@ -415,9 +410,14 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     const opts = { reducedMotion: this.reducedMotion, host };
     try {
       if (this.stockroom) {
-        const { createStockroomEngine } = await import('../../../scene-engine/stockroom/stockroom-engine');
+        const [{ createStockroomEngine }, { SKETCHFAB_KIT }] = await Promise.all([
+          import('../../../scene-engine/stockroom/stockroom-engine'),
+          this.sceneMode === 'sketchfab'
+            ? import('../../../scene-engine/stockroom/stockroom-kit-sketchfab')
+            : Promise.resolve({ SKETCHFAB_KIT: undefined }),
+        ]);
         if (!this.engine) {
-          const stockroom: StockroomEngine | null = createStockroomEngine(canvas, opts);
+          const stockroom: StockroomEngine | null = createStockroomEngine(canvas, { ...opts, kit: SKETCHFAB_KIT });
           stockroom?.onOverlay((frame) => this.overlay.set(frame));
           this.engine = stockroom;
         }
@@ -458,6 +458,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.engine.setLayout(this.pendingLayout);
       this.pendingLayout = null;
     }
+    this.hintTimer = window.setTimeout(() => this.showHint.set(false), HINT_AUTO_HIDE_MS);
   }
 
   @HostListener('window:resize')
@@ -531,6 +532,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   closeCredits(): void {
     this.creditsOpen.set(false);
+    this.sceneHostRef?.nativeElement.focus({ preventScroll: true });
   }
 
   toggleMore(event?: Event): void {
@@ -1015,7 +1017,6 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private markFirstFrame(): void {
     this.boot.markFirstFrame();
     this.firstFrame.set(true);
-    if (!this.hintTimer) this.hintTimer = armHintAutoHide(() => this.showHint.set(false));
     afterOverlayPaint(() => this.engine?.refitToChrome());
     const piece = this.route.snapshot.queryParamMap.get('piece');
     if (piece) {

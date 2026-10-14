@@ -1,4 +1,5 @@
 import { STOCKROOM_B_ASSETS, STOCKROOM_B_CREDITS } from './stockroom-b-assets';
+import { CC0_KIT } from './stockroom-kit-cc0';
 import {
   CARD_DROP,
   CARD_H,
@@ -16,7 +17,7 @@ function unit(id: string, pieces: number): StockroomUnitInput {
 
 const HASHED_GLB = /^assets\/3d\/stockroom(-b)?\/[A-Za-z0-9-]+\.[0-9a-f]{8}\.glb$/;
 
-describe('stockroom kit (Sketchfab)', () => {
+describe('option B kit (Sketchfab)', () => {
   it('hangs six pieces per bay: three on each of two rails', () => {
     expect(SKETCHFAB_BAY.perLevel).toBe(3);
     expect(SKETCHFAB_BAY.levelY.length).toBe(2);
@@ -42,12 +43,13 @@ describe('stockroom kit (Sketchfab)', () => {
   it('shows the photo large at the 4:5 bitmap aspect with the badge across its foot', () => {
     expect(SKETCHFAB_KIT.photo.w / SKETCHFAB_KIT.photo.h).toBeCloseTo(0.8, 5);
     expect(SKETCHFAB_KIT.photo.w).toBeGreaterThan(CARD_W * 0.85);
+    expect(SKETCHFAB_KIT.photo.w).toBeGreaterThanOrEqual(CC0_KIT.photo.w * 0.9);
     expect(SKETCHFAB_KIT.badge.h).toBeLessThan(SKETCHFAB_KIT.photo.h / 3);
     expect(SKETCHFAB_KIT.badge.z).toBeGreaterThan(SKETCHFAB_KIT.photo.z);
   });
 
   it('places pieces on their rail and frames an area from just under the lower cards', () => {
-    const area = planStockroom([unit('a', 8)], SKETCHFAB_BAY).areas[0];
+    const area = planStockroom([unit('a', 8)], undefined, SKETCHFAB_BAY).areas[0];
     expect(area.bayX.length).toBe(2);
     for (const slot of area.slots) {
       expect(slot.y).toBeCloseTo(ROD_Y[slot.level] - CARD_DROP, 5);
@@ -81,7 +83,7 @@ describe('stockroom kit (Sketchfab)', () => {
   });
 });
 
-describe('stockroom asset budget', () => {
+describe('option B asset budget', () => {
   interface ManifestRow {
     key: string;
     file: string;
@@ -94,7 +96,7 @@ describe('stockroom asset budget', () => {
     return (await res.json()) as ManifestRow[];
   }
 
-  it('ships the whole scene under 5 MB of models', async () => {
+  it('ships the whole option B scene under 5 MB of models', async () => {
     const own = await manifest('assets/3d/stockroom-b/manifest.json');
     const shared = await manifest('assets/3d/stockroom/manifest.json');
     const urls = new Set(Object.values(SKETCHFAB_KIT.assets));
@@ -102,12 +104,5 @@ describe('stockroom asset budget', () => {
     expect(rows.length).toBe(urls.size);
     const total = rows.reduce((sum, row) => sum + row.bytes, 0);
     expect(total).toBeLessThan(5_000_000);
-  });
-
-  it('ships only Kenney files the scene loads', async () => {
-    const urls = new Set(Object.values(SKETCHFAB_KIT.assets));
-    const shared = await manifest('assets/3d/stockroom/manifest.json');
-    expect(shared.map((row) => row.key).sort()).toEqual(['floor', 'rug', 'wall', 'wallWindow']);
-    for (const row of shared) expect(urls.has(row.file)).withContext(row.file).toBeTrue();
   });
 });

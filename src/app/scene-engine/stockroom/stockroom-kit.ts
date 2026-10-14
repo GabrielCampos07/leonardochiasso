@@ -2,12 +2,13 @@ import { Box3, BufferGeometry, Group, Material, Matrix4, Object3D, Quaternion, V
 import type { StockroomArea, StockroomBaySpec, StockroomPlan } from './stockroom-layout';
 
 /**
- * A stockroom "kit" is the scene's dressing: the asset files, the bay geometry,
- * and how the room, each bay and each piece body are built. Camera, input,
- * photos, badges, signs and animations live in `StockroomEngine`.
+ * A stockroom "kit" is everything that differs between option A (Kenney boxes on
+ * bookcases) and option B (Sketchfab hangers on wall rails): the asset files, the
+ * bay geometry, and how the room, each bay and each piece body are built. Camera,
+ * input, photos, badges, signs and animations live in `StockroomEngine`.
  */
 export interface StockroomKit {
-  id: 'sketchfab';
+  id: 'cc0' | 'sketchfab';
   /** Template id → GLB url. Must include `rug` (area floor mat). */
   assets: Readonly<Record<string, string>>;
   bay: StockroomBaySpec;
@@ -69,7 +70,7 @@ export function roomExtent(plan: StockroomPlan): { width: number; depth: number 
 }
 
 /**
- * Kenney CC0 shell: instanced floor tiles plus back and
+ * Kenney CC0 shell shared by both options: instanced floor tiles plus back and
  * left walls, every third piece with a window. Needs `floor`, `wall`, `wallWindow`.
  */
 export function buildKenneyShell(b: KitBuilder, plan: StockroomPlan, root: Group): void {
