@@ -43,9 +43,12 @@ export class AdminProductsService {
     return mapProduct(updated);
   }
 
-  /** Hard delete. Fails with 409 when the piece is on an order. */
+  /** Hard delete. Only when archived. 409 if the piece is on an order. */
   async remove(slug: string): Promise<void> {
     const product = await this.requireProduct(slug);
+    if (!product.archivedAt) {
+      throw new ConflictException('Arquive a peça antes de excluí-la.');
+    }
     try {
       await this.prisma.product.delete({ where: { id: product.id } });
     } catch (err) {
@@ -451,7 +454,7 @@ export class AdminProductsService {
   private async requireProduct(slug: string) {
     const product = await this.prisma.product.findUnique({
       where: { slug },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, archivedAt: true },
     });
     if (!product) throw new NotFoundException(`Product not found: ${slug}`);
     return product;

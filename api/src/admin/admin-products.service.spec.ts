@@ -1,5 +1,5 @@
-import { NotFoundException } from '@nestjs/common';
-import { ProductStatus } from '@prisma/client';
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Prisma, ProductStatus } from '@prisma/client';
 import { AdminProductsService } from './admin-products.service';
 
 function productRow(over: Record<string, unknown> = {}) {
@@ -99,11 +99,46 @@ describe('AdminProductsService archive', () => {
     expect(dto.archivedAt).toBeNull();
   });
 
-  it('hard-deletes a product by slug', async () => {
-    prisma.product.findUnique.mockResolvedValue({ id: 'p1', slug: 'vestido' });
+  it('hard-deletes an archived product by slug', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'p1',
+      slug: 'vestido',
+      archivedAt: new Date('2026-10-14T00:00:00Z'),
+    });
     prisma.product.delete.mockResolvedValue({ id: 'p1' });
     await service.remove('vestido');
     expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'p1' } });
+  });
+
+  it('409s when deleting a live product', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'p1',
+      slug: 'vestido',
+      archivedAt: null,
+    });
+    await expect(service.remove('vestido')).rejects.toMatchObject({
+      constructor: ConflictException,
+      message: 'Arquive a peça antes de excluí-la.',
+    });
+    expect(prisma.product.delete).not.toHaveBeenCalled();
+  });
+
+  it('409s when an archived product is still on an order', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 'p1',
+      slug: 'vestido',
+      archivedAt: new Date('2026-10-14T00:00:00Z'),
+    });
+    prisma.product.delete.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Foreign key constraint failed', {
+        code: 'P2003',
+        clientVersion: '6.19.3',
+      }),
+    );
+    await expect(service.remove('vestido')).rejects.toMatchObject({
+      constructor: ConflictException,
+      message: 'Esta peça está em um pedido e não pode ser excluída.',
+    });
   });
 
   it('404s when the slug is missing', async () => {
