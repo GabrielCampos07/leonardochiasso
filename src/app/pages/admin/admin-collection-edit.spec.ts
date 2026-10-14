@@ -1,7 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
+import { ADMIN_LOAD_TIMEOUT_MESSAGE, ADMIN_LOAD_TIMEOUT_MS } from '../../core/admin-archive';
+import { adminListCacheKey, clearAdminListCache, writeAdminCache } from '../../core/admin-list-cache';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
 import { AdminCollectionProductsService } from '../../core/admin-collection-products';
@@ -12,6 +14,7 @@ import { MASCULINO_UNISSEX_NOTICE, matchesGenderFilter, productGender } from '..
 import {
   AdminCollectionEditPage,
   findAdminCollection,
+  orderByMembership,
   productsInCollection,
 } from './admin-collection-edit';
 
@@ -103,6 +106,14 @@ describe('productsInCollection', () => {
     expect(rows.map((p) => p.slug)).toEqual(['calca-pantalona-rasgo']);
   });
 
+  it('orders members from the admin membership list, not the public catalog', () => {
+    const rows = orderByMembership(
+      [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }],
+      ['c', 'a'],
+    );
+    expect(rows.map((p) => p.slug)).toEqual(['c', 'a', 'b']);
+  });
+
   it('keeps unissex in both admin gender filters', () => {
     const uni = { slug: 'trench', gender: 'unissex', category: 'feminino' };
     expect(productGender(uni)).toBe('unissex');
@@ -159,7 +170,10 @@ describe('AdminCollectionEditPage gender UX', () => {
           provide: AdminCollectionsApiService,
           useValue: {
             list: (archived = false) => of(archived ? [] : [meta]),
-            getPublicDetail: () => of({ ...meta, products: pieces }),
+            getPublicDetail: jasmine.createSpy('getPublicDetail').and.callFake(() => {
+              throw new Error('admin must not GET /api/collections/:slug');
+            }),
+            getProducts: () => of({ productSlugs: pieces.map((p) => p.slug) }),
             listAdminProducts: () => of(pieces),
             archive: () => of(meta),
             restore: () => of(meta),
@@ -185,6 +199,13 @@ describe('AdminCollectionEditPage gender UX', () => {
 
   afterEach(() => fixture.destroy());
 
+  it('does not GET the public /api/collections/:slug from the admin detail', () => {
+    const api = TestBed.inject(AdminCollectionsApiService) as unknown as {
+      getPublicDetail: jasmine.Spy;
+    };
+    expect(api.getPublicDetail).not.toHaveBeenCalled();
+  });
+
   it('shows the Masculino notice as soon as that filter is on', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
@@ -193,22 +214,18 @@ describe('AdminCollectionEditPage gender UX', () => {
     expect(fixture.componentInstance.showUnissexNotice()).toBeTrue();
   });
 
-  it('hides the old list and shows a loading state while the order GET is in flight', () => {
+  it('keeps the current pieces visible while the order GET is in flight', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
     expect(fixture.componentInstance.orderLoading()).toBeTrue();
-    expect(fixture.componentInstance.visibleProducts()).toEqual([]);
-    expect(fixture.nativeElement.querySelector('.admin-col-products__loading')?.textContent?.trim()).toBe(
-      'Carregando…',
-    );
-    expect(fixture.nativeElement.querySelectorAll('.admin-col-products__row').length).toBe(0);
-    expect(fixture.nativeElement.textContent).not.toContain('F1');
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
+    expect(fixture.nativeElement.querySelectorAll('.admin-col-products__row').length).toBe(2);
+    expect(fixture.nativeElement.textContent).toContain('U1');
 
-    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
+    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-m1', 'id-u1'] });
     fixture.detectChanges();
     expect(fixture.componentInstance.orderLoading()).toBeFalse();
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
-    expect(fixture.nativeElement.querySelector('.admin-col-products__loading')).toBeNull();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['M1', 'U1']);
   });
 
   it('toasts when a gender-order PUT fails', () => {
@@ -307,4 +324,118 @@ describe('AdminCollectionEditPage gender UX', () => {
     expect(ids).toEqual(['id-m1', 'id-u1']);
     expect(ids).not.toContain('id-old');
   });
+});
+
+describe('AdminCollectionEditPage cached detail', () => {
+  const meta = {
+    id: 'col-1',
+    slug: 'teste-ordem2',
+    name: 'TESTE-ORDEM2',
+    description: null,
+    sortOrder: 4,
+    publishedAt: null,
+  };
+  const pieces = [dto({ slug: 'cached', name: 'Cached', gender: 'feminino', id: 'id-cached' })];
+
+  afterEach(() => {
+    clearAdminListCache();
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it('shows the cached members with atualizando… and keeps reorder off until the admin GET returns', async () => {
+    writeAdminCache(adminListCacheKey('collection-detail', 'teste-ordem2'), {
+      meta,
+      products: pieces,
+    });
+    const put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
+    await TestBed.configureTestingModule({
+      imports: [AdminCollectionEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ slug: 'teste-ordem2' })) },
+        },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            list: () => NEVER,
+            getPublicDetail: jasmine.createSpy('getPublicDetail').and.callFake(() => {
+              throw new Error('admin must not GET /api/collections/:slug');
+            }),
+            getProducts: () => NEVER,
+            listAdminProducts: () => NEVER,
+            archive: () => of(meta),
+            restore: () => of(meta),
+            update: () => of(meta),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put },
+        },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminCollectionEditPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSkeleton()).toBeFalse();
+    expect(fixture.componentInstance.products().map((p) => p.slug)).toEqual(['cached']);
+    expect(fixture.nativeElement.textContent).toContain('Cached');
+    expect(fixture.nativeElement.textContent).toContain('atualizando…');
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    fixture.componentInstance.move('cached', 1);
+    expect(put).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.todosHint()).toBe('');
+    const api = TestBed.inject(AdminCollectionsApiService) as unknown as {
+      getPublicDetail: jasmine.Spy;
+    };
+    expect(api.getPublicDetail).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('.admin-list__count')?.getAttribute('aria-live')).toBe(
+      'polite',
+    );
+    fixture.destroy();
+  });
+
+  it('sets loading=false when the admin GETs time out', fakeAsync(() => {
+    TestBed.configureTestingModule({
+      imports: [AdminCollectionEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ slug: 'teste-ordem2' })) },
+        },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            list: () => NEVER,
+            getProducts: () => NEVER,
+            listAdminProducts: () => NEVER,
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
+        },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminCollectionEditPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loading()).toBeTrue();
+    tick(ADMIN_LOAD_TIMEOUT_MS);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loading()).toBeFalse();
+    expect(fixture.componentInstance.error()).toBe(ADMIN_LOAD_TIMEOUT_MESSAGE);
+    fixture.destroy();
+  }));
 });

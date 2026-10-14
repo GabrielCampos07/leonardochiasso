@@ -204,6 +204,56 @@
   grid-template-columns: 72px 1fr auto;
 }
 
+.admin-row--skel {
+  pointer-events: none;
+}
+
+.admin-row__skel {
+  display: block;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--lc-ash) 22%, var(--lc-white)) 0%,
+    color-mix(in srgb, var(--lc-ash) 10%, var(--lc-white)) 50%,
+    color-mix(in srgb, var(--lc-ash) 22%, var(--lc-white)) 100%
+  );
+  background-size: 200% 100%;
+  animation: admin-skel 1.2s ease-in-out infinite;
+}
+
+.admin-row__skel--handle {
+  width: 36px;
+  height: 28px;
+}
+
+.admin-row__skel--thumb {
+  width: 160px;
+  height: 213px;
+}
+
+.admin-row--collection .admin-row__skel--thumb {
+  width: 72px;
+  height: 96px;
+}
+
+.admin-row__skel--copy {
+  height: 56px;
+}
+
+.admin-row__skel--actions {
+  width: 140px;
+  height: 40px;
+}
+
+@keyframes admin-skel {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 .admin-row__cover {
   width: 72px;
   height: 96px;

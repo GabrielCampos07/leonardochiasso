@@ -1,8 +1,25 @@
 import { OVERVIEW_FOCUS_ID } from '../camera-guide';
 import type { SceneHanger, SceneLayout } from '../types';
 import { DRAFT_UNIT_ID } from '../unit-layout';
-import { StockroomEngine, compactPrice, createStockroomEngine, upsertHanger } from './stockroom-engine';
+import {
+  STOCKROOM_HOVER_OUTLINE_PAD,
+  STOCKROOM_SHIFT_TARGET_OUTLINE_PAD,
+  StockroomEngine,
+  compactPrice,
+  createStockroomEngine,
+  outlinePadForHover,
+  upsertHanger,
+} from './stockroom-engine';
 import { SKETCHFAB_KIT } from './stockroom-kit-sketchfab';
+
+describe('outlinePadForHover', () => {
+  it('keeps the thin pad on a normal hover and the 0.16 pad on the Shift+arrow target', () => {
+    expect(STOCKROOM_HOVER_OUTLINE_PAD).toBe(0.07);
+    expect(STOCKROOM_SHIFT_TARGET_OUTLINE_PAD).toBe(0.16);
+    expect(outlinePadForHover(false)).toBe(0.07);
+    expect(outlinePadForHover(true)).toBe(0.16);
+  });
+});
 
 function hanger(rackId: string, j: number, extra: Partial<SceneHanger> = {}): SceneHanger {
   return {

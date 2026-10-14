@@ -4,6 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, forkJoin, of } from 'rxjs';
 import {
+  ADMIN_LIST_SKELETON_ROWS,
+  adminListCacheKey,
+  readAdminCache,
+  writeAdminCache,
+} from '../../core/admin-list-cache';
+import {
   AdminCollectionDto,
   AdminCollectionsApiService,
 } from '../../core/admin-collections-api.service';
@@ -94,6 +100,8 @@ export class AdminCollectionEditPage implements OnInit {
   readonly isNew = signal(false);
   readonly missing = signal(false);
   readonly loading = signal(true);
+  readonly skeletonRows = Array.from({ length: ADMIN_LIST_SKELETON_ROWS }, (_, i) => i);
+  readonly showSkeleton = computed(() => this.loading() && this.products().length === 0);
   readonly saving = signal(false);
   readonly restoring = signal(false);
   readonly error = signal('');
@@ -109,7 +117,10 @@ export class AdminCollectionEditPage implements OnInit {
 
   readonly products = signal<ApiProductDto[]>([]);
   readonly visibleProducts = signal<ApiProductDto[]>([]);
-  readonly canDrag = computed(() => canReorderWithFilter(this.genderFilter()));
+  readonly canDrag = computed(
+    () =>
+      canReorderWithFilter(this.genderFilter()) && !this.loading() && !this.orderLoading(),
+  );
   readonly coverUrl = computed(() =>
     resolveCollectionCover({
       collection: {
@@ -178,6 +189,11 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   onTodosDragAttempt(event?: Event): void {
+    if (this.loading() || this.orderLoading() || this.savingOrder()) {
+      event?.preventDefault();
+      event?.stopPropagation();
+      return;
+    }
     if (this.canDrag()) return;
     event?.preventDefault();
     event?.stopPropagation();
@@ -433,7 +449,7 @@ export class AdminCollectionEditPage implements OnInit {
     const collectionSlug = this.slug();
     const gen = ++this.visibleGen;
     this.orderLoading.set(true);
-    this.visibleProducts.set([]);
+    this.visibleProducts.set(subset);
     this.collectionOrder.get(collectionSlug, filter).subscribe({
       next: (res) => {
         if (gen !== this.visibleGen) return;
@@ -451,19 +467,20 @@ export class AdminCollectionEditPage implements OnInit {
 
   loadExisting(slug: string): void {
     const gen = ++this.loadGen;
-    this.loading.set(true);
     this.missing.set(false);
     this.error.set('');
+    this.loading.set(true);
+    this.hydrateDetail(slug);
 
     forkJoin({
       live: endAdminLoad(this.api.list(false)),
       archived: endAdminLoad(this.api.list(true)),
-      publicDetail: endAdminLoad(
-        this.api.getPublicDetail(slug).pipe(catchError(() => of(null))),
+      membership: endAdminLoad(
+        this.api.getProducts(slug).pipe(catchError(() => of({ productSlugs: [] as string[] }))),
       ),
       adminProducts: endAdminLoad(this.api.listAdminProducts()),
     }).subscribe({
-      next: ({ live, archived, publicDetail, adminProducts }) => {
+      next: ({ live, archived, membership, adminProducts }) => {
         if (gen !== this.loadGen) return;
         const meta = findAdminCollection(
           slug,
@@ -485,13 +502,18 @@ export class AdminCollectionEditPage implements OnInit {
           return;
         }
         this.applyMeta(meta);
+        const admin = adminProducts.ok ? adminProducts.value : [];
+        const slugs = membership.ok ? membership.value.productSlugs : [];
         this.products.set(
-          productsInCollection(
-            { slug, id: meta.id, name: meta.name },
-            adminProducts.ok ? adminProducts.value : [],
-            publicDetail.ok ? (publicDetail.value?.products ?? []) : [],
+          orderByMembership(
+            productsInCollection({ slug, id: meta.id, name: meta.name }, admin, []),
+            slugs,
           ),
         );
+        writeAdminCache(adminListCacheKey('collection-detail', slug), {
+          meta,
+          products: this.products(),
+        });
         this.collectionProducts.remember(
           slug,
           this.products().map((p) => p.slug),
@@ -505,6 +527,16 @@ export class AdminCollectionEditPage implements OnInit {
         this.loading.set(false);
       },
     });
+  }
+
+  private hydrateDetail(slug: string): void {
+    const cached = readAdminCache<{ meta: AdminCollectionDto; products: ApiProductDto[] }>(
+      adminListCacheKey('collection-detail', slug),
+    );
+    if (!cached?.meta) return;
+    this.applyMeta(cached.meta);
+    this.products.set(cached.products ?? []);
+    this.refreshVisible();
   }
 
   private applyMeta(c: AdminCollectionDto): void {
@@ -548,4 +580,26 @@ export function productsInCollection(
   const inCollection = adminProducts.filter((p) => productBelongsToCollection(p, collection));
   const seen = new Set(publicProducts.map((p) => p.slug));
   return [...publicProducts, ...inCollection.filter((p) => !seen.has(p.slug))];
+}
+
+export function orderByMembership<T extends { slug: string }>(
+  items: T[],
+  membership: readonly string[],
+): T[] {
+  if (!membership.length) return items;
+  const bySlug = new Map(items.map((item) => [item.slug, item]));
+  const next: T[] = [];
+  const seen = new Set<string>();
+  for (const slug of membership) {
+    const row = bySlug.get(slug);
+    if (!row || seen.has(slug)) continue;
+    seen.add(slug);
+    next.push(row);
+  }
+  for (const row of items) {
+    if (seen.has(row.slug)) continue;
+    seen.add(row.slug);
+    next.push(row);
+  }
+  return next;
 }

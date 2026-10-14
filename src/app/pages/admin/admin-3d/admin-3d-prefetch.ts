@@ -14,9 +14,11 @@ export interface Admin3dCatalogSnapshot {
 
 /**
  * Starts the 3D page chunk and catalog HTTP in parallel from the three.js-free gate.
- * Only authenticated admin endpoints: the public catalog hides drafts and unpublished
- * collections, which the 3D must show. Archived rows are dropped client-side as well,
- * in case an older API ignores the default `archived=false`.
+ * Only authenticated admin endpoints (`GET /api/admin/collections`,
+ * `GET /api/admin/products`). Never `GET /api/collections/:slug` — drafts such as
+ * teste-ordem2 and archived slugs 404 on the public catalog, which the 3D must still
+ * show. Archived rows are dropped client-side as well, in case an older API ignores
+ * the default `archived=false`.
  */
 @Injectable({ providedIn: 'root' })
 export class Admin3dPrefetchService {

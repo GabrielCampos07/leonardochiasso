@@ -1,9 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { Subject, of } from 'rxjs';
+import { NEVER, Subject, of } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
+import { adminListCacheKey, clearAdminListCache, writeAdminListCache } from '../../core/admin-list-cache';
 import { CatalogService } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
@@ -119,5 +120,150 @@ describe('AdminProductsPage reorder', () => {
     );
     fixture.detectChanges();
     expect(toast.error).toHaveBeenCalled();
+  });
+});
+
+describe('AdminProductsPage cache and skeleton', () => {
+  afterEach(() => {
+    clearAdminListCache();
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it('paints the last list immediately while GET /api/products is still in flight', async () => {
+    writeAdminListCache(adminListCacheKey('products', false), [
+      sample({ slug: 'cached', name: 'Cached' }),
+    ]);
+    await TestBed.configureTestingModule({
+      imports: [AdminProductsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            list$: () => NEVER,
+            setOrder: () => undefined,
+            reorderViaApi: () => of(void 0),
+            archiveViaApi: () => of(null),
+            restoreViaApi: () => of(null),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => NEVER, put: () => of({ productIds: [] }) },
+        },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductsPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSkeleton()).toBeFalse();
+    expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['cached']);
+    expect(fixture.nativeElement.textContent).toContain('Cached');
+    expect(fixture.nativeElement.textContent).toContain('atualizando…');
+    expect(fixture.nativeElement.querySelector('.admin-list__count')?.getAttribute('aria-live')).toBe(
+      'polite',
+    );
+    expect(fixture.nativeElement.querySelector('.admin-row--skel')).toBeNull();
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    fixture.componentInstance.drop({
+      previousIndex: 0,
+      currentIndex: 1,
+      distance: { x: 0, y: 80 },
+      dropPoint: { x: 10, y: 120 },
+      container: {
+        data: [...fixture.componentInstance.filtered()],
+        getSortedItems: () => [
+          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 0, bottom: 80, height: 80 }) } } },
+        ],
+      },
+    } as never);
+    expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['cached']);
+    expect(fixture.componentInstance.todosHint()).toBe('');
+    fixture.destroy();
+  });
+
+  it('shows skeleton rows instead of a lone Carregando… when the cache is empty', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AdminProductsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            list$: () => NEVER,
+            setOrder: () => undefined,
+            reorderViaApi: () => of(void 0),
+            archiveViaApi: () => of(null),
+            restoreViaApi: () => of(null),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => NEVER, put: () => of({ productIds: [] }) },
+        },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductsPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSkeleton()).toBeTrue();
+    expect(fixture.nativeElement.querySelectorAll('.admin-row--skel').length).toBeGreaterThan(1);
+    fixture.destroy();
+  });
+
+  it('unlocks drag only after the fresh list arrives', async () => {
+    const list$ = new Subject<Product[]>();
+    writeAdminListCache(adminListCacheKey('products', false), [
+      sample({ slug: 'cached', name: 'Cached' }),
+    ]);
+    await TestBed.configureTestingModule({
+      imports: [AdminProductsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            list$: () => list$.asObservable(),
+            setOrder: () => undefined,
+            reorderViaApi: () => of(void 0),
+            archiveViaApi: () => of(null),
+            restoreViaApi: () => of(null),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
+        },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductsPage);
+    fixture.detectChanges();
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain('atualizando…');
+
+    list$.next([sample({ slug: 'fresh', name: 'Fresh' })]);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['fresh']);
+    expect(fixture.componentInstance.canDrag()).toBeTrue();
+    expect(fixture.nativeElement.textContent).not.toContain('atualizando…');
+    fixture.destroy();
   });
 });

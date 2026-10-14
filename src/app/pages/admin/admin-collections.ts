@@ -27,6 +27,12 @@ import {
   showArchiveUndo,
   upsertBySlug,
 } from '../../core/admin-archive';
+import {
+  ADMIN_LIST_SKELETON_ROWS,
+  adminListCacheKey,
+  readAdminListCache,
+  writeAdminListCache,
+} from '../../core/admin-list-cache';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 
@@ -53,6 +59,8 @@ export class AdminCollectionsPage implements OnInit {
   readonly covers = signal<Record<string, string | null>>({});
   private coverProducts: ApiProductDto[] = [];
   readonly newPath = adminNewCollectionPath();
+  readonly skeletonRows = Array.from({ length: ADMIN_LIST_SKELETON_ROWS }, (_, i) => i);
+  readonly showSkeleton = computed(() => this.loading() && this.collections().length === 0);
 
   readonly filtered = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -67,6 +75,7 @@ export class AdminCollectionsPage implements OnInit {
   });
 
   constructor() {
+    this.hydrateFromCache(this.showArchived());
     this.load$
       .pipe(
         tap(() => {
@@ -80,6 +89,7 @@ export class AdminCollectionsPage implements OnInit {
         this.loading.set(false);
         if (result.ok) {
           this.collections.set(result.value);
+          writeAdminListCache(adminListCacheKey('collections', this.showArchived()), result.value);
           this.refreshCovers();
           return;
         }
@@ -90,6 +100,12 @@ export class AdminCollectionsPage implements OnInit {
           ),
         );
       });
+  }
+
+  private hydrateFromCache(archived: boolean): void {
+    const cached = readAdminListCache<AdminCollectionDto>(adminListCacheKey('collections', archived));
+    if (!cached?.length) return;
+    this.collections.set(cached);
   }
 
   ngOnInit(): void {
@@ -120,6 +136,7 @@ export class AdminCollectionsPage implements OnInit {
 
   onArchivedFilter(show: boolean): void {
     this.showArchived.set(show);
+    this.hydrateFromCache(show);
     this.reload();
   }
 

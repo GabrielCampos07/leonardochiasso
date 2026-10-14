@@ -47,6 +47,7 @@ import {
   rackNavItems,
   stepRackIndex,
 } from '../../../scene-engine/camera-guide';
+import { bindNonPassiveKeydown } from '../../../scene-engine/canvas-host';
 import { EMPTY_RACK_PAN, rackArrowDelta } from '../../../scene-engine/rack-pan';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
@@ -115,6 +116,7 @@ import { CollectionCreatePanel } from './collection-create-panel';
 import { StockroomCreditsPanel } from './stockroom-credits-panel';
 import {
   PIECE_ORDER_SAVE_ERROR,
+  flashPieceOrderSaved,
   REORDER_AUTOSCROLL_MS,
   REORDER_DRAG_THRESHOLD_PX,
   autoScrollDelta,
@@ -393,8 +395,10 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private pieceDragStart: { slug: string; x: number; y: number; pointerId: number } | null = null;
   private pieceDragMoved = false;
   private pieceScrollTimer = 0;
+  private unbindWindowKey: (() => void) | null = null;
 
   ngAfterViewInit(): void {
+    this.unbindWindowKey = bindNonPassiveKeydown(window, (event) => this.onGuideKey(event));
     const token = ++this.paintToken;
     afterOverlayPaint(() => {
       if (token !== this.paintToken) return;
@@ -404,6 +408,8 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.unbindWindowKey?.();
+    this.unbindWindowKey = null;
     this.paintToken += 1;
     if (this.hintTimer) window.clearTimeout(this.hintTimer);
     if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
@@ -490,7 +496,6 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.engine?.resize();
   }
 
-  @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
     if (this.creditsOpen()) return;
     if (event.key === 'Escape' && this.switcherOpen()) {
@@ -530,10 +535,19 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     return this.layout.racks.map((rack) => ({ id: rack.id, slugs: rack.hangers.map((h) => h.slug) }));
   }
 
+  private hoveredPieceSlug(): string | null {
+    return this.overlay()?.pieces.find((p) => p.hover)?.slug ?? null;
+  }
+
   private savePieceReorderFromKey(event: KeyboardEvent): boolean {
-    return saveFromKeyboardReorder(event, this.pieceOrderRacks(), (rackId, previous, next) => {
-      this.applyAndSavePieceOrder(rackId, previous, next);
-    });
+    return saveFromKeyboardReorder(
+      event,
+      this.pieceOrderRacks(),
+      (rackId, previous, next) => {
+        this.applyAndSavePieceOrder(rackId, previous, next);
+      },
+      this.hoveredPieceSlug(),
+    );
   }
 
   /** Enter / Space on a captioned piece opens it like a click on its photo. */
@@ -647,6 +661,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.engine?.reorderHangers?.(rackId, next);
     this.bumpLayout();
     this.collectionProducts.replaceLiveOrder(collectionSlug, next).subscribe({
+      next: () => flashPieceOrderSaved(this.toast),
       error: (err: unknown) => {
         this.toast.error(adminHttpErrorMessage(err, PIECE_ORDER_SAVE_ERROR), { durationMs: ERROR_TOAST_MS });
         const rolled = reorderRackHangers(this.layout, rackId, previous);

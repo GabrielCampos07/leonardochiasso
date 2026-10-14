@@ -142,10 +142,11 @@ describe('endAdminLoad', () => {
 
   it('ends a hung request with an error after the timeout', fakeAsync(() => {
     let result: { ok: boolean; error?: unknown } | undefined;
-    endAdminLoad(NEVER, 15_000).subscribe((r) => (result = r));
+    endAdminLoad(NEVER, ADMIN_LOAD_TIMEOUT_MS).subscribe((r) => (result = r));
     tick(ADMIN_LOAD_TIMEOUT_MS - 1);
     expect(result).toBeUndefined();
     tick(1);
+    expect(ADMIN_LOAD_TIMEOUT_MS).toBe(10_000);
     expect(result?.ok).toBeFalse();
     expect(adminLoadErrorMessage(result?.error, 'falhou')).toBe(ADMIN_LOAD_TIMEOUT_MESSAGE);
   }));

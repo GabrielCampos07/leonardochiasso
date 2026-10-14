@@ -92,15 +92,22 @@ export class AdminCollectionsApiService {
     });
   }
 
-  setProducts(slug: string, productSlugs: string[]): Observable<SetCollectionProductsResult> {
+  setProducts(
+    slug: string,
+    productSlugs: string[],
+    opts: { keepMissing?: boolean } = {},
+  ): Observable<SetCollectionProductsResult> {
     return this.http.put<SetCollectionProductsResult>(
       `${this.url}/${encodeURIComponent(slug)}/products`,
-      { productSlugs },
+      { productSlugs, ...(opts.keepMissing ? { keepMissing: true } : {}) },
       { withCredentials: true },
     );
   }
 
-  /** Public catalog detail — products ordered by collection sortOrder (published only). */
+  /**
+   * Public catalog detail. Archived and unpublished slugs 404.
+   * Admin screens must use `list` + `getProducts` instead.
+   */
   getPublicDetail(slug: string): Observable<ApiCollectionDto> {
     return this.http.get<ApiCollectionDto>(
       `${this.base}/api/collections/${encodeURIComponent(slug)}`,

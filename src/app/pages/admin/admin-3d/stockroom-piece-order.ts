@@ -6,6 +6,11 @@ export const REORDER_DRAG_THRESHOLD_PX = 8;
 export const REORDER_EDGE_PX = 80;
 export const REORDER_AUTOSCROLL_MS = 420;
 export const PIECE_ORDER_SAVE_ERROR = 'Não foi possível salvar a ordem.';
+export const PIECE_ORDER_SAVED_TEXT = 'Ordem salva';
+
+export function flashPieceOrderSaved(toast: { success: (text: string) => void }): void {
+  toast.success(PIECE_ORDER_SAVED_TEXT);
+}
 
 export interface PieceRect {
   slug: string;
@@ -34,10 +39,13 @@ export function pieceSlugFromKeyTarget(target: EventTarget | null): string | nul
  * When a hanger is focused, Shift+←/→ reorders it. Always cancel the event so
  * the arrow does not also pan the rack (or leak to the browser).
  */
-export function consumePieceReorderKey(event: KeyboardEvent): { slug: string; delta: -1 | 1 } | null {
+export function consumePieceReorderKey(
+  event: KeyboardEvent,
+  fallbackSlug?: string | null,
+): { slug: string; delta: -1 | 1 } | null {
   const delta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
   if (!delta || !event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return null;
-  const slug = pieceSlugFromKeyTarget(event.target);
+  const slug = pieceSlugFromKeyTarget(event.target) ?? fallbackSlug?.trim() ?? null;
   if (!slug) return null;
   event.preventDefault();
   event.stopPropagation();
@@ -47,8 +55,9 @@ export function consumePieceReorderKey(event: KeyboardEvent): { slug: string; de
 export function keyboardPieceReorder(
   event: KeyboardEvent,
   racks: readonly { id: string; slugs: readonly string[] }[],
+  fallbackSlug?: string | null,
 ): { rackId: string; previous: string[]; next: string[] } | null {
-  const hit = consumePieceReorderKey(event);
+  const hit = consumePieceReorderKey(event, fallbackSlug);
   if (!hit) return null;
   const rack = racks.find((row) => row.slugs.includes(hit.slug));
   if (!rack) return null;
@@ -63,8 +72,9 @@ export function saveFromKeyboardReorder(
   event: KeyboardEvent,
   racks: readonly { id: string; slugs: readonly string[] }[],
   save: (rackId: string, previous: readonly string[], next: readonly string[]) => void,
+  fallbackSlug?: string | null,
 ): boolean {
-  const plan = keyboardPieceReorder(event, racks);
+  const plan = keyboardPieceReorder(event, racks, fallbackSlug);
   if (!plan) return false;
   save(plan.rackId, plan.previous, plan.next);
   return true;

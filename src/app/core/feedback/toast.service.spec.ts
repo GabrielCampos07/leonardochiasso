@@ -12,6 +12,43 @@ describe('ToastService', () => {
     expect(toast.message()).toBeNull();
   }));
 
+  it('keeps one Ordem salva toast when the same text is shown again', fakeAsync(() => {
+    const toast = new ToastService();
+    toast.success('Ordem salva');
+    const id = toast.message()?.id;
+    tick(1000);
+    toast.success('Ordem salva');
+    expect(toast.message()?.id).toBe(id);
+    expect(toast.message()?.text).toBe('Ordem salva');
+    tick(3199);
+    expect(toast.message()?.text).toBe('Ordem salva');
+    tick(2);
+    expect(toast.message()).toBeNull();
+  }));
+
+  it('does not replace or dismiss an active error with a success toast', fakeAsync(() => {
+    const toast = new ToastService();
+    toast.error('Não foi possível salvar a ordem.', { durationMs: 8000 });
+    const id = toast.message()?.id;
+    toast.success('Ordem salva');
+    expect(toast.message()?.kind).toBe('error');
+    expect(toast.message()?.text).toBe('Não foi possível salvar a ordem.');
+    expect(toast.message()?.id).toBe(id);
+    tick(7999);
+    expect(toast.message()?.kind).toBe('error');
+    tick(2);
+    expect(toast.message()).toBeNull();
+  }));
+
+  it('uses a new id when the toast text changes', fakeAsync(() => {
+    const toast = new ToastService();
+    toast.success('Ordem salva');
+    const id = toast.message()?.id;
+    toast.success('Ordem restaurada.');
+    expect(toast.message()?.id).not.toBe(id);
+    expect(toast.message()?.text).toBe('Ordem restaurada.');
+  }));
+
   it('dismisses the default toast sooner than the save toast', fakeAsync(() => {
     const toast = new ToastService();
     toast.info('Ordem atualizada.');

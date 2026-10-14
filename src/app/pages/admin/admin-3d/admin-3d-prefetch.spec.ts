@@ -6,14 +6,22 @@ function serviceWith(deps: {
   listAdminProducts?: jasmine.Spy;
   joiasList$?: jasmine.Spy;
   joiasList?: () => unknown[];
-}): { service: Admin3dPrefetchService; listPublicProducts: jasmine.Spy } {
+}): {
+  service: Admin3dPrefetchService;
+  listPublicProducts: jasmine.Spy;
+  getPublicDetail: jasmine.Spy;
+} {
   const listPublicProducts = jasmine.createSpy('listPublicProducts').and.returnValue(of([]));
+  const getPublicDetail = jasmine.createSpy('getPublicDetail').and.callFake(() => {
+    throw new Error('admin 3D must not GET /api/collections/:slug');
+  });
   const service = Object.create(Admin3dPrefetchService.prototype) as Admin3dPrefetchService;
   Object.assign(service, {
     collectionsApi: {
       list: deps.list ?? jasmine.createSpy('list').and.returnValue(of([])),
       listAdminProducts: deps.listAdminProducts ?? jasmine.createSpy('listAdminProducts').and.returnValue(of([])),
       listPublicProducts,
+      getPublicDetail,
     },
     joiasAdmin: {
       list$: deps.joiasList$ ?? jasmine.createSpy('list$').and.returnValue(of([])),
@@ -22,7 +30,7 @@ function serviceWith(deps: {
     pageImport: null,
     catalog$: null,
   });
-  return { service, listPublicProducts };
+  return { service, listPublicProducts, getPublicDetail };
 }
 
 describe('Admin3dPrefetchService', () => {
@@ -43,13 +51,14 @@ describe('Admin3dPrefetchService', () => {
       { slug: 'arquivado', status: 'published', stockQty: 1, archivedAt: '2026-10-01T00:00:00.000Z' },
     ];
     const joiasList$ = jasmine.createSpy('list$').and.returnValue(of([{ slug: 'colar' }]));
-    const { service, listPublicProducts } = serviceWith({
+    const { service, listPublicProducts, getPublicDetail } = serviceWith({
       listAdminProducts: jasmine.createSpy('listAdminProducts').and.returnValue(of(products)),
       joiasList$,
     });
     let snap: Admin3dCatalogSnapshot | undefined;
     service.prefetchCatalog().subscribe((s) => (snap = s));
     expect(listPublicProducts).not.toHaveBeenCalled();
+    expect(getPublicDetail).not.toHaveBeenCalled();
     expect(joiasList$).toHaveBeenCalledTimes(1);
     expect(snap!.products.map((p) => p.slug)).toEqual(['rascunho', 'esgotado']);
     expect(snap!.joias.map((j) => j.slug)).toEqual(['colar']);

@@ -1,5 +1,7 @@
 import {
+  PIECE_ORDER_SAVED_TEXT,
   PIECE_REORDER_KEYSHORTCUTS,
+  flashPieceOrderSaved,
   REORDER_AUTOSCROLL_MIN_PIECES,
   applyHangerOrder,
   autoScrollDelta,
@@ -29,6 +31,13 @@ function hanger(slug: string): SceneHanger {
 }
 
 describe('stockroom piece order', () => {
+  it('toasts Ordem salva when a drag or keyboard save succeeds', () => {
+    const toast = { success: jasmine.createSpy('success') };
+    flashPieceOrderSaved(toast);
+    expect(PIECE_ORDER_SAVED_TEXT).toBe('Ordem salva');
+    expect(toast.success).toHaveBeenCalledOnceWith('Ordem salva');
+  });
+
   it('moves a slug to another index', () => {
     expect(moveSlug(['a', 'b', 'c', 'd'], 0, 2)).toEqual(['b', 'c', 'a', 'd']);
     expect(moveSlug(['a', 'b', 'c'], 2, 0)).toEqual(['c', 'a', 'b']);
@@ -59,6 +68,24 @@ describe('stockroom piece order', () => {
     expect(prevent).toHaveBeenCalled();
     expect(stop).toHaveBeenCalled();
     piece.remove();
+  });
+
+  it('saves from a hovered piece when the event target is the canvas, not the card', () => {
+    const canvas = document.createElement('canvas');
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'target', { value: canvas });
+    const save = jasmine.createSpy('save');
+    expect(saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save)).toBeFalse();
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save, 'b'),
+    ).toBeTrue();
+    expect(save).toHaveBeenCalledWith('organic-dreams', ['a', 'b', 'c'], ['a', 'c', 'b']);
   });
 
   it('triggers the same save as drop immediately on Shift+arrow (not debounced)', () => {
