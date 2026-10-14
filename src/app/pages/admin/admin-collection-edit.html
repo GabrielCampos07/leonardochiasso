@@ -3,9 +3,17 @@
     <h1>Coleção não encontrada</h1>
     <a [routerLink]="listPath">Voltar à lista</a>
   </section>
-} @else if (loading()) {
-  <section class="admin-edit">
-    <p>Carregando…</p>
+} @else if (showSkeleton()) {
+  <section class="admin-edit" aria-busy="true" aria-label="Carregando coleção">
+    <p class="admin-list__count" aria-live="polite">Carregando…</p>
+    <ul class="admin-list__rows">
+      @for (row of skeletonRows; track row) {
+        <li class="admin-row admin-row--skel" aria-hidden="true">
+          <span class="admin-row__skel admin-row__skel--thumb"></span>
+          <span class="admin-row__skel admin-row__skel--copy"></span>
+        </li>
+      }
+    </ul>
   </section>
 } @else {
   <section class="admin-edit">
@@ -132,17 +140,31 @@
           <p class="admin-col-products__notice" role="alert">{{ orderError() }}</p>
         }
 
-        @if (savingOrder()) {
-          <p class="admin-list__count">Salvando ordem…</p>
-        }
+        <p class="admin-list__count" aria-live="polite">
+          {{ visibleProducts().length }} produto(s)
+          @if (loading() || orderLoading()) {
+            · atualizando…
+          }
+          @if (savingOrder()) {
+            · salvando ordem…
+          }
+        </p>
 
-        @if (orderLoading()) {
-          <p class="admin-col-products__loading" role="status" aria-live="polite">Carregando…</p>
+        @if (orderLoading() && !visibleProducts().length) {
+          <ul class="admin-list__rows" aria-busy="true" aria-label="Carregando produtos">
+            @for (row of skeletonRows; track row) {
+              <li class="admin-row admin-row--skel" aria-hidden="true">
+                <span class="admin-row__skel admin-row__skel--thumb"></span>
+                <span class="admin-row__skel admin-row__skel--copy"></span>
+              </li>
+            }
+          </ul>
         } @else {
         <ul
           class="admin-list__rows admin-col-products__list"
           cdkDropList
           [cdkDropListData]="visibleProducts()"
+          [cdkDropListDisabled]="!canDrag() || savingOrder()"
           (cdkDropListDropped)="onDrop($event)"
         >
           @for (p of visibleProducts(); track p.slug; let i = $index) {

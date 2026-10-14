@@ -104,7 +104,10 @@ export class AdminCollectionsApiService {
     );
   }
 
-  /** Public catalog detail — products ordered by collection sortOrder (published only). */
+  /**
+   * Public catalog detail. Archived and unpublished slugs 404.
+   * Admin screens must use `list` + `getProducts` instead.
+   */
   getPublicDetail(slug: string): Observable<ApiCollectionDto> {
     return this.http.get<ApiCollectionDto>(
       `${this.base}/api/collections/${encodeURIComponent(slug)}`,

@@ -47,6 +47,7 @@ import {
   rackNavItems,
   stepRackIndex,
 } from '../../../scene-engine/camera-guide';
+import { bindNonPassiveKeydown } from '../../../scene-engine/canvas-host';
 import { EMPTY_RACK_PAN, rackArrowDelta } from '../../../scene-engine/rack-pan';
 import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import {
@@ -394,8 +395,10 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private pieceDragStart: { slug: string; x: number; y: number; pointerId: number } | null = null;
   private pieceDragMoved = false;
   private pieceScrollTimer = 0;
+  private unbindWindowKey: (() => void) | null = null;
 
   ngAfterViewInit(): void {
+    this.unbindWindowKey = bindNonPassiveKeydown(window, (event) => this.onGuideKey(event));
     const token = ++this.paintToken;
     afterOverlayPaint(() => {
       if (token !== this.paintToken) return;
@@ -405,6 +408,8 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.unbindWindowKey?.();
+    this.unbindWindowKey = null;
     this.paintToken += 1;
     if (this.hintTimer) window.clearTimeout(this.hintTimer);
     if (this.bootFadeTimer) window.clearTimeout(this.bootFadeTimer);
@@ -491,7 +496,6 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.engine?.resize();
   }
 
-  @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
     if (this.creditsOpen()) return;
     if (event.key === 'Escape' && this.switcherOpen()) {

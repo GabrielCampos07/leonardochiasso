@@ -48,6 +48,12 @@ import {
   showArchiveUndo,
   upsertBySlug,
 } from '../../core/admin-archive';
+import {
+  ADMIN_LIST_SKELETON_ROWS,
+  adminListCacheKey,
+  readAdminListCache,
+  writeAdminListCache,
+} from '../../core/admin-list-cache';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ERROR_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { applyCdkListOrder, itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
@@ -79,7 +85,13 @@ export class AdminProductsPage implements OnInit {
   readonly showUnissexNotice = computed(() => this.category() === 'masculino');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
   readonly dragStartDelay = coarsePointerDragDelay();
-  readonly canDrag = computed(() => canReorderWithFilter(this.category()) && !this.showArchived());
+  readonly canDrag = computed(
+    () =>
+      canReorderWithFilter(this.category()) &&
+      !this.showArchived() &&
+      !this.loading() &&
+      !this.orderLoading(),
+  );
   readonly orderError = signal('');
   readonly showArchived = signal(false);
   readonly loading = signal(true);
@@ -90,6 +102,8 @@ export class AdminProductsPage implements OnInit {
   readonly useApi = this.adminCatalog.useApi;
   readonly collections = COLLECTIONS;
   readonly newPath = adminNewProductPath();
+  readonly skeletonRows = Array.from({ length: ADMIN_LIST_SKELETON_ROWS }, (_, i) => i);
+  readonly showSkeleton = computed(() => this.loading() && this.products().length === 0);
 
   readonly products = signal<Product[]>([]);
 
@@ -107,6 +121,7 @@ export class AdminProductsPage implements OnInit {
   });
 
   constructor() {
+    this.hydrateFromCache(this.showArchived());
     this.load$
       .pipe(
         tap(() => {
@@ -120,6 +135,7 @@ export class AdminProductsPage implements OnInit {
         this.loading.set(false);
         if (result.ok) {
           this.products.set(result.value);
+          writeAdminListCache(adminListCacheKey('products', this.showArchived()), result.value);
           if (!this.useApi) this.catalog.refreshLocalCatalog();
           this.applyCollectionGenderOrder();
           return;
@@ -131,6 +147,12 @@ export class AdminProductsPage implements OnInit {
           ),
         );
       });
+  }
+
+  private hydrateFromCache(archived: boolean): void {
+    const cached = readAdminListCache<Product>(adminListCacheKey('products', archived));
+    if (!cached?.length) return;
+    this.products.set(cached);
   }
 
   ngOnInit(): void {
@@ -175,6 +197,11 @@ export class AdminProductsPage implements OnInit {
   }
 
   onTodosDragAttempt(event?: Event): void {
+    if (this.loading() || this.orderLoading() || this.savingOrder()) {
+      event?.preventDefault();
+      event?.stopPropagation();
+      return;
+    }
     if (this.canDrag()) return;
     event?.preventDefault();
     event?.stopPropagation();
@@ -213,6 +240,7 @@ export class AdminProductsPage implements OnInit {
 
   onArchivedFilter(show: boolean): void {
     this.showArchived.set(show);
+    this.hydrateFromCache(show);
     this.refresh();
   }
 
