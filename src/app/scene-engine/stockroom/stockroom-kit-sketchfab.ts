@@ -54,19 +54,13 @@ export const SKETCHFAB_BAY: StockroomBaySpec = {
 };
 
 /**
- * Option B (`?sketchfab=1`): Sketchfab CC-BY rails, hangers, counter, register,
+ * The `/admin/3d` stockroom: Sketchfab CC-BY rails, hangers, counter, register,
  * mannequins, display and plants over the Kenney CC0 floor, walls and rugs.
  * Credits: `STOCKROOM_B_CREDITS`.
  */
 export const SKETCHFAB_KIT: StockroomKit = {
   id: 'sketchfab',
-  assets: {
-    floor: STOCKROOM_ASSETS.floor,
-    wall: STOCKROOM_ASSETS.wall,
-    wallWindow: STOCKROOM_ASSETS.wallWindow,
-    rug: STOCKROOM_ASSETS.rug,
-    ...STOCKROOM_B_ASSETS,
-  },
+  assets: { ...STOCKROOM_ASSETS, ...STOCKROOM_B_ASSETS },
   bay: SKETCHFAB_BAY,
   photo: { w: PHOTO_W, h: PHOTO_H, z: CARD_D / 2 + 0.002 },
   badge: { h: 0.13, z: CARD_D / 2 + 0.006 },
