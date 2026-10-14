@@ -10,6 +10,7 @@ const pc = (id: string, cat: string, archived = false, sortOrder = 0) => ({
 function setup() {
   const tx = {
     collectionGenderOrder: { deleteMany: jest.fn(), createMany: jest.fn() },
+    productCollection: { deleteMany: jest.fn(), createMany: jest.fn() },
   };
   const prisma = {
     collection: {

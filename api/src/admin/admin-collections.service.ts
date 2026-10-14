@@ -14,10 +14,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   GenderList,
   matchesGenderList,
-  orderIdsByGenderList,
   parseGenderList,
 } from '../catalog/gender';
-import { syncCollectionGenderOrders } from './collection-gender-order.sync';
+import {
+  mergeLiveOrderIntoMembership,
+  rewriteDerivedGenderOrders,
+  sortMembersBySortOrder,
+} from './membership-order';
 import { archivedAtWhere } from './archive-query';
 
 export interface CollectionGenderOrderDto {
@@ -144,7 +147,7 @@ export class AdminCollectionsService {
       this.prisma.collection.findUnique({ where: { slug } }),
       this.prisma.product.findMany({
         where: { slug: { in: productSlugs } },
-        select: { id: true, slug: true },
+        select: { id: true, slug: true, category: { select: { slug: true } } },
       }),
     ]);
     if (!collection) {
@@ -173,10 +176,13 @@ export class AdminCollectionsService {
           })),
         });
       }
-      await syncCollectionGenderOrders(
+      await rewriteDerivedGenderOrders(
         tx,
         collection.id,
-        productSlugs.map((productSlug) => bySlug.get(productSlug)!),
+        productSlugs.map((productSlug) => {
+          const product = products.find((p) => p.slug === productSlug)!;
+          return { productId: product.id, gender: product.category.slug };
+        }),
       );
     });
 
@@ -215,28 +221,23 @@ export class AdminCollectionsService {
           include: { product: { include: { category: true } } },
           orderBy: { sortOrder: 'asc' },
         },
-        genderOrders: {
-          where: { gender },
-          orderBy: { sortOrder: 'asc' },
-        },
       },
     });
     if (!collection) {
       throw new NotFoundException(`Collection not found: ${slug}`);
     }
 
-    const matching = collection.products.filter(
+    const matching = sortMembersBySortOrder(collection.products).filter(
       (pc) =>
         !pc.product.archivedAt &&
         matchesGenderList(pc.product.category.slug, gender),
     );
-    const productIds = orderIdsByGenderList(
-      matching.map((pc) => pc.productId),
-      collection.genderOrders,
-      new Map(matching.map((pc) => [pc.productId, pc.sortOrder])),
-    );
 
-    return { collection: slug, gender, productIds };
+    return {
+      collection: slug,
+      gender,
+      productIds: matching.map((pc) => pc.productId),
+    };
   }
 
   async setGenderOrder(
@@ -309,20 +310,35 @@ export class AdminCollectionsService {
       );
     }
 
+    const membership = sortMembersBySortOrder(collection.products).map(
+      (pc) => pc.productId,
+    );
+    const nextIds = mergeLiveOrderIntoMembership(membership, productIds);
+    const byId = new Map(
+      collection.products.map((pc) => [pc.productId, pc] as const),
+    );
+
     await this.prisma.$transaction(async (tx) => {
-      await tx.collectionGenderOrder.deleteMany({
-        where: { collectionId: collection.id, gender },
+      await tx.productCollection.deleteMany({
+        where: { collectionId: collection.id },
       });
-      if (productIds.length > 0) {
-        await tx.collectionGenderOrder.createMany({
-          data: productIds.map((productId, sortOrder) => ({
+      if (nextIds.length > 0) {
+        await tx.productCollection.createMany({
+          data: nextIds.map((productId, sortOrder) => ({
             collectionId: collection.id,
             productId,
-            gender,
             sortOrder,
           })),
         });
       }
+      await rewriteDerivedGenderOrders(
+        tx,
+        collection.id,
+        nextIds.map((productId) => ({
+          productId,
+          gender: byId.get(productId)!.product.category.slug,
+        })),
+      );
     });
 
     return { collection: slug, gender, productIds };

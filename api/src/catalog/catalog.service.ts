@@ -12,11 +12,17 @@ import {
   CollectionDto,
   ProductDto,
 } from './dto/catalog.dto';
-import {
-  orderCollectionMembersByGenderBlocks,
-  parseOptionalGenderList,
-  sortByPublicGenderBlocks,
-} from './gender';
+import { parseOptionalGenderList, sortByPublicGenderBlocks } from './gender';
+
+/** Membership `product_collections.sortOrder` for this collection slug. */
+export function membershipSortOrder(
+  product: { collections?: { slug: string; sortOrder?: number }[] | null },
+  collectionSlug: string,
+): number {
+  const hit = product.collections?.find((row) => row.slug === collectionSlug);
+  if (hit != null && Number.isFinite(hit.sortOrder)) return Number(hit.sortOrder);
+  return Number.MAX_SAFE_INTEGER;
+}
 
 /** Coleção pública = publicada (publishedAt definido) e não arquivada. */
 export const publicCollectionWhere = {
@@ -78,6 +84,11 @@ export class CatalogService {
         orderBy: [{ recommendOrder: 'asc' }, { createdAt: 'asc' }],
       });
       const mapped = products.map(mapProduct);
+      if (collection) {
+        return [...mapped].sort(
+          (a, b) => membershipSortOrder(a, collection) - membershipSortOrder(b, collection),
+        );
+      }
       if (gender) return mapped;
       return sortByPublicGenderBlocks(mapped);
     });
@@ -130,9 +141,6 @@ export class CatalogService {
               product: { include: publicProductInclude },
             },
           },
-          genderOrders: {
-            orderBy: { sortOrder: 'asc' },
-          },
         },
       });
       if (!collection) {
@@ -147,15 +155,7 @@ export class CatalogService {
         publishedAt: collection.publishedAt?.toISOString() ?? null,
         archivedAt: null,
         coverImage: resolveCollectionCoverImage(collection.slug, collection.products),
-        products: orderCollectionMembersByGenderBlocks(
-          collection.products.map((pc) => ({
-            productId: pc.productId,
-            sortOrder: pc.sortOrder,
-            gender: pc.product.category.slug,
-            product: pc.product,
-          })),
-          collection.genderOrders,
-        ).map((member) => mapProduct(member.product)),
+        products: collection.products.map((pc) => mapProduct(pc.product)),
       };
     });
   }
