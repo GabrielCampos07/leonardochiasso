@@ -1,6 +1,7 @@
 import {
   AmbientLight,
   Box3,
+  BufferGeometry,
   Color,
   DirectionalLight,
   Group,
@@ -18,7 +19,6 @@ import {
   OrthographicCamera,
   PCFShadowMap,
   PlaneGeometry,
-  Quaternion,
   Raycaster,
   SRGBColorSpace,
   Scene,
@@ -67,7 +67,8 @@ import {
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from '../types';
 import { DRAFT_UNIT_ID } from '../unit-layout';
 import { isWebGLAvailable, tryCreate } from '../webgl-support';
-import { STOCKROOM_ASSETS, type StockroomAssetId } from './stockroom-assets';
+import { CC0_KIT } from './stockroom-kit-cc0';
+import { placeMatrix, type KitBuilder, type PlaceOptions, type StockroomKit } from './stockroom-kit';
 import {
   STOCKROOM_AZIMUTH_DEFAULT,
   STOCKROOM_AZIMUTH_LIMIT,
@@ -90,37 +91,31 @@ import {
 import { areaTint, boxBadge, boxPhotoTint, makeBadgeTexture, makeSignTexture } from './stockroom-labels';
 import {
   AREA_BACK_INSET,
-  BAY_D,
-  BAY_H,
-  BAY_W,
-  BOX_D,
-  BOX_H,
-  BOX_W,
   SIGN_H,
   SIGN_TILT,
-  SIGN_Y,
   areaFocusBox,
   planStockroom,
+  signY,
   slotFocusBox,
   type StockroomArea,
   type StockroomPlan,
   type StockroomUnitInput,
 } from './stockroom-layout';
 
+export { placeMatrix } from './stockroom-kit';
+
+export interface StockroomEngineOptions extends SceneEngineOptions {
+  /** Option A (`CC0_KIT`, default) or option B (`SKETCHFAB_KIT`). */
+  kit?: StockroomKit;
+}
+
 const CLEAR = 0xd9d2c7;
 const SHARED = 'stockroomShared';
-const PHOTO_H = BOX_H - 0.06;
-const PHOTO_W = Math.min(BOX_W - 0.05, PHOTO_H * 0.8);
-const BADGE_H = 0.15;
 const TAP_MAX_PX = 6;
 const TAP_MAX_MS = 650;
 const ARCHIVE_MS = 500;
 const POP_MS = 420;
 const PHOTO_CONCURRENCY = 6;
-const FLOOR_TILE = 2;
-const WALL_PIECE_W = 2;
-const WALL_H = 3.35;
-const COUNTER_PITCH = 1.03;
 const CUTAWAY_MS = 260;
 const NON_PASSIVE: AddEventListenerOptions = { passive: false };
 
@@ -159,20 +154,6 @@ function photoKey(hanger: Pick<SceneHanger, 'imageUrl' | 'thumbUrl'>): string {
   return `${hanger.thumbUrl ?? ''}|${hanger.imageUrl ?? ''}`;
 }
 
-/** Template bbox → matrix that puts the model's bottom-centre at `pos`, scaled to `size`. */
-function placeMatrix(bbox: Box3, pos: Vector3, size: Vector3 | null, rotY = 0, scale?: Vector3): Matrix4 {
-  const ext = bbox.getSize(new Vector3());
-  const s =
-    scale ??
-    (size
-      ? new Vector3(size.x / Math.max(ext.x, 1e-6), size.y / Math.max(ext.y, 1e-6), size.z / Math.max(ext.z, 1e-6))
-      : new Vector3(1, 1, 1));
-  const pivot = new Vector3((bbox.min.x + bbox.max.x) / 2, bbox.min.y, (bbox.min.z + bbox.max.z) / 2);
-  const toPivot = new Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z);
-  const rs = new Matrix4().compose(new Vector3(), new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), rotY), s);
-  return new Matrix4().makeTranslation(pos.x, pos.y, pos.z).multiply(rs).multiply(toPivot);
-}
-
 /** Free geometries / materials / textures we own. Shared template GPU data and cached photos stay. */
 function disposeOwned(root: Object3D): void {
   root.traverse((child) => {
@@ -189,11 +170,13 @@ function disposeOwned(root: Object3D): void {
 }
 
 /**
- * Option A (`?cc0=1`) admin scene: a WareTrack-style stockroom built only from
- * Kenney CC0 kits. One floor area per collection, one box per piece with its
- * photo on the front, orthographic top-down iso camera with clamped rotation.
+ * Stockroom admin scene for options A (`?cc0=1`, Kenney boxes on bookcases) and
+ * B (`?sketchfab=1`, hangers on wall rails) — the kit decides the models. One
+ * floor area per collection, one piece per product with its photo large and a
+ * stock badge, orthographic top-down iso camera with clamped rotation.
  */
 export class StockroomEngine implements AtelierEngine {
+  readonly kit: StockroomKit;
   private readonly scene = new Scene();
   private readonly camera: OrthographicCamera;
   private readonly renderer: WebGLRenderer;
@@ -207,7 +190,9 @@ export class StockroomEngine implements AtelierEngine {
   private readonly roomRoot = new Group();
   private readonly areasRoot = new Group();
   private readonly keyLight: DirectionalLight;
-  private readonly templates = new Map<StockroomAssetId, { root: Group; bbox: Box3 }>();
+  private readonly templates = new Map<string, { root: Group; bbox: Box3 }>();
+  private readonly sharedGpu = new Map<string, BufferGeometry | Material>();
+  private readonly builder: KitBuilder;
   private readonly assetsReady: Promise<void>;
   private readonly areaNodes = new Map<string, Group>();
   private readonly boxes = new Map<string, BoxNode>();
@@ -216,14 +201,14 @@ export class StockroomEngine implements AtelierEngine {
   /** slug → photo key that failed, so rebuilds do not refetch a dead URL. */
   private readonly photoFailed = new Map<string, string>();
   private readonly anims = new Set<Anim>();
-  private readonly photoGeometry = new PlaneGeometry(PHOTO_W, PHOTO_H);
-  private readonly badgeGeometry = new PlaneGeometry(PHOTO_W, BADGE_H);
+  private readonly photoGeometry: PlaneGeometry;
+  private readonly badgeGeometry: PlaneGeometry;
   private readonly restoreAddEventListener: (() => void) | null;
   private resizeObserver: ResizeObserver | null = null;
 
   private layout: SceneLayout = { racks: [] };
   private draft: { kind: SceneUnitKind; name: string } | null = null;
-  private plan: StockroomPlan = planStockroom([]);
+  private plan: StockroomPlan;
   private focus: Focus = { kind: 'overview' };
   private focusedId = OVERVIEW_FOCUS_ID;
   private insets: StockroomInsets = { top: 0.1, bottom: 0.18 };
@@ -254,7 +239,18 @@ export class StockroomEngine implements AtelierEngine {
   private onDraftAnchorCb: DraftAnchorHandler | null = null;
   private onEmptyUnitCb: EmptyUnitHandler | null = null;
 
-  constructor(canvas: HTMLCanvasElement, options: SceneEngineOptions = {}) {
+  constructor(canvas: HTMLCanvasElement, options: StockroomEngineOptions = {}) {
+    this.kit = options.kit ?? CC0_KIT;
+    this.plan = planStockroom([], undefined, this.kit.bay);
+    this.photoGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.photo.h);
+    this.badgeGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.badge.h);
+    this.builder = {
+      bbox: (id) => this.templates.get(id)?.bbox ?? null,
+      clone: (id, tint) => this.cloneAsset(id, tint),
+      place: (id, pos, opts) => this.placeAsset(id, pos, opts),
+      instance: (id, matrices, castShadow) => this.instanceAsset(id, matrices, castShadow),
+      shared: (key, make) => this.sharedResource(key, make),
+    };
     this.canvas = canvas;
     this.host = options.host ?? canvas.parentElement ?? canvas;
     this.reducedMotion = Boolean(options.reducedMotion);
@@ -593,7 +589,7 @@ export class StockroomEngine implements AtelierEngine {
     }
     this.animate(ARCHIVE_MS, (t) => {
       const k = easeInOutCubic(t);
-      group.position.y = -BAY_H * k;
+      group.position.y = -this.kit.bay.height * k;
       group.scale.y = Math.max(0.001, 1 - k);
     }, finish);
   }
@@ -637,6 +633,8 @@ export class StockroomEngine implements AtelierEngine {
     }
     this.photoGeometry.dispose();
     this.badgeGeometry.dispose();
+    for (const resource of this.sharedGpu.values()) resource.dispose();
+    this.sharedGpu.clear();
     photoTextureCache.clear();
     disposeRenderer(this.renderer);
     this.onClickCb = null;
@@ -652,8 +650,9 @@ export class StockroomEngine implements AtelierEngine {
   // ---------------------------------------------------------------- assets
 
   private async loadAssets(): Promise<void> {
-    const ids = Object.keys(STOCKROOM_ASSETS) as StockroomAssetId[];
-    const roots = await Promise.all(ids.map((id) => loadGlb(STOCKROOM_ASSETS[id], this.manager)));
+    const assets = this.kit.assets;
+    const ids = Object.keys(assets);
+    const roots = await Promise.all(ids.map((id) => loadGlb(assets[id], this.manager)));
     ids.forEach((id, i) => {
       const root = roots[i];
       if (!root) return;
@@ -671,7 +670,7 @@ export class StockroomEngine implements AtelierEngine {
   }
 
   /** Clone a template; materials stay shared unless `tint` asks for an owned copy. */
-  private cloneAsset(id: StockroomAssetId, tint?: number): Group | null {
+  private cloneAsset(id: string, tint?: number): Group | null {
     const template = this.templates.get(id);
     if (!template) return null;
     const clone = template.root.clone(true);
@@ -688,8 +687,33 @@ export class StockroomEngine implements AtelierEngine {
     return clone;
   }
 
+  /** Clone held by a positioned / turned group; the clone itself carries the fit matrix. */
+  private placeAsset(id: string, pos: Vector3, opts: PlaceOptions = {}): Object3D | null {
+    const template = this.templates.get(id);
+    const prop = template ? this.cloneAsset(id, opts.tint) : null;
+    if (!template || !prop) return null;
+    const holder = new Group();
+    holder.add(prop);
+    prop.matrixAutoUpdate = false;
+    const uniform = opts.scale === undefined ? undefined : new Vector3(opts.scale, opts.scale, opts.scale);
+    prop.matrix.copy(placeMatrix(template.bbox, new Vector3(), opts.size ?? null, 0, uniform));
+    holder.position.copy(pos);
+    holder.rotation.y = opts.rotY ?? 0;
+    return holder;
+  }
+
+  private sharedResource<T extends BufferGeometry | Material>(key: string, make: () => T): T {
+    let resource = this.sharedGpu.get(key) as T | undefined;
+    if (!resource) {
+      resource = make();
+      resource.userData[SHARED] = true;
+      this.sharedGpu.set(key, resource);
+    }
+    return resource;
+  }
+
   /** One InstancedMesh per template mesh — floor tiles and wall runs. */
-  private instanceAsset(id: StockroomAssetId, matrices: Matrix4[]): Group {
+  private instanceAsset(id: string, matrices: Matrix4[], castShadow = true): Group {
     const group = new Group();
     const template = this.templates.get(id);
     if (!template || !matrices.length) return group;
@@ -703,7 +727,7 @@ export class StockroomEngine implements AtelierEngine {
       mesh.instanceMatrix.needsUpdate = true;
       mesh.computeBoundingSphere();
       mesh.receiveShadow = true;
-      mesh.castShadow = id !== 'floor';
+      mesh.castShadow = castShadow;
       group.add(mesh);
     });
     return group;
@@ -719,7 +743,7 @@ export class StockroomEngine implements AtelierEngine {
 
   private rebuild(): void {
     if (!this.assetsLoaded || this.disposed) return;
-    this.plan = planStockroom(this.units());
+    this.plan = planStockroom(this.units(), undefined, this.kit.bay);
     this.buildRoom();
     this.clearAreas();
     const racks = new Map(this.layout.racks.map((r) => [r.id, r]));
@@ -768,69 +792,7 @@ export class StockroomEngine implements AtelierEngine {
       this.roomRoot.remove(child);
       disposeOwned(child);
     }
-    const { room } = this.plan;
-    const floorBox = this.templates.get('floor')?.bbox;
-    if (floorBox) {
-      const tiles: Matrix4[] = [];
-      const thickness = floorBox.getSize(new Vector3()).y * FLOOR_TILE;
-      const tile = new Vector3(FLOOR_TILE, thickness, FLOOR_TILE);
-      for (let x = room.minX; x < room.maxX - 1e-3; x += FLOOR_TILE) {
-        for (let z = room.minZ; z < room.maxZ - 1e-3; z += FLOOR_TILE) {
-          tiles.push(placeMatrix(floorBox, new Vector3(x + FLOOR_TILE / 2, -thickness, z + FLOOR_TILE / 2), tile));
-        }
-      }
-      this.roomRoot.add(this.instanceAsset('floor', tiles));
-    }
-    const roomW = Math.ceil((room.maxX - room.minX) / FLOOR_TILE) * FLOOR_TILE;
-    const roomD = Math.ceil((room.maxZ - room.minZ) / FLOOR_TILE) * FLOOR_TILE;
-    const wallBox = this.templates.get('wall')?.bbox;
-    if (wallBox) {
-      const plain: Matrix4[] = [];
-      const windowed: Matrix4[] = [];
-      const wallSize = new Vector3(WALL_PIECE_W, WALL_H, 0.12);
-      const back = Math.round(roomW / WALL_PIECE_W);
-      for (let i = 0; i < back; i += 1) {
-        const m = placeMatrix(wallBox, new Vector3(room.minX + WALL_PIECE_W * (i + 0.5), 0, room.minZ - 0.06), wallSize);
-        (i % 3 === 1 ? windowed : plain).push(m);
-      }
-      const side = Math.round(roomD / WALL_PIECE_W);
-      for (let i = 0; i < side; i += 1) {
-        const m = placeMatrix(
-          wallBox,
-          new Vector3(room.minX - 0.06, 0, room.minZ + WALL_PIECE_W * (i + 0.5)),
-          wallSize,
-          Math.PI / 2,
-        );
-        (i % 3 === 1 ? windowed : plain).push(m);
-      }
-      this.roomRoot.add(this.instanceAsset('wall', plain));
-      this.roomRoot.add(this.instanceAsset('wallWindow', windowed));
-    }
-    this.addProp('column', new Vector3(room.minX + 0.45, 0, room.minZ + 0.45), new Vector3(0.7, WALL_H, 0.7));
-    this.addProp('plant', new Vector3(room.minX + roomW - 0.55, 0, room.minZ + 0.5), null, 0, 2.1);
-    this.addProp('plant', new Vector3(room.minX + 0.55, 0, room.minZ + roomD - 0.6), null, 0, 2.1);
-    const counterX = room.minX + roomW - 1.1;
-    const counterZ = room.minZ + roomD - 2.6;
-    for (let i = 0; i < 3; i += 1) {
-      this.addProp('counter', new Vector3(counterX, 0, counterZ + i * COUNTER_PITCH), null, -Math.PI / 2, 2.4);
-    }
-    this.addProp('register', new Vector3(counterX, 1.0, counterZ + COUNTER_PITCH), null, -Math.PI / 2, 0.55);
-  }
-
-  private addProp(id: StockroomAssetId, pos: Vector3, size: Vector3 | null, rotY = 0, uniform?: number): void {
-    const template = this.templates.get(id);
-    if (!template) return;
-    const prop = this.cloneAsset(id);
-    if (!prop) return;
-    const holder = new Group();
-    holder.add(prop);
-    prop.matrixAutoUpdate = false;
-    prop.matrix.copy(
-      placeMatrix(template.bbox, new Vector3(), size, 0, uniform ? new Vector3(uniform, uniform, uniform) : undefined),
-    );
-    holder.position.copy(pos);
-    holder.rotation.y = rotY;
-    this.roomRoot.add(holder);
+    this.kit.buildRoom(this.builder, this.plan, this.roomRoot);
   }
 
   private buildArea(area: StockroomArea, rack: SceneRack | null): Group {
@@ -838,6 +800,7 @@ export class StockroomEngine implements AtelierEngine {
     group.name = `area:${area.id}`;
     group.userData['areaId'] = area.id;
     const isDraft = area.id === DRAFT_UNIT_ID;
+    const bay = this.kit.bay;
 
     const rugBox = this.templates.get('rug')?.bbox;
     const rug = this.cloneAsset('rug', isDraft ? 0xefe9df : areaTint(area.index));
@@ -852,23 +815,16 @@ export class StockroomEngine implements AtelierEngine {
       group.add(rug);
     }
 
-    const shelfBox = this.templates.get('shelf')?.bbox;
-    for (const bx of area.bayX) {
-      const bay = this.cloneAsset('shelf');
-      if (!bay || !shelfBox) continue;
-      bay.matrixAutoUpdate = false;
-      bay.matrix.copy(placeMatrix(shelfBox, new Vector3(bx, 0, area.bayFrontZ - BAY_D / 2), new Vector3(BAY_W, BAY_H, BAY_D)));
-      group.add(bay);
-    }
+    for (const bx of area.bayX) this.kit.buildBay(this.builder, area, bx, group);
 
     const pieces = rack?.hangers.length ?? 0;
-    const signW = Math.min(area.width - 0.16, Math.max(2.2, area.bayX.length * BAY_W));
+    const signW = Math.min(area.width - 0.16, Math.max(2.2, area.bayX.length * bay.width));
     const sign = new Mesh(
       new PlaneGeometry(signW, SIGN_H),
       makePhotoMaterial(makeSignTexture(area.name, pieces, isDraft, signW / SIGN_H)),
     );
     sign.name = 'sign';
-    sign.position.set(area.x, SIGN_Y, area.z - area.depth / 2 + AREA_BACK_INSET + BAY_D * 0.4);
+    sign.position.set(area.x, signY(bay), area.z - area.depth / 2 + AREA_BACK_INSET + bay.depth * 0.4);
     sign.rotation.x = SIGN_TILT;
     group.add(sign);
 
@@ -876,7 +832,7 @@ export class StockroomEngine implements AtelierEngine {
     for (const slot of area.slots) {
       const hanger = hangers.get(slot.slug);
       if (!hanger) continue;
-      const node = this.buildBox(hanger, area.id);
+      const node = this.buildPiece(hanger, area.id);
       node.group.position.set(slot.x, slot.y, slot.z);
       group.add(node.group);
       this.boxes.set(hanger.slug, node);
@@ -884,26 +840,21 @@ export class StockroomEngine implements AtelierEngine {
     return group;
   }
 
-  private buildBox(hanger: SceneHanger, areaId: string): BoxNode {
+  private buildPiece(hanger: SceneHanger, areaId: string): BoxNode {
     const group = new Group();
     group.name = `box:${hanger.slug}`;
     group.userData['slug'] = hanger.slug;
-    const boxBox = this.templates.get('box')?.bbox;
-    const box = this.cloneAsset('box');
-    if (box && boxBox) {
-      box.matrixAutoUpdate = false;
-      box.matrix.copy(placeMatrix(boxBox, new Vector3(0, -BOX_H / 2, 0), new Vector3(BOX_W, BOX_H, BOX_D)));
-      group.add(box);
-    }
+    this.kit.buildPiece(this.builder, group);
+    const { photo: photoSpec, badge: badgeSpec } = this.kit;
     const entry = this.photos.get(hanger.slug);
     const photo = new Mesh(
       this.photoGeometry,
       makePhotoMaterial(entry?.texture ?? makePlaceholderTexture(), { polygonOffset: -1 }),
     );
-    photo.position.set(0, 0, BOX_D / 2 + 0.006);
+    photo.position.set(0, 0, photoSpec.z);
     group.add(photo);
     const badge = new Mesh(this.badgeGeometry, makePhotoMaterial(null, { polygonOffset: -2 }));
-    badge.position.set(0, -PHOTO_H / 2 + BADGE_H / 2, BOX_D / 2 + 0.012);
+    badge.position.set(0, -photoSpec.h / 2 + badgeSpec.h / 2, badgeSpec.z);
     group.add(badge);
     const node: BoxNode = { group, photo, badge, hanger, areaId };
     this.paintBox(node);
@@ -1046,13 +997,13 @@ export class StockroomEngine implements AtelierEngine {
 
   private overviewPose(): StockroomPose {
     const b = this.plan.bounds;
-    return this.fitPose([b.minX, 0, b.minZ], [b.maxX, BAY_H, b.maxZ]);
+    return this.fitPose([b.minX, 0, b.minZ], [b.maxX, this.kit.bay.height, b.maxZ]);
   }
 
   private areaPose(id: string): StockroomPose | null {
     const area = this.plan.areas.find((a) => a.id === id);
     if (!area) return null;
-    const box = areaFocusBox(area);
+    const box = areaFocusBox(area, this.kit.bay);
     return this.fitPose(box.min, box.max, STOCKROOM_POLAR_AREA);
   }
 
@@ -1060,7 +1011,7 @@ export class StockroomEngine implements AtelierEngine {
     for (const area of this.plan.areas) {
       const slot = area.slots.find((s) => s.slug === slug);
       if (slot) {
-        const box = slotFocusBox(slot);
+        const box = slotFocusBox(slot, this.kit.bay);
         return this.fitPose(box.min, box.max, STOCKROOM_POLAR_PIECE);
       }
     }
@@ -1128,7 +1079,7 @@ export class StockroomEngine implements AtelierEngine {
     probe.lookAt(pose.target);
     probe.updateProjectionMatrix();
     probe.updateMatrixWorld(true);
-    const p = new Vector3(area.x + area.width / 2, BAY_H, area.z - area.depth / 2).project(probe);
+    const p = new Vector3(area.x + area.width / 2, this.kit.bay.height, area.z - area.depth / 2).project(probe);
     return {
       x: rect.left + ((p.x + 1) / 2) * rect.width + 16,
       y: rect.top + ((1 - p.y) / 2) * rect.height,
@@ -1371,7 +1322,7 @@ function easeOutBackSoft(t: number): number {
 
 export function createStockroomEngine(
   canvas: HTMLCanvasElement,
-  options: SceneEngineOptions = {},
+  options: StockroomEngineOptions = {},
 ): StockroomEngine | null {
   if (!isWebGLAvailable()) return null;
   return tryCreate(() => new StockroomEngine(canvas, options));

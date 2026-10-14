@@ -1,7 +1,8 @@
 /**
- * Pure floor-plan math for the option A stockroom (`?cc0=1`). No three.js.
- * One area per collection: a rug, N open bookcase bays at the back, one box per
- * piece on the shelves, and the collection name on a header sign + the floor.
+ * Pure floor-plan math for the stockroom scenes (`?cc0=1`, `?sketchfab=1`). No three.js.
+ * One area per collection: a rug, N bays at the back (bookcases in option A, wall
+ * rails in option B), one slot per piece, and the collection name on a header sign.
+ * Bay geometry comes from a `StockroomBaySpec`; option A's is the default.
  */
 
 /** Cardboard box (Kenney `cardboardBoxClosed`) world size. */
@@ -19,6 +20,40 @@ export const BOXES_PER_LEVEL = 2;
 export const SLOTS_PER_BAY = BAY_LEVEL_Y.length * BOXES_PER_LEVEL;
 /** Gap between the two boxes on one level, measured from the bay centre. */
 export const BOX_COLUMN_OFFSET = BOX_W / 2 + 0.03;
+
+/** Shape of one bay and of the pieces it holds. */
+export interface StockroomBaySpec {
+  width: number;
+  height: number;
+  /** Back face → front face of the bay. */
+  depth: number;
+  /** Piece centre heights, top level first. */
+  levelY: readonly number[];
+  perLevel: number;
+  /** Centre-to-centre distance of neighbouring pieces on one level. */
+  columnPitch: number;
+  piece: { w: number; h: number; d: number };
+  /** Piece centre measured back from the bay front face. */
+  pieceInset: number;
+  /** Area zoom crops the floor below this height (default 0: bays from the floor up). */
+  focusMinY?: number;
+}
+
+/** Option A: open bookcase, two cardboard boxes per shelf. */
+export const CC0_BAY: StockroomBaySpec = {
+  width: BAY_W,
+  height: BAY_H,
+  depth: BAY_D,
+  levelY: BAY_LEVEL_Y.map((y) => y + BOX_H / 2),
+  perLevel: BOXES_PER_LEVEL,
+  columnPitch: BOX_COLUMN_OFFSET * 2,
+  piece: { w: BOX_W, h: BOX_H, d: BOX_D },
+  pieceInset: BOX_D / 2,
+};
+
+export function slotsPerBay(spec: StockroomBaySpec): number {
+  return spec.levelY.length * spec.perLevel;
+}
 
 export const AREA_PAD_X = 0.42;
 export const AREA_DEPTH = 2.3;
@@ -74,6 +109,7 @@ export interface StockroomBounds {
 }
 
 export interface StockroomPlan {
+  bay: StockroomBaySpec;
   areas: StockroomArea[];
   /** Union of area footprints. */
   bounds: StockroomBounds;
@@ -81,23 +117,32 @@ export interface StockroomPlan {
   room: StockroomBounds;
 }
 
-export function bayCount(pieces: number): number {
-  return Math.max(1, Math.ceil(Math.max(0, pieces) / SLOTS_PER_BAY));
+export function bayCount(pieces: number, spec: StockroomBaySpec = CC0_BAY): number {
+  return Math.max(1, Math.ceil(Math.max(0, pieces) / slotsPerBay(spec)));
 }
 
-export function areaWidth(pieces: number): number {
-  return bayCount(pieces) * BAY_W + AREA_PAD_X * 2;
+export function areaWidth(pieces: number, spec: StockroomBaySpec = CC0_BAY): number {
+  return bayCount(pieces, spec) * spec.width + AREA_PAD_X * 2;
 }
 
 /** Fill order: bay by bay, top level first, left to right. */
-export function slotCell(index: number): { bay: number; level: number; column: number } {
-  const bay = Math.floor(index / SLOTS_PER_BAY);
-  const within = index % SLOTS_PER_BAY;
+export function slotCell(
+  index: number,
+  spec: StockroomBaySpec = CC0_BAY,
+): { bay: number; level: number; column: number } {
+  const perBay = slotsPerBay(spec);
+  const bay = Math.floor(index / perBay);
+  const within = index % perBay;
   return {
     bay,
-    level: Math.floor(within / BOXES_PER_LEVEL),
-    column: within % BOXES_PER_LEVEL,
+    level: Math.floor(within / spec.perLevel),
+    column: within % spec.perLevel,
   };
+}
+
+/** Piece centre x relative to the bay centre. */
+export function columnOffset(column: number, spec: StockroomBaySpec = CC0_BAY): number {
+  return (column - (spec.perLevel - 1) / 2) * spec.columnPitch;
 }
 
 /**
@@ -164,8 +209,9 @@ function rowSpan(row: readonly number[], widths: readonly number[], gap: number)
 export function planStockroom(
   units: readonly StockroomUnitInput[],
   aspect = TARGET_ASPECT,
+  spec: StockroomBaySpec = CC0_BAY,
 ): StockroomPlan {
-  const widths = units.map((u) => areaWidth(u.hangers.length));
+  const widths = units.map((u) => areaWidth(u.hangers.length, spec));
   const rows = packRows(widths, AREA_GAP_X, ROW_PITCH, aspect);
   const spans = rows.map((row) => rowSpan(row, widths, AREA_GAP_X));
   const maxSpan = spans.length ? Math.max(...spans) : 0;
@@ -177,7 +223,7 @@ export function planStockroom(
     for (const i of row) {
       const unit = units[i];
       const width = widths[i];
-      areas.push(buildArea(unit, i, r, cursor + width / 2, z, width));
+      areas.push(buildArea(unit, i, r, cursor + width / 2, z, width, spec));
       cursor += width + AREA_GAP_X;
     }
   });
@@ -191,6 +237,7 @@ export function planStockroom(
       }
     : { minX: -2, maxX: 2, minZ: -1.5, maxZ: 1.5 };
   return {
+    bay: spec,
     areas,
     bounds,
     room: {
@@ -209,56 +256,72 @@ function buildArea(
   x: number,
   z: number,
   width: number,
+  spec: StockroomBaySpec,
 ): StockroomArea {
-  const bays = bayCount(unit.hangers.length);
-  const firstBayX = x - (bays * BAY_W) / 2 + BAY_W / 2;
-  const bayX = Array.from({ length: bays }, (_, b) => firstBayX + b * BAY_W);
+  const bays = bayCount(unit.hangers.length, spec);
+  const firstBayX = x - (bays * spec.width) / 2 + spec.width / 2;
+  const bayX = Array.from({ length: bays }, (_, b) => firstBayX + b * spec.width);
   const bayBackZ = z - AREA_DEPTH / 2 + AREA_BACK_INSET;
-  const bayFrontZ = bayBackZ + BAY_D;
+  const bayFrontZ = bayBackZ + spec.depth;
   const slots = unit.hangers.map((hanger, i): StockroomSlot => {
-    const cell = slotCell(i);
-    const dx = cell.column === 0 ? -BOX_COLUMN_OFFSET : BOX_COLUMN_OFFSET;
+    const cell = slotCell(i, spec);
     return {
       slug: hanger.slug,
       index: i,
       ...cell,
-      x: bayX[cell.bay] + dx,
-      y: BAY_LEVEL_Y[cell.level] + BOX_H / 2,
-      z: bayFrontZ - BOX_D / 2,
+      x: bayX[cell.bay] + columnOffset(cell.column, spec),
+      y: spec.levelY[cell.level],
+      z: bayFrontZ - spec.pieceInset,
     };
   });
   return { id: unit.id, name: unit.name, index, row, x, z, width, depth: AREA_DEPTH, bayX, bayFrontZ, slots };
 }
 
 /** Bays + sign of an area (the rug in front is left out) for camera fitting. */
-export function areaFocusBox(area: StockroomArea): {
+export function areaFocusBox(
+  area: StockroomArea,
+  spec: StockroomBaySpec = CC0_BAY,
+): {
   min: [number, number, number];
   max: [number, number, number];
 } {
-  const bayHalf = (area.bayX.length * BAY_W) / 2;
+  const bayHalf = (area.bayX.length * spec.width) / 2;
   const halfW = Math.max(bayHalf + 0.2, Math.min(area.width / 2, 1.6));
   return {
-    min: [area.x - halfW, 0, area.bayFrontZ - BAY_D],
-    max: [area.x + halfW, SIGN_TOP_Y, area.bayFrontZ + 0.35],
+    min: [area.x - halfW, spec.focusMinY ?? 0, area.bayFrontZ - spec.depth],
+    max: [area.x + halfW, signTopY(spec), area.bayFrontZ + 0.35],
   };
 }
 
-export function slotFocusBox(slot: StockroomSlot): {
+export function slotFocusBox(
+  slot: StockroomSlot,
+  spec: StockroomBaySpec = CC0_BAY,
+): {
   min: [number, number, number];
   max: [number, number, number];
 } {
-  // Keep the neighbouring boxes in frame so the piece reads in context.
-  const padX = BOX_W * 2.6;
-  const padY = BOX_H * 1.6;
+  // Keep the neighbouring pieces in frame so the piece reads in context.
+  const { w, h, d } = spec.piece;
+  const padX = w * 2.6;
+  const padY = h * 1.6;
   return {
-    min: [slot.x - padX, Math.max(0, slot.y - padY), slot.z - BOX_D / 2],
-    max: [slot.x + padX, slot.y + padY, slot.z + BOX_D / 2],
+    min: [slot.x - padX, Math.max(0, slot.y - padY), slot.z - d / 2],
+    max: [slot.x + padX, slot.y + padY, slot.z + d / 2],
   };
 }
 
 /** Header sign above the bays. */
 export const SIGN_H = 0.62;
-export const SIGN_Y = BAY_H + 0.08 + SIGN_H / 2;
-export const SIGN_TOP_Y = SIGN_Y + SIGN_H / 2;
+
+export function signY(spec: StockroomBaySpec = CC0_BAY): number {
+  return spec.height + 0.08 + SIGN_H / 2;
+}
+
+export function signTopY(spec: StockroomBaySpec = CC0_BAY): number {
+  return signY(spec) + SIGN_H / 2;
+}
+
+export const SIGN_Y = signY(CC0_BAY);
+export const SIGN_TOP_Y = signTopY(CC0_BAY);
 /** Tilt the sign back so its face points up toward the iso camera. */
 export const SIGN_TILT = -(32 * Math.PI) / 180;
