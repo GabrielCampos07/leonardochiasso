@@ -530,10 +530,19 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     return this.layout.racks.map((rack) => ({ id: rack.id, slugs: rack.hangers.map((h) => h.slug) }));
   }
 
+  private hoveredPieceSlug(): string | null {
+    return this.overlay()?.pieces.find((p) => p.hover)?.slug ?? null;
+  }
+
   private savePieceReorderFromKey(event: KeyboardEvent): boolean {
-    return saveFromKeyboardReorder(event, this.pieceOrderRacks(), (rackId, previous, next) => {
-      this.applyAndSavePieceOrder(rackId, previous, next);
-    });
+    return saveFromKeyboardReorder(
+      event,
+      this.pieceOrderRacks(),
+      (rackId, previous, next) => {
+        this.applyAndSavePieceOrder(rackId, previous, next);
+      },
+      this.hoveredPieceSlug(),
+    );
   }
 
   /** Enter / Space on a captioned piece opens it like a click on its photo. */

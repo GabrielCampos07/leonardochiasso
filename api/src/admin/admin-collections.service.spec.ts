@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { AdminCollectionsService } from './admin-collections.service';
+import { AdminCollectionsService, mergeLiveOrderIntoMembership } from './admin-collections.service';
 
 function collectionRow(over: Record<string, unknown> = {}) {
   return {
@@ -124,6 +124,15 @@ describe('AdminCollectionsService archive', () => {
     prisma.collection.findUnique.mockResolvedValue(null);
     await expect(service.archive('sumiu')).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.collection.update).not.toHaveBeenCalled();
+  });
+
+  it('keepMissing merges live order into full membership so archived stay linked', () => {
+    expect(mergeLiveOrderIntoMembership(['arquivo', 'a', 'b', 'c'], ['c', 'a', 'b'])).toEqual([
+      'arquivo',
+      'c',
+      'a',
+      'b',
+    ]);
   });
 
   it('returns every member slug in sortOrder, including archived', async () => {

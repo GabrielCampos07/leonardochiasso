@@ -144,10 +144,9 @@ export class AdminCollectionProductsService {
     collectionSlug: string,
     liveOrdered: readonly string[],
   ): Observable<SetCollectionProductsResult> {
-    return this.enqueue(collectionSlug, async () => {
-      const membership = await firstValueFrom(this.api.getProducts(collectionSlug));
-      const next = mergeLiveOrderIntoMembership(membership.productSlugs, liveOrdered);
-      return this.write(collectionSlug, next);
+    return this.enqueue(collectionSlug, () => {
+      const live = appendCollectionProductSlugs(liveOrdered, []);
+      return this.write(collectionSlug, live, { keepMissing: true });
     });
   }
 
@@ -200,8 +199,12 @@ export class AdminCollectionProductsService {
     );
   }
 
-  private write(collectionSlug: string, productSlugs: string[]): Promise<SetCollectionProductsResult> {
-    return firstValueFrom(this.api.setProducts(collectionSlug, productSlugs)).then((result) => {
+  private write(
+    collectionSlug: string,
+    productSlugs: string[],
+    opts: { keepMissing?: boolean } = {},
+  ): Promise<SetCollectionProductsResult> {
+    return firstValueFrom(this.api.setProducts(collectionSlug, productSlugs, opts)).then((result) => {
       this.remember(collectionSlug, result.productSlugs);
       return result;
     });
