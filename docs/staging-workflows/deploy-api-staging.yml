@@ -1,0 +1,68 @@
+# Deploy da API de staging no Hetzner (container api-staging, projeto leo-staging).
+# Secrets do environment "HETZNER_API": SSH_HOST, SSH_USER, SSH_PRIVATE_KEY.
+# Setup do servidor: docs/staging.md
+name: Deploy API staging to Hetzner
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - 'api/**'
+      - '.github/workflows/deploy-api-staging.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-api-staging
+  cancel-in-progress: true
+
+env:
+  STAGING_PATH: /opt/leo-chiasso-staging
+  HEALTH_URL: https://api-staging.leonardochiasso.com/api/health
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: HETZNER_API
+    steps:
+      - name: Verify SSH secrets
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          for name in SSH_HOST SSH_USER SSH_PRIVATE_KEY; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing secret $name in environment HETZNER_API."
+              exit 1
+            fi
+          done
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "${{ env.STAGING_PATH }}"
+            git fetch origin staging
+            git reset --hard origin/staging
+            cd api
+            test -f .env.staging || { echo "::error::api/.env.staging ausente (ver docs/staging.md)"; exit 1; }
+            docker compose -f docker-compose.staging.yml build
+            # Migrations no branch Neon de staging antes de trocar o container.
+            docker compose -f docker-compose.staging.yml run --rm --no-deps api-staging npx prisma migrate deploy
+            docker compose -f docker-compose.staging.yml up -d
+            docker compose -f docker-compose.staging.yml ps
+
+      - name: Health check
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if curl -sf "$HEALTH_URL"; then echo; echo "Healthy (attempt $attempt)."; exit 0; fi
+            echo "Attempt $attempt/12 — not ready yet."; sleep 10
+          done
+          echo "::error::Health check failed: $HEALTH_URL"; exit 1
