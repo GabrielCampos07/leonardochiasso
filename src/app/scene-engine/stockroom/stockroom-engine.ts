@@ -68,7 +68,7 @@ import {
 import type { SceneHanger, SceneLayout, SceneRack, SceneUnitKind } from '../types';
 import { DRAFT_UNIT_ID } from '../unit-layout';
 import { isWebGLAvailable, tryCreate } from '../webgl-support';
-import { CC0_KIT } from './stockroom-kit-cc0';
+import { SKETCHFAB_KIT } from './stockroom-kit-sketchfab';
 import { placeMatrix, type KitBuilder, type PlaceOptions, type StockroomKit } from './stockroom-kit';
 import {
   STOCKROOM_AZIMUTH_DEFAULT,
@@ -122,7 +122,7 @@ import {
 export { placeMatrix } from './stockroom-kit';
 
 export interface StockroomEngineOptions extends SceneEngineOptions {
-  /** Option A (`CC0_KIT`, default) or option B (`SKETCHFAB_KIT`). */
+  /** Models and bay geometry (default `SKETCHFAB_KIT`). */
   kit?: StockroomKit;
   /** First camera: the first collection's bays (default) or the whole room. */
   initialFocus?: 'first' | 'overview';
@@ -233,9 +233,8 @@ function disposeOwned(root: Object3D): void {
 }
 
 /**
- * Stockroom admin scene for options A (`?cc0=1`, Kenney boxes on bookcases) and
- * B (`?sketchfab=1`, hangers on wall rails) — the kit decides the models. One
- * floor area per collection, one piece per product with its photo large and a
+ * Stockroom admin scene for `/admin/3d`: hangers on wall rails (Sketchfab CC-BY
+ * models over a Kenney CC0 shell; the kit decides the models). One floor area per collection, one piece per product with its photo large and a
  * stock badge, orthographic top-down iso camera with clamped rotation.
  */
 export class StockroomEngine implements AtelierEngine {
@@ -312,9 +311,9 @@ export class StockroomEngine implements AtelierEngine {
   private onOverlayCb: StockroomOverlayHandler | null = null;
 
   constructor(canvas: HTMLCanvasElement, options: StockroomEngineOptions = {}) {
-    this.kit = options.kit ?? CC0_KIT;
+    this.kit = options.kit ?? SKETCHFAB_KIT;
     this.initialFocus = options.initialFocus ?? 'first';
-    this.plan = planStockroom([], undefined, this.kit.bay);
+    this.plan = planStockroom([], this.kit.bay);
     this.photoGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.photo.h);
     this.badgeGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.badge.h);
     this.outlineGeometry = new PlaneGeometry(this.kit.photo.w + OUTLINE_PAD, this.kit.photo.h + OUTLINE_PAD);
@@ -909,7 +908,7 @@ export class StockroomEngine implements AtelierEngine {
 
   private rebuild(): void {
     if (!this.assetsLoaded || this.disposed) return;
-    this.plan = planStockroom(this.units(), undefined, this.kit.bay);
+    this.plan = planStockroom(this.units(), this.kit.bay);
     this.buildRoom();
     this.clearAreas();
     const racks = new Map(this.layout.racks.map((r) => [r.id, r]));

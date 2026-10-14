@@ -1,25 +1,9 @@
 /**
- * Pure floor-plan math for the stockroom scenes (`?cc0=1`, `?sketchfab=1`). No three.js.
- * One area per collection: a rug, N bays at the back (bookcases in option A, wall
- * rails in option B), one slot per piece, and the collection name on a header sign.
- * Bay geometry comes from a `StockroomBaySpec`; option A's is the default.
+ * Pure floor-plan math for the `/admin/3d` stockroom. No three.js.
+ * One area per collection: a rug, N bays at the back (wall rails), one slot per
+ * piece, and the collection name on a header sign. Bay geometry comes from the
+ * kit's `StockroomBaySpec`.
  */
-
-/** Cardboard box (Kenney `cardboardBoxClosed`) world size. */
-export const BOX_W = 0.62;
-export const BOX_H = 0.74;
-export const BOX_D = 0.5;
-
-/** Open bookcase bay (Kenney `bookcaseOpen` scaled). */
-export const BAY_W = 1.48;
-export const BAY_H = 3.2;
-export const BAY_D = 0.62;
-/** Shelf board tops (model 0.13 / 0.37 / 0.61 of 0.88 tall), top level first — box bottoms sit here. */
-export const BAY_LEVEL_Y: readonly number[] = [2.218, 1.345, 0.473];
-export const BOXES_PER_LEVEL = 2;
-export const SLOTS_PER_BAY = BAY_LEVEL_Y.length * BOXES_PER_LEVEL;
-/** Gap between the two boxes on one level, measured from the bay centre. */
-export const BOX_COLUMN_OFFSET = BOX_W / 2 + 0.03;
 
 /** Shape of one bay and of the pieces it holds. */
 export interface StockroomBaySpec {
@@ -39,18 +23,6 @@ export interface StockroomBaySpec {
   focusMinY?: number;
 }
 
-/** Option A: open bookcase, two cardboard boxes per shelf. */
-export const CC0_BAY: StockroomBaySpec = {
-  width: BAY_W,
-  height: BAY_H,
-  depth: BAY_D,
-  levelY: BAY_LEVEL_Y.map((y) => y + BOX_H / 2),
-  perLevel: BOXES_PER_LEVEL,
-  columnPitch: BOX_COLUMN_OFFSET * 2,
-  piece: { w: BOX_W, h: BOX_H, d: BOX_D },
-  pieceInset: BOX_D / 2,
-};
-
 export function slotsPerBay(spec: StockroomBaySpec): number {
   return spec.levelY.length * spec.perLevel;
 }
@@ -60,7 +32,7 @@ export const AREA_DEPTH = 2.3;
 /** Bay back face sits this far in from the area's back edge. */
 export const AREA_BACK_INSET = 0.22;
 export const AREA_GAP_X = 0.9;
-/** Wide aisles so a front row's bays never hide the boxes of the row behind. */
+/** Wide aisles so a front row's bays never hide the pieces of the row behind. */
 export const AISLE_Z = 2.9;
 export const ROW_PITCH = AREA_DEPTH + AISLE_Z;
 export const ROOM_MARGIN = 1.6;
@@ -117,18 +89,18 @@ export interface StockroomPlan {
   room: StockroomBounds;
 }
 
-export function bayCount(pieces: number, spec: StockroomBaySpec = CC0_BAY): number {
+export function bayCount(pieces: number, spec: StockroomBaySpec): number {
   return Math.max(1, Math.ceil(Math.max(0, pieces) / slotsPerBay(spec)));
 }
 
-export function areaWidth(pieces: number, spec: StockroomBaySpec = CC0_BAY): number {
+export function areaWidth(pieces: number, spec: StockroomBaySpec): number {
   return bayCount(pieces, spec) * spec.width + AREA_PAD_X * 2;
 }
 
 /** Fill order: bay by bay, top level first, left to right. */
 export function slotCell(
   index: number,
-  spec: StockroomBaySpec = CC0_BAY,
+  spec: StockroomBaySpec,
 ): { bay: number; level: number; column: number } {
   const perBay = slotsPerBay(spec);
   const bay = Math.floor(index / perBay);
@@ -141,7 +113,7 @@ export function slotCell(
 }
 
 /** Piece centre x relative to the bay centre. */
-export function columnOffset(column: number, spec: StockroomBaySpec = CC0_BAY): number {
+export function columnOffset(column: number, spec: StockroomBaySpec): number {
   return (column - (spec.perLevel - 1) / 2) * spec.columnPitch;
 }
 
@@ -208,8 +180,8 @@ function rowSpan(row: readonly number[], widths: readonly number[], gap: number)
 /** Row 0 is the back (top of screen); collections read left to right, back to front. */
 export function planStockroom(
   units: readonly StockroomUnitInput[],
+  spec: StockroomBaySpec,
   aspect = TARGET_ASPECT,
-  spec: StockroomBaySpec = CC0_BAY,
 ): StockroomPlan {
   const widths = units.map((u) => areaWidth(u.hangers.length, spec));
   const rows = packRows(widths, AREA_GAP_X, ROW_PITCH, aspect);
@@ -280,7 +252,7 @@ function buildArea(
 /** Bays + sign of an area (the rug in front is left out) for camera fitting. */
 export function areaFocusBox(
   area: StockroomArea,
-  spec: StockroomBaySpec = CC0_BAY,
+  spec: StockroomBaySpec,
 ): {
   min: [number, number, number];
   max: [number, number, number];
@@ -309,7 +281,7 @@ export function bayWindowBox(
   area: StockroomArea,
   start: number,
   count: number,
-  spec: StockroomBaySpec = CC0_BAY,
+  spec: StockroomBaySpec,
 ): {
   min: [number, number, number];
   max: [number, number, number];
@@ -334,7 +306,7 @@ export function slotsInWindow(area: StockroomArea, start: number, count: number)
 
 export function slotFocusBox(
   slot: StockroomSlot,
-  spec: StockroomBaySpec = CC0_BAY,
+  spec: StockroomBaySpec,
 ): {
   min: [number, number, number];
   max: [number, number, number];
@@ -352,15 +324,13 @@ export function slotFocusBox(
 /** Header sign above the bays. */
 export const SIGN_H = 0.62;
 
-export function signY(spec: StockroomBaySpec = CC0_BAY): number {
+export function signY(spec: StockroomBaySpec): number {
   return spec.height + 0.08 + SIGN_H / 2;
 }
 
-export function signTopY(spec: StockroomBaySpec = CC0_BAY): number {
+export function signTopY(spec: StockroomBaySpec): number {
   return signY(spec) + SIGN_H / 2;
 }
 
-export const SIGN_Y = signY(CC0_BAY);
-export const SIGN_TOP_Y = signTopY(CC0_BAY);
 /** Tilt the sign back so its face points up toward the iso camera. */
 export const SIGN_TILT = -(32 * Math.PI) / 180;

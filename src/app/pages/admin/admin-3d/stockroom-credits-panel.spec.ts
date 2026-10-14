@@ -51,6 +51,47 @@ describe('StockroomCreditsPanel', () => {
     expect(closed).toBe(3);
   });
 
+  it('hands focus back to the Créditos button when it closes', async () => {
+    fixture.destroy();
+    const button = document.createElement('button');
+    button.textContent = 'Créditos';
+    document.body.appendChild(button);
+    try {
+      for (const close of ['escape', 'backdrop', 'button'] as const) {
+        const panel = TestBed.createComponent(StockroomCreditsPanel);
+        panel.componentInstance.returnFocus = button;
+        panel.componentInstance.close.subscribe(() => panel.destroy());
+        panel.detectChanges();
+        await Promise.resolve();
+        const dialog = panel.nativeElement.querySelector('.credits__dialog') as HTMLElement;
+        expect(document.activeElement).withContext(close).toBe(dialog);
+        if (close === 'escape') document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        if (close === 'backdrop') (panel.nativeElement.querySelector('.credits') as HTMLElement).click();
+        if (close === 'button') (panel.nativeElement.querySelector('.credits__close') as HTMLButtonElement).click();
+        expect(document.activeElement).withContext(close).toBe(button);
+      }
+    } finally {
+      button.remove();
+    }
+  });
+
+  it('falls back to the element that had focus when it opened', async () => {
+    fixture.destroy();
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    try {
+      const panel = TestBed.createComponent(StockroomCreditsPanel);
+      panel.detectChanges();
+      await Promise.resolve();
+      expect(document.activeElement).not.toBe(opener);
+      panel.destroy();
+      expect(document.activeElement).toBe(opener);
+    } finally {
+      opener.remove();
+    }
+  });
+
   it('stops listening for Escape once destroyed', () => {
     fixture.destroy();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
