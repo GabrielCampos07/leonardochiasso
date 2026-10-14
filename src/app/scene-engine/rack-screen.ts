@@ -49,6 +49,66 @@ export function worldBoxCorners(box: WorldBox): Array<{ x: number; y: number; z:
   return out;
 }
 
+/** Few extra pixels around the focused rack silhouette + rug. Open floor must zoom. */
+export const FOCUS_WHEEL_PAD_PX = 8;
+
+/** Front face of a world box (camera looks from +Z). Avoids depth-inflated AABBs. */
+export function worldBoxFrontCorners(box: WorldBox): Array<{ x: number; y: number; z: number }> {
+  const z = box.maxZ;
+  return [
+    { x: box.minX, y: box.minY, z },
+    { x: box.maxX, y: box.minY, z },
+    { x: box.minX, y: box.maxY, z },
+    { x: box.maxX, y: box.maxY, z },
+  ];
+}
+
+/**
+ * Focus-view wheel boxes. X is the framed window only. The rug is a floor
+ * strip at its centre Z so the oval's near edge does not balloon the rect.
+ */
+export function focusWheelWorldBoxes(
+  originX: number,
+  look: { offset: number; halfW: number },
+  rack: WorldBox,
+  rug?: WorldBox | null,
+): { rack: WorldBox; rug: WorldBox | null } {
+  const minX = originX + look.offset - look.halfW;
+  const maxX = originX + look.offset + look.halfW;
+  const framed: WorldBox = {
+    minX,
+    maxX,
+    minY: rack.minY,
+    maxY: rack.maxY,
+    minZ: rack.minZ,
+    maxZ: rack.maxZ,
+  };
+  if (!rug) return { rack: framed, rug: null };
+  const rugZ = (rug.minZ + rug.maxZ) / 2;
+  return {
+    rack: framed,
+    rug: {
+      minX,
+      maxX,
+      minY: rug.minY,
+      maxY: Math.max(rug.maxY, rug.minY + 0.04),
+      minZ: rugZ,
+      maxZ: rugZ,
+    },
+  };
+}
+
+export function unionScreenRects(a: ScreenRect | null, b: ScreenRect | null): ScreenRect | null {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    left: Math.min(a.left, b.left),
+    right: Math.max(a.right, b.right),
+    top: Math.min(a.top, b.top),
+    bottom: Math.max(a.bottom, b.bottom),
+  };
+}
+
 /** Wheel is over a rack when the pointer is inside any projected AABB. */
 export function wheelOverRackRects(
   clientX: number,

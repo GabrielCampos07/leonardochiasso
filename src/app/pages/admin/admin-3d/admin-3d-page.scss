@@ -413,16 +413,33 @@
 }
 
 .admin-3d__pager-name {
+  appearance: none;
+  -webkit-appearance: none;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 48px;
   margin: 0;
+  padding: 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+  border: none;
+  background: transparent;
+  color: var(--lc-void);
   font-family: var(--lc-font-display);
   font-size: 0.92rem;
   font-weight: 500;
+  cursor: pointer;
+}
+
+.admin-3d__pager-name[aria-expanded='true'] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.admin-3d__switcher {
+  display: none;
 }
 
 .admin-3d__menu {
@@ -553,10 +570,43 @@
 
   .admin-3d__pager {
     grid-area: pager;
+    position: relative;
     display: flex;
     align-items: center;
     gap: 6px;
     min-width: 0;
+  }
+
+  .admin-3d__switcher {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 6px);
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    max-height: min(360px, 46vh);
+    overflow: auto;
+    padding: 6px;
+    background: rgb(255 255 255 / 96%);
+    border: 1px solid color-mix(in srgb, var(--lc-void) 16%, transparent);
+  }
+
+  .admin-3d__switcher button {
+    min-height: 44px;
+    padding: 0 12px;
+    border: none;
+    background: transparent;
+    color: var(--lc-void);
+    font-family: var(--lc-font-display);
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .admin-3d__switcher button.is-on {
+    background: var(--lc-void);
+    color: var(--lc-white);
   }
 
   .admin-3d__add-piece {

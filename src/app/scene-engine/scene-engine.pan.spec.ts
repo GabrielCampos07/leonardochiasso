@@ -1,5 +1,6 @@
 import { createSceneEngine } from './scene-engine';
 import { rackPanRange } from './collection-rack';
+import { FOCUS_WHEEL_PAD_PX } from './rack-screen';
 import type { SceneLayout } from './types';
 
 function rackLayout(id: string, count: number): SceneLayout {
@@ -225,6 +226,51 @@ describe('SceneEngine lateral pan', () => {
     expect(engine.orbitDistance()).toBeCloseTo(before, 5);
     engine.dispose();
     canvas.remove();
+  });
+
+  it('zooms the open floor beside a focused rack instead of capturing the wheel', () => {
+    const host = document.createElement('div');
+    host.style.cssText = 'width:1280px;height:800px;position:relative;';
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'width:100%;height:100%;display:block;';
+    canvas.width = 1280;
+    canvas.height = 800;
+    host.appendChild(canvas);
+    document.body.appendChild(host);
+    const engine = createSceneEngine(canvas, { reducedMotion: true, lite: true, host });
+    if (!engine) {
+      host.remove();
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.start();
+    engine.setLayout(longRackLayout());
+    engine.focusRack('niponic-dreams', true);
+    const tight = engine.focusWheelBounds();
+    const inflated = engine.unitScreenBounds('niponic-dreams');
+    expect(tight && inflated).toBeTruthy();
+    expect(tight!.right - tight!.left).toBeLessThan(inflated!.right - inflated!.left + 8);
+    const rect = canvas.getBoundingClientRect();
+    const floorX = rect.left + Math.max(16, tight!.left - 40);
+    const floorY = rect.top + Math.min(rect.height - 16, Math.max(tight!.bottom + 28, rect.height * 0.78));
+    expect(engine.wheelHitsAt(rect.left + tight!.left + 8, rect.top + tight!.top + 24)).toBeTrue();
+    expect(floorX).toBeLessThan(rect.left + tight!.left - FOCUS_WHEEL_PAD_PX);
+    expect(engine.wheelHitsAt(floorX, floorY)).toBeFalse();
+    const beforePan = engine.rackPanState().last;
+    const beforeDist = engine.orbitDistance();
+    canvas.dispatchEvent(
+      new WheelEvent('wheel', {
+        deltaY: -280,
+        clientX: floorX,
+        clientY: floorY,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(engine.rackPanState().last).toBe(beforePan);
+    expect(engine.orbitDistance()).toBeLessThan(beforeDist);
+    engine.dispose();
+    host.remove();
   });
 
   it('moves the Niponic counter down and back up from the pan offset', () => {
