@@ -31,8 +31,8 @@ describe('AdminCollectionsApiService', () => {
         r.url === 'http://collections.test/api/admin/collections' &&
         r.params.has('_'),
     );
-    expect(req.request.headers.get('Cache-Control')).toBe('no-cache');
-    expect(req.request.headers.get('Pragma')).toBe('no-cache');
+    expect(req.request.headers.get('Cache-Control')).toBeNull();
+    expect(req.request.headers.get('Pragma')).toBeNull();
     expect(req.request.withCredentials).toBeTrue();
     req.flush([
       {
