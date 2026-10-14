@@ -395,6 +395,27 @@ export class StockroomEngine implements AtelierEngine {
     return this.tween !== null;
   }
 
+  /** Client-space centre of a box's photo, or null when it is not mounted. */
+  boxScreenPoint(slug: string): { x: number; y: number } | null {
+    const node = this.boxes.get(slug);
+    if (!node) return null;
+    this.camera.updateMatrixWorld(true);
+    node.photo.updateMatrixWorld(true);
+    const p = node.photo.getWorldPosition(new Vector3()).project(this.camera);
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: rect.left + ((p.x + 1) / 2) * rect.width, y: rect.top + ((1 - p.y) / 2) * rect.height };
+  }
+
+  /** Client-space point on an area's rug, in front of its bays. */
+  areaScreenPoint(id: string): { x: number; y: number } | null {
+    const area = this.plan.areas.find((a) => a.id === id);
+    if (!area) return null;
+    this.camera.updateMatrixWorld(true);
+    const p = new Vector3(area.x, 0.02, area.z + area.depth / 2 - 0.3).project(this.camera);
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: rect.left + ((p.x + 1) / 2) * rect.width, y: rect.top + ((1 - p.y) / 2) * rect.height };
+  }
+
   setLayout(layout: SceneLayout): void {
     this.layout = { racks: layout.racks.map((r) => ({ ...r, hangers: [...r.hangers] })) };
     if (this.focusedId !== OVERVIEW_FOCUS_ID && !this.layout.racks.some((r) => r.id === this.focusedId)) {

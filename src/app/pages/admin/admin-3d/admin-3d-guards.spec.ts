@@ -16,6 +16,8 @@ describe('isAdmin3dMockEnabled', () => {
     expect(isAdmin3dMockEnabled({ production: false, envMock: true })).toBeTrue();
     expect(isAdmin3dMockEnabled({ production: false, queryMock: '1' })).toBeTrue();
     expect(isAdmin3dMockEnabled({ production: false, queryMock: 'true' })).toBeTrue();
+    expect(isAdmin3dMockEnabled({ production: false, queryMock: 'full' })).toBeTrue();
+    expect(isAdmin3dMockEnabled({ production: true, queryMock: 'full' })).toBeFalse();
     expect(isAdmin3dMockEnabled({ production: false, storageMock: '1' })).toBeTrue();
     expect(isAdmin3dMockEnabled({ production: false })).toBeFalse();
     expect(isAdmin3dMockEnabled({ production: false, queryMock: '0', storageMock: '0' })).toBeFalse();
