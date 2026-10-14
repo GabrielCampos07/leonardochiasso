@@ -503,6 +503,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.stepRack(arrow);
   }
 
+  /** Enter / Space on a captioned piece opens it like a click on its photo. */
+  openPieceFromKey(event: Event, slug: string): void {
+    event.preventDefault();
+    this.openEditor(slug);
+  }
+
   focusRack(id: string): void {
     if (this.creating() || this.adding()) return;
     this.switcherOpen.set(false);
