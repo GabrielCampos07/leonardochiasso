@@ -1,8 +1,11 @@
 import {
+  STOCKROOM_B_HINT_COPY,
   STOCKROOM_HINT_COPY,
   STOCKROOM_MIN_WIDTH,
   adminSceneMode,
   isDesktopOnlyBlocked,
+  isStockroomMode,
+  sceneNeedsCredits,
 } from './admin-3d-scene-mode';
 
 function params(query: string): { get(name: string): string | null } {
@@ -35,10 +38,24 @@ describe('isDesktopOnlyBlocked', () => {
   });
 });
 
+describe('isStockroomMode / sceneNeedsCredits', () => {
+  it('treats both options as stockrooms and only B needs a Créditos screen', () => {
+    expect(isStockroomMode('cc0')).toBeTrue();
+    expect(isStockroomMode('sketchfab')).toBeTrue();
+    expect(isStockroomMode('atelier')).toBeFalse();
+    expect(sceneNeedsCredits('sketchfab')).toBeTrue();
+    expect(sceneNeedsCredits('cc0')).toBeFalse();
+    expect(sceneNeedsCredits('atelier')).toBeFalse();
+  });
+});
+
 describe('stockroom hint copy', () => {
   it('names the stockroom gestures and stays free of Fechar', () => {
-    expect(STOCKROOM_HINT_COPY).toContain('Clique');
-    expect(STOCKROOM_HINT_COPY).toContain('scroll');
-    expect(STOCKROOM_HINT_COPY).not.toMatch(/fechar/i);
+    for (const copy of [STOCKROOM_HINT_COPY, STOCKROOM_B_HINT_COPY]) {
+      expect(copy).toContain('Clique');
+      expect(copy).toContain('scroll');
+      expect(copy).not.toMatch(/fechar/i);
+    }
+    expect(STOCKROOM_B_HINT_COPY).toContain('peça');
   });
 });

@@ -402,6 +402,11 @@ export class StockroomEngine implements AtelierEngine {
     return { x: rect.left + ((p.x + 1) / 2) * rect.width, y: rect.top + ((1 - p.y) / 2) * rect.height };
   }
 
+  /** Badge kind painted on a piece (`draft` / `soldout` / `stock`), or null when it is not mounted. */
+  pieceBadge(slug: string): string | null {
+    return (this.boxes.get(slug)?.badge.userData['badge'] as string | undefined) ?? null;
+  }
+
   /** Client-space point on an area's rug, in front of its bays. */
   areaScreenPoint(id: string): { x: number; y: number } | null {
     const area = this.plan.areas.find((a) => a.id === id);

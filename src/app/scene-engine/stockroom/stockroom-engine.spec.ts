@@ -2,6 +2,7 @@ import { OVERVIEW_FOCUS_ID } from '../camera-guide';
 import type { SceneHanger, SceneLayout } from '../types';
 import { DRAFT_UNIT_ID } from '../unit-layout';
 import { StockroomEngine, createStockroomEngine, upsertHanger } from './stockroom-engine';
+import { SKETCHFAB_KIT } from './stockroom-kit-sketchfab';
 
 function hanger(rackId: string, j: number, extra: Partial<SceneHanger> = {}): SceneHanger {
   return {
@@ -203,6 +204,71 @@ describe('StockroomEngine', () => {
       e.restoreUnit(layout([2, 1]).racks[1]);
       expect(e.areaIds()).toEqual(['c0', 'c1']);
       done();
+    });
+  });
+});
+
+describe('StockroomEngine with the Sketchfab kit (option B)', () => {
+  let canvas: HTMLCanvasElement;
+  let host: HTMLDivElement;
+  let engine: StockroomEngine | null;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:0;top:0;width:1280px;height:720px;';
+    canvas = document.createElement('canvas');
+    host.appendChild(canvas);
+    document.body.appendChild(host);
+    spyOn(canvas, 'setPointerCapture');
+    spyOn(canvas, 'releasePointerCapture');
+    engine = createStockroomEngine(canvas, { reducedMotion: true, host, kit: SKETCHFAB_KIT });
+  });
+
+  afterEach(() => {
+    engine?.dispose();
+    host.remove();
+  });
+
+  function bootB(base: SceneLayout, done: () => void): void {
+    if (!engine) {
+      pending('WebGL not available in this browser');
+      return;
+    }
+    engine.onSceneComplete(done);
+    engine.start();
+    engine.setLayout(base);
+  }
+
+  it('builds one area per collection with hanging pieces and their badges', (done) => {
+    const base = layout([3, 1]);
+    base.racks[0].hangers[1] = hanger('c0', 1, { stockQty: 0 });
+    base.racks[0].hangers[2] = hanger('c0', 2, { status: 'draft' });
+    bootB(base, () => {
+      const e = engine!;
+      expect(e.kit.id).toBe('sketchfab');
+      expect(e.areaIds()).toEqual(['c0', 'c1']);
+      expect(e.pieceBadge('c0-0')).toBe('stock');
+      expect(e.pieceBadge('c0-1')).toBe('soldout');
+      expect(e.pieceBadge('c0-2')).toBe('draft');
+      expect(e.pieceBadge('missing')).toBeNull();
+      done();
+    });
+  });
+
+  it('opens the editor for a tapped piece', (done) => {
+    bootB(layout([4, 2]), () => {
+      const e = engine!;
+      e.focusRack('c0', true);
+      requestAnimationFrame(() => {
+        const at = e.boxScreenPoint('c0-2');
+        expect(at).not.toBeNull();
+        const picked: string[] = [];
+        e.onClick((slug) => picked.push(slug));
+        pointer(canvas, 'pointerdown', at!.x, at!.y);
+        pointer(canvas, 'pointerup', at!.x, at!.y);
+        expect(picked).toEqual(['c0-2']);
+        done();
+      });
     });
   });
 });
