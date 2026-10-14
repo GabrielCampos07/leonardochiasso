@@ -117,7 +117,7 @@ describe('AdminCatalogService create payload contract', () => {
       name: 'Look Masc',
       category: 'masculino',
       gender: 'masculino',
-      collectionSlug: 'teste-colecao',
+      collectionSlug: 'teste-colecao' as Product['collectionSlug'],
       collection: 'TESTE-COLECAO' as Product['collection'],
     });
     service.createPublishedProduct$(product).subscribe();

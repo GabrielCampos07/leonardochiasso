@@ -29,7 +29,7 @@ function sampleProduct(patch: Partial<Product> = {}): Product {
     category: 'feminino',
     gender: 'feminino',
     collection: 'teste-colecao' as Product['collection'],
-    collectionSlug: 'teste-colecao',
+    collectionSlug: 'teste-colecao' as Product['collectionSlug'],
     stockQty: 1,
     ...patch,
   };
