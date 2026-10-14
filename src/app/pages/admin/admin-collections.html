@@ -32,7 +32,7 @@
   </div>
 
   @if (showSkeleton()) {
-    <p class="admin-list__count">Carregando…</p>
+    <p class="admin-list__count" aria-live="polite">Carregando…</p>
     <ul class="admin-list__rows" aria-busy="true" aria-label="Carregando coleções">
       @for (row of skeletonRows; track row) {
         <li class="admin-row admin-row--collection admin-row--skel" aria-hidden="true">
@@ -43,7 +43,7 @@
       }
     </ul>
   } @else {
-    <p class="admin-list__count">
+    <p class="admin-list__count" aria-live="polite">
       {{ filtered().length }} coleção(ões)
       @if (loading()) {
         · atualizando…

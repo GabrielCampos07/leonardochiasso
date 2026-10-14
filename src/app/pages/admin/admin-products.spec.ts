@@ -165,6 +165,9 @@ describe('AdminProductsPage cache and skeleton', () => {
     expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['cached']);
     expect(fixture.nativeElement.textContent).toContain('Cached');
     expect(fixture.nativeElement.textContent).toContain('atualizando…');
+    expect(fixture.nativeElement.querySelector('.admin-list__count')?.getAttribute('aria-live')).toBe(
+      'polite',
+    );
     expect(fixture.nativeElement.querySelector('.admin-row--skel')).toBeNull();
     fixture.componentInstance.setGenderFilter('feminino');
     fixture.detectChanges();

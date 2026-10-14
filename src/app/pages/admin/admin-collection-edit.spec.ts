@@ -1,7 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { NEVER, Subject, of, throwError } from 'rxjs';
+import { ADMIN_LOAD_TIMEOUT_MESSAGE, ADMIN_LOAD_TIMEOUT_MS } from '../../core/admin-archive';
 import { adminListCacheKey, clearAdminListCache, writeAdminCache } from '../../core/admin-list-cache';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
@@ -396,6 +397,45 @@ describe('AdminCollectionEditPage cached detail', () => {
       getPublicDetail: jasmine.Spy;
     };
     expect(api.getPublicDetail).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.querySelector('.admin-list__count')?.getAttribute('aria-live')).toBe(
+      'polite',
+    );
     fixture.destroy();
   });
+
+  it('sets loading=false when the admin GETs time out', fakeAsync(() => {
+    TestBed.configureTestingModule({
+      imports: [AdminCollectionEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ slug: 'teste-ordem2' })) },
+        },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            list: () => NEVER,
+            getProducts: () => NEVER,
+            listAdminProducts: () => NEVER,
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
+        },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    });
+    const fixture = TestBed.createComponent(AdminCollectionEditPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loading()).toBeTrue();
+    tick(ADMIN_LOAD_TIMEOUT_MS);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loading()).toBeFalse();
+    expect(fixture.componentInstance.error()).toBe(ADMIN_LOAD_TIMEOUT_MESSAGE);
+    fixture.destroy();
+  }));
 });

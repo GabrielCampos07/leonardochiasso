@@ -77,7 +77,7 @@
     <p class="admin-list__notice" role="alert">{{ orderError() }}</p>
   }
 
-  <p class="admin-list__count">
+  <p class="admin-list__count" aria-live="polite">
     @if (showSkeleton()) {
       Carregando…
     } @else {
@@ -107,6 +107,7 @@
     class="admin-list__rows"
     cdkDropList
     [cdkDropListData]="filtered()"
+    [cdkDropListDisabled]="!canDrag() || savingOrder()"
     (cdkDropListDropped)="drop($event)"
   >
     @for (p of filtered(); track p.slug; let i = $index) {

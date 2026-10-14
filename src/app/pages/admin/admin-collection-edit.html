@@ -5,7 +5,7 @@
   </section>
 } @else if (showSkeleton()) {
   <section class="admin-edit" aria-busy="true" aria-label="Carregando coleção">
-    <p class="admin-list__count">Carregando…</p>
+    <p class="admin-list__count" aria-live="polite">Carregando…</p>
     <ul class="admin-list__rows">
       @for (row of skeletonRows; track row) {
         <li class="admin-row admin-row--skel" aria-hidden="true">
@@ -140,7 +140,7 @@
           <p class="admin-col-products__notice" role="alert">{{ orderError() }}</p>
         }
 
-        <p class="admin-list__count">
+        <p class="admin-list__count" aria-live="polite">
           {{ visibleProducts().length }} produto(s)
           @if (loading() || orderLoading()) {
             · atualizando…
@@ -164,6 +164,7 @@
           class="admin-list__rows admin-col-products__list"
           cdkDropList
           [cdkDropListData]="visibleProducts()"
+          [cdkDropListDisabled]="!canDrag() || savingOrder()"
           (cdkDropListDropped)="onDrop($event)"
         >
           @for (p of visibleProducts(); track p.slug; let i = $index) {

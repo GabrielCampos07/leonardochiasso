@@ -58,14 +58,3 @@ export function clearAdminListCache(key?: string): void {
   }
   MEMORY.clear();
 }
-
-/**
- * Admin (Lista and 3D) must never GET `/api/collections/:slug`.
- * Drafts such as teste-ordem2 and archived slugs 404 on the public catalog.
- */
-export function shouldRequestPublicCollection(_collection: {
-  archivedAt?: string | Date | null;
-  publishedAt?: string | Date | null;
-} | null): boolean {
-  return false;
-}

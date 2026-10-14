@@ -4,7 +4,6 @@ import {
   clearAdminListCache,
   readAdminCache,
   readAdminListCache,
-  shouldRequestPublicCollection,
   writeAdminCache,
   writeAdminListCache,
 } from './admin-list-cache';
@@ -36,14 +35,5 @@ describe('admin list cache', () => {
     expect(readAdminCache<{ slug: string; products: { slug: string }[] }>(key)?.products[0]?.slug).toBe(
       'a',
     );
-  });
-});
-
-describe('shouldRequestPublicCollection', () => {
-  it('never requests the public catalog from admin (drafts and archived 404)', () => {
-    expect(shouldRequestPublicCollection({ archivedAt: '2026-10-12T12:00:00.000Z' })).toBeFalse();
-    expect(shouldRequestPublicCollection({ archivedAt: null, publishedAt: null })).toBeFalse();
-    expect(shouldRequestPublicCollection({ archivedAt: null, publishedAt: '2026-01-01T00:00:00.000Z' })).toBeFalse();
-    expect(shouldRequestPublicCollection(null)).toBeFalse();
   });
 });
