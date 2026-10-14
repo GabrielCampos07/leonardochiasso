@@ -138,9 +138,9 @@ describe('StockroomEngine', () => {
     e.setLayout(base);
   });
 
-  /** Canvas of the admin 3D at a 1280×800 window: header above, nav bar below. */
+  /** Canvas of the admin 3D at a 1280×800 window: header and title strip above, nav bar below. */
   function desktopStage(): void {
-    host.style.height = '636px';
+    host.style.height = '584px';
     engine?.resize();
   }
 
@@ -460,7 +460,7 @@ describe('StockroomEngine with the Sketchfab kit (option B)', () => {
   });
 
   it('lands on the first collection with photos at least 120 px tall on a 1280×800 desktop', (done) => {
-    host.style.height = '636px';
+    host.style.height = '584px';
     engine?.resize();
     bootB(layout([17, 18]), () => {
       const e = engine!;
