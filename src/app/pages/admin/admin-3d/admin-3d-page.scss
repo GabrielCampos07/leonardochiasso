@@ -367,6 +367,25 @@
   font-size: 0.72rem;
 }
 
+.admin-3d__credits {
+  pointer-events: auto;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 14%, transparent);
+  background: rgb(255 255 255 / 92%);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-3d__credits:hover,
+.admin-3d__credits:focus-visible {
+  background: var(--lc-white);
+  border-color: var(--lc-void);
+}
+
 .admin-3d__add-piece {
   position: absolute;
   left: auto;

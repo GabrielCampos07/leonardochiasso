@@ -87,11 +87,12 @@ import {
 import {
   DESKTOP_ONLY_HINT,
   DESKTOP_ONLY_TITLE,
-  SKETCHFAB_PENDING_HINT,
-  SKETCHFAB_PENDING_TITLE,
+  STOCKROOM_B_HINT_COPY,
   STOCKROOM_HINT_COPY,
   adminSceneMode,
   isDesktopOnlyBlocked,
+  isStockroomMode,
+  sceneNeedsCredits,
 } from './admin-3d-scene-mode';
 import {
   admin3dFixtureProducts,
@@ -110,6 +111,7 @@ import {
   type AddPieceItemError,
 } from './collection-add-piece-panel';
 import { CollectionCreatePanel } from './collection-create-panel';
+import { StockroomCreditsPanel } from './stockroom-credits-panel';
 import { JoiaEditModal, JoiaEditModalData } from './joia-edit-modal';
 import {
   PRODUCT_EDIT_MODAL_TITLE_ID,
@@ -169,7 +171,7 @@ export function clampCreatePanel(
 @Component({
   selector: 'lc-admin-3d-page',
   standalone: true,
-  imports: [CollectionCreatePanel, CollectionAddPiecePanel],
+  imports: [CollectionCreatePanel, CollectionAddPiecePanel, StockroomCreditsPanel],
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
@@ -205,19 +207,22 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
   readonly sceneMode = adminSceneMode(this.route.snapshot.queryParamMap);
-  readonly hintCopy = this.sceneMode === 'cc0' ? STOCKROOM_HINT_COPY : ATELIER_HINT_COPY;
+  readonly hintCopy =
+    this.sceneMode === 'cc0'
+      ? STOCKROOM_HINT_COPY
+      : this.sceneMode === 'sketchfab'
+        ? STOCKROOM_B_HINT_COPY
+        : ATELIER_HINT_COPY;
   readonly viewportWidth = signal(typeof window === 'undefined' ? 1280 : window.innerWidth);
   readonly desktopOnly = computed(() => isDesktopOnlyBlocked(this.sceneMode, this.viewportWidth()));
-  readonly sketchfabPending = this.sceneMode === 'sketchfab';
   readonly desktopOnlyTitle = DESKTOP_ONLY_TITLE;
   readonly desktopOnlyHint = DESKTOP_ONLY_HINT;
-  readonly sketchfabTitle = SKETCHFAB_PENDING_TITLE;
-  readonly sketchfabHint = SKETCHFAB_PENDING_HINT;
+  readonly hasCredits = sceneNeedsCredits(this.sceneMode);
+  readonly creditsOpen = signal(false);
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
       !this.webglUnavailable() &&
-      !this.sketchfabPending &&
       !this.desktopOnly() &&
       !this.error() &&
       (this.loading() || !this.firstFrame() || this.bootFading()),
@@ -332,7 +337,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private async bootScene(): Promise<void> {
-    if (this.sketchfabPending || this.desktopOnly()) {
+    if (this.desktopOnly()) {
       this.boot.markFirstFrame();
       return;
     }
@@ -348,9 +353,14 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     const host = this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas;
     const opts = { reducedMotion: this.reducedMotion, host };
     try {
-      if (this.sceneMode === 'cc0') {
-        const { createStockroomEngine } = await import('../../../scene-engine/stockroom/stockroom-engine');
-        if (!this.engine) this.engine = createStockroomEngine(canvas, opts);
+      if (isStockroomMode(this.sceneMode)) {
+        const [{ createStockroomEngine }, { SKETCHFAB_KIT }] = await Promise.all([
+          import('../../../scene-engine/stockroom/stockroom-engine'),
+          this.sceneMode === 'sketchfab'
+            ? import('../../../scene-engine/stockroom/stockroom-kit-sketchfab')
+            : Promise.resolve({ SKETCHFAB_KIT: undefined }),
+        ]);
+        if (!this.engine) this.engine = createStockroomEngine(canvas, { ...opts, kit: SKETCHFAB_KIT });
       } else {
         const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
         if (!this.engine) this.engine = createSceneEngine(canvas, opts);
@@ -404,6 +414,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
+    if (this.creditsOpen()) return;
     if (event.key === 'Escape' && this.switcherOpen()) {
       event.preventDefault();
       this.switcherOpen.set(false);
@@ -444,6 +455,18 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.moreOpen.set(false);
     this.switcherOpen.set(false);
     this.engine?.focusOverview(this.reducedMotion);
+  }
+
+  openCredits(): void {
+    this.moreOpen.set(false);
+    this.switcherOpen.set(false);
+    this.setHoverTip(null);
+    this.creditsOpen.set(true);
+  }
+
+  closeCredits(): void {
+    this.creditsOpen.set(false);
+    this.sceneHostRef?.nativeElement.focus({ preventScroll: true });
   }
 
   toggleMore(event?: Event): void {
@@ -902,7 +925,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private setHoverTip(slug: string | null, pointer?: { x: number; y: number }): void {
-    if (this.modalOpen || this.creating() || !slug || !pointer) {
+    if (this.modalOpen || this.creating() || this.creditsOpen() || !slug || !pointer) {
       this.hoverTip.set(null);
       return;
     }

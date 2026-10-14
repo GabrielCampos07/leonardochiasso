@@ -115,6 +115,9 @@
             @if (canArchiveFocused()) {
               <button type="button" role="menuitem" (click)="archiveFocusedCollection()">Arquivar coleção</button>
             }
+            @if (hasCredits) {
+              <button type="button" role="menuitem" (click)="openCredits()">Créditos</button>
+            }
           </div>
         }
       </div>
@@ -217,6 +220,9 @@
       @if (usingMock()) {
         <p class="admin-3d__badge" role="status">Dados de exemplo</p>
       }
+      @if (hasCredits) {
+        <button type="button" class="admin-3d__credits" (click)="openCredits()">Créditos</button>
+      }
     </div>
   }
 
@@ -294,17 +300,11 @@
     </div>
   }
 
-  @if (sketchfabPending) {
-    <div class="admin-3d__cover" role="status">
-      <div class="admin-3d__panel">
-        <p><strong>{{ sketchfabTitle }}</strong></p>
-        <p>{{ sketchfabHint }}</p>
-        <div class="admin-3d__actions">
-          <button type="button" (click)="backToList()">{{ webglAction }}</button>
-        </div>
-      </div>
-    </div>
-  } @else if (desktopOnly()) {
+  @if (creditsOpen()) {
+    <lc-stockroom-credits-panel (close)="closeCredits()" />
+  }
+
+  @if (desktopOnly()) {
     <div class="admin-3d__cover" role="status">
       <div class="admin-3d__panel">
         <p><strong>{{ desktopOnlyTitle }}</strong></p>
