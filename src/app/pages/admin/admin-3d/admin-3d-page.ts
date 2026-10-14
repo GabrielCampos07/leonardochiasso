@@ -52,6 +52,7 @@ import { DRAFT_PLACEHOLDER_NAME, DRAFT_UNIT_ID } from '../../../scene-engine/uni
 import {
   findHanger,
   insertUnitBeforeUncollected,
+  isUnpublishedCollection,
   mapAtelierToScene,
   omitHanger,
   removeHangerFromLayout,
@@ -63,8 +64,9 @@ import {
 } from '../../../scene-engine/mapping';
 import { apiProductToSceneInput, joiaToSceneInput, productToSceneInput } from '../../../scene-engine/from-catalog';
 import { formatHangerTooltip } from '../../../scene-engine/hanger-price';
-import { clampTooltip, mergeProductPhotos } from '../../../scene-engine/photo-url';
-import type { SceneEngine } from '../../../scene-engine/scene-engine';
+import { clampTooltip } from '../../../scene-engine/photo-url';
+import type { AtelierEngine } from '../../../scene-engine/engine-contract';
+import type { StockroomEngine, StockroomOverlay } from '../../../scene-engine/stockroom/stockroom-engine';
 import type {
   SceneCollectionInput,
   SceneLayout,
@@ -85,6 +87,16 @@ import {
   shouldUseLocalAdmin3dCatalog,
 } from './admin-3d-guards';
 import {
+  DESKTOP_ONLY_HINT,
+  DESKTOP_ONLY_TITLE,
+  STOCKROOM_B_HINT_COPY,
+  STOCKROOM_HINT_COPY,
+  adminSceneMode,
+  isDesktopOnlyBlocked,
+  isStockroomMode,
+  sceneNeedsCredits,
+} from './admin-3d-scene-mode';
+import {
   admin3dFixtureProducts,
   admin3dFixtureSceneCollections,
   admin3dFixtureSceneProducts,
@@ -101,6 +113,7 @@ import {
   type AddPieceItemError,
 } from './collection-add-piece-panel';
 import { CollectionCreatePanel } from './collection-create-panel';
+import { StockroomCreditsPanel } from './stockroom-credits-panel';
 import { JoiaEditModal, JoiaEditModalData } from './joia-edit-modal';
 import {
   PRODUCT_EDIT_MODAL_TITLE_ID,
@@ -128,6 +141,13 @@ export function isCreateSheetViewport(
   width = typeof window === 'undefined' ? 1280 : window.innerWidth,
 ): boolean {
   return width <= 768;
+}
+
+/** Bottom-bar counter: "2/5" on a collection, the total on the overview. */
+export function rackCounterLabel(items: ReadonlyArray<{ id: string }>, focusedId: string): string {
+  if (!items.length) return '0/0';
+  const at = items.findIndex((item) => item.id === focusedId);
+  return at < 0 ? `${items.length}` : `${at + 1}/${items.length}`;
 }
 
 /** Click slug → edit modal. Blocked only while creating / adding pieces. */
@@ -160,12 +180,13 @@ export function clampCreatePanel(
 @Component({
   selector: 'lc-admin-3d-page',
   standalone: true,
-  imports: [CollectionCreatePanel, CollectionAddPiecePanel],
+  imports: [CollectionCreatePanel, CollectionAddPiecePanel, StockroomCreditsPanel],
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
 export class Admin3dPage implements AfterViewInit, OnDestroy {
   @ViewChild('sceneHost') private sceneHostRef?: ElementRef<HTMLElement>;
+  @ViewChild('stage') private stageRef?: ElementRef<HTMLElement>;
   @ViewChild('canvas') private canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild(CollectionAddPiecePanel) private addPanel?: CollectionAddPiecePanel;
 
@@ -195,11 +216,27 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly hoverTip = signal<{ text: string; x: number; y: number } | null>(null);
   readonly line = signal<AtelierLine>('roupas');
   readonly showHint = signal(true);
-  readonly hintCopy = ATELIER_HINT_COPY;
+  readonly sceneMode = adminSceneMode(this.route.snapshot.queryParamMap);
+  /** Options A / B: nav in a fixed bar under the canvas, names and captions as HTML labels. */
+  readonly stockroom = isStockroomMode(this.sceneMode);
+  readonly overlay = signal<StockroomOverlay | null>(null);
+  readonly hintCopy =
+    this.sceneMode === 'cc0'
+      ? STOCKROOM_HINT_COPY
+      : this.sceneMode === 'sketchfab'
+        ? STOCKROOM_B_HINT_COPY
+        : ATELIER_HINT_COPY;
+  readonly viewportWidth = signal(typeof window === 'undefined' ? 1280 : window.innerWidth);
+  readonly desktopOnly = computed(() => isDesktopOnlyBlocked(this.sceneMode, this.viewportWidth()));
+  readonly desktopOnlyTitle = DESKTOP_ONLY_TITLE;
+  readonly desktopOnlyHint = DESKTOP_ONLY_HINT;
+  readonly hasCredits = sceneNeedsCredits(this.sceneMode);
+  readonly creditsOpen = signal(false);
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
       !this.webglUnavailable() &&
+      !this.desktopOnly() &&
       !this.error() &&
       (this.loading() || !this.firstFrame() || this.bootFading()),
   );
@@ -215,13 +252,21 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id && !this.engine?.canPan(-1);
+    return id !== OVERVIEW_FOCUS_ID && items[0]?.id === id && (this.stockroom || !this.engine?.canPan(-1));
   });
   readonly atLast = computed(() => {
     this.panTick();
     const items = this.racks();
     const id = this.focusedId();
-    return id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id && !this.engine?.canPan(1);
+    return (
+      id !== OVERVIEW_FOCUS_ID && items[items.length - 1]?.id === id && (this.stockroom || !this.engine?.canPan(1))
+    );
+  });
+  readonly rackCounter = computed(() => rackCounterLabel(this.racks(), this.focusedId()));
+  readonly focusedUnpublished = computed(() => {
+    this.layoutRev();
+    const id = this.focusedId();
+    return this.layout.racks.some((r) => r.id === id && r.unpublished === true);
   });
   readonly rackPan = computed(() => {
     this.panTick();
@@ -275,7 +320,8 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly addCanUpload = true;
   readonly addPriceRequired = computed(() => this.line() !== 'joias');
 
-  private engine: SceneEngine | null = null;
+  private engine: AtelierEngine | null = null;
+  private booting = false;
   private layout: SceneLayout = { racks: [] };
   private collections: SceneCollectionInput[] = [];
   private knownRackIds = new Set<string>();
@@ -312,6 +358,10 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private async bootScene(): Promise<void> {
+    if (this.desktopOnly()) {
+      this.boot.markFirstFrame();
+      return;
+    }
     const canvas = this.canvasRef?.nativeElement;
     if (!canvas) {
       this.webglUnavailable.set(true);
@@ -319,12 +369,33 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.boot.markFirstFrame();
       return;
     }
-    const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
-    if (this.engine) return;
-    this.engine = createSceneEngine(canvas, {
-      reducedMotion: this.reducedMotion,
-      host: this.sceneHostRef?.nativeElement ?? canvas.parentElement ?? canvas,
-    });
+    if (this.engine || this.booting) return;
+    this.booting = true;
+    const host =
+      (this.stockroom ? this.stageRef?.nativeElement : this.sceneHostRef?.nativeElement) ??
+      canvas.parentElement ??
+      canvas;
+    const opts = { reducedMotion: this.reducedMotion, host };
+    try {
+      if (this.stockroom) {
+        const [{ createStockroomEngine }, { SKETCHFAB_KIT }] = await Promise.all([
+          import('../../../scene-engine/stockroom/stockroom-engine'),
+          this.sceneMode === 'sketchfab'
+            ? import('../../../scene-engine/stockroom/stockroom-kit-sketchfab')
+            : Promise.resolve({ SKETCHFAB_KIT: undefined }),
+        ]);
+        if (!this.engine) {
+          const stockroom: StockroomEngine | null = createStockroomEngine(canvas, { ...opts, kit: SKETCHFAB_KIT });
+          stockroom?.onOverlay((frame) => this.overlay.set(frame));
+          this.engine = stockroom;
+        }
+      } else {
+        const { createSceneEngine } = await import('../../../scene-engine/scene-engine');
+        if (!this.engine) this.engine = createSceneEngine(canvas, opts);
+      }
+    } finally {
+      this.booting = false;
+    }
     if (!this.engine) {
       this.webglUnavailable.set(true);
       this.loading.set(false);
@@ -361,6 +432,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   @HostListener('window:resize')
   @HostListener('window:orientationchange')
   onViewport(): void {
+    const wasBlocked = this.desktopOnly();
+    this.viewportWidth.set(window.innerWidth);
+    if (wasBlocked && !this.desktopOnly() && !this.engine) void this.bootScene();
     this.createSheet.set(isCreateSheetViewport());
     this.addSheet.set(isCreateSheetViewport());
     this.engine?.resize();
@@ -368,6 +442,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   onGuideKey(event: KeyboardEvent): void {
+    if (this.creditsOpen()) return;
     if (event.key === 'Escape' && this.switcherOpen()) {
       event.preventDefault();
       this.switcherOpen.set(false);
@@ -408,6 +483,18 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.moreOpen.set(false);
     this.switcherOpen.set(false);
     this.engine?.focusOverview(this.reducedMotion);
+  }
+
+  openCredits(): void {
+    this.moreOpen.set(false);
+    this.switcherOpen.set(false);
+    this.setHoverTip(null);
+    this.creditsOpen.set(true);
+  }
+
+  closeCredits(): void {
+    this.creditsOpen.set(false);
+    this.sceneHostRef?.nativeElement.focus({ preventScroll: true });
   }
 
   toggleMore(event?: Event): void {
@@ -588,8 +675,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     if (this.engine?.panRack(delta)) this.panTick.update((n) => n + 1);
   }
 
+  /** Stockroom arrows always change collection; bays inside one page with the rail buttons. */
   stepRack(delta: -1 | 1): void {
-    if (this.engine?.panRack(delta)) {
+    if (!this.stockroom && this.engine?.panRack(delta)) {
       this.panTick.update((n) => n + 1);
       return;
     }
@@ -645,11 +733,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       storageMock: readAdmin3dMockStorage(),
     });
     if (mock) {
-      this.cacheProducts(admin3dFixtureProducts());
+      const full = this.route.snapshot.queryParamMap.get('mock') === 'full';
+      this.cacheProducts(admin3dFixtureProducts(full));
       this.cacheJoias(this.joiasAdmin.list());
       this.applyInputs(
         admin3dFixtureSceneCollections(),
-        admin3dFixtureSceneProducts(),
+        admin3dFixtureSceneProducts(full),
         this.joiasAdmin.list().map(joiaToSceneInput),
         true,
         gen,
@@ -682,19 +771,18 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     }
 
     this.prefetch.prefetchCatalog().subscribe({
-      next: ({ collections, products, storefront, joias }) => {
+      next: ({ collections, products, joias }) => {
         if (gen !== this.loadGen) return;
-        const storefrontBySlug = new Map(storefront.map((p) => [p.slug, p]));
-        const merged = products.map((dto) => mergeProductPhotos(dto, storefrontBySlug.get(dto.slug)));
-        this.cacheProducts(merged.map(mapApiProduct));
+        this.cacheProducts(products.map(mapApiProduct));
         this.cacheJoias(joias);
         this.applyInputs(
           collections.map((c) => ({
             slug: c.slug,
             name: c.name,
             sortOrder: c.sortOrder,
+            publishedAt: c.publishedAt ?? null,
           })),
-          merged.map(apiProductToSceneInput),
+          products.map(apiProductToSceneInput),
           joias.map(joiaToSceneInput),
           false,
           gen,
@@ -777,11 +865,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       sortOrder: created.sortOrder,
       hangers: [],
       kind,
+      ...(isUnpublishedCollection(created) ? { unpublished: true } : {}),
     };
     this.knownRackIds.add(created.slug);
     this.collections = [
       ...this.collections,
-      { slug: created.slug, name: created.name, sortOrder: created.sortOrder },
+      { slug: created.slug, name: created.name, sortOrder: created.sortOrder, publishedAt: created.publishedAt ?? null },
     ];
     this.layout = insertUnitBeforeUncollected(this.layout, unit);
     this.collectionProducts.remember(created.slug, []);
@@ -865,12 +954,13 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private setHoverTip(slug: string | null, pointer?: { x: number; y: number }): void {
-    if (this.modalOpen || this.creating() || !slug || !pointer) {
+    if (this.modalOpen || this.creating() || this.creditsOpen() || !slug || !pointer) {
       this.hoverTip.set(null);
       return;
     }
     const hanger = this.layout.racks.flatMap((r) => r.hangers).find((h) => h.slug === slug);
-    if (!hanger) {
+    const captioned = this.overlay()?.pieces.some((p) => p.slug === slug) ?? false;
+    if (!hanger || captioned) {
       this.hoverTip.set(null);
       return;
     }
@@ -939,7 +1029,12 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
               this.knownRackIds.add(restored.slug);
               this.collections = [
                 ...this.collections,
-                { slug: restored.slug, name: restored.name, sortOrder: restored.sortOrder },
+                {
+                  slug: restored.slug,
+                  name: restored.name,
+                  sortOrder: restored.sortOrder,
+                  publishedAt: restored.publishedAt ?? null,
+                },
               ];
               this.layout = snapshots.reduce(
                 (layout, snapshot) => insertUnitBeforeUncollected(layout, snapshot),

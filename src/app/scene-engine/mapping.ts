@@ -57,6 +57,15 @@ export function isArchivedInput(value: string | null | undefined): boolean {
   return Boolean(value);
 }
 
+/** Archived by timestamp or by the legacy `archived` product status. */
+export function isArchivedProduct(product: Pick<SceneProductInput, 'archivedAt' | 'status'>): boolean {
+  return isArchivedInput(product.archivedAt) || (product.status ?? '').toLowerCase() === 'archived';
+}
+
+export function isUnpublishedCollection(collection: Pick<SceneCollectionInput, 'publishedAt'>): boolean {
+  return collection.publishedAt === null;
+}
+
 export function removeHangerFromLayout(layout: SceneLayout, slug: string): SceneLayout {
   return {
     racks: layout.racks.map((rack) => ({
@@ -74,7 +83,7 @@ export function mapCatalogToScene(
   collections: SceneCollectionInput[],
   products: SceneProductInput[],
 ): SceneLayout {
-  const garments = products.filter((p) => p.pieceKind !== 'jewelry' && !isArchivedInput(p.archivedAt));
+  const garments = products.filter((p) => p.pieceKind !== 'jewelry' && !isArchivedProduct(p));
   const orderedCollections = [...collections]
     .filter((c) => !isArchivedInput(c.archivedAt))
     .sort((a, b) => {
@@ -88,6 +97,7 @@ export function mapCatalogToScene(
     sortOrder: c.sortOrder,
     hangers: [],
     kind: 'rack',
+    ...(isUnpublishedCollection(c) ? { unpublished: true } : {}),
   }));
 
   const uncollected: SceneRack = {
@@ -118,9 +128,12 @@ export function mapJoiasToVitrines(
   joias: SceneProductInput[],
 ): SceneRack[] {
   const jewelry = joias.filter(
-    (p) => (p.pieceKind === 'jewelry' || p.pieceKind == null) && !isArchivedInput(p.archivedAt),
+    (p) => (p.pieceKind === 'jewelry' || p.pieceKind == null) && !isArchivedProduct(p),
   );
-  const byCollection = new Map<string, { name: string; sortOrder: number; pieces: SceneProductInput[] }>();
+  const byCollection = new Map<
+    string,
+    { name: string; sortOrder: number; unpublished: boolean; pieces: SceneProductInput[] }
+  >();
   const known = new Map(
     collections.filter((c) => !isArchivedInput(c.archivedAt)).map((c) => [c.slug, c]),
   );
@@ -133,6 +146,7 @@ export function mapJoiasToVitrines(
     const bucket = byCollection.get(key) ?? {
       name: col?.name ?? GIOIELLI_UNIT_NAME,
       sortOrder: col?.sortOrder ?? Number.MAX_SAFE_INTEGER - 1,
+      unpublished: col ? isUnpublishedCollection(col) : false,
       pieces: [],
     };
     bucket.pieces.push(piece);
@@ -159,6 +173,7 @@ export function mapJoiasToVitrines(
         sortOrder: bucket.sortOrder + index * 0.01,
         kind: 'vitrine',
         hangers: chunk.map((p) => toSceneHanger({ ...p, pieceKind: 'jewelry' }, id)),
+        ...(bucket.unpublished ? { unpublished: true } : {}),
       });
     });
   }

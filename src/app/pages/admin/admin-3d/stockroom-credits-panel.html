@@ -1,0 +1,45 @@
+<div class="credits" (click)="onBackdrop($event)">
+  <section
+    #dialog
+    class="credits__dialog"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-labelledby]="titleId"
+  >
+    <header class="credits__head">
+      <h2 class="credits__title" [id]="titleId">Créditos</h2>
+      <button type="button" class="credits__close" aria-label="Fechar créditos" (click)="close.emit()">×</button>
+    </header>
+    <p class="credits__intro">
+      Modelos 3D usados no estoque (opção B). Os modelos Sketchfab estão sob licença Creative Commons Atribuição 4.0 e
+      foram modificados para a web.
+    </p>
+
+    <h3 class="credits__kicker">Sketchfab · CC BY 4.0</h3>
+    <ul class="credits__list">
+      @for (item of ccBy; track item.key) {
+        <li class="credits__item" [attr.data-credit]="item.key">
+          <a class="credits__name" [href]="item.url" target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+          <span class="credits__by">
+            por <a [href]="item.authorUrl" target="_blank" rel="noopener noreferrer">{{ item.author }}</a>
+            · <a [href]="item.licenseUrl" target="_blank" rel="noopener noreferrer license">{{ item.license }}</a>
+          </span>
+          <span class="credits__mod">Modificado: {{ item.modified }}.</span>
+        </li>
+      }
+    </ul>
+
+    <h3 class="credits__kicker">Base · CC0 (domínio público)</h3>
+    <ul class="credits__list">
+      @for (item of cc0; track item.key) {
+        <li class="credits__item" [attr.data-credit]="item.key">
+          <a class="credits__name" [href]="item.url" target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+          <span class="credits__by">
+            por <a [href]="item.authorUrl" target="_blank" rel="noopener noreferrer">{{ item.author }}</a>
+            · <a [href]="item.licenseUrl" target="_blank" rel="noopener noreferrer license">{{ item.license }}</a>
+          </span>
+        </li>
+      }
+    </ul>
+  </section>
+</div>

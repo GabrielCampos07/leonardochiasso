@@ -21,16 +21,29 @@ const STOCK_BY_SLUG: Record<string, number> = {
   'colete-bermuda-saia-echarpe': 3,
 };
 
-const DRAFT_SLUGS = new Set<string>();
+const DRAFT_SLUGS = new Set<string>(['colete-bermuda-saia-echarpe']);
+
+/** Unpublished collection (admin-only): shown in the 3D with the RASCUNHO sign badge. */
+export const FIXTURE_UNPUBLISHED_COLLECTION = 'capsula-atelier';
+/** Archived collection and piece: present in the fixture, never drawn. */
+export const FIXTURE_ARCHIVED_COLLECTION = 'colecao-arquivada';
+export const FIXTURE_ARCHIVED_SLUG = 'vestido-longo-mousseline-grafica';
+
+const UNPUBLISHED_PIECES = ['vestido-longo-bateau', 'calca-pantalona-rasgo'];
 
 function cloneProduct(slug: string): Product | null {
   const found = PRODUCTS.find((p) => p.slug === slug);
   return found ? structuredClone(found) : null;
 }
 
-/** Curated atelier sample — used when the Nest API is off or `?mock=1`. */
-export function admin3dFixtureProducts(): Product[] {
-  const picked = FIXTURE_SLUGS.map(cloneProduct).filter((p): p is Product => p != null);
+/**
+ * Curated atelier sample — used when the Nest API is off or `?mock=1`.
+ * `full` (`?mock=full`) takes every local product, to exercise multi-bay layouts.
+ */
+export function admin3dFixtureProducts(full = false): Product[] {
+  const picked = full
+    ? PRODUCTS.map((p) => structuredClone(p))
+    : FIXTURE_SLUGS.map(cloneProduct).filter((p): p is Product => p != null);
   const loose: Product = {
     id: 'peca-avulsa-atelier',
     slug: 'peca-avulsa-atelier',
@@ -57,6 +70,10 @@ export function admin3dFixtureProducts(): Product[] {
     ...p,
     stockQty: STOCK_BY_SLUG[p.slug] ?? p.stockQty ?? 1,
     status: DRAFT_SLUGS.has(p.slug) ? 'draft' : (p.status ?? 'published'),
+    ...(UNPUBLISHED_PIECES.includes(p.slug)
+      ? { collectionSlug: FIXTURE_UNPUBLISHED_COLLECTION as CollectionSlug }
+      : {}),
+    ...(p.slug === FIXTURE_ARCHIVED_SLUG ? { archivedAt: '2026-10-01T00:00:00.000Z' } : {}),
   }));
 }
 
@@ -86,6 +103,23 @@ export function admin3dFixtureCollections(): AdminCollectionDto[] {
       sortOrder: 3,
       publishedAt: '2024-01-01T00:00:00.000Z',
     },
+    {
+      id: 'fix-capsula',
+      slug: FIXTURE_UNPUBLISHED_COLLECTION,
+      name: 'Cápsula Atelier',
+      description: null,
+      sortOrder: 4,
+      publishedAt: null,
+    },
+    {
+      id: 'fix-arquivada',
+      slug: FIXTURE_ARCHIVED_COLLECTION,
+      name: 'Coleção arquivada',
+      description: null,
+      sortOrder: 5,
+      publishedAt: '2024-01-01T00:00:00.000Z',
+      archivedAt: '2026-10-01T00:00:00.000Z',
+    },
   ];
 }
 
@@ -94,11 +128,13 @@ export function admin3dFixtureSceneCollections(): SceneCollectionInput[] {
     slug: c.slug,
     name: c.name,
     sortOrder: c.sortOrder,
+    publishedAt: c.publishedAt,
+    archivedAt: c.archivedAt ?? null,
   }));
 }
 
-export function admin3dFixtureSceneProducts(): SceneProductInput[] {
-  return admin3dFixtureProducts().map((p) => ({
+export function admin3dFixtureSceneProducts(full = false): SceneProductInput[] {
+  return admin3dFixtureProducts(full).map((p) => ({
     ...productToSceneInput(p),
     collectionSlugs: p.collectionSlug ? [p.collectionSlug] : [],
   }));
