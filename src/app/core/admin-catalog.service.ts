@@ -24,6 +24,7 @@ import {
   ProductPiece,
   SWATCH,
   formatPriceLabel,
+  productStatusForApi,
 } from './product.model';
 import { PRODUCTS } from './products';
 import { COLLECTION_SLUGS, CollectionSlug } from './routes';
@@ -301,7 +302,7 @@ export class AdminCatalogService {
       stockQty: Number.isFinite(Number(product.stockQty))
         ? Math.round(Number(product.stockQty))
         : 0,
-      status: 'published',
+      status: productStatusForApi(product.status, 'published'),
       description: product.description || undefined,
       color: product.color || undefined,
       size: product.size || undefined,
@@ -338,6 +339,7 @@ export class AdminCatalogService {
     const stockQty = Number.isFinite(Number(product.stockQty))
       ? Math.round(Number(product.stockQty))
       : 0;
+    const status = productStatusForApi(product.status, opts.isNew ? 'draft' : 'published');
 
     if (opts.isNew) {
       return this.createViaApi({
@@ -348,7 +350,7 @@ export class AdminCatalogService {
         collectionSlug,
         priceCents,
         stockQty,
-        status: 'published',
+        status,
         description: product.description || undefined,
         color: product.color || undefined,
         size: product.size || undefined,
@@ -358,6 +360,7 @@ export class AdminCatalogService {
         switchMap((created) =>
           this.updateViaApi(created.slug, {
             stockQty,
+            status,
             details: opts.details,
             pieces: product.pieces?.length ? product.pieces : undefined,
             colorVariants: product.colors?.length
@@ -380,6 +383,7 @@ export class AdminCatalogService {
       collectionSlug,
       priceCents,
       stockQty,
+      status,
       description: product.description,
       shippingCopy: product.shipping || undefined,
       color: product.color || undefined,

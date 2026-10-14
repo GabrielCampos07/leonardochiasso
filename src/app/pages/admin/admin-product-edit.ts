@@ -50,6 +50,7 @@ function blankProduct(collectionSlug: string | null): Product {
     collectionSlug: (collectionSlug ?? '') as CollectionSlug,
     pieces: [],
     stockQty: 1,
+    status: 'draft',
   };
 }
 
