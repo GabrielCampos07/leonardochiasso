@@ -1,5 +1,5 @@
 /**
- * Build the Kenney CC0 shell of the `/admin/3d` stockroom (floor, walls, rugs).
+ * Build the option A (`?cc0=1`) stockroom assets from Kenney CC0 kits.
  * Downloads the kits, runs gltf-transform (Meshopt geometry + WebP textures),
  * writes content-hashed GLBs, the manifest and the TypeScript asset map.
  *
@@ -36,10 +36,16 @@ const KITS = {
 
 /** key → [kit, source file]. Keys become `STOCKROOM_ASSETS` fields. */
 const MODELS = {
+  shelf: ['furniture-kit', 'bookcaseOpen.glb'],
+  box: ['furniture-kit', 'cardboardBoxClosed.glb'],
   rug: ['furniture-kit', 'rugRectangle.glb'],
   wall: ['furniture-kit', 'wall.glb'],
   wallWindow: ['furniture-kit', 'wallWindow.glb'],
+  counter: ['furniture-kit', 'kitchenBar.glb'],
+  plant: ['furniture-kit', 'pottedPlant.glb'],
   floor: ['mini-market', 'floor.glb'],
+  column: ['mini-market', 'column.glb'],
+  register: ['mini-market', 'cash-register.glb'],
 };
 
 const OPTIMIZE_FLAGS = [
