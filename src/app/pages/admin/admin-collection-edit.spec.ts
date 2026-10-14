@@ -1,7 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of, throwError } from 'rxjs';
+import { adminListCacheKey, clearAdminListCache, writeAdminCache } from '../../core/admin-list-cache';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
 import { AdminCollectionProductsService } from '../../core/admin-collection-products';
@@ -321,5 +322,80 @@ describe('AdminCollectionEditPage gender UX', () => {
     const ids = put.calls.mostRecent().args[2] as string[];
     expect(ids).toEqual(['id-m1', 'id-u1']);
     expect(ids).not.toContain('id-old');
+  });
+});
+
+describe('AdminCollectionEditPage cached detail', () => {
+  const meta = {
+    id: 'col-1',
+    slug: 'teste-ordem2',
+    name: 'TESTE-ORDEM2',
+    description: null,
+    sortOrder: 4,
+    publishedAt: null,
+  };
+  const pieces = [dto({ slug: 'cached', name: 'Cached', gender: 'feminino', id: 'id-cached' })];
+
+  afterEach(() => {
+    clearAdminListCache();
+    sessionStorage.clear();
+    TestBed.resetTestingModule();
+  });
+
+  it('shows the cached members with atualizando… and keeps reorder off until the admin GET returns', async () => {
+    writeAdminCache(adminListCacheKey('collection-detail', 'teste-ordem2'), {
+      meta,
+      products: pieces,
+    });
+    const put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
+    await TestBed.configureTestingModule({
+      imports: [AdminCollectionEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ slug: 'teste-ordem2' })) },
+        },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            list: () => NEVER,
+            getPublicDetail: jasmine.createSpy('getPublicDetail').and.callFake(() => {
+              throw new Error('admin must not GET /api/collections/:slug');
+            }),
+            getProducts: () => NEVER,
+            listAdminProducts: () => NEVER,
+            archive: () => of(meta),
+            restore: () => of(meta),
+            update: () => of(meta),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put },
+        },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminCollectionEditPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.showSkeleton()).toBeFalse();
+    expect(fixture.componentInstance.products().map((p) => p.slug)).toEqual(['cached']);
+    expect(fixture.nativeElement.textContent).toContain('Cached');
+    expect(fixture.nativeElement.textContent).toContain('atualizando…');
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    fixture.componentInstance.move('cached', 1);
+    expect(put).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.todosHint()).toBe('');
+    const api = TestBed.inject(AdminCollectionsApiService) as unknown as {
+      getPublicDetail: jasmine.Spy;
+    };
+    expect(api.getPublicDetail).not.toHaveBeenCalled();
+    fixture.destroy();
   });
 });

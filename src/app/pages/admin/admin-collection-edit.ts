@@ -117,7 +117,10 @@ export class AdminCollectionEditPage implements OnInit {
 
   readonly products = signal<ApiProductDto[]>([]);
   readonly visibleProducts = signal<ApiProductDto[]>([]);
-  readonly canDrag = computed(() => canReorderWithFilter(this.genderFilter()));
+  readonly canDrag = computed(
+    () =>
+      canReorderWithFilter(this.genderFilter()) && !this.loading() && !this.orderLoading(),
+  );
   readonly coverUrl = computed(() =>
     resolveCollectionCover({
       collection: {
@@ -186,6 +189,11 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   onTodosDragAttempt(event?: Event): void {
+    if (this.loading() || this.orderLoading() || this.savingOrder()) {
+      event?.preventDefault();
+      event?.stopPropagation();
+      return;
+    }
     if (this.canDrag()) return;
     event?.preventDefault();
     event?.stopPropagation();
@@ -461,8 +469,8 @@ export class AdminCollectionEditPage implements OnInit {
     const gen = ++this.loadGen;
     this.missing.set(false);
     this.error.set('');
+    this.loading.set(true);
     this.hydrateDetail(slug);
-    if (!this.name && !this.products().length) this.loading.set(true);
 
     forkJoin({
       live: endAdminLoad(this.api.list(false)),
@@ -529,7 +537,6 @@ export class AdminCollectionEditPage implements OnInit {
     this.applyMeta(cached.meta);
     this.products.set(cached.products ?? []);
     this.refreshVisible();
-    this.loading.set(false);
   }
 
   private applyMeta(c: AdminCollectionDto): void {

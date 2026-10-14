@@ -79,7 +79,7 @@ export class AdminCollectionsPage implements OnInit {
     this.load$
       .pipe(
         tap(() => {
-          if (!this.collections().length) this.loading.set(true);
+          this.loading.set(true);
           this.error.set('');
         }),
         switchMap((archived) => endAdminLoad(this.api.list(archived))),
@@ -106,7 +106,6 @@ export class AdminCollectionsPage implements OnInit {
     const cached = readAdminListCache<AdminCollectionDto>(adminListCacheKey('collections', archived));
     if (!cached?.length) return;
     this.collections.set(cached);
-    this.loading.set(false);
   }
 
   ngOnInit(): void {

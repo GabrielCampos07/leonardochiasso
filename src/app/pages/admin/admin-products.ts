@@ -85,7 +85,13 @@ export class AdminProductsPage implements OnInit {
   readonly showUnissexNotice = computed(() => this.category() === 'masculino');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
   readonly dragStartDelay = coarsePointerDragDelay();
-  readonly canDrag = computed(() => canReorderWithFilter(this.category()) && !this.showArchived());
+  readonly canDrag = computed(
+    () =>
+      canReorderWithFilter(this.category()) &&
+      !this.showArchived() &&
+      !this.loading() &&
+      !this.orderLoading(),
+  );
   readonly orderError = signal('');
   readonly showArchived = signal(false);
   readonly loading = signal(true);
@@ -119,7 +125,7 @@ export class AdminProductsPage implements OnInit {
     this.load$
       .pipe(
         tap(() => {
-          if (!this.products().length) this.loading.set(true);
+          this.loading.set(true);
           this.error.set('');
         }),
         switchMap((archived) => endAdminLoad(this.adminCatalog.list$(archived))),
@@ -147,7 +153,6 @@ export class AdminProductsPage implements OnInit {
     const cached = readAdminListCache<Product>(adminListCacheKey('products', archived));
     if (!cached?.length) return;
     this.products.set(cached);
-    this.loading.set(false);
   }
 
   ngOnInit(): void {
@@ -192,6 +197,11 @@ export class AdminProductsPage implements OnInit {
   }
 
   onTodosDragAttempt(event?: Event): void {
+    if (this.loading() || this.orderLoading() || this.savingOrder()) {
+      event?.preventDefault();
+      event?.stopPropagation();
+      return;
+    }
     if (this.canDrag()) return;
     event?.preventDefault();
     event?.stopPropagation();

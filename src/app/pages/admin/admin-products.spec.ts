@@ -164,7 +164,25 @@ describe('AdminProductsPage cache and skeleton', () => {
     expect(fixture.componentInstance.showSkeleton()).toBeFalse();
     expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['cached']);
     expect(fixture.nativeElement.textContent).toContain('Cached');
+    expect(fixture.nativeElement.textContent).toContain('atualizando…');
     expect(fixture.nativeElement.querySelector('.admin-row--skel')).toBeNull();
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    fixture.componentInstance.drop({
+      previousIndex: 0,
+      currentIndex: 1,
+      distance: { x: 0, y: 80 },
+      dropPoint: { x: 10, y: 120 },
+      container: {
+        data: [...fixture.componentInstance.filtered()],
+        getSortedItems: () => [
+          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 0, bottom: 80, height: 80 }) } } },
+        ],
+      },
+    } as never);
+    expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['cached']);
+    expect(fixture.componentInstance.todosHint()).toBe('');
     fixture.destroy();
   });
 
@@ -198,6 +216,51 @@ describe('AdminProductsPage cache and skeleton', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.showSkeleton()).toBeTrue();
     expect(fixture.nativeElement.querySelectorAll('.admin-row--skel').length).toBeGreaterThan(1);
+    fixture.destroy();
+  });
+
+  it('unlocks drag only after the fresh list arrives', async () => {
+    const list$ = new Subject<Product[]>();
+    writeAdminListCache(adminListCacheKey('products', false), [
+      sample({ slug: 'cached', name: 'Cached' }),
+    ]);
+    await TestBed.configureTestingModule({
+      imports: [AdminProductsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            list$: () => list$.asObservable(),
+            setOrder: () => undefined,
+            reorderViaApi: () => of(void 0),
+            archiveViaApi: () => of(null),
+            restoreViaApi: () => of(null),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
+        },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductsPage);
+    fixture.detectChanges();
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain('atualizando…');
+
+    list$.next([sample({ slug: 'fresh', name: 'Fresh' })]);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['fresh']);
+    expect(fixture.componentInstance.canDrag()).toBeTrue();
+    expect(fixture.nativeElement.textContent).not.toContain('atualizando…');
     fixture.destroy();
   });
 });

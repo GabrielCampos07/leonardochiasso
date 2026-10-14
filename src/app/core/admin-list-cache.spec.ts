@@ -40,9 +40,10 @@ describe('admin list cache', () => {
 });
 
 describe('shouldRequestPublicCollection', () => {
-  it('never requests the public catalog for an archived collection', () => {
+  it('never requests the public catalog from admin (drafts and archived 404)', () => {
     expect(shouldRequestPublicCollection({ archivedAt: '2026-10-12T12:00:00.000Z' })).toBeFalse();
-    expect(shouldRequestPublicCollection({ archivedAt: null })).toBeTrue();
+    expect(shouldRequestPublicCollection({ archivedAt: null, publishedAt: null })).toBeFalse();
+    expect(shouldRequestPublicCollection({ archivedAt: null, publishedAt: '2026-01-01T00:00:00.000Z' })).toBeFalse();
     expect(shouldRequestPublicCollection(null)).toBeFalse();
   });
 });
