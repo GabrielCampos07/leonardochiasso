@@ -1574,6 +1574,7 @@ export class StockroomEngine implements AtelierEngine {
       while (node) {
         const slug = node.userData['slug'] as string | undefined;
         if (slug) return { slug, areaId: null };
+      if (!shownInScene(hit.object)) continue;
         areaId ??= (node.userData['areaId'] as string | undefined) ?? null;
         node = node.parent;
       }
@@ -1627,6 +1628,14 @@ export function upsertHanger(layout: SceneLayout, next: SceneHanger): SceneLayou
   const home = layout.racks.find((r) => r.hangers.some((h) => h.slug === next.slug));
   if (home && home.id === next.rackId) {
     return {
+/** Raycasts ignore `visible`, so hidden meshes (signs, hover outlines) would block picks. */
+function shownInScene(object: Object3D): boolean {
+  for (let node: Object3D | null = object; node; node = node.parent) {
+    if (!node.visible) return false;
+  }
+  return true;
+}
+
       racks: layout.racks.map((r) =>
         r.id === home.id ? { ...r, hangers: r.hangers.map((h) => (h.slug === next.slug ? next : h)) } : r,
       ),

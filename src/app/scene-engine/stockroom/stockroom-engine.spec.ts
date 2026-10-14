@@ -179,6 +179,23 @@ describe('StockroomEngine', () => {
     boot([9], () => {
       const e = engine!;
       expect(e.areaBayWindow('c0')).toEqual({ start: 0, count: 2, total: 2 });
+  it('picks every captioned piece at its centre, past the hidden signs of the row in front', (done) => {
+    desktopStage();
+    boot([17, 18, 12, 6], () => {
+      const e = engine!;
+      const pick = (x: number, y: number) =>
+        (e as unknown as { pick(x: number, y: number): { slug: string | null } }).pick(x, y).slug;
+      const canvas = host.querySelector('canvas')!.getBoundingClientRect();
+      const pieces = e.overlay().pieces;
+      expect(pieces.length).toBe(17);
+      const missed = pieces
+        .filter((p) => pick(canvas.left + p.x + p.w / 2, canvas.top + p.y + p.h / 2) !== p.slug)
+        .map((p) => p.slug);
+      expect(missed).toEqual([]);
+      done();
+    });
+  });
+
       expect(e.panRack(1)).toBeFalse();
       expect(e.canPan(-1)).toBeFalse();
       expect(e.rackPanState().showChrome).toBeFalse();
