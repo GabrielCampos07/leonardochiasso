@@ -129,13 +129,13 @@
           <p class="admin-col-products__notice" role="status">{{ unissexNotice }}</p>
         }
 
-        @if (orderLoading()) {
-          <p class="admin-list__count">Ordenando…</p>
-        }
         @if (savingOrder()) {
           <p class="admin-list__count">Salvando ordem…</p>
         }
 
+        @if (orderLoading()) {
+          <p class="admin-col-products__loading" role="status" aria-live="polite">Carregando…</p>
+        } @else {
         <ul
           class="admin-list__rows admin-col-products__list"
           cdkDropList
@@ -196,6 +196,7 @@
             <li class="admin-list__empty">Nenhum produto nesta coleção.</li>
           }
         </ul>
+        }
       </section>
     }
   </section>

@@ -19,9 +19,30 @@ describe('itemMidpoints / indexFromClientY', () => {
 describe('resolveCdkDropIndex', () => {
   const mids = [40, 120, 200];
 
-  it('keeps CDK’s index when it already moved', () => {
+  it('keeps CDK’s index when there is no pointer and no long travel', () => {
     expect(
-      resolveCdkDropIndex({ previousIndex: 0, currentIndex: 2, distance: { y: 180 } }, 3, mids),
+      resolveCdkDropIndex({ previousIndex: 0, currentIndex: 2, distance: { y: 8 } }, 3, mids),
+    ).toBe(2);
+  });
+
+  it('prefers dropPoint over a slightly-moved CDK index after a long drag', () => {
+    expect(
+      resolveCdkDropIndex(
+        {
+          previousIndex: 0,
+          currentIndex: 1,
+          distance: { y: 190 },
+          dropPoint: { x: 20, y: 210 },
+        },
+        3,
+        mids,
+      ),
+    ).toBe(2);
+  });
+
+  it('falls back to travel vs row height when dropPoint is missing', () => {
+    expect(
+      resolveCdkDropIndex({ previousIndex: 0, currentIndex: 0, distance: { y: 160 } }, 3, mids),
     ).toBe(2);
   });
 

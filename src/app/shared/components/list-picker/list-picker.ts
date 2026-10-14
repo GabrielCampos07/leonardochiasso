@@ -5,6 +5,13 @@ export interface ListPickerOption {
   label: string;
 }
 
+export const LIST_PICKER_LOADING = 'Carregando…';
+
+function isEmptyPickerLabel(label: string, placeholder: string): boolean {
+  const trimmed = label.trim();
+  return !trimmed || trimmed === 'Coleção' || trimmed === placeholder || trimmed === LIST_PICKER_LOADING;
+}
+
 @Component({
   selector: 'lc-list-picker',
   standalone: true,
@@ -16,11 +23,12 @@ export interface ListPickerOption {
         [id]="controlId()"
         [attr.aria-label]="label() || null"
         [attr.aria-expanded]="open()"
+        [attr.aria-busy]="loading() ? 'true' : null"
         aria-haspopup="listbox"
         [attr.aria-controls]="listId"
         (click)="toggle($event)"
       >
-        <span class="lc-picker__value">{{ currentLabel() }}</span>
+        <span class="lc-picker__value" [class.is-loading]="loading()">{{ currentLabel() }}</span>
       </button>
       @if (open()) {
         <ul
@@ -89,6 +97,9 @@ export interface ListPickerOption {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .lc-picker__value.is-loading {
+      color: var(--lc-ash);
+    }
     .lc-picker__list {
       position: absolute;
       top: calc(100% - 1px);
@@ -134,8 +145,10 @@ export class LcListPicker {
   readonly placeholder = input('Selecione');
   readonly label = input('');
   readonly controlId = input('lc-list-picker');
-  /** Name resolved from the catalog — used so a preselected `?colecao=` shows after refresh. */
+  /** Catalog name for the current value. Never pass the raw slug here. */
   readonly resolvedLabel = input('');
+  /** True while the catalog is loading a preselected value. */
+  readonly loading = input(false);
   readonly valueChange = output<string>();
   readonly opened = output<void>();
 
@@ -146,14 +159,15 @@ export class LcListPicker {
   }
 
   currentLabel(): string {
-    const current = this.value();
+    const current = this.value().trim();
     const resolved = this.resolvedLabel().trim();
     const match = this.options().find((opt) => opt.value === current);
-    if (resolved && resolved !== 'Coleção') return resolved;
-    if (match?.label && match.label !== 'Coleção') return match.label;
-    if (resolved) return resolved;
-    if (match?.label) return match.label;
-    return current ? resolved || 'Coleção' : this.placeholder();
+    if (resolved && !isEmptyPickerLabel(resolved, this.placeholder())) return resolved;
+    if (match?.label && !isEmptyPickerLabel(match.label, this.placeholder())) {
+      return match.label;
+    }
+    if (this.loading() && current) return LIST_PICKER_LOADING;
+    return this.placeholder();
   }
 
   toggle(event: Event): void {

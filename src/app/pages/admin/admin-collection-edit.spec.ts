@@ -186,13 +186,22 @@ describe('AdminCollectionEditPage gender UX', () => {
     expect(fixture.componentInstance.showUnissexNotice()).toBeTrue();
   });
 
-  it('filters client-side immediately while the order GET is in flight', () => {
+  it('hides the old list and shows a loading state while the order GET is in flight', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
-    const names = fixture.componentInstance.visibleProducts().map((p) => p.name);
-    expect(names).toEqual(['U1', 'M1']);
     expect(fixture.componentInstance.orderLoading()).toBeTrue();
-    expect(fixture.nativeElement.textContent).toContain('Ordenando…');
+    expect(fixture.componentInstance.visibleProducts()).toEqual([]);
+    expect(fixture.nativeElement.querySelector('.admin-col-products__loading')?.textContent?.trim()).toBe(
+      'Carregando…',
+    );
+    expect(fixture.nativeElement.querySelectorAll('.admin-col-products__row').length).toBe(0);
+    expect(fixture.nativeElement.textContent).not.toContain('F1');
+
+    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
+    fixture.detectChanges();
+    expect(fixture.componentInstance.orderLoading()).toBeFalse();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
+    expect(fixture.nativeElement.querySelector('.admin-col-products__loading')).toBeNull();
   });
 
   it('toasts when a gender-order PUT fails', () => {

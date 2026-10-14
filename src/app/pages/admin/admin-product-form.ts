@@ -66,11 +66,11 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
   return (trimmed && trimmed !== slug ? trimmed : slug) as Collection;
 }
 
+export const COLLECTION_PICKER_LOADING = 'Carregando…';
+
 /**
- * Visible collection label — name only.
- * While the admin list is loading, do not flash the raw slug (`blankProduct`
- * copies `?colecao=` into `collection`). After the list arrives, use the
- * catalog `name` even when it happens to equal the slug.
+ * Visible collection label — catalog / official name only.
+ * Never returns the raw slug. Empty means the name is not known yet.
  */
 export function collectionSelectLabel(
   slug: string,
@@ -84,7 +84,7 @@ export function collectionSelectLabel(
   if (fromCatalog) return fromCatalog;
   const trimmed = name?.trim();
   if (trimmed && trimmed !== slug) return trimmed;
-  return 'Coleção';
+  return '';
 }
 
 @Component({
@@ -115,6 +115,7 @@ export class AdminProductForm implements OnInit {
   readonly archiving = signal(false);
 
   readonly apiCollections = signal<{ slug: string; name: string }[]>([]);
+  readonly collectionsLoading = signal(true);
   readonly collectionOptions = computed(() => {
     const known = (Object.entries(COLLECTION_LABELS) as [CollectionSlug, Collection][]).map(
       ([slug, label]) => ({ slug, label }),
@@ -124,8 +125,9 @@ export class AdminProductForm implements OnInit {
       .filter((item) => item.slug && !knownSlugs.has(item.slug as CollectionSlug))
       .map((item) => ({
         slug: item.slug,
-        label: collectionSelectLabel(item.slug, item.name),
-      }));
+        label: collectionSelectLabel(item.slug, item.name, this.apiCollections()),
+      }))
+      .filter((item) => item.label);
     return [...known, ...extras];
   });
   readonly collectionPickerOptions = computed<ListPickerOption[]>(() => {
@@ -139,6 +141,12 @@ export class AdminProductForm implements OnInit {
     const slug = parseCollectionSlugParam(p?.collectionSlug) ?? parseCollectionSlugParam(this.product().collectionSlug);
     if (!slug) return '';
     return collectionSelectLabel(slug, p?.collection, this.apiCollections());
+  });
+  readonly collectionPickerLoading = computed(() => {
+    const slug =
+      parseCollectionSlugParam(this.draft()?.collectionSlug) ??
+      parseCollectionSlugParam(this.product().collectionSlug);
+    return Boolean(slug) && this.collectionsLoading() && !this.selectedCollectionLabel();
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
@@ -172,9 +180,11 @@ export class AdminProductForm implements OnInit {
             .filter((item) => item.slug)
             .map((item) => ({ slug: item.slug, name: item.name })),
         );
+        this.collectionsLoading.set(false);
         this.syncCollectionNameFromApi();
       },
       error: () => {
+        this.collectionsLoading.set(false);
         if (!this.apiCollections().length) this.apiCollections.set([]);
       },
     });
@@ -273,10 +283,9 @@ export class AdminProductForm implements OnInit {
     const slug = this.draft()?.collectionSlug;
     if (!slug || this.collectionOptions().some((opt) => opt.slug === slug)) return null;
     if (!parseCollectionSlugParam(slug)) return null;
-    return {
-      slug,
-      label: collectionSelectLabel(slug, this.draft()?.collection, this.apiCollections()),
-    };
+    const label = collectionSelectLabel(slug, this.draft()?.collection, this.apiCollections());
+    if (!label) return null;
+    return { slug, label };
   }
 
   onPriceChange(raw: string | number): void {
