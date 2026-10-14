@@ -70,9 +70,9 @@ describe('collectionSelectLabel', () => {
     expect(collectionSelectLabel('organic-dreams')).toBe('Organic Dreams');
   });
 
-  it('does not flash the slug before the admin list arrives', () => {
-    expect(collectionSelectLabel('teste-colecao2')).toBe('Coleção');
-    expect(collectionSelectLabel('teste-colecao2', 'teste-colecao2')).toBe('Coleção');
+  it('pre-fills ?colecao= with the slug until the catalog name arrives', () => {
+    expect(collectionSelectLabel('teste-colecao2')).toBe('teste-colecao2');
+    expect(collectionSelectLabel('teste-colecao2', 'teste-colecao2')).toBe('teste-colecao2');
   });
 
   it('uses the catalog name after the list loads even when it matches the slug', () => {

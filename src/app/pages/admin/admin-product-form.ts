@@ -67,10 +67,9 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
 }
 
 /**
- * Visible collection label — name only.
- * While the admin list is loading, do not flash the raw slug (`blankProduct`
- * copies `?colecao=` into `collection`). After the list arrives, use the
- * catalog `name` even when it happens to equal the slug.
+ * Visible collection label — catalog name when known.
+ * A selected `?colecao=` slug is shown immediately so the picker is not empty;
+ * once the admin list arrives, prefer the catalog `name`.
  */
 export function collectionSelectLabel(
   slug: string,
@@ -84,6 +83,8 @@ export function collectionSelectLabel(
   if (fromCatalog) return fromCatalog;
   const trimmed = name?.trim();
   if (trimmed && trimmed !== slug) return trimmed;
+  // Keep ?colecao= visible immediately — "Coleção" looks like an empty picker.
+  if (slug) return slug;
   return 'Coleção';
 }
 

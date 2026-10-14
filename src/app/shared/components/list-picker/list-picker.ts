@@ -5,6 +5,11 @@ export interface ListPickerOption {
   label: string;
 }
 
+function isEmptyPickerLabel(label: string, placeholder: string): boolean {
+  const trimmed = label.trim();
+  return !trimmed || trimmed === 'Coleção' || trimmed === placeholder;
+}
+
 @Component({
   selector: 'lc-list-picker',
   standalone: true,
@@ -146,14 +151,15 @@ export class LcListPicker {
   }
 
   currentLabel(): string {
-    const current = this.value();
+    const current = this.value().trim();
     const resolved = this.resolvedLabel().trim();
     const match = this.options().find((opt) => opt.value === current);
-    if (resolved && resolved !== 'Coleção') return resolved;
-    if (match?.label && match.label !== 'Coleção') return match.label;
-    if (resolved) return resolved;
-    if (match?.label) return match.label;
-    return current ? resolved || 'Coleção' : this.placeholder();
+    if (resolved && !isEmptyPickerLabel(resolved, this.placeholder())) return resolved;
+    if (match?.label && !isEmptyPickerLabel(match.label, this.placeholder())) {
+      return match.label;
+    }
+    if (current) return current;
+    return this.placeholder();
   }
 
   toggle(event: Event): void {

@@ -75,7 +75,7 @@
   }
 
   <p class="admin-list__count">
-    @if (loading()) {
+    @if (loading() || orderLoading()) {
       Carregando…
     } @else {
       {{ filtered().length }} produto(s)
@@ -85,6 +85,9 @@
     }
   </p>
 
+  @if (orderLoading()) {
+    <p class="admin-list__loading" role="status" aria-live="polite">Carregando…</p>
+  } @else {
   <ul
     class="admin-list__rows"
     cdkDropList
@@ -159,4 +162,5 @@
       }
     }
   </ul>
+  }
 </section>
