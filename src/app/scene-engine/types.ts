@@ -39,6 +39,8 @@ export interface SceneProductInput extends LooseProductPhotos {
   collectionSlug?: string | null;
   /** Raw ProductCollection slugs — first match wins, empty means uncollected. */
   collectionSlugs?: string[] | null;
+  /** `product_collections.sortOrder` per collection slug. Used to hang pieces in membership order. */
+  collectionOrders?: { slug: string; sortOrder: number }[] | null;
   status?: string | null;
   stockQty?: number | null;
   price?: number | null;

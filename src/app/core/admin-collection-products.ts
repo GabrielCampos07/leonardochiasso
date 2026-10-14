@@ -9,6 +9,41 @@ import {
 /** Visual gap between hangers when several pieces are added in one confirm. */
 export const ADD_PIECE_STAGGER_MS = 80;
 
+/**
+ * Reorder only the live/loaded slugs; keep every other member (archived,
+ * not loaded) in its existing slot. `PUT /products` is a full replace.
+ */
+export function mergeLiveOrderIntoMembership(
+  membership: readonly string[],
+  liveOrdered: readonly string[],
+): string[] {
+  const live = appendCollectionProductSlugs(liveOrdered, []);
+  const liveSet = new Set(live);
+  const next: string[] = [];
+  const seen = new Set<string>();
+  let i = 0;
+  for (const raw of membership) {
+    const slug = raw.trim();
+    if (!slug || seen.has(slug)) continue;
+    if (liveSet.has(slug)) {
+      const take = live[i++];
+      if (!take || seen.has(take)) continue;
+      seen.add(take);
+      next.push(take);
+    } else {
+      seen.add(slug);
+      next.push(slug);
+    }
+  }
+  while (i < live.length) {
+    const take = live[i++];
+    if (!take || seen.has(take)) continue;
+    seen.add(take);
+    next.push(take);
+  }
+  return next;
+}
+
 /** Keep current order and append newcomers at the end. Duplicates are ignored. */
 export function appendCollectionProductSlugs(
   current: readonly string[],
@@ -97,6 +132,21 @@ export class AdminCollectionProductsService {
   replace(collectionSlug: string, productSlugs: readonly string[]): Observable<SetCollectionProductsResult> {
     return this.enqueue(collectionSlug, () => {
       const next = appendCollectionProductSlugs(productSlugs, []);
+      return this.write(collectionSlug, next);
+    });
+  }
+
+  /**
+   * 3D drag: PUT the server membership with live hangers reordered in place.
+   * Archived / unloaded slugs stay linked.
+   */
+  replaceLiveOrder(
+    collectionSlug: string,
+    liveOrdered: readonly string[],
+  ): Observable<SetCollectionProductsResult> {
+    return this.enqueue(collectionSlug, async () => {
+      const membership = await firstValueFrom(this.api.getProducts(collectionSlug));
+      const next = mergeLiveOrderIntoMembership(membership.productSlugs, liveOrdered);
       return this.write(collectionSlug, next);
     });
   }

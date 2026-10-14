@@ -4,12 +4,28 @@ import { joiaGallery } from '../core/joias.data';
 import type { Product } from '../core/product.model';
 import type { SceneProductInput } from './types';
 
+export function collectionOrdersFrom(
+  collections: ReadonlyArray<{ slug?: string | null; sortOrder?: number | null }> | null | undefined,
+  fallbackSlug = '',
+): { slug: string; sortOrder: number }[] {
+  const rows = (collections ?? [])
+    .map((c, i) => ({
+      slug: (c.slug ?? '').trim(),
+      sortOrder: Number.isFinite(c.sortOrder) ? Number(c.sortOrder) : i,
+    }))
+    .filter((c) => c.slug);
+  if (rows.length) return rows;
+  const slug = fallbackSlug.trim();
+  return slug ? [{ slug, sortOrder: 0 }] : [];
+}
+
 export function productToSceneInput(product: Product): SceneProductInput {
   return {
     slug: product.slug,
     name: product.name,
     collectionSlug: product.collectionSlug || '',
     collectionSlugs: product.collectionSlug ? [product.collectionSlug] : [],
+    collectionOrders: collectionOrdersFrom(product.collections, product.collectionSlug || ''),
     status: product.status,
     stockQty: product.stockQty,
     price: product.price,
@@ -49,6 +65,7 @@ export function apiProductToSceneInput(dto: ApiProductDto): SceneProductInput {
     name: dto.name,
     collectionSlug: dto.collections?.[0]?.slug ?? '',
     collectionSlugs: (dto.collections ?? []).map((c) => c.slug).filter(Boolean),
+    collectionOrders: collectionOrdersFrom(dto.collections),
     status: dto.status,
     stockQty: dto.stockQty,
     price,

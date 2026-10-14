@@ -181,6 +181,23 @@ export class AdminCollectionsService {
     };
   }
 
+  /** All members in `sortOrder`, including archived products. */
+  async getProducts(slug: string): Promise<{ productSlugs: string[] }> {
+    const collection = await this.prisma.collection.findUnique({
+      where: { slug },
+      include: {
+        products: {
+          orderBy: { sortOrder: 'asc' },
+          include: { product: { select: { slug: true } } },
+        },
+      },
+    });
+    if (!collection) {
+      throw new NotFoundException(`Collection not found: ${slug}`);
+    }
+    return { productSlugs: collection.products.map((row) => row.product.slug) };
+  }
+
   async getGenderOrder(
     slug: string,
     genderRaw: string | undefined,

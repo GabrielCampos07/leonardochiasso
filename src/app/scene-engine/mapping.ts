@@ -111,15 +111,35 @@ export function mapCatalogToScene(
   const byId = new Map(racks.map((r) => [r.id, r]));
   const knownIds = new Set(orderedCollections.map((c) => c.slug));
 
-  for (const product of garments) {
-    if (!product.slug) continue;
+  const membershipRank = new Map<string, number>();
+  garments.forEach((product, index) => {
+    if (!product.slug) return;
     const rackId = resolveProductRackId(product, knownIds);
     const rack = byId.get(rackId) ?? uncollected;
+    membershipRank.set(product.slug, membershipSortOrder(product, rack.id, index));
     rack.hangers.push(toSceneHanger(product, rack.id));
+  });
+
+  for (const rack of racks.concat(uncollected.hangers.length ? [uncollected] : [])) {
+    rack.hangers.sort((a, b) => {
+      const delta = (membershipRank.get(a.slug) ?? 0) - (membershipRank.get(b.slug) ?? 0);
+      return delta !== 0 ? delta : a.slug.localeCompare(b.slug, 'pt-BR');
+    });
   }
 
   if (uncollected.hangers.length) racks.push(uncollected);
   return { racks };
+}
+
+/** Membership `sortOrder` for this rack; `fallback` keeps GET-list order when the API omitted it. */
+export function membershipSortOrder(
+  product: Pick<SceneProductInput, 'collectionOrders'>,
+  rackId: string,
+  fallback = Number.MAX_SAFE_INTEGER,
+): number {
+  const hit = product.collectionOrders?.find((row) => row.slug === rackId);
+  if (hit != null && Number.isFinite(hit.sortOrder)) return hit.sortOrder;
+  return fallback;
 }
 
 /** Jewelry collections become glass vitrines (max 3 shelves; overflow = sibling cases). */

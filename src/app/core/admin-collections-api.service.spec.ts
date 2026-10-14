@@ -45,4 +45,14 @@ describe('AdminCollectionsApiService', () => {
       },
     ]);
   });
+
+  it('GETs full membership including archived slugs', () => {
+    service.getProducts('organic-dreams').subscribe((res) => {
+      expect(res.productSlugs).toEqual(['arquivo', 'vestido']);
+    });
+    const req = http.expectOne('http://collections.test/api/admin/collections/organic-dreams/products');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ productSlugs: ['arquivo', 'vestido'] });
+  });
 });

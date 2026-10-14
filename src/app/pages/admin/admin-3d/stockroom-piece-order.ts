@@ -44,6 +44,32 @@ export function consumePieceReorderKey(event: KeyboardEvent): { slug: string; de
   return { slug, delta };
 }
 
+export function keyboardPieceReorder(
+  event: KeyboardEvent,
+  racks: readonly { id: string; slugs: readonly string[] }[],
+): { rackId: string; previous: string[]; next: string[] } | null {
+  const hit = consumePieceReorderKey(event);
+  if (!hit) return null;
+  const rack = racks.find((row) => row.slugs.includes(hit.slug));
+  if (!rack) return null;
+  const previous = [...rack.slugs];
+  const next = moveSlugById(previous, hit.slug, hit.delta);
+  if (!next) return null;
+  return { rackId: rack.id, previous, next };
+}
+
+/** Same save as drop, immediately — no debounce. */
+export function saveFromKeyboardReorder(
+  event: KeyboardEvent,
+  racks: readonly { id: string; slugs: readonly string[] }[],
+  save: (rackId: string, previous: readonly string[], next: readonly string[]) => void,
+): boolean {
+  const plan = keyboardPieceReorder(event, racks);
+  if (!plan) return false;
+  save(plan.rackId, plan.previous, plan.next);
+  return true;
+}
+
 export function moveSlugById(slugs: readonly string[], slug: string, delta: -1 | 1): string[] | null {
   const from = slugs.indexOf(slug);
   if (from < 0) return null;
