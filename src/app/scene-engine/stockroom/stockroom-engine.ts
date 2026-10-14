@@ -1667,9 +1667,10 @@ export class StockroomEngine implements AtelierEngine {
     const next = slug ? this.boxes.get(slug) : null;
     if (next) {
       next.group.scale.setScalar(1.06);
-      next.outline.geometry = this.pieceIsCaptioned(next)
-        ? this.shiftOutlineGeometry
-        : this.outlineGeometry;
+      next.outline.geometry =
+        outlinePadForHover(this.pieceIsCaptioned(next)) === STOCKROOM_SHIFT_TARGET_OUTLINE_PAD
+          ? this.shiftOutlineGeometry
+          : this.outlineGeometry;
       next.outline.visible = true;
     }
     if (!slug) this.onHoverCb?.(null);
