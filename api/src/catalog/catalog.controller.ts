@@ -11,8 +11,9 @@ export class CatalogController {
   listProducts(
     @Query('gender') gender?: string,
     @Query('category') category?: string,
+    @Query('collection') collection?: string,
   ): Promise<ProductDto[]> {
-    return this.catalog.listProducts(gender ?? category);
+    return this.catalog.listProducts(gender ?? category, collection);
   }
 
   @Get('products/:slug')
