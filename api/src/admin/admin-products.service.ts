@@ -54,6 +54,8 @@ export class AdminProductsService {
   }
 
   async create(dto: CreateProductDto): Promise<ProductDto> {
+    if (dto.gender) dto.category = dto.gender;
+    delete dto.gender;
     // Lookups independentes em paralelo (categoria, coleção, slug existente e
     // o maior sortOrder da coleção — este filtrado pela relação, sem depender
     // do id da coleção). A ordem de validação/erros abaixo é mantida.
@@ -132,6 +134,8 @@ export class AdminProductsService {
   }
 
   async update(slug: string, dto: UpdateProductDto): Promise<ProductDto> {
+    if (dto.gender) dto.category = dto.gender;
+    delete dto.gender;
     const product = await this.prisma.product.findUnique({
       where: { slug },
       include: { collections: true },
