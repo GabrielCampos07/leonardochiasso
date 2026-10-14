@@ -136,8 +136,22 @@
 }
 
 .admin-3d__piece {
+  pointer-events: auto;
   position: absolute;
   box-sizing: border-box;
+  cursor: grab;
+}
+
+.admin-3d__piece.is-dragging {
+  z-index: 4;
+  cursor: grabbing;
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.admin-3d__piece.is-drop {
+  outline: 3px dashed var(--lc-void);
+  outline-offset: 2px;
 }
 
 .admin-3d__piece > .admin-3d__pill {
@@ -657,6 +671,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.admin-3d__hint span {
+  white-space: pre-line;
 }
 
 .admin-3d__hint-dismiss {

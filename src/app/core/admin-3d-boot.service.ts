@@ -14,12 +14,17 @@ export class Admin3dBootService {
   readonly lastTtffMs = signal<number | null>(null);
   readonly lastCompleteMs = signal<number | null>(null);
 
+  /**
+   * Marks the scene as loading. Does not show the full-viewport HTML overlay —
+   * that layer covers the admin header. index.html paints it before Angular;
+   * AdminShell hides it once chrome is in the DOM; the shell/gate overlays
+   * then cover only the scene.
+   */
   begin(): void {
     this.ready.set(false);
     this.lastTtffMs.set(null);
     this.lastCompleteMs.set(null);
     this.startedAt.set(typeof performance === 'undefined' ? 0 : performance.now());
-    showStaticAtelierBoot();
   }
 
   markFirstFrame(): number {

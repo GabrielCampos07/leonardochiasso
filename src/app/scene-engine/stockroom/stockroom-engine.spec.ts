@@ -118,6 +118,20 @@ describe('StockroomEngine', () => {
     e.setLayout(layout([7, 2, 0]));
   });
 
+  it('restacks hangers of one collection in the given order', (done) => {
+    boot([4], () => {
+      const e = engine!;
+      const first = e.pieceScreenRect('c0-0');
+      expect(first).toBeTruthy();
+      expect(e.reorderHangers('c0', ['c0-3', 'c0-0', 'c0-1', 'c0-2'])).toBeTrue();
+      const moved = e.pieceScreenRect('c0-3');
+      expect(moved).toBeTruthy();
+      expect(Math.abs(moved!.x - first!.x)).toBeLessThan(24);
+      expect(e.reorderHangers('c0', ['c0-0'])).toBeFalse();
+      done();
+    });
+  });
+
   it('badges an unpublished collection sign and a collection created from the 3D', (done) => {
     if (!engine) {
       pending('WebGL not available in this browser');

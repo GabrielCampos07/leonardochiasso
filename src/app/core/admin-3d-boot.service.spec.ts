@@ -28,19 +28,20 @@ describe('Admin3dBootService', () => {
     expect(String(info.calls.mostRecent().args[0])).toContain(ADMIN_3D_TTFF_LOG);
   });
 
-  it('shows the static overlay on begin and hides it on first frame', () => {
+  it('does not paint the full-viewport overlay on begin (it covers the admin header)', () => {
     const bootEl = document.createElement('div');
     bootEl.id = 'lc-atelier-boot';
     document.body.appendChild(bootEl);
     const boot = new Admin3dBootService();
     boot.begin();
-    expect(document.documentElement.classList.contains('lc-atelier-booting')).toBeTrue();
+    expect(document.documentElement.classList.contains('lc-atelier-booting')).toBeFalse();
+    expect(bootEl.classList.contains('is-on')).toBeFalse();
+    expect(boot.ready()).toBeFalse();
+    showStaticAtelierBoot();
     expect(bootEl.classList.contains('is-on')).toBeTrue();
     boot.markFirstFrame();
     expect(document.documentElement.classList.contains('lc-atelier-booting')).toBeFalse();
     expect(bootEl.classList.contains('is-on')).toBeFalse();
-    showStaticAtelierBoot();
-    expect(bootEl.classList.contains('is-on')).toBeTrue();
     hideStaticAtelierBoot();
     expect(bootEl.classList.contains('is-on')).toBeFalse();
     bootEl.remove();

@@ -716,6 +716,32 @@ export class StockroomEngine implements AtelierEngine {
     this.refocus(this.reducedMotion);
   }
 
+  reorderHangers(rackId: string, slugs: readonly string[]): boolean {
+    const rack = this.layout.racks.find((r) => r.id === rackId);
+    if (!rack || rack.hangers.length !== slugs.length) return false;
+    const bySlug = new Map(rack.hangers.map((h) => [h.slug, h]));
+    const hangers = slugs.map((slug) => bySlug.get(slug)).filter((h): h is NonNullable<typeof h> => Boolean(h));
+    if (hangers.length !== rack.hangers.length) return false;
+    this.layout = {
+      racks: this.layout.racks.map((r) => (r.id === rackId ? { ...r, hangers } : r)),
+    };
+    if (!this.assetsLoaded || this.disposed) return true;
+    this.plan = planStockroom(this.units(), this.kit.bay);
+    const area = this.plan.areas.find((a) => a.id === rackId);
+    if (!area) {
+      this.rebuild();
+      return true;
+    }
+    for (const slot of area.slots) {
+      const node = this.boxes.get(slot.slug);
+      if (!node) continue;
+      node.group.position.set(slot.x, slot.y, slot.z);
+      node.group.updateMatrixWorld(true);
+    }
+    this.requestRender();
+    return true;
+  }
+
   removeHanger(slug: string, immediate = this.reducedMotion): void {
     const node = this.boxes.get(slug);
     const finish = () => {
