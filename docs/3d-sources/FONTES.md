@@ -1,4 +1,4 @@
-# 3D sources — `/admin/3d` rebuild (phase 1)
+# 3D sources — `/admin/3d` rebuild
 
 Verified candidate models for the two scene options. Every row below had its model page opened and its licence confirmed on 2026-10-14; the screenshot in `licencas/` is the evidence. Rejected candidates live in [`REMOVIDOS.md`](REMOVIDOS.md).
 
@@ -85,6 +85,26 @@ Licence: every asset page shows "CC0 License" under the author, and <https://pol
 | **Total** | | **≈ 256 KB** | **≈ 82 KB** |
 
 Photoreal variant (rack → Steel Frame Shelves 01, shelves → Wooden Display Shelves 01, counter → Classic Console 01, plant → Potted Plant 04): **≈ 4.99 MB raw / ≈ 1.13 MB Meshopt** — right at the budget raw, so it must ship compressed.
+
+### Option A — shipped in phase 2 (`?cc0=1`)
+
+Kenney only (CC0, licence rows and screenshots above). Built by `node scripts/stockroom-3d-assets.mjs`: downloads both kits, runs `gltf-transform` 4.5.1 `optimize --compress meshopt --texture-compress webp --texture-size 512 --simplify false --instance false --palette false --join false --flatten false`, names each file `kenney-<model>.<sha256:8>.glb`, and writes `src/assets/3d/stockroom/manifest.json` (source, author, licence, sizes) plus `src/app/scene-engine/stockroom/stockroom-assets.ts`. `public/.htaccess` serves `*.<8 hex>.glb` with `Cache-Control: public, max-age=31536000, immutable`.
+
+| Shipped file (`src/assets/3d/stockroom/`) | Source (kit / file) | Used for | Raw KB | Shipped KB |
+| --- | --- | --- | ---: | ---: |
+| `kenney-bookcaseOpen.d0e67908.glb` | Furniture Kit / bookcaseOpen.glb | Bay per 6 pieces (scaled 1.48 × 3.2 × 0.62 m) | 17.3 | 4.2 |
+| `kenney-cardboardBoxClosed.5adfdd4e.glb` | Furniture Kit / cardboardBoxClosed.glb | One box per piece (photo + badge on the front) | 4.8 | 3.5 |
+| `kenney-rugRectangle.4cc6979c.glb` | Furniture Kit / rugRectangle.glb | Area floor per collection (tinted) | 2.7 | 3.2 |
+| `kenney-wall.96e2bfa0.glb` | Furniture Kit / wall.glb | Back / left wall run | 2.6 | 4.0 |
+| `kenney-wallWindow.58aa64e9.glb` | Furniture Kit / wallWindow.glb | Every third wall piece | 9.5 | 7.2 |
+| `kenney-kitchenBar.b83cd2b9.glb` | Furniture Kit / kitchenBar.glb | Counter (×3) | 5.3 | 4.6 |
+| `kenney-pottedPlant.9179970a.glb` | Furniture Kit / pottedPlant.glb | Corner plants | 6.7 | 5.1 |
+| `kenney-floor.36468d86.glb` | Mini Market / floor.glb | 2 m floor tiles (instanced) | 12.1 | 4.7 |
+| `kenney-column.95c36be9.glb` | Mini Market / column.glb | Corner column | 26.8 | 6.9 |
+| `kenney-cash-register.ad5c81ee.glb` | Mini Market / cash-register.glb | Cash register on the counter | 28.1 | 7.4 |
+| **Total (10 files)** | | | **115.9** | **50.9** |
+
+Changes from the recommended set: Mini Market `shelf-end` + `shelf-boxes` replaced by Furniture Kit `bookcaseOpen` (three clear levels, two boxes per level, 4.2 KB instead of 25.8 KB); Mini Market `wall` / `wall-window` replaced by the Furniture Kit pair (same style as the shelves, 11.2 KB instead of 12.5 KB); `plantSmall1` dropped. Product photos are not part of this budget: they stream through the existing thumb pipeline (`thumb` for every box, `full` 512×640 for the focused collection).
 
 ## Option B — Sketchfab CC-BY 4.0 (+ CC0 base)
 
