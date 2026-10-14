@@ -22,6 +22,7 @@ describe('AdminCollectionsService archive', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     productCollection: {
       count: jest.fn(),
@@ -117,6 +118,14 @@ describe('AdminCollectionsService archive', () => {
     const dto = await service.restore('organic-dreams');
     expect(dto.archivedAt).toBeNull();
     expect(dto.productCount).toBe(4);
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('hard-deletes a collection without touching member products', async () => {
+    prisma.collection.findUnique.mockResolvedValue(collectionRow({ slug: 'casa' }));
+    prisma.collection.delete.mockResolvedValue(collectionRow({ slug: 'casa' }));
+    await service.remove('casa');
+    expect(prisma.collection.delete).toHaveBeenCalledWith({ where: { id: 'col-1' } });
     expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
   });
 

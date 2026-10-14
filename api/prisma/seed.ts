@@ -21,18 +21,35 @@ const COLLECTIONS = [
     name: 'Organic Dreams',
     description: 'Peças seasonless em cânhamo — linha HempCouture.',
     sortOrder: 1,
+    published: true,
   },
   {
     slug: 'niponic-dreams',
     name: 'Niponic Dreams',
     description: 'Coleção em desenvolvimento.',
     sortOrder: 2,
+    published: true,
   },
   {
     slug: 'brazilian-dreams',
     name: 'Brazilian Dreams',
     description: 'Coleção em desenvolvimento.',
     sortOrder: 3,
+    published: true,
+  },
+  {
+    slug: 'arte',
+    name: 'Arte',
+    description: null,
+    sortOrder: 90,
+    published: false,
+  },
+  {
+    slug: 'casa',
+    name: 'Casa',
+    description: 'Em breve',
+    sortOrder: 91,
+    published: false,
   },
 ] as const;
 
@@ -1632,7 +1649,7 @@ async function main() {
         name: c.name,
         description: c.description,
         sortOrder: c.sortOrder,
-        publishedAt: new Date(),
+        publishedAt: c.published ? new Date() : null,
       },
     });
     collectionBySlug.set(c.slug, row.id);

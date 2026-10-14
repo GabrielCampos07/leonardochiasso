@@ -43,6 +43,19 @@ export class AdminProductsService {
     return mapProduct(updated);
   }
 
+  /** Hard delete. Fails with 409 when the piece is on an order. */
+  async remove(slug: string): Promise<void> {
+    const product = await this.requireProduct(slug);
+    try {
+      await this.prisma.product.delete({ where: { id: product.id } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2003') {
+        throw new ConflictException('Esta peça está em um pedido e não pode ser excluída.');
+      }
+      throw err;
+    }
+  }
+
   async restore(slug: string): Promise<ProductDto> {
     await this.requireProduct(slug);
     const updated = await this.prisma.product.update({

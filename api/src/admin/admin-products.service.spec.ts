@@ -40,6 +40,7 @@ describe('AdminProductsService archive', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
   };
   const service = new AdminProductsService(prisma as never);
@@ -96,6 +97,13 @@ describe('AdminProductsService archive', () => {
       }),
     );
     expect(dto.archivedAt).toBeNull();
+  });
+
+  it('hard-deletes a product by slug', async () => {
+    prisma.product.findUnique.mockResolvedValue({ id: 'p1', slug: 'vestido' });
+    prisma.product.delete.mockResolvedValue({ id: 'p1' });
+    await service.remove('vestido');
+    expect(prisma.product.delete).toHaveBeenCalledWith({ where: { id: 'p1' } });
   });
 
   it('404s when the slug is missing', async () => {

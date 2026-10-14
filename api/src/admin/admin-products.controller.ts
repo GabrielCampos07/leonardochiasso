@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -53,6 +54,12 @@ export class AdminProductsController {
   @Post(':slug/restore')
   restore(@Param('slug') slug: string) {
     return this.products.restore(slug);
+  }
+
+  @Delete(':slug')
+  @HttpCode(204)
+  remove(@Param('slug') slug: string) {
+    return this.products.remove(slug);
   }
 
   @Patch(':slug')

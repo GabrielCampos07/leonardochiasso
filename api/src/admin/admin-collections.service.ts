@@ -118,6 +118,12 @@ export class AdminCollectionsService {
     return mapCollection(updated, productCount);
   }
 
+  /** Hard delete. Member products stay in the catalog; only the join rows go. */
+  async remove(slug: string): Promise<void> {
+    const collection = await this.requireCollection(slug);
+    await this.prisma.collection.delete({ where: { id: collection.id } });
+  }
+
   async restore(slug: string): Promise<CollectionDto> {
     const collection = await this.requireCollection(slug);
     const productCount = await this.prisma.productCollection.count({
