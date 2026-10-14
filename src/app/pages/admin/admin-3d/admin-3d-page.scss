@@ -203,8 +203,9 @@
 .admin-3d__piece.is-hover,
 .admin-3d__piece:focus-visible {
   z-index: 1;
+  /* Inset: the overlay clips overflow, so an outer ring hid the Shift+→ target. */
   outline: 3px solid #2563eb;
-  outline-offset: 2px;
+  outline-offset: -3px;
 }
 
 .admin-3d__tip {
