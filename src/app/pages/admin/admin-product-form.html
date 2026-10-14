@@ -39,27 +39,18 @@
           (valueChange)="onGenderChange($event)"
         />
       </div>
-      <label>
-        Coleção
-        <select
-          id="atelier-product-collection"
-          [ngModel]="p.collectionSlug || ''"
-          (ngModelChange)="onCollectionSlugChange($event)"
-          name="collection"
-          autocomplete="off"
-          [required]="isNew() && collectionRequired()"
-        >
-          @if (isNew() && collectionRequired()) {
-            <option value="" disabled>Selecione a coleção</option>
-          }
-          @for (opt of collectionOptions(); track opt.slug) {
-            <option [value]="opt.slug">{{ opt.label }}</option>
-          }
-          @if (extraCollectionOption(); as extra) {
-            <option [value]="extra.slug">{{ extra.label }}</option>
-          }
-        </select>
-      </label>
+      <div class="admin-edit__field">
+        <span>Coleção</span>
+        <lc-list-picker
+          controlId="atelier-product-collection"
+          label="Coleção"
+          placeholder="Selecione a coleção"
+          [options]="collectionPickerOptions()"
+          [value]="p.collectionSlug || ''"
+          (valueChange)="onCollectionSlugChange($event)"
+          (opened)="refreshCollections()"
+        />
+      </div>
       @if (isNew() && collectionFromContext()) {
         <p class="admin-edit__hint">
           Pré-preenchida pelo contexto da coleção. Pode confirmar ou alterar.
@@ -326,11 +317,17 @@
     </fieldset>
 
     <div class="admin-edit__footer">
+      @if (saveError()) {
+        <p id="atelier-product-save-error" class="admin-edit__save-error" role="alert">
+          {{ saveError() }}
+        </p>
+      }
       <button
         type="submit"
         class="admin-edit__save"
         [disabled]="saving() || archiving()"
         [attr.aria-busy]="saving()"
+        [attr.aria-describedby]="saveError() ? 'atelier-product-save-error' : null"
       >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>
