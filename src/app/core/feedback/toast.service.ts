@@ -61,11 +61,15 @@ export class ToastService {
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    const current = this.message();
+    if (kind === 'success' && current?.kind === 'error') {
+      return;
+    }
+
     if (this.timer) clearTimeout(this.timer);
 
     const ms = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DISMISS_MS;
     const nextAction = action?.label.trim() ? action : undefined;
-    const current = this.message();
     if (current && current.kind === kind && current.text === trimmed) {
       if (current.action !== nextAction) {
         this.message.set({ id: current.id, kind, text: trimmed, action: nextAction });

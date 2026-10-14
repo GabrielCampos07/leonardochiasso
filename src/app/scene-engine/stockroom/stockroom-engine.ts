@@ -170,7 +170,14 @@ const HOVER_OUTLINE = 0x2563eb;
 const WINDOW_FIT_PAD = 1.04;
 /** A wider window may cost this much zoom (≈ photo size) and still count as "fits". */
 const WINDOW_ZOOM_SLACK = 0.97;
-const OUTLINE_PAD = 0.16;
+/** Thin ring on a mouse hover that is not the Shift+→ overlay target. */
+export const STOCKROOM_HOVER_OUTLINE_PAD = 0.07;
+/** Wider ring on the captioned overlay piece Shift+←/→ will move. */
+export const STOCKROOM_SHIFT_TARGET_OUTLINE_PAD = 0.16;
+
+export function outlinePadForHover(captioned: boolean): number {
+  return captioned ? STOCKROOM_SHIFT_TARGET_OUTLINE_PAD : STOCKROOM_HOVER_OUTLINE_PAD;
+}
 
 const CLEAR = 0xd9d2c7;
 const SHARED = 'stockroomShared';
@@ -266,6 +273,7 @@ export class StockroomEngine implements AtelierEngine {
   private readonly photoGeometry: PlaneGeometry;
   private readonly badgeGeometry: PlaneGeometry;
   private readonly outlineGeometry: PlaneGeometry;
+  private readonly shiftOutlineGeometry: PlaneGeometry;
   private readonly initialFocus: 'first' | 'overview';
   /** areaId → first bay of the framed window. */
   private readonly bayStart = new Map<string, number>();
@@ -316,7 +324,14 @@ export class StockroomEngine implements AtelierEngine {
     this.plan = planStockroom([], this.kit.bay);
     this.photoGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.photo.h);
     this.badgeGeometry = new PlaneGeometry(this.kit.photo.w, this.kit.badge.h);
-    this.outlineGeometry = new PlaneGeometry(this.kit.photo.w + OUTLINE_PAD, this.kit.photo.h + OUTLINE_PAD);
+    this.outlineGeometry = new PlaneGeometry(
+      this.kit.photo.w + STOCKROOM_HOVER_OUTLINE_PAD,
+      this.kit.photo.h + STOCKROOM_HOVER_OUTLINE_PAD,
+    );
+    this.shiftOutlineGeometry = new PlaneGeometry(
+      this.kit.photo.w + STOCKROOM_SHIFT_TARGET_OUTLINE_PAD,
+      this.kit.photo.h + STOCKROOM_SHIFT_TARGET_OUTLINE_PAD,
+    );
     this.builder = {
       bbox: (id) => this.templates.get(id)?.bbox ?? null,
       clone: (id, tint) => this.cloneAsset(id, tint),
@@ -378,6 +393,7 @@ export class StockroomEngine implements AtelierEngine {
     this.photoGeometry.userData[SHARED] = true;
     this.badgeGeometry.userData[SHARED] = true;
     this.outlineGeometry.userData[SHARED] = true;
+    this.shiftOutlineGeometry.userData[SHARED] = true;
 
     this.assetsReady = this.loadAssets();
 
@@ -822,6 +838,7 @@ export class StockroomEngine implements AtelierEngine {
     this.photoGeometry.dispose();
     this.badgeGeometry.dispose();
     this.outlineGeometry.dispose();
+    this.shiftOutlineGeometry.dispose();
     for (const resource of this.sharedGpu.values()) resource.dispose();
     this.sharedGpu.clear();
     photoTextureCache.clear();
@@ -1406,6 +1423,10 @@ export class StockroomEngine implements AtelierEngine {
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
+  private pieceIsCaptioned(node: BoxNode): boolean {
+    return this.photoRect(node).h >= STOCKROOM_CAPTION_MIN_PX;
+  }
+
   /**
    * Collection names above their bays and captions over legible photos. With a
    * collection focused only its own label is emitted: the page shows that name
@@ -1646,6 +1667,9 @@ export class StockroomEngine implements AtelierEngine {
     const next = slug ? this.boxes.get(slug) : null;
     if (next) {
       next.group.scale.setScalar(1.06);
+      next.outline.geometry = this.pieceIsCaptioned(next)
+        ? this.shiftOutlineGeometry
+        : this.outlineGeometry;
       next.outline.visible = true;
     }
     if (!slug) this.onHoverCb?.(null);
