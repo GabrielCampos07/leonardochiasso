@@ -1,7 +1,11 @@
 import { NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
 import { CatalogCacheService } from '../cache/catalog-cache.service';
-import { CatalogService } from './catalog.service';
+import {
+  CatalogService,
+  publicCollectionWhere,
+  publicProductWhere,
+} from './catalog.service';
 
 describe('CatalogService public archive filters', () => {
   const prisma = {
@@ -27,7 +31,7 @@ describe('CatalogService public archive filters', () => {
     await service.listProducts();
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: ProductStatus.published, archivedAt: null },
+        where: { AND: [publicProductWhere] },
       }),
     );
   });
@@ -39,11 +43,7 @@ describe('CatalogService public archive filters', () => {
     );
     expect(prisma.product.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          slug: 'vestido',
-          status: ProductStatus.published,
-          archivedAt: null,
-        },
+        where: { slug: 'vestido', ...publicProductWhere },
       }),
     );
   });
@@ -103,7 +103,7 @@ describe('CatalogService public archive filters', () => {
     prisma.collection.findMany.mockResolvedValue([]);
     await service.listCollections();
     expect(prisma.collection.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { archivedAt: null } }),
+      expect.objectContaining({ where: publicCollectionWhere }),
     );
 
     prisma.collection.findFirst.mockResolvedValue(null);
@@ -112,7 +112,7 @@ describe('CatalogService public archive filters', () => {
     );
     expect(prisma.collection.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { slug: 'organic-dreams', archivedAt: null },
+        where: { slug: 'organic-dreams', ...publicCollectionWhere },
       }),
     );
   });
@@ -288,5 +288,53 @@ describe('CatalogService (cache)', () => {
     await service.listCollections();
     await service.listCollections();
     expect(prisma.collection.findMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('CatalogService public visibility (collection must be published)', () => {
+  const prisma = {
+    product: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+    collection: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+  };
+  const cache = new CatalogCacheService();
+  const service = new CatalogService(prisma as never, cache);
+  beforeEach(() => {
+    jest.clearAllMocks();
+    cache.clear();
+  });
+
+  it('public collection requires publishedAt and no archivedAt', () => {
+    expect(publicCollectionWhere).toEqual({ publishedAt: { not: null }, archivedAt: null });
+  });
+
+  it('public product requires a published collection when it has collections', () => {
+    expect(publicProductWhere).toEqual({
+      status: ProductStatus.published,
+      archivedAt: null,
+      OR: [
+        { collections: { none: {} } },
+        { collections: { some: { collection: publicCollectionWhere } } },
+      ],
+    });
+  });
+
+  it('?collection filters by that published collection, with its own cache key', async () => {
+    await service.listProducts(undefined, 'Organic-Dreams');
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: [
+            publicProductWhere,
+            {
+              collections: {
+                some: { collection: { ...publicCollectionWhere, slug: 'organic-dreams' } },
+              },
+            },
+          ],
+        },
+      }),
+    );
+    await service.listProducts();
+    expect(prisma.product.findMany).toHaveBeenCalledTimes(2);
   });
 });
