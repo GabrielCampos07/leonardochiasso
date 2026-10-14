@@ -5,6 +5,7 @@ import {
   AccountApiService,
   AddressDto,
 } from '../../core/account-api.service';
+import { PUBLIC_CONTACT_MAILTO } from '../../core/brand-lines';
 import { AuthService, authErrorMessage } from '../../core/auth.service';
 import { ChromeService } from '../../core/chrome.service';
 import {
@@ -44,7 +45,7 @@ export class AccountPage implements OnInit {
   readonly privacyRoute = legalPath('privacidade');
   readonly termsRoute = legalPath('termos');
   readonly cookiesRoute = legalPath('cookies');
-  readonly contactHref = 'mailto:Contact@leonardochiasso.com';
+  readonly contactHref = PUBLIC_CONTACT_MAILTO;
 
   readonly editingEmail = signal(false);
   emailDraft = '';
