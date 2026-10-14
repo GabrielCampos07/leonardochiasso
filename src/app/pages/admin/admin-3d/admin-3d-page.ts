@@ -150,6 +150,33 @@ export function rackCounterLabel(items: ReadonlyArray<{ id: string }>, focusedId
   return at < 0 ? `${items.length}` : `${at + 1}/${items.length}`;
 }
 
+export interface StockroomTitle {
+  name: string;
+  detail: string;
+  unpublished: boolean;
+}
+
+/** Title strip above the stockroom canvas: the focused collection, or the room on the overview. */
+export function stockroomTitle(
+  racks: ReadonlyArray<Pick<SceneRack, 'id' | 'name' | 'hangers' | 'unpublished'>>,
+  focusedId: string,
+  draftName = '',
+): StockroomTitle {
+  if (focusedId === OVERVIEW_FOCUS_ID) {
+    return { name: 'Todas as coleções', detail: racks.length === 1 ? '1 coleção' : `${racks.length} coleções`, unpublished: false };
+  }
+  if (focusedId === DRAFT_UNIT_ID) {
+    return { name: draftName.trim() || DRAFT_PLACEHOLDER_NAME, detail: '0 peças', unpublished: true };
+  }
+  const rack = racks.find((r) => r.id === focusedId);
+  const count = rack?.hangers.length ?? 0;
+  return {
+    name: rack?.name ?? 'Coleção',
+    detail: count === 1 ? '1 peça' : `${count} peças`,
+    unpublished: rack?.unpublished === true,
+  };
+}
+
 /** Click slug → edit modal. Blocked only while creating / adding pieces. */
 export function pieceModalFromHangerClick(
   slug: string | null,
@@ -267,6 +294,11 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.layoutRev();
     const id = this.focusedId();
     return this.layout.racks.some((r) => r.id === id && r.unpublished === true);
+  });
+  readonly stageTitle = computed(() => {
+    this.layoutRev();
+    const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
+    return stockroomTitle(unitsOfKind(this.layout, kind), this.focusedId(), this.createName());
   });
   readonly rackPan = computed(() => {
     this.panTick();

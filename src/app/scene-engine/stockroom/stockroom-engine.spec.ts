@@ -153,9 +153,14 @@ describe('StockroomEngine', () => {
       const e = engine!;
       expect(e.focusedRackId()).toBe('c0');
       const labels = e.overlay().areas;
-      expect(labels.find((a) => a.focused)?.id).toBe('c0');
-      expect(labels.find((a) => a.focused)?.name).toBe('Coleção 0');
-      done();
+      expect(labels.map((a) => a.id)).toEqual(['c0']);
+      expect(labels[0]!.focused).toBeTrue();
+      expect(labels[0]!.name).toBe('Coleção 0');
+      e.focusOverview(true);
+      requestAnimationFrame(() => {
+        expect(e.overlay().areas.length).toBeGreaterThan(1);
+        done();
+      });
     });
   });
 
@@ -174,11 +179,6 @@ describe('StockroomEngine', () => {
     });
   });
 
-  it('frames a short collection whole, without bay paging', (done) => {
-    desktopStage();
-    boot([9], () => {
-      const e = engine!;
-      expect(e.areaBayWindow('c0')).toEqual({ start: 0, count: 2, total: 2 });
   it('picks every captioned piece at its centre, past the hidden signs of the row in front', (done) => {
     desktopStage();
     boot([17, 18, 12, 6], () => {
@@ -196,6 +196,11 @@ describe('StockroomEngine', () => {
     });
   });
 
+  it('frames a short collection whole, without bay paging', (done) => {
+    desktopStage();
+    boot([9], () => {
+      const e = engine!;
+      expect(e.areaBayWindow('c0')).toEqual({ start: 0, count: 2, total: 2 });
       expect(e.panRack(1)).toBeFalse();
       expect(e.canPan(-1)).toBeFalse();
       expect(e.rackPanState().showChrome).toBeFalse();

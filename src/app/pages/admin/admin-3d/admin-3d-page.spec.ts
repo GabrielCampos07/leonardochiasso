@@ -4,8 +4,10 @@ import {
   isCreateSheetViewport,
   pieceModalFromHangerClick,
   rackCounterLabel,
+  stockroomTitle,
 } from './admin-3d-page';
-import { collectionSwitcherItems } from '../../../scene-engine/camera-guide';
+import { OVERVIEW_FOCUS_ID, collectionSwitcherItems } from '../../../scene-engine/camera-guide';
+import { DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
 
 describe('clampCreatePanel', () => {
@@ -84,5 +86,23 @@ describe('rackCounterLabel', () => {
   it('shows the total on the overview and 0/0 without collections', () => {
     expect(rackCounterLabel(items, '__overview__')).toBe('3');
     expect(rackCounterLabel([], 'a')).toBe('0/0');
+  });
+});
+
+describe('stockroomTitle', () => {
+  const racks = [
+    { id: 'od', name: 'Organic Dreams', hangers: new Array(17).fill(null), unpublished: false },
+    { id: 'cap', name: 'Cápsula', hangers: new Array(1).fill(null), unpublished: true },
+  ];
+
+  it('names the focused collection with its piece count and draft state', () => {
+    expect(stockroomTitle(racks, 'od')).toEqual({ name: 'Organic Dreams', detail: '17 peças', unpublished: false });
+    expect(stockroomTitle(racks, 'cap')).toEqual({ name: 'Cápsula', detail: '1 peça', unpublished: true });
+  });
+
+  it('names the room on the overview and a draft by its typed name', () => {
+    expect(stockroomTitle(racks, OVERVIEW_FOCUS_ID).name).toBe('Todas as coleções');
+    expect(stockroomTitle(racks, OVERVIEW_FOCUS_ID).detail).toBe('2 coleções');
+    expect(stockroomTitle(racks, DRAFT_UNIT_ID, '  Verão  ')).toEqual({ name: 'Verão', detail: '0 peças', unpublished: true });
   });
 });

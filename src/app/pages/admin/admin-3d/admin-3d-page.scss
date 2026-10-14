@@ -65,9 +65,35 @@
   white-space: nowrap;
 }
 
-.admin-3d__area-label.is-focused {
+.admin-3d__title {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 24px;
+  background: var(--lc-white);
+  border-bottom: 1px solid color-mix(in srgb, var(--lc-void) 14%, transparent);
+  color: var(--lc-void);
+}
+
+.admin-3d__title-name {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--lc-font-display);
   font-size: 30px;
-  border-color: var(--lc-void);
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-3d__title .admin-3d__area-count {
+  white-space: nowrap;
 }
 
 .admin-3d__area-name {

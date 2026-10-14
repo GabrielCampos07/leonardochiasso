@@ -16,9 +16,11 @@ export const STOCKROOM_POLAR_SHELF = 58 * DEG;
 export const STOCKROOM_AZIMUTH_SHELF = 4 * DEG;
 /** A collection view frames as many bays as keep every photo at least this tall (CSS px). */
 export const STOCKROOM_MIN_PHOTO_PX = 125;
-/** Band kept free above the bays for the HTML collection name, and below them. */
+/** Band kept free above the bays for the HTML collection names (overview), and below them. */
 export const STOCKROOM_LABEL_BAND_PX = 64;
 export const STOCKROOM_FLOOR_BAND_PX = 16;
+/** A focused collection's name sits above the canvas, so its view keeps only a margin. */
+export const STOCKROOM_WINDOW_TOP_PX = 16;
 /** Limited swing either side of the front view. */
 export const STOCKROOM_AZIMUTH_LIMIT = 30 * DEG;
 export const STOCKROOM_AZIMUTH_DEFAULT = 14 * DEG;

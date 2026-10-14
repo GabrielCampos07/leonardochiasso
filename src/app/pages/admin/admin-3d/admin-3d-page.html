@@ -6,6 +6,16 @@
   tabindex="0"
   aria-label="Ateliê 3D de produtos"
 >
+  @if (stockroom && !webglUnavailable() && !desktopOnly()) {
+    <header class="admin-3d__title" aria-live="polite">
+      <h2 class="admin-3d__title-name">{{ stageTitle().name }}</h2>
+      @if (stageTitle().unpublished) {
+        <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
+      }
+      <span class="admin-3d__area-count">{{ stageTitle().detail }}</span>
+    </header>
+  }
+
   <div #stage class="admin-3d__stage">
     @if (!webglUnavailable()) {
       <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
@@ -14,18 +24,15 @@
     @if (stockroom && firstFrame() && overlay(); as ov) {
       <div class="admin-3d__overlay" aria-hidden="true">
         @for (area of ov.areas; track area.id) {
-          <p
-            class="admin-3d__area-label"
-            [class.is-focused]="area.focused"
-            [style.left.px]="area.x"
-            [style.top.px]="area.y"
-          >
-            <span class="admin-3d__area-name">{{ area.name }}</span>
-            @if (area.unpublished || area.draft) {
-              <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
-            }
-            <span class="admin-3d__area-count">{{ area.count === 1 ? '1 peça' : area.count + ' peças' }}</span>
-          </p>
+          @if (!area.focused) {
+            <p class="admin-3d__area-label" aria-hidden="true" [style.left.px]="area.x" [style.top.px]="area.y">
+              <span class="admin-3d__area-name">{{ area.name }}</span>
+              @if (area.unpublished || area.draft) {
+                <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
+              }
+              <span class="admin-3d__area-count">{{ area.count === 1 ? '1 peça' : area.count + ' peças' }}</span>
+            </p>
+          }
         }
         @for (piece of ov.pieces; track piece.slug) {
           <div
