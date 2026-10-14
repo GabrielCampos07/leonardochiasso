@@ -4,6 +4,7 @@ import {
   applyHangerOrder,
   autoScrollDelta,
   consumePieceReorderKey,
+  saveFromKeyboardReorder,
   dropIndexForSlug,
   dropTargetSlug,
   moveSlug,
@@ -57,6 +58,25 @@ describe('stockroom piece order', () => {
     expect(consumePieceReorderKey(event)).toEqual({ slug: 'a', delta: 1 });
     expect(prevent).toHaveBeenCalled();
     expect(stop).toHaveBeenCalled();
+    piece.remove();
+  });
+
+  it('triggers the same save as drop immediately on Shift+arrow (not debounced)', () => {
+    const piece = document.createElement('div');
+    piece.setAttribute('data-slug', 'b');
+    const event = new KeyboardEvent('keydown', {
+      key: 'ArrowRight',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, 'target', { value: piece });
+    const save = jasmine.createSpy('save');
+    expect(
+      saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save),
+    ).toBeTrue();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith('organic-dreams', ['a', 'b', 'c'], ['a', 'c', 'b']);
     piece.remove();
   });
 

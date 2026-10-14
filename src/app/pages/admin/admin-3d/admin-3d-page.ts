@@ -118,7 +118,7 @@ import {
   REORDER_AUTOSCROLL_MS,
   REORDER_DRAG_THRESHOLD_PX,
   autoScrollDelta,
-  consumePieceReorderKey,
+  saveFromKeyboardReorder,
   dropIndexForSlug,
   dropTargetSlug,
   moveSlug,
@@ -508,11 +508,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.cancelCreate();
       return;
     }
-    const reorder = consumePieceReorderKey(event);
-    if (reorder) {
-      this.movePieceByKey(reorder.slug, reorder.delta);
-      return;
-    }
+    if (this.savePieceReorderFromKey(event)) return;
     const arrow = rackArrowDelta(event.key);
     if (!arrow) return;
     if (this.creating() || this.adding()) return;
@@ -527,8 +523,17 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   onPieceReorderKey(event: KeyboardEvent): void {
-    const reorder = consumePieceReorderKey(event);
-    if (reorder) this.movePieceByKey(reorder.slug, reorder.delta);
+    this.savePieceReorderFromKey(event);
+  }
+
+  private pieceOrderRacks(): { id: string; slugs: string[] }[] {
+    return this.layout.racks.map((rack) => ({ id: rack.id, slugs: rack.hangers.map((h) => h.slug) }));
+  }
+
+  private savePieceReorderFromKey(event: KeyboardEvent): boolean {
+    return saveFromKeyboardReorder(event, this.pieceOrderRacks(), (rackId, previous, next) => {
+      this.applyAndSavePieceOrder(rackId, previous, next);
+    });
   }
 
   /** Enter / Space on a captioned piece opens it like a click on its photo. */
