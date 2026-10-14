@@ -11,8 +11,8 @@ Forbidden everywhere: NC, ND, Editorial, NoAI. CC-BY rows require the in-app **C
 
 ## Size columns
 
-- **Raw** — the `.glb` as obtained. Poly Haven: the 1K glTF packed to GLB (textures embedded). Kenney: the shipped GLB with its external `colormap.png` embedded. Sketchfab: the GLB archive size reported by the Sketchfab API for the download (the file itself needs an API token, see below).
-- **Meshopt / Draco** — `gltf-transform` 4.5.1 `optimize --compress meshopt|draco --texture-compress webp --texture-size 1024 --simplify false --join false --flatten false --instance false --palette false`. Measured on the real file for options A rows. For Sketchfab rows it is an **estimate** (`~`): geometry × 0.3 plus ~60 KB per 1K WebP map (~20 KB at 512, ~2–6 KB at ≤256), calibrated on the Poly Haven files measured here; expect ±50 % until the file is downloaded.
+- **Raw** — the `.glb` as obtained. Poly Haven: the 1K glTF packed to GLB (textures embedded). Kenney: the shipped GLB with its external `colormap.png` embedded. Sketchfab candidates: the GLB archive size reported by the Sketchfab API; shipped option B files: the GLB from `sketchfab-b.zip`.
+- **Meshopt / Draco** — `gltf-transform` 4.5.1 `optimize --compress meshopt|draco --texture-compress webp --texture-size 1024 --simplify false --join false --flatten false --instance false --palette false`. Measured on the real file for options A rows. For the Sketchfab candidate rows it is an **estimate** (`~`; the shipped option B files are measured in their own table): geometry × 0.3 plus ~60 KB per 1K WebP map (~20 KB at 512, ~2–6 KB at ≤256), calibrated on the Poly Haven files measured here; expect ±50 % until the file is downloaded.
 - Files under ~10 KB can grow slightly with Meshopt (extension overhead); Draco stays smaller.
 - **Budget** — target ≈ 5 MB (5 000 KB) per scene; percentages are of that figure. ⚠ marks a model that alone would take ≥ 40 % of it raw, exceed it, or ship > 1 MB compressed; the alternative is in the note.
 
@@ -110,7 +110,7 @@ Changes from the recommended set: Mini Market `shelf-end` + `shelf-boxes` replac
 
 Every row: Sketchfab page opened, licence shown as "CC Attribution" (Creative Commons Attribution 4.0, `http://creativecommons.org/licenses/by/4.0/`), `isDownloadable: true`, no `noai` tag and no NC/ND/editorial wording in the description (checked through `api.sketchfab.com/v3/models/<uid>`). Screenshots: `licencas/sketchfab-<uid8>-<item>.webp`.
 
-**Download blocker:** Sketchfab only serves the file to an authenticated account (`/v3/models/<uid>/download` → "Authentication credentials were not provided"). Raw sizes come from the API's GLB archive size; compressed sizes are estimates. Phase 2 needs a `SKETCHFAB_API_TOKEN` secret to fetch and measure the real files.
+Raw and compressed sizes in this phase-1 table come from the API's GLB archive size plus an estimate (Sketchfab only serves the file to an authenticated account). The 8 picks were later delivered as `sketchfab-b.zip` (GLB + `meta.json` each) and measured for real — see **Option B — shipped in phase 2** below.
 
 | Item | Model | URL | Author | Faces | Textures | Raw KB | Est. compressed KB | Budget | Screenshot |
 | --- | --- | --- | --- | ---: | --- | ---: | ---: | --- | --- |
@@ -150,6 +150,31 @@ Floor and walls in option B: no Sketchfab candidate fits the budget, so option B
 | Shelves | shelves Display 2x2 — Wans.Setiabudi | 86 | ~13 |
 | Plants | dudecon med leaf + flowering | 519 | ~85 |
 | **Total** | | **≈ 3.2 MB** | **≈ 0.45 MB (estimate)** |
+
+### Option B — shipped in phase 2 (`?sketchfab=1`)
+
+Source: `sketchfab-b.zip` (8 folders, each `model.glb` + `meta.json` with author, licence and `viewerUrl`). Built by `node scripts/stockroom-sketchfab-assets.mjs <zip|dir>`, which:
+
+1. **Re-checks every licence from `meta.json`** and aborts unless the uid matches the phase-1 pick, `license.slug` is `by`, the licence URL is CC BY 4.0 and `viewerUrl` ends with the uid (no NC / ND / editorial / NoAI can slip in). Unknown folders abort too.
+2. **Trims** what the scene does not use (gltf-transform 4.5.1 API): rack — keeps one of the two finishes and drops the wire hanger, then turns it to face the room; hanger — keeps only the wooden hanger (other hangers and the tee removed); shelves — drops the floor base. Then `flatten`, `clearNodeTransform`, `prune`.
+3. **Compresses**: `gltf-transform optimize --compress meshopt --texture-compress webp --texture-size 1024 --simplify false --instance false --palette false --join false --flatten false`.
+4. Names each file `sketchfab-<folder>.<sha256:8>.glb` (same immutable-cache rule in `public/.htaccess`) and writes `src/assets/3d/stockroom-b/manifest.json` plus `src/app/scene-engine/stockroom/stockroom-b-assets.ts` (URLs + the credits the Créditos screen renders, including what was modified). Output is deterministic — re-running gives the same hashes.
+
+| Shipped file (`src/assets/3d/stockroom-b/`) | Model — author | Used for | Raw KB | Shipped KB |
+| --- | --- | --- | ---: | ---: |
+| `sketchfab-clothes-rack-with-hanger.fa34f855.glb` | Clothes rack with hanger — neverfollow81 | Two wall rails per bay (6 pieces) | 1 967.7 | 201.9 |
+| `sketchfab-hangers-and-tee-shirt.05519b4b.glb` | Hangers and Tee-shirt — dudecon | One wooden hanger per piece (photo card hangs from it) | 339.4 | 4.4 |
+| `sketchfab-store-mannequin.2f4a84be.glb` | Store mannequin — A-in Architecture | Two mannequins by the counter | 118.0 | 22.0 |
+| `sketchfab-store-counter.4a7b3387.glb` | Store Counter — VoidLance | Counter | 31.3 | 7.3 |
+| `sketchfab-caisse-enregistreuse.f9b6d288.glb` | Caisse-enregistreuse — codepromo | Register on the counter | 81.8 | 15.2 |
+| `sketchfab-shelves-display-2x2.8f4bdd09.glb` | shelves Display 2x2 — Wans.Setiabudi | Back-corner display | 86.0 | 17.9 |
+| `sketchfab-potted-plant-mediterranean-med-leaf-low-poly.b2e85f2f.glb` | Potted Plant, med leaf — dudecon | Plants | 233.4 | 35.9 |
+| `sketchfab-potted-plant-mediterranean-flowering-low-poly.fac81565.glb` | Potted Plant, flowering — dudecon | Plant | 285.9 | 43.6 |
+| **Sketchfab total (8 files)** | | | **3 143.5** | **348.2** |
+| Kenney CC0 reused from option A: `floor`, `wall`, `wallWindow`, `rugRectangle` | Kenney | Floor, walls, windows, area rugs, partitions | 26.9 | 19.1 |
+| **Option B scene total** | | | **≈ 3.1 MB** | **≈ 367 KB** (7 % of the 5 MB budget) |
+
+Measured KB = bytes / 1024; `stockroom-kit-sketchfab.spec.ts` sums both manifests for the kit's files and fails above 5 000 000 bytes. The phase-1 estimate (≈ 0.45 MB) was close; the hanger came in far lighter than estimated (4.4 KB vs ~99) because only the wooden hanger is kept. Product photos stream through the existing thumb pipeline and are not part of this budget.
 
 ### Credits required for option B (Créditos screen)
 
