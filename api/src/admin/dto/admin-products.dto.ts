@@ -91,8 +91,8 @@ export class CreateProductDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Estoque deve ser um número inteiro.' })
+  @Min(0, { message: 'Estoque não pode ser negativo.' })
   stockQty?: number;
 
   @IsOptional()
@@ -180,8 +180,8 @@ export class UpdateProductDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(0)
+  @IsInt({ message: 'Estoque deve ser um número inteiro.' })
+  @Min(0, { message: 'Estoque não pode ser negativo.' })
   stockQty?: number;
 
   @IsOptional()
