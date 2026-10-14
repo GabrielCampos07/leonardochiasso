@@ -3,6 +3,7 @@ import {
   clampCreatePanel,
   isCreateSheetViewport,
   pieceModalFromHangerClick,
+  rackCounterLabel,
 } from './admin-3d-page';
 import { collectionSwitcherItems } from '../../../scene-engine/camera-guide';
 import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
@@ -69,5 +70,19 @@ describe('pieceModalFromHangerClick', () => {
     expect(pieceModalFromHangerClick('vestido-lg-bateau', { creating: true })).toEqual({ open: false });
     expect(pieceModalFromHangerClick('vestido-lg-bateau', { adding: true })).toEqual({ open: false });
     expect(pieceModalFromHangerClick(null)).toEqual({ open: false });
+  });
+});
+
+describe('rackCounterLabel', () => {
+  const items = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+
+  it('counts the focused collection out of all of them', () => {
+    expect(rackCounterLabel(items, 'a')).toBe('1/3');
+    expect(rackCounterLabel(items, 'c')).toBe('3/3');
+  });
+
+  it('shows the total on the overview and 0/0 without collections', () => {
+    expect(rackCounterLabel(items, '__overview__')).toBe('3');
+    expect(rackCounterLabel([], 'a')).toBe('0/0');
   });
 });

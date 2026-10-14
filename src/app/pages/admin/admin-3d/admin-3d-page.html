@@ -2,14 +2,234 @@
   #sceneHost
   class="admin-3d"
   [class.admin-3d--reduced]="reducedMotion"
+  [class.admin-3d--stockroom]="stockroom"
   tabindex="0"
   aria-label="Ateliê 3D de produtos"
 >
-  @if (!webglUnavailable()) {
-    <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
+  <div #stage class="admin-3d__stage">
+    @if (!webglUnavailable()) {
+      <canvas #canvas class="admin-3d__canvas" aria-hidden="true"></canvas>
+    }
+
+    @if (stockroom && firstFrame() && overlay(); as ov) {
+      <div class="admin-3d__overlay" aria-hidden="true">
+        @for (area of ov.areas; track area.id) {
+          <p
+            class="admin-3d__area-label"
+            [class.is-focused]="area.focused"
+            [style.left.px]="area.x"
+            [style.top.px]="area.y"
+          >
+            <span class="admin-3d__area-name">{{ area.name }}</span>
+            @if (area.unpublished || area.draft) {
+              <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
+            }
+            <span class="admin-3d__area-count">{{ area.count === 1 ? '1 peça' : area.count + ' peças' }}</span>
+          </p>
+        }
+        @for (piece of ov.pieces; track piece.slug) {
+          <div
+            class="admin-3d__piece"
+            [class.is-hover]="piece.hover"
+            [attr.data-slug]="piece.slug"
+            [style.left.px]="piece.x"
+            [style.top.px]="piece.y"
+            [style.width.px]="piece.w"
+            [style.height.px]="piece.h"
+          >
+            <span class="admin-3d__pill admin-3d__pill--{{ piece.badge }}">{{ piece.badgeText }}</span>
+            <span class="admin-3d__caption">
+              @if (piece.price) {
+                <b>{{ piece.price }}</b>
+              }
+              <span>{{ piece.name }}</span>
+            </span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (!webglUnavailable() && firstFrame() && rackPan().showChrome && !creating() && !adding()) {
+      <div class="admin-3d__rail" aria-label="Navegação das peças da arara">
+        <div class="admin-3d__rail-fade admin-3d__rail-fade--prev" [class.is-on]="rackPan().canPrev"></div>
+        <div class="admin-3d__rail-fade admin-3d__rail-fade--next" [class.is-on]="rackPan().canNext"></div>
+        <button
+          type="button"
+          class="admin-3d__rail-btn admin-3d__rail-btn--prev"
+          [disabled]="!rackPan().canPrev"
+          (click)="panFocused(-1)"
+          aria-label="Peças anteriores"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="admin-3d__rail-btn admin-3d__rail-btn--next"
+          [disabled]="!rackPan().canNext"
+          (click)="panFocused(1)"
+          aria-label="Próximas peças"
+        >
+          ›
+        </button>
+        <p class="admin-3d__rail-count" role="status">{{ rackPan().label }}</p>
+      </div>
+    }
+
+    @if (!webglUnavailable() && firstFrame()) {
+      <div class="admin-3d__chrome">
+        @if (showHint()) {
+          <p class="admin-3d__hint">
+            <span>{{ hintCopy }}</span>
+            <button
+              type="button"
+              class="admin-3d__hint-dismiss"
+              (click)="dismissHint()"
+              aria-label="Dispensar dica"
+            >
+              ×
+            </button>
+          </p>
+        }
+        @if (usingMock()) {
+          <p class="admin-3d__badge" role="status">Dados de exemplo</p>
+        }
+        @if (hasCredits && !stockroom) {
+          <button type="button" class="admin-3d__credits" (click)="openCredits()">Créditos</button>
+        }
+      </div>
+    }
+  </div>
+
+  @if (stockroom && !webglUnavailable() && !desktopOnly()) {
+    <nav class="admin-3d__dock" aria-label="Navegação das coleções">
+      <div class="admin-3d__lines" role="radiogroup" aria-label="Tipo de peça">
+        <button
+          type="button"
+          class="admin-3d__line"
+          role="radio"
+          [attr.aria-checked]="line() === 'roupas'"
+          [class.is-on]="line() === 'roupas'"
+          [disabled]="creating() || adding()"
+          (click)="setLine('roupas')"
+        >
+          Roupas
+        </button>
+        <button
+          type="button"
+          class="admin-3d__line"
+          role="radio"
+          [attr.aria-checked]="line() === 'joias'"
+          [class.is-on]="line() === 'joias'"
+          [disabled]="creating() || adding()"
+          (click)="setLine('joias')"
+        >
+          Joias
+        </button>
+      </div>
+      <div class="admin-3d__dock-nav">
+        <button
+          type="button"
+          class="admin-3d__arrow admin-3d__dock-arrow"
+          [disabled]="atFirst() || creating() || adding() || !racks().length"
+          (click)="stepRack(-1)"
+          aria-label="Coleção anterior"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="admin-3d__dock-current"
+          [attr.aria-expanded]="switcherOpen()"
+          aria-haspopup="listbox"
+          aria-controls="atelier-dock-switcher"
+          [disabled]="creating() || adding() || !racks().length"
+          (click)="toggleSwitcher($event)"
+        >
+          <span class="admin-3d__dock-name">{{ focusedName() }}</span>
+          @if (focusedUnpublished()) {
+            <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
+          }
+          <span class="admin-3d__dock-count" role="status">{{ rackCounter() }}</span>
+        </button>
+        <button
+          type="button"
+          class="admin-3d__arrow admin-3d__dock-arrow"
+          [disabled]="atLast() || creating() || adding() || !racks().length"
+          (click)="stepRack(1)"
+          aria-label="Próxima coleção"
+        >
+          ›
+        </button>
+        @if (switcherOpen()) {
+          <div
+            id="atelier-dock-switcher"
+            class="admin-3d__dock-switcher"
+            role="listbox"
+            aria-label="Coleções"
+            (click)="$event.stopPropagation()"
+          >
+            @for (item of switcherItems(); track item.id) {
+              <button
+                type="button"
+                role="option"
+                [attr.aria-selected]="focusedId() === item.id"
+                [class.is-on]="focusedId() === item.id"
+                (click)="pickCollection(item.id)"
+              >
+                {{ item.name }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+      <div class="admin-3d__dock-actions">
+        <button
+          type="button"
+          class="admin-3d__rack admin-3d__rack--all"
+          [class.is-on]="focusedId() === overviewId"
+          [disabled]="creating() || adding() || !racks().length"
+          (click)="focusOverview()"
+        >
+          Ver todas
+        </button>
+        <button
+          type="button"
+          class="admin-3d__rack admin-3d__rack--new"
+          [class.is-on]="creating()"
+          [disabled]="creating() || adding()"
+          (click)="startCreate()"
+        >
+          + Nova coleção
+        </button>
+        @if (activeUnit()) {
+          <button type="button" class="admin-3d__peca" [disabled]="adding()" (click)="addPieceToFocused()">
+            + Peça
+          </button>
+        }
+        @if (hasCredits) {
+          <button type="button" class="admin-3d__credits" (click)="openCredits()">Créditos</button>
+        }
+        @if (canArchiveFocused()) {
+          <button
+            type="button"
+            class="admin-3d__more"
+            [attr.aria-expanded]="moreOpen()"
+            aria-label="Mais ações"
+            (click)="toggleMore($event)"
+          >
+            ⋯
+          </button>
+        }
+        @if (moreOpen() && canArchiveFocused()) {
+          <div class="admin-3d__menu" role="menu" (click)="$event.stopPropagation()">
+            <button type="button" role="menuitem" (click)="archiveFocusedCollection()">Arquivar coleção</button>
+          </div>
+        }
+      </div>
+    </nav>
   }
 
-  @if (!webglUnavailable() && !error() && !loading() && firstFrame() && !creating()) {
+  @if (!stockroom && !webglUnavailable() && !error() && !loading() && firstFrame() && !creating()) {
     <nav class="admin-3d__guide" aria-label="Navegação das araras">
       <div class="admin-3d__lines" role="radiogroup" aria-label="Tipo de peça">
         <button
@@ -115,6 +335,9 @@
             @if (canArchiveFocused()) {
               <button type="button" role="menuitem" (click)="archiveFocusedCollection()">Arquivar coleção</button>
             }
+            @if (hasCredits) {
+              <button type="button" role="menuitem" (click)="openCredits()">Créditos</button>
+            }
           </div>
         }
       </div>
@@ -173,53 +396,6 @@
     </nav>
   }
 
-  @if (!webglUnavailable() && firstFrame() && rackPan().showChrome && !creating() && !adding()) {
-    <div class="admin-3d__rail" aria-label="Navegação das peças da arara">
-      <div class="admin-3d__rail-fade admin-3d__rail-fade--prev" [class.is-on]="rackPan().canPrev"></div>
-      <div class="admin-3d__rail-fade admin-3d__rail-fade--next" [class.is-on]="rackPan().canNext"></div>
-      <button
-        type="button"
-        class="admin-3d__rail-btn admin-3d__rail-btn--prev"
-        [disabled]="!rackPan().canPrev"
-        (click)="panFocused(-1)"
-        aria-label="Peças anteriores"
-      >
-        ‹
-      </button>
-      <button
-        type="button"
-        class="admin-3d__rail-btn admin-3d__rail-btn--next"
-        [disabled]="!rackPan().canNext"
-        (click)="panFocused(1)"
-        aria-label="Próximas peças"
-      >
-        ›
-      </button>
-      <p class="admin-3d__rail-count" role="status">{{ rackPan().label }}</p>
-    </div>
-  }
-
-  @if (!webglUnavailable() && firstFrame()) {
-    <div class="admin-3d__chrome">
-      @if (showHint()) {
-        <p class="admin-3d__hint">
-          <span>{{ hintCopy }}</span>
-          <button
-            type="button"
-            class="admin-3d__hint-dismiss"
-            (click)="dismissHint()"
-            aria-label="Dispensar dica"
-          >
-            ×
-          </button>
-        </p>
-      }
-      @if (usingMock()) {
-        <p class="admin-3d__badge" role="status">Dados de exemplo</p>
-      }
-    </div>
-  }
-
   @if (creating()) {
     <lc-collection-create-panel
       [name]="createName()"
@@ -236,7 +412,7 @@
     />
   }
 
-  @if (showAddPieceButton()) {
+  @if (showAddPieceButton() && !stockroom) {
     <button
       type="button"
       class="admin-3d__add-piece"
@@ -294,7 +470,21 @@
     </div>
   }
 
-  @if (webglUnavailable()) {
+  @if (creditsOpen()) {
+    <lc-stockroom-credits-panel (close)="closeCredits()" />
+  }
+
+  @if (desktopOnly()) {
+    <div class="admin-3d__cover" role="status">
+      <div class="admin-3d__panel">
+        <p><strong>{{ desktopOnlyTitle }}</strong></p>
+        <p>{{ desktopOnlyHint }}</p>
+        <div class="admin-3d__actions">
+          <button type="button" (click)="backToList()">{{ webglAction }}</button>
+        </div>
+      </div>
+    </div>
+  } @else if (webglUnavailable()) {
     <div class="admin-3d__panel" role="status">
       <p><strong>{{ webglTitle }}</strong></p>
       <p>{{ webglHint }}</p>

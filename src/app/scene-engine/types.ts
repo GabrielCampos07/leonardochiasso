@@ -23,6 +23,8 @@ export interface SceneCollectionInput {
   name: string;
   sortOrder: number;
   archivedAt?: string | null;
+  /** Admin API: `null` means unpublished (hidden from the storefront). Omitted = published. */
+  publishedAt?: string | null;
 }
 
 export type SceneMediaInput = LooseMedia;
@@ -68,6 +70,8 @@ export interface SceneRack {
   sortOrder: number;
   hangers: SceneHanger[];
   kind: SceneUnitKind;
+  /** Collection exists in the admin but is not published on the storefront. */
+  unpublished?: boolean;
 }
 
 export interface SceneLayout {
