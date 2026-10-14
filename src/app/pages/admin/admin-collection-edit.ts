@@ -28,6 +28,7 @@ import {
   adminLoadErrorMessage,
   archiveAwareError,
   confirmArchiveCollection,
+  confirmDeleteCollection,
   endAdminLoad,
   isArchivedAt,
   showArchiveUndo,
@@ -96,6 +97,7 @@ export class AdminCollectionEditPage implements OnInit {
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly restoring = signal(false);
+  readonly deleting = signal(false);
   readonly error = signal('');
   readonly archivedAt = signal<string | null>(null);
   readonly isArchived = computed(() => isArchivedAt(this.archivedAt()));
@@ -220,6 +222,25 @@ export class AdminCollectionEditPage implements OnInit {
       },
       error: (err) => {
         this.error.set(archiveAwareError(err, this.formatError(err, 'Não foi possível arquivar.')));
+      },
+    });
+  }
+
+  async remove(): Promise<void> {
+    const slug = this.slug();
+    if (!slug || this.isNew() || !this.isArchived() || this.deleting()) return;
+    const ok = await confirmDeleteCollection(this.confirm, this.name || slug);
+    if (!ok) return;
+    this.deleting.set(true);
+    this.api.remove(slug).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.toast.success('Excluída.');
+        void this.router.navigateByUrl(this.listPath);
+      },
+      error: (err) => {
+        this.deleting.set(false);
+        this.toast.error(this.formatError(err, 'Não foi possível excluir.'));
       },
     });
   }

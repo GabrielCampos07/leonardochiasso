@@ -163,6 +163,7 @@ describe('AdminCollectionEditPage gender UX', () => {
             listAdminProducts: () => of(pieces),
             archive: () => of(meta),
             restore: () => of(meta),
+            remove: () => of(undefined),
             update: () => of(meta),
           },
         },

@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -51,6 +53,12 @@ export class AdminCollectionsController {
   @Post(':slug/restore')
   restore(@Param('slug') slug: string) {
     return this.collections.restore(slug);
+  }
+
+  @Delete(':slug')
+  @HttpCode(204)
+  remove(@Param('slug') slug: string) {
+    return this.collections.remove(slug);
   }
 
   @Get(':slug/products')

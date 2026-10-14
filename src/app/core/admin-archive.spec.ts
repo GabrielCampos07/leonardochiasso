@@ -12,6 +12,8 @@ import {
   adminLoadErrorMessage,
   archiveAwareError,
   archiveCollectionMessage,
+  confirmDeleteCollection,
+  confirmDeletePiece,
   endAdminLoad,
   filterArchivedList,
   insertAt,
@@ -47,6 +49,32 @@ describe('archiveCollectionMessage', () => {
     expect(archiveCollectionMessage(0)).toBe(ARCHIVE_COLLECTION_MESSAGE);
     expect(archiveCollectionMessage(0)).not.toContain('catálogo');
     expect(archiveCollectionMessage(0)).not.toContain(ARCHIVE_PIECE_MESSAGE);
+  });
+});
+
+describe('confirmDelete', () => {
+  it('asks to delete the piece or collection by name', async () => {
+    const seen: { title?: string; message: string }[] = [];
+    const confirm = {
+      confirm: (opts: { title?: string; message: string }) => {
+        seen.push(opts);
+        return Promise.resolve(true);
+      },
+    };
+    await confirmDeletePiece(confirm as never, 'Gioconda');
+    await confirmDeleteCollection(confirm as never, 'Casa');
+    expect(seen[0]).toEqual(
+      jasmine.objectContaining({
+        title: 'Excluir peça',
+        message: 'Excluir “Gioconda”? Esta ação não pode ser desfeita.',
+      }),
+    );
+    expect(seen[1]).toEqual(
+      jasmine.objectContaining({
+        title: 'Excluir coleção',
+        message: 'Excluir “Casa”? Esta ação não pode ser desfeita.',
+      }),
+    );
   });
 });
 

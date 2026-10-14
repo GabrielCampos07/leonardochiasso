@@ -118,6 +118,24 @@ export class AdminCollectionsService {
     return mapCollection(updated, productCount);
   }
 
+  /**
+   * Hard delete. Only when archived and empty; otherwise 409.
+   * Memberships and collection order stay untouched on refusal.
+   */
+  async remove(slug: string): Promise<void> {
+    const collection = await this.requireCollection(slug);
+    if (!collection.archivedAt) {
+      throw new ConflictException('Arquive a coleção antes de excluí-la.');
+    }
+    const productCount = await this.prisma.productCollection.count({
+      where: { collectionId: collection.id },
+    });
+    if (productCount > 0) {
+      throw new ConflictException('Esvazie a coleção antes de excluí-la.');
+    }
+    await this.prisma.collection.delete({ where: { id: collection.id } });
+  }
+
   async restore(slug: string): Promise<CollectionDto> {
     const collection = await this.requireCollection(slug);
     const productCount = await this.prisma.productCollection.count({

@@ -21,10 +21,19 @@
           type="button"
           class="admin-row__order-btn"
           (click)="restore()"
-          [disabled]="restoring()"
+          [disabled]="restoring() || deleting()"
           [attr.aria-busy]="restoring()"
         >
           {{ restoring() ? 'Restaurando…' : 'Restaurar' }}
+        </button>
+        <button
+          type="button"
+          class="admin-row__archive"
+          (click)="remove()"
+          [disabled]="deleting() || restoring()"
+          [attr.aria-busy]="deleting()"
+        >
+          {{ deleting() ? 'Excluindo…' : 'Excluir' }}
         </button>
       </div>
     }

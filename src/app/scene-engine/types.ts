@@ -74,6 +74,8 @@ export interface SceneRack {
   kind: SceneUnitKind;
   /** Collection exists in the admin but is not published on the storefront. */
   unpublished?: boolean;
+  /** Empty Casa rack — label Em breve instead of 0 peças. */
+  comingSoon?: boolean;
 }
 
 export interface SceneLayout {

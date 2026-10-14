@@ -41,6 +41,7 @@ import {
   adminLoadErrorMessage,
   archiveAwareError,
   confirmArchivePiece,
+  confirmDeletePiece,
   isArchivedAt,
   endAdminLoad,
   insertAt,
@@ -85,6 +86,7 @@ export class AdminProductsPage implements OnInit {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly restoringSlug = signal<string | null>(null);
+  readonly deletingSlug = signal<string | null>(null);
   readonly savingOrder = signal(false);
   readonly orderLoading = signal(false);
   readonly useApi = this.adminCatalog.useApi;
@@ -232,6 +234,24 @@ export class AdminProductsPage implements OnInit {
         this.toast.error(
           archiveAwareError(err, adminHttpErrorMessage(err, 'Não foi possível arquivar.')),
         );
+      },
+    });
+  }
+
+  async remove(product: Product): Promise<void> {
+    if (!isArchivedAt(product.archivedAt) || this.deletingSlug()) return;
+    const ok = await confirmDeletePiece(this.confirm, product.name);
+    if (!ok) return;
+    this.deletingSlug.set(product.slug);
+    this.adminCatalog.removeViaApi(product.slug).subscribe({
+      next: () => {
+        this.deletingSlug.set(null);
+        this.products.set(removeBySlug(this.products(), product.slug));
+        this.toast.success('Excluída.');
+      },
+      error: (err) => {
+        this.deletingSlug.set(null);
+        this.toast.error(adminHttpErrorMessage(err, 'Não foi possível excluir.'));
       },
     });
   }

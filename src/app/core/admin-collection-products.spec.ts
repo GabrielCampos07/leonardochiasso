@@ -190,6 +190,23 @@ describe('AdminCollectionProductsService', () => {
     expect(saved.productSlugs).toContain('arquivo');
     expect(service.current('organic-dreams')).toEqual(['arquivo', 'c', 'a', 'b']);
   });
+
+  it('does not PUT editorial art hangers that are not collection members', async () => {
+    const puts: string[][] = [];
+    const service = setup(
+      (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
+        return of(result('arte', productSlugs));
+      },
+      () => of({ productSlugs: ['vestido'] }),
+    );
+
+    await new Promise<SetCollectionProductsResult>((resolve, reject) => {
+      service.replaceLiveOrder('arte', ['monalisa', 'vestido']).subscribe({ next: resolve, error: reject });
+    });
+
+    expect(puts).toEqual([['vestido']]);
+  });
 });
 
 describe('partitionAppendResults', () => {

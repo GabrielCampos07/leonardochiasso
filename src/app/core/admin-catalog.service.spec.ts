@@ -1,8 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
-import { AdminCatalogService } from './admin-catalog.service';
+import { AdminCatalogService, adminHttpErrorMessage } from './admin-catalog.service';
 import { ApiProductDto } from './catalog.service';
 import { Product } from './product.model';
 
@@ -195,6 +195,27 @@ describe('AdminCatalogService create payload contract', () => {
     expect(req.request.body.status).toBeUndefined();
     req.flush(
       createdDto(sampleProduct({ status: 'archived', archivedAt: '2026-10-01T00:00:00.000Z' })),
+    );
+  });
+
+  it('DELETEs an archived product by slug', () => {
+    service.removeViaApi('look-arquivo').subscribe();
+    const req = http.expectOne('http://payload.test/api/admin/products/look-arquivo');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
+});
+
+describe('adminHttpErrorMessage', () => {
+  it('surfaces the API 409 body instead of the slug-clash fallback', () => {
+    const err = new HttpErrorResponse({
+      status: 409,
+      statusText: 'Conflict',
+      error: { message: 'Arquive a peça antes de excluí-la.' },
+    });
+    expect(adminHttpErrorMessage(err, 'Não foi possível excluir.')).toBe(
+      'Arquive a peça antes de excluí-la.',
     );
   });
 });

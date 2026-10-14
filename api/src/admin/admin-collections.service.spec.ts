@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { AdminCollectionsService } from './admin-collections.service';
 
 function collectionRow(over: Record<string, unknown> = {}) {
@@ -22,6 +22,7 @@ describe('AdminCollectionsService archive', () => {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     productCollection: {
       count: jest.fn(),
@@ -118,6 +119,46 @@ describe('AdminCollectionsService archive', () => {
     expect(dto.archivedAt).toBeNull();
     expect(dto.productCount).toBe(4);
     expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('hard-deletes an archived empty collection without rewriting memberships', async () => {
+    prisma.collection.findUnique.mockResolvedValue(
+      collectionRow({ slug: 'casa', archivedAt: new Date('2026-10-14T00:00:00Z') }),
+    );
+    prisma.productCollection.count.mockResolvedValue(0);
+    prisma.collection.delete.mockResolvedValue(collectionRow({ slug: 'casa' }));
+    await service.remove('casa');
+    expect(prisma.productCollection.count).toHaveBeenCalledWith({
+      where: { collectionId: 'col-1' },
+    });
+    expect(prisma.collection.delete).toHaveBeenCalledWith({ where: { id: 'col-1' } });
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('409s when deleting a live collection and leaves memberships untouched', async () => {
+    prisma.collection.findUnique.mockResolvedValue(collectionRow({ slug: 'casa' }));
+    await expect(service.remove('casa')).rejects.toMatchObject({
+      constructor: ConflictException,
+      message: 'Arquive a coleção antes de excluí-la.',
+    });
+    expect(prisma.collection.delete).not.toHaveBeenCalled();
+    expect(prisma.productCollection.count).not.toHaveBeenCalled();
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('409s when deleting an archived collection that still has products', async () => {
+    prisma.collection.findUnique.mockResolvedValue(
+      collectionRow({ slug: 'casa', archivedAt: new Date('2026-10-14T00:00:00Z') }),
+    );
+    prisma.productCollection.count.mockResolvedValue(3);
+    await expect(service.remove('casa')).rejects.toMatchObject({
+      constructor: ConflictException,
+      message: 'Esvazie a coleção antes de excluí-la.',
+    });
+    expect(prisma.collection.delete).not.toHaveBeenCalled();
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('404s when the collection is missing', async () => {

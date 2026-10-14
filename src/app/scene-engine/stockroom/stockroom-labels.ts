@@ -103,6 +103,7 @@ export function makeSignTexture(
   draft = false,
   aspect = 4,
   unpublished = false,
+  comingSoon = false,
 ): CanvasTexture {
   const width = signTextureWidth(aspect);
   return canvasTexture(width, SIGN_TEXTURE_H, (ctx) => {
@@ -120,7 +121,7 @@ export function makeSignTexture(
     const name1 = fitText(ctx, name, width - 64, 128, 56);
     ctx.font = name1.font;
     ctx.fillText(name1.label, width / 2, 100);
-    const count = draft ? 'nova coleção' : sectorCountLabel(pieces);
+    const count = draft ? 'nova coleção' : comingSoon ? 'Em breve' : sectorCountLabel(pieces);
     if (!unpublished || draft) {
       ctx.font = `500 52px ${FONT}`;
       ctx.globalAlpha = 0.78;

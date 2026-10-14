@@ -46,6 +46,14 @@ describe('AdminCollectionsApiService', () => {
     ]);
   });
 
+  it('DELETEs an archived collection by slug', () => {
+    service.remove('casa').subscribe();
+    const req = http.expectOne('http://collections.test/api/admin/collections/casa');
+    expect(req.request.method).toBe('DELETE');
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('GETs full membership including archived slugs', () => {
     service.getProducts('organic-dreams').subscribe((res) => {
       expect(res.productSlugs).toEqual(['arquivo', 'vestido']);
