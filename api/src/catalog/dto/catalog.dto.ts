@@ -57,5 +57,6 @@ export interface CollectionDto {
 }
 
 export interface CollectionDetailDto extends CollectionDto {
+  /** Live members in `product_collections.sortOrder` (one order per collection). */
   products: ProductDto[];
 }
