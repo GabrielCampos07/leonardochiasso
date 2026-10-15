@@ -7,6 +7,10 @@ import {
   publicCollectionWhere,
   publicProductWhere,
 } from './catalog.service';
+import {
+  compareMembershipSortOrder as listaCompare,
+  sortByMembershipSortOrder,
+} from '../../../src/app/core/membership-order';
 
 describe('CatalogService public archive filters', () => {
   const prisma = {
@@ -289,6 +293,26 @@ describe('CatalogService gender blocks', () => {
 
     const list = await service.listProducts(undefined, 'teste-ordem');
     expect(list.map((p) => p.slug)).toEqual(['teste-plumaria', 'teste-calca']);
+  });
+
+  it('Lista sort matches public API order for the same data, including ties', () => {
+    const collection = 'organic-dreams';
+    const data = [
+      { id: 'id-z', slug: 'pantalona-rasgo', collections: [{ slug: collection, sortOrder: 1 }] },
+      { id: 'id-a', slug: 'vestido-lg-assimetrico', collections: [{ slug: collection, sortOrder: 1 }] },
+      { id: 'id-m', slug: 'vestido-longo-mosaico-textil', collections: [{ slug: collection, sortOrder: 0 }] },
+    ];
+    const lista = sortByMembershipSortOrder(data, collection);
+    const publicApi = [...data].sort((a, b) => compareMembershipSortOrder(a, b, collection));
+    expect(lista.map((p) => p.slug)).toEqual(publicApi.map((p) => p.slug));
+    expect(lista.map((p) => p.slug)).toEqual([
+      'vestido-longo-mosaico-textil',
+      'vestido-lg-assimetrico',
+      'pantalona-rasgo',
+    ]);
+    expect(listaCompare(data[0]!, data[1]!, collection)).toBe(
+      compareMembershipSortOrder(data[0]!, data[1]!, collection),
+    );
   });
 
   it('compareMembershipSortOrder ties on productId', () => {

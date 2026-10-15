@@ -1,6 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
-import { AdminProductsService } from './admin-products.service';
+import {
+  AdminProductsService,
+  MULTI_COLLECTION_CHANGE_BLOCKED,
+} from './admin-products.service';
 
 function productRow(over: Record<string, unknown> = {}) {
   return {
@@ -199,5 +202,213 @@ describe('AdminProductsService create (otimizado, lookups em paralelo)', () => {
     prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: 0 } });
     const service = new AdminProductsService(prisma as never);
     await expect(service.create(dto)).rejects.toThrow('Product slug already exists: vestido');
+  });
+});
+
+describe('AdminProductsService update (membership join)', () => {
+  const COL_OD = 'col-od';
+  const COL_NP = 'col-np';
+
+  function loadedProduct(over: Record<string, unknown> = {}) {
+    return {
+      id: 'p1',
+      slug: 'vestido',
+      category: { id: 'c1', slug: 'feminino' },
+      collections: [
+        {
+          productId: 'p1',
+          collectionId: COL_OD,
+          sortOrder: 4,
+          collection: { slug: 'organic-dreams' },
+        },
+      ],
+      ...over,
+    };
+  }
+
+  function makePrisma() {
+    const prisma = {
+      product: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      },
+      category: { findUnique: jest.fn() },
+      collection: { findUnique: jest.fn() },
+      productCollection: {
+        update: jest.fn(),
+        create: jest.fn(),
+        aggregate: jest.fn(),
+        deleteMany: jest.fn(),
+      },
+      collectionGenderOrder: {
+        findMany: jest.fn().mockResolvedValue([]),
+        deleteMany: jest.fn(),
+        aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
+        create: jest.fn(),
+      },
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
+    };
+    return prisma;
+  }
+
+  function queryCount(prisma: ReturnType<typeof makePrisma>): number {
+    return (
+      prisma.product.findUnique.mock.calls.length +
+      prisma.product.update.mock.calls.length +
+      prisma.category.findUnique.mock.calls.length +
+      prisma.collection.findUnique.mock.calls.length +
+      prisma.productCollection.update.mock.calls.length +
+      prisma.productCollection.create.mock.calls.length +
+      prisma.productCollection.aggregate.mock.calls.length +
+      prisma.productCollection.deleteMany.mock.calls.length +
+      prisma.collectionGenderOrder.findMany.mock.calls.length +
+      prisma.collectionGenderOrder.deleteMany.mock.calls.length +
+      prisma.collectionGenderOrder.aggregate.mock.calls.length +
+      prisma.collectionGenderOrder.create.mock.calls.length +
+      prisma.$transaction.mock.calls.length
+    );
+  }
+
+  it('editing the name does not touch product_collections or sortOrder (2 queries)', async () => {
+    // Before: name save sent collectionSlug+category → findUnique, category,
+    // collection, aggregate, deleteMany, create, product.update, sync findUnique,
+    // sync findMany = 9. After: findUnique + product.update = 2.
+    const prisma = makePrisma();
+    prisma.product.findUnique.mockResolvedValue(loadedProduct());
+    prisma.product.update.mockResolvedValue(
+      productRow({
+        name: 'Vestido editado',
+        collections: [
+          {
+            sortOrder: 4,
+            collection: { slug: 'organic-dreams', name: 'Organic Dreams', archivedAt: null },
+          },
+        ],
+      }),
+    );
+    const service = new AdminProductsService(prisma as never);
+    const dto = await service.update('vestido', { name: 'Vestido editado' } as never);
+
+    expect(dto.name).toBe('Vestido editado');
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.productCollection.create).not.toHaveBeenCalled();
+    expect(prisma.productCollection.update).not.toHaveBeenCalled();
+    expect(prisma.productCollection.aggregate).not.toHaveBeenCalled();
+    expect(prisma.collection.findUnique).not.toHaveBeenCalled();
+    expect(prisma.category.findUnique).not.toHaveBeenCalled();
+    expect(prisma.collectionGenderOrder.findMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(queryCount(prisma)).toBe(2);
+    expect(prisma.product.update.mock.calls[0][0].data).toEqual({ name: 'Vestido editado' });
+    expect(prisma.product.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          collections: expect.objectContaining({
+            orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('skips the join write when collectionSlug and category are unchanged', async () => {
+    const prisma = makePrisma();
+    prisma.product.findUnique.mockResolvedValue(loadedProduct());
+    prisma.product.update.mockResolvedValue(productRow());
+    const service = new AdminProductsService(prisma as never);
+    await service.update('vestido', {
+      name: 'Mesmo',
+      category: 'feminino',
+      collectionSlug: 'organic-dreams',
+    } as never);
+
+    expect(prisma.collection.findUnique).not.toHaveBeenCalled();
+    expect(prisma.category.findUnique).not.toHaveBeenCalled();
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.productCollection.update).not.toHaveBeenCalled();
+    expect(prisma.collectionGenderOrder.findMany).not.toHaveBeenCalled();
+    expect(queryCount(prisma)).toBe(2);
+  });
+
+  it('changing the collection updates one row at max(sortOrder)+1 and never deletes', async () => {
+    const prisma = makePrisma();
+    prisma.product.findUnique
+      .mockResolvedValueOnce(loadedProduct())
+      .mockResolvedValueOnce({
+        id: 'p1',
+        category: { slug: 'feminino' },
+        collections: [{ collectionId: COL_NP }],
+      });
+    prisma.collection.findUnique.mockResolvedValue({ id: COL_NP, slug: 'niponic-dreams' });
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: 7 } });
+    prisma.productCollection.update.mockResolvedValue({
+      productId: 'p1',
+      collectionId: COL_NP,
+      sortOrder: 8,
+    });
+    prisma.product.update.mockResolvedValue(
+      productRow({
+        collections: [
+          {
+            sortOrder: 8,
+            collection: { slug: 'niponic-dreams', name: 'Niponic Dreams', archivedAt: null },
+          },
+        ],
+      }),
+    );
+    const service = new AdminProductsService(prisma as never);
+    await service.update('vestido', { collectionSlug: 'niponic-dreams' } as never);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.productCollection.create).not.toHaveBeenCalled();
+    expect(prisma.productCollection.aggregate).toHaveBeenCalledWith({
+      where: { collectionId: COL_NP },
+      _max: { sortOrder: true },
+    });
+    expect(prisma.productCollection.update).toHaveBeenCalledTimes(1);
+    expect(prisma.productCollection.update).toHaveBeenCalledWith({
+      where: {
+        productId_collectionId: { productId: 'p1', collectionId: COL_OD },
+      },
+      data: { collectionId: COL_NP, sortOrder: 8 },
+    });
+    expect(prisma.product.update).toHaveBeenCalled();
+    expect(prisma.collectionGenderOrder.findMany).toHaveBeenCalled();
+  });
+
+  it('refuses a collection change when the piece has more than one join row', async () => {
+    const prisma = makePrisma();
+    prisma.product.findUnique.mockResolvedValue(
+      loadedProduct({
+        collections: [
+          {
+            productId: 'p1',
+            collectionId: COL_OD,
+            sortOrder: 0,
+            collection: { slug: 'organic-dreams' },
+          },
+          {
+            productId: 'p1',
+            collectionId: COL_NP,
+            sortOrder: 1,
+            collection: { slug: 'niponic-dreams' },
+          },
+        ],
+      }),
+    );
+    const service = new AdminProductsService(prisma as never);
+    await expect(
+      service.update('vestido', { collectionSlug: 'brazilian-dreams' } as never),
+    ).rejects.toThrow(MULTI_COLLECTION_CHANGE_BLOCKED);
+    await expect(
+      service.update('vestido', { collectionSlug: 'brazilian-dreams' } as never),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.collection.findUnique).not.toHaveBeenCalled();
+    expect(prisma.productCollection.update).not.toHaveBeenCalled();
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.product.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });
