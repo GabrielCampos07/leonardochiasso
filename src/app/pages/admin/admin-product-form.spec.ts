@@ -16,6 +16,12 @@ import {
   PRICE_REQUIRED_MESSAGE,
 } from '../../core/price-input';
 import {
+  PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_INVALID_MESSAGE,
+  PRICE_NEGATIVE_MESSAGE,
+  PRICE_REQUIRED_MESSAGE,
+} from '../../core/price-input';
+import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
   COLLECTION_REQUIRED_MESSAGE,
