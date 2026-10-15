@@ -7,7 +7,7 @@
   <section class="admin-edit">
     <header class="admin-edit__head">
       <div>
-        <a class="admin-edit__back" [routerLink]="listPath">← Voltar</a>
+        <button type="button" class="admin-edit__back" (click)="goBack()">← Voltar</button>
         <h1>{{ isNew() ? 'Adicionar produto' : 'Editar produto' }}</h1>
         <p>{{ isNew() ? 'Preencha os campos mínimos e salve.' : p.name }}</p>
       </div>

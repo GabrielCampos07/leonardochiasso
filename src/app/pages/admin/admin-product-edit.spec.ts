@@ -176,6 +176,7 @@ describe('AdminProductEditPage open then close', () => {
     expect(createViaApi).not.toHaveBeenCalled();
 
     (form.querySelector('.admin-edit__cancel') as HTMLButtonElement).click();
+    await fixture.whenStable();
     fixture.detectChanges();
     expect(navigate).toHaveBeenCalled();
     expect(saveProduct$).not.toHaveBeenCalled();

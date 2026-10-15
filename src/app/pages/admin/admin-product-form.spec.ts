@@ -5,6 +5,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import { ADMIN_SWATCH_OPTIONS } from '../../core/admin-catalog.service';
@@ -17,6 +18,7 @@ import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
   COLLECTION_REQUIRED_MESSAGE,
+  NAME_MAX_LENGTH,
   NAME_REQUIRED_MESSAGE,
   STOCK_NEGATIVE_MESSAGE,
   applySelectedSwatches,
@@ -120,8 +122,16 @@ describe('selectedSwatchesFromProduct', () => {
     expect(colors.map((c) => c.name)).toEqual(['Black/White']);
   });
 
-  it('does not invent chips for a slash-without-spaces token missing from the known list', () => {
-    expect(selectedSwatchesFromProduct({ color: 'Black/White' }, ADMIN_SWATCH_OPTIONS)).toEqual([]);
+  it('keeps a slash without spaces as one free-text chip when it is not on the known list', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Black/White' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors.map((c) => c.name)).toEqual(['Black/White']);
+    expect(colors[0]?.id.startsWith('custom:')).toBeTrue();
+  });
+
+  it('keeps a free-text color like Cru natural as a chip', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Cru natural' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors.map((c) => c.name)).toEqual(['Cru natural']);
+    expect(colorLabelFromSwatches(colors)).toBe('Cru natural');
   });
 
   it('prefers the known-colors list over leftover free text', () => {
@@ -154,6 +164,7 @@ describe('AdminProductForm', () => {
   let updateViaApi: jasmine.Spy;
   let createViaApi: jasmine.Spy;
   let list: jasmine.Spy;
+  let confirm: { confirm: jasmine.Spy };
 
   beforeEach(async () => {
     toast = {
@@ -161,6 +172,7 @@ describe('AdminProductForm', () => {
       success: jasmine.createSpy('success'),
       info: jasmine.createSpy('info'),
     };
+    confirm = { confirm: jasmine.createSpy('confirm').and.resolveTo(true) };
     saveProduct$ = jasmine.createSpy('saveProduct$');
     updateViaApi = jasmine.createSpy('updateViaApi');
     createViaApi = jasmine.createSpy('createViaApi');
@@ -210,6 +222,7 @@ describe('AdminProductForm', () => {
         },
         { provide: AdminCollectionsApiService, useValue: { list } },
         { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: confirm },
         { provide: ToastService, useValue: toast },
       ],
     }).compileComponents();
@@ -536,6 +549,33 @@ describe('AdminProductForm', () => {
     );
     expect(toast.error).toHaveBeenCalledWith('Falha interna ao salvar.');
   });
+
+  it('caps the name at 200 characters and shows a counter', () => {
+    const long = 'A'.repeat(220);
+    fixture.componentInstance.onNameChange(long);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.name.length).toBe(NAME_MAX_LENGTH);
+    expect(fixture.nativeElement.querySelector('#atelier-product-name-count')?.textContent?.trim()).toBe(
+      `${NAME_MAX_LENGTH}/${NAME_MAX_LENGTH}`,
+    );
+    expect(
+      (fixture.nativeElement.querySelector('#atelier-product-name') as HTMLInputElement).getAttribute('maxlength'),
+    ).toBe(String(NAME_MAX_LENGTH));
+  });
+
+  it('asks before canceling when the form is dirty', async () => {
+    confirm.confirm.and.resolveTo(false);
+    const cancelled = jasmine.createSpy('cancelled');
+    fixture.componentInstance.cancelled.subscribe(cancelled);
+    fixture.componentInstance.onNameChange('Look alterado');
+    await fixture.componentInstance.cancel();
+    expect(confirm.confirm).toHaveBeenCalled();
+    expect(cancelled).not.toHaveBeenCalled();
+
+    confirm.confirm.and.resolveTo(true);
+    await fixture.componentInstance.cancel();
+    expect(cancelled).toHaveBeenCalled();
+  });
 });
 
 describe('AdminProductForm collection picker while catalog loads', () => {
@@ -558,6 +598,7 @@ describe('AdminProductForm collection picker while catalog loads', () => {
         },
         { provide: AdminCollectionsApiService, useValue: { list: () => pending.asObservable() } },
         { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
         {
           provide: ToastService,
           useValue: { error: () => undefined, success: () => undefined, info: () => undefined },

@@ -2,8 +2,8 @@
   <form class="admin-edit__form" (ngSubmit)="save()">
     <fieldset>
       <legend>Básico</legend>
-      <label>
-        Nome
+      <label [class.is-invalid]="nameError()">
+        Nome <span class="admin-edit__req" aria-hidden="true">*</span>
         <input
           id="atelier-product-name"
           type="text"
@@ -13,10 +13,13 @@
           name="name"
           autocomplete="off"
           required
+          [attr.maxlength]="nameMaxLength"
+          [class.is-invalid]="nameError()"
           [attr.aria-invalid]="nameError() ? 'true' : null"
-          [attr.aria-describedby]="nameError() ? 'atelier-product-name-error' : null"
+          [attr.aria-describedby]="nameError() ? 'atelier-product-name-error atelier-product-name-count' : 'atelier-product-name-count'"
         />
       </label>
+      <p id="atelier-product-name-count" class="admin-edit__count">{{ p.name.length }}/{{ nameMaxLength }}</p>
       @if (nameError()) {
         <p id="atelier-product-name-error" class="admin-edit__upload-error" role="alert">
           {{ nameError() }}
@@ -62,7 +65,7 @@
         <p class="admin-edit__hint">Rascunho — a peça não aparece no site até ser publicada.</p>
       }
       <div class="admin-edit__field">
-        <span>Coleção</span>
+        <span>Coleção <span class="admin-edit__req" aria-hidden="true">*</span></span>
         <lc-list-picker
           controlId="atelier-product-collection"
           label="Coleção"
@@ -107,11 +110,16 @@
           id="atelier-product-description"
           rows="5"
           [ngModel]="p.description"
-          (ngModelChange)="patchField('description', $event)"
+          (ngModelChange)="onDescriptionChange($event)"
           name="description"
           autocomplete="off"
+          [attr.maxlength]="descriptionMaxLength"
+          [attr.aria-describedby]="'atelier-product-description-count'"
         ></textarea>
       </label>
+      <p id="atelier-product-description-count" class="admin-edit__count">
+        {{ (p.description ?? '').length }}/{{ descriptionMaxLength }}
+      </p>
       <label>
         Detalhes (uma linha por item)
         <textarea
@@ -214,6 +222,7 @@
               type="button"
               class="admin-edit__chip-remove"
               [attr.aria-label]="'Remover ' + c.name"
+              [attr.aria-pressed]="true"
               (click)="removeSwatch(c)"
             >
               ×

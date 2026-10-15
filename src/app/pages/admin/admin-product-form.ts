@@ -43,7 +43,7 @@ import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
 import { archiveAwareError, confirmArchivePiece, isArchivedAt } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
+import { ToastService } from '../../core/feedback/toast.service';
 import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
 import {
   PRICE_REQUIRED_MESSAGE,
@@ -83,8 +83,14 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
 }
 
 export const NAME_REQUIRED_MESSAGE = 'Informe o nome.';
+export const NAME_MAX_LENGTH = 200;
+export const NAME_TOO_LONG_MESSAGE = 'O nome pode ter no máximo 200 caracteres.';
+export const DESCRIPTION_MAX_LENGTH = 5000;
 export const COLLECTION_REQUIRED_MESSAGE = 'Selecione a coleção.';
 export const COLLECTION_PICKER_LOADING = 'Carregando…';
+export const SAVED_TOAST = 'Salvo.';
+export const UNSAVED_TITLE = 'Descartar alterações?';
+export const UNSAVED_MESSAGE = 'Há alterações que ainda não foram salvas.';
 
 export function colorLabelFromSwatches(colors: readonly ProductColor[]): string {
   return colors.map((c) => c.name).join(' / ');
@@ -110,17 +116,26 @@ function matchKnownColor(
   );
 }
 
+function freeTextSwatch(token: string): ProductColor {
+  const name = token.trim();
+  const id = `custom:${name.toLowerCase()}`;
+  return { id, name, hex: '#C4C0B8' };
+}
+
 /**
  * Map stored `colors` or a legacy "A / B" text string onto palette chips.
  * Form state only — opening a piece must not persist this mapping.
+ * Unknown names stay as chips so free text is never dropped.
  */
 export function selectedSwatchesFromProduct(
   product: { colors?: ProductColor[] | null; color?: string | null },
   options: readonly ProductColor[],
 ): ProductColor[] {
   if (product.colors?.length) {
-    const ids = new Set(product.colors.map((c) => c.id));
-    return options.filter((s) => ids.has(s.id));
+    const fromIds = product.colors.map(
+      (c) => options.find((s) => s.id === c.id) ?? c,
+    );
+    return fromIds;
   }
   const raw = (product.color ?? '').trim();
   if (!raw) return [];
@@ -129,8 +144,8 @@ export function selectedSwatchesFromProduct(
   const matched: ProductColor[] = [];
   const seen = new Set<string>();
   for (const token of splitLegacyColorLabel(raw)) {
-    const hit = matchKnownColor(token, options);
-    if (hit && !seen.has(hit.id)) {
+    const hit = matchKnownColor(token, options) ?? freeTextSwatch(token);
+    if (!seen.has(hit.id)) {
       seen.add(hit.id);
       matched.push(hit);
     }
@@ -246,6 +261,8 @@ export class AdminProductForm implements OnInit {
   readonly siteUnavailableHint = SITE_UNAVAILABLE_HINT;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
   readonly useApi = this.adminCatalog.useApi;
+  readonly nameMaxLength = NAME_MAX_LENGTH;
+  readonly descriptionMaxLength = DESCRIPTION_MAX_LENGTH;
 
   readonly draft = signal<Product | null>(null);
   readonly galleryItems = signal<ProductMedia[]>([]);
@@ -263,6 +280,7 @@ export class AdminProductForm implements OnInit {
 
   detailsText = '';
   private slugLocked = false;
+  private baseline = '';
 
   ngOnInit(): void {
     this.loadDraft(structuredClone(this.product()));
@@ -325,6 +343,31 @@ export class AdminProductForm implements OnInit {
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
     this.priceText = formatPriceInput(p.price);
     this.priceError.set('');
+    this.baseline = this.fingerprint();
+  }
+
+  isDirty(): boolean {
+    return this.fingerprint() !== this.baseline;
+  }
+
+  private fingerprint(): string {
+    const p = this.draft();
+    return JSON.stringify({
+      name: p?.name,
+      slug: p?.slug,
+      color: p?.color,
+      colors: p?.colors?.map((c) => c.id),
+      description: p?.description,
+      details: this.detailsText,
+      price: this.priceText,
+      collectionSlug: p?.collectionSlug,
+      stockQty: p?.stockQty,
+      size: p?.size,
+      fabric: p?.fabric,
+      season: p?.season,
+      status: p?.status,
+      gender: p?.gender,
+    });
   }
 
   currentStatus(): ProductStatusValue {
@@ -345,13 +388,16 @@ export class AdminProductForm implements OnInit {
   onNameChange(name: string): void {
     const p = this.draft();
     if (!p) return;
-    if (this.nameError()) this.nameError.set(name.trim() ? '' : NAME_REQUIRED_MESSAGE);
+    const clipped = name.length > NAME_MAX_LENGTH ? name.slice(0, NAME_MAX_LENGTH) : name;
+    if (this.nameError()) {
+      this.nameError.set(clipped.trim() ? '' : NAME_REQUIRED_MESSAGE);
+    }
     if (this.isNew() && !this.slugLocked) {
-      const slug = slugifyName(name);
-      this.draft.set({ ...p, name, slug, id: slug || p.id });
+      const slug = slugifyName(clipped);
+      this.draft.set({ ...p, name: clipped, slug, id: slug || p.id });
       return;
     }
-    this.draft.set({ ...p, name });
+    this.draft.set({ ...p, name: clipped });
   }
 
   onNameBlur(): void {
@@ -659,6 +705,7 @@ export class AdminProductForm implements OnInit {
     const name = p.name.trim();
     if (!name) {
       this.nameError.set(NAME_REQUIRED_MESSAGE);
+      queueMicrotask(() => document.getElementById('atelier-product-name')?.focus());
       return;
     }
     this.nameError.set('');
@@ -733,8 +780,9 @@ export class AdminProductForm implements OnInit {
         if (!this.useApi) this.catalog.refreshLocalCatalog();
         if (this.isNew()) this.slugLocked = true;
         this.loadDraft(structuredClone(saved));
-        this.toast.success(this.isNew() ? 'Produto criado.' : 'Salvo.', {
-          durationMs: SAVE_TOAST_MS,
+        this.baseline = this.fingerprint();
+        this.toast.success(this.isNew() ? 'Produto criado.' : SAVED_TOAST, {
+          durationMs: 6400,
         });
         this.settleAfterSave();
         this.saved.emit(saved);
@@ -771,9 +819,26 @@ export class AdminProductForm implements OnInit {
     });
   }
 
-  cancel(): void {
+  async cancel(): Promise<void> {
     if (this.saving()) return;
+    if (this.isDirty()) {
+      const ok = await this.confirm.confirm({
+        title: UNSAVED_TITLE,
+        message: UNSAVED_MESSAGE,
+        confirmLabel: 'Descartar',
+        cancelLabel: 'Continuar editando',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     this.cancelled.emit();
+  }
+
+  onDescriptionChange(raw: string): void {
+    const p = this.draft();
+    if (!p) return;
+    const description = raw.length > DESCRIPTION_MAX_LENGTH ? raw.slice(0, DESCRIPTION_MAX_LENGTH) : raw;
+    this.draft.set({ ...p, description });
   }
 
   private setSaving(value: boolean): void {
