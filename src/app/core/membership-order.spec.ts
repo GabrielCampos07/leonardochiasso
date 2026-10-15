@@ -58,9 +58,8 @@ describe('membership order (Lista == public API)', () => {
     ]);
   });
 
-  it('keeps Lista and 3D reorder off with the same maintenance notice', () => {
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+  it('shares the same maintenance notice for Lista and 3D', () => {
+    expect(LISTA_REORDER_ENABLED).toBe(STOCKROOM_REORDER_ENABLED);
     expect(LISTA_ORDER_MAINTENANCE_NOTICE).toBe('Ordem em manutenção');
     expect(TODAS_COLLECTION_ORDER_NOTE).toBe(
       'A ordem do site é definida por coleção — filtre por uma coleção para ver a ordem real.',

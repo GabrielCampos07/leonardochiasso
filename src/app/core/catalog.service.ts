@@ -1,6 +1,6 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, catchError, map, of, shareReplay, tap } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, catchError, map, of, shareReplay, tap, throwError } from 'rxjs';
 import { Collection, Product, formatPriceLabel } from './product.model';
 import { PRODUCTS } from './products';
 import { CollectionSlug } from './routes';
@@ -179,9 +179,12 @@ export class CatalogService {
     }
     return this.http.get<ApiProductDto>(`${this.baseUrl}/api/products/${slug}`).pipe(
       map(mapApiProduct),
-      catchError(() =>
-        of(this.products().find((p) => p.slug === slug) ?? PRODUCTS.find((p) => p.slug === slug)),
-      ),
+      catchError((err: unknown) => {
+        if (err instanceof HttpErrorResponse && err.status === 404) {
+          return of(undefined);
+        }
+        return throwError(() => err);
+      }),
     );
   }
 

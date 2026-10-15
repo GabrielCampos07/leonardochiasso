@@ -65,6 +65,8 @@ export class PdpPage implements OnInit {
   readonly product = signal<Product | null>(null);
   /** False once the snapshot or GET has resolved — missing slugs skip the skeleton. */
   readonly loading = signal(true);
+  /** Network / 5xx on GET /api/products/:slug — not the same as a real 404. */
+  readonly loadError = signal(false);
   readonly activeImage = signal(0);
   readonly selectedPieceId = signal<string | null>(null);
   readonly selectedColorId = signal<string | null>(null);
@@ -132,15 +134,34 @@ export class PdpPage implements OnInit {
   );
 
   ngOnInit(): void {
+    this.loadProduct();
+  }
+
+  retryLoad(): void {
+    this.loadProduct();
+  }
+
+  private loadProduct(): void {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
+    const cached = this.catalog.products().find((item) => item.slug === slug) ?? null;
     const apiCatalogReady = this.catalog.loaded() && !this.catalog.usingFallback();
-    if (apiCatalogReady) {
-      this.applyResolved(this.catalog.products().find((item) => item.slug === slug) ?? null);
+    if (apiCatalogReady && cached) {
+      this.loadError.set(false);
+      this.applyResolved(cached);
       return;
     }
     this.loading.set(true);
-    this.catalog.getProductBySlug(slug).subscribe((p) => {
-      this.applyResolved(p ?? null);
+    this.loadError.set(false);
+    this.catalog.getProductBySlug(slug).subscribe({
+      next: (p) => {
+        this.loadError.set(false);
+        this.applyResolved(p ?? null);
+      },
+      error: () => {
+        this.product.set(null);
+        this.loading.set(false);
+        this.loadError.set(true);
+      },
     });
   }
 

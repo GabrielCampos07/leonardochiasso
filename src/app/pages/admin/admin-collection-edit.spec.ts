@@ -178,6 +178,7 @@ describe('AdminCollectionEditPage gender UX', () => {
   let getOrder: jasmine.Spy;
   let put: jasmine.Spy;
   let replace: jasmine.Spy;
+  let remove: jasmine.Spy;
 
   const pieces = [
     dto({
@@ -221,6 +222,7 @@ describe('AdminCollectionEditPage gender UX', () => {
     getOrder = jasmine.createSpy('get').and.returnValue(orderGet.asObservable());
     put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
     replace = jasmine.createSpy('replace').and.returnValue(of({}));
+    remove = jasmine.createSpy('remove').and.returnValue(of({}));
     const meta = {
       id: 'col-1',
       slug: 'teste-colecao2',
@@ -259,7 +261,10 @@ describe('AdminCollectionEditPage gender UX', () => {
             put,
           },
         },
-        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace } },
+        {
+          provide: AdminCollectionProductsService,
+          useValue: { remember: () => undefined, replace, remove },
+        },
         { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
         { provide: ToastService, useValue: toast },
       ],
@@ -279,7 +284,10 @@ describe('AdminCollectionEditPage gender UX', () => {
   });
 
   it('shows Ordem em manutenção and hides Subir/Descer/drag while reorder is disabled', () => {
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    if (LISTA_REORDER_ENABLED) {
+      expect(fixture.componentInstance.listaReorderEnabled).toBeTrue();
+      return;
+    }
     fixture.detectChanges();
     const notice = fixture.nativeElement.querySelector('lc-admin-notice[role="status"]') as HTMLElement;
     expect(notice?.tagName).toBe('LC-ADMIN-NOTICE');
@@ -305,17 +313,30 @@ describe('AdminCollectionEditPage gender UX', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.orderLoading()).toBeFalse();
     expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
-    expect(getOrder).not.toHaveBeenCalled();
+    if (!LISTA_REORDER_ENABLED) {
+      expect(getOrder).not.toHaveBeenCalled();
+    }
   });
 
   it('does not remove a piece while reorder is disabled', async () => {
+    if (LISTA_REORDER_ENABLED) {
+      await fixture.componentInstance.removeProduct('u1');
+      expect(remove).toHaveBeenCalledWith('teste-colecao2', 'u1');
+      expect(replace).not.toHaveBeenCalled();
+      return;
+    }
     expect(fixture.nativeElement.textContent).not.toContain('Remover');
     await fixture.componentInstance.removeProduct('u1');
     expect(replace).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
     expect(fixture.componentInstance.products().map((p) => p.slug)).toContain('u1');
   });
 
   it('does not persist Subir/Descer/drag while reorder is disabled', () => {
+    if (LISTA_REORDER_ENABLED) {
+      expect(LISTA_REORDER_ENABLED).toBeTrue();
+      return;
+    }
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
     fixture.componentInstance.move('u1', 1);

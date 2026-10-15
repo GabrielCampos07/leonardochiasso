@@ -11,7 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of, switchMap } from 'rxjs';
+import { firstValueFrom, of, switchMap } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage, uniqueAdminSlug } from '../../../core/admin-catalog.service';
 import {
   archiveAwareError,
@@ -23,8 +23,10 @@ import {
 import { formatCollectionCreateError, validateCreateCollection } from '../../../core/admin-collection-create';
 import {
   AdminCollectionProductsService,
+  SerialTaskQueue,
   addPieceStaggerDelay,
   appendCollectionProductSlugs,
+  membershipWriteErrorMessage,
 } from '../../../core/admin-collection-products';
 import { AdminCollectionDto, AdminCollectionsApiService } from '../../../core/admin-collections-api.service';
 import { ConfirmService } from '../../../core/feedback/confirm.service';
@@ -126,7 +128,7 @@ import {
   REORDER_AUTOSCROLL_MS,
   REORDER_DRAG_THRESHOLD_PX,
   autoScrollDelta,
-  saveFromKeyboardReorder,
+  consumePieceReorderKey,
   dropIndexForSlug,
   dropTargetSlug,
   moveSlug,
@@ -407,6 +409,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private pieceDragStart: { slug: string; x: number; y: number; pointerId: number } | null = null;
   private pieceDragMoved = false;
   private pieceScrollTimer = 0;
+  private readonly pieceOrderQueue = new SerialTaskQueue();
   private unbindWindowKey: (() => void) | null = null;
 
   ngAfterViewInit(): void {
@@ -543,23 +546,17 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     this.savePieceReorderFromKey(event);
   }
 
-  private pieceOrderRacks(): { id: string; slugs: string[] }[] {
-    return this.layout.racks.map((rack) => ({ id: rack.id, slugs: rack.hangers.map((h) => h.slug) }));
-  }
-
   private hoveredPieceSlug(): string | null {
     return this.overlay()?.pieces.find((p) => p.hover)?.slug ?? null;
   }
 
   private savePieceReorderFromKey(event: KeyboardEvent): boolean {
-    return saveFromKeyboardReorder(
-      event,
-      this.pieceOrderRacks(),
-      (rackId, previous, next) => {
-        this.applyAndSavePieceOrder(rackId, previous, next);
-      },
-      this.hoveredPieceSlug(),
-    );
+    const hit = consumePieceReorderKey(event, this.hoveredPieceSlug());
+    if (!hit) return false;
+    const rack = this.layout.racks.find((r) => r.hangers.some((h) => h.slug === hit.slug));
+    if (!rack) return false;
+    this.enqueuePieceMove(rack.id, (slugs) => moveSlugById(slugs, hit.slug, hit.delta));
+    return true;
   }
 
   /** Enter / Space on a captioned piece opens it like a click on its photo. */
@@ -618,10 +615,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   movePieceByKey(slug: string, delta: -1 | 1): void {
     const rack = this.layout.racks.find((r) => r.hangers.some((h) => h.slug === slug));
     if (!rack) return;
-    const slugs = rack.hangers.map((h) => h.slug);
-    const next = moveSlugById(slugs, slug, delta);
-    if (!next) return;
-    this.applyAndSavePieceOrder(rack.id, slugs, next);
+    this.enqueuePieceMove(rack.id, (slugs) => moveSlugById(slugs, slug, delta));
   }
 
   private pieceRects(): PieceRect[] {
@@ -656,37 +650,74 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   private commitPieceMove(fromSlug: string, overSlug: string): void {
     const rack = this.layout.racks.find((r) => r.hangers.some((h) => h.slug === fromSlug));
     if (!rack) return;
-    const slugs = rack.hangers.map((h) => h.slug);
-    const from = slugs.indexOf(fromSlug);
-    const to = dropIndexForSlug(slugs, overSlug);
-    if (from < 0 || to === null || from === to) return;
-    const next = moveSlug(slugs, from, to);
-    if (sameSlugOrder(slugs, next)) return;
-    this.applyAndSavePieceOrder(rack.id, slugs, next);
+    this.enqueuePieceMove(rack.id, (slugs) => {
+      const from = slugs.indexOf(fromSlug);
+      const to = dropIndexForSlug(slugs, overSlug);
+      if (from < 0 || to === null || from === to) return null;
+      const next = moveSlug(slugs, from, to);
+      return sameSlugOrder(slugs, next) ? null : next;
+    });
   }
 
-  private applyAndSavePieceOrder(rackId: string, previous: readonly string[], next: readonly string[]): void {
+  /**
+   * Two quick drags serialize: the second waits for the first persist, then
+   * recomputes fromSlug/overSlug (or slug/delta) against the layout after that save.
+   */
+  private enqueuePieceMove(
+    rackId: string,
+    computeNext: (slugs: readonly string[]) => string[] | null,
+  ): void {
     if (!STOCKROOM_REORDER_ENABLED) return;
     const collectionSlug = collectionSlugFromUnitId(rackId);
     if (!collectionSlug || rackId === UNCOLLECTED_RACK_ID) return;
+    void this.pieceOrderQueue.run(async () => {
+      const rack = this.layout.racks.find((r) => r.id === rackId);
+      if (!rack) return;
+      const slugs = rack.hangers.map((h) => h.slug);
+      const next = computeNext(slugs);
+      if (!next || sameSlugOrder(slugs, next)) return;
+      await this.persistPieceOrder(rackId, collectionSlug, next);
+    });
+  }
+
+  private async persistPieceOrder(
+    rackId: string,
+    collectionSlug: string,
+    next: readonly string[],
+  ): Promise<void> {
     const layout = reorderRackHangers(this.layout, rackId, next);
     if (!layout) return;
     this.layout = layout;
     this.engine?.reorderHangers?.(rackId, next);
     this.bumpLayout();
-    this.collectionProducts.replaceLiveOrder(collectionSlug, next).subscribe({
-      next: () => flashPieceOrderSaved(this.toast),
-      error: (err: unknown) => {
-        this.toast.error(adminHttpErrorMessage(err, PIECE_ORDER_SAVE_ERROR), { durationMs: ERROR_TOAST_MS });
-        const rolled = reorderRackHangers(this.layout, rackId, previous);
-        if (rolled) {
-          this.layout = rolled;
-          this.engine?.reorderHangers?.(rackId, previous);
-          this.collectionProducts.remember(collectionSlug, previous);
-          this.bumpLayout();
-        }
-      },
-    });
+    try {
+      await firstValueFrom(this.collectionProducts.replaceLiveOrder(collectionSlug, next));
+      flashPieceOrderSaved(this.toast);
+    } catch (err: unknown) {
+      this.toast.error(membershipWriteErrorMessage(err, PIECE_ORDER_SAVE_ERROR), { durationMs: ERROR_TOAST_MS });
+      await this.reloadPieceOrderFromServer(rackId, collectionSlug);
+    }
+  }
+
+  private async reloadPieceOrderFromServer(rackId: string, collectionSlug: string): Promise<void> {
+    try {
+      const membership = await firstValueFrom(this.collectionsApi.getProducts(collectionSlug));
+      this.collectionProducts.remember(collectionSlug, membership.productSlugs);
+      const rack = this.layout.racks.find((r) => r.id === rackId);
+      const liveSet = new Set(rack?.hangers.map((h) => h.slug) ?? []);
+      const live = membership.productSlugs.filter((slug) => liveSet.has(slug));
+      for (const slug of liveSet) {
+        if (!live.includes(slug)) live.push(slug);
+      }
+      const rolled = reorderRackHangers(this.layout, rackId, live);
+      if (rolled) {
+        this.layout = rolled;
+        this.engine?.reorderHangers?.(rackId, live);
+        this.bumpLayout();
+      }
+    } catch {
+      // Toast already shown for the failed write.
+    }
   }
 
   focusRack(id: string): void {
@@ -1457,16 +1488,25 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.addingSlugs.delete(slug);
       return;
     }
-    this.collectionProducts.append(collectionSlug, [slug]).subscribe({
-      next: () => this.addingSlugs.delete(slug),
-      error: (err) =>
-        this.failAddPiece(
-          unit,
-          slug,
-          adminHttpErrorMessage(err, 'Não foi possível adicionar esta peça.'),
-          previous?.rackId ?? null,
-        ),
-    });
+    const sourceSlug =
+      product.collectionSlug?.trim() || collectionSlugFromUnitId(previous?.rackId ?? '') || null;
+    this.collectionProducts
+      .persistAddedProduct(collectionSlug, slug, sourceSlug)
+      .subscribe({
+        next: (saved) => {
+          if (saved && 'collectionSlug' in saved && saved.collectionSlug) {
+            this.productsBySlug.set(saved.slug, { ...product, ...saved });
+          }
+          this.addingSlugs.delete(slug);
+        },
+        error: (err) =>
+          this.failAddPiece(
+            unit,
+            slug,
+            membershipWriteErrorMessage(err, 'Não foi possível adicionar esta peça.'),
+            previous?.rackId ?? null,
+          ),
+      });
   }
 
   private addOneJoiaOptimistic(unit: SceneRack, slug: string): void {
