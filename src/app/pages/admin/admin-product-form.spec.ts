@@ -11,13 +11,9 @@ import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../co
 import { ADMIN_SWATCH_OPTIONS } from '../../core/admin-catalog.service';
 import {
   PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_DECIMALS_MESSAGE,
   PRICE_INVALID_MESSAGE,
-  PRICE_NEGATIVE_MESSAGE,
-  PRICE_REQUIRED_MESSAGE,
-} from '../../core/price-input';
-import {
-  PRICE_AMBIGUOUS_MESSAGE,
-  PRICE_INVALID_MESSAGE,
+  PRICE_MAX_MESSAGE,
   PRICE_NEGATIVE_MESSAGE,
   PRICE_REQUIRED_MESSAGE,
 } from '../../core/price-input';
@@ -433,6 +429,29 @@ describe('AdminProductForm', () => {
     expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
       PRICE_AMBIGUOUS_MESSAGE,
     );
+
+    fixture.componentInstance.onPriceChange('12,999');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_AMBIGUOUS_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('12,5000');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_DECIMALS_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
+      PRICE_DECIMALS_MESSAGE,
+    );
+
+    fixture.componentInstance.onPriceChange('10.000.000');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_MAX_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('1 2');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_INVALID_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('-0');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_NEGATIVE_MESSAGE);
 
     fixture.componentInstance.onPriceChange('abc');
     fixture.detectChanges();

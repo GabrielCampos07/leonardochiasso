@@ -1,6 +1,8 @@
 import {
   PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_DECIMALS_MESSAGE,
   PRICE_INVALID_MESSAGE,
+  PRICE_MAX_MESSAGE,
   PRICE_NEGATIVE_MESSAGE,
   PRICE_REQUIRED_MESSAGE,
   formatPriceCentsInput,
@@ -47,6 +49,34 @@ describe('parsePricePtBr', () => {
     expect(parsePricePtBr('12,50')).toEqual({ ok: true, reais: 12.5 });
     expect(parsePricePtBr('1.250,50')).toEqual({ ok: true, reais: 1250.5 });
     expect(parsePricePtBr(12.5)).toEqual({ ok: true, reais: 12.5 });
+  });
+
+  it('parses "0" as 0.00', () => {
+    expect(parsePricePtBr('0')).toEqual({ ok: true, reais: 0 });
+    expect(parsePricePtBr('0,00')).toEqual({ ok: true, reais: 0 });
+  });
+
+  it('rejects values above R$ 9.999.999,99', () => {
+    expect(parsePricePtBr('9.999.999,99')).toEqual({ ok: true, reais: 9_999_999.99 });
+    expect(parsePricePtBr('10.000.000')).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });
+    expect(parsePricePtBr('10000000')).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });
+    expect(parsePricePtBr(10_000_000)).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });
+  });
+
+  it('rejects "12,999" and "12,5000" with more than 2 decimal places', () => {
+    expect(parsePricePtBr('12,999')).toEqual({ ok: false, error: PRICE_AMBIGUOUS_MESSAGE });
+    expect(parsePricePtBr('12,5000')).toEqual({ ok: false, error: PRICE_DECIMALS_MESSAGE });
+  });
+
+  it('rejects spaces inside the number ("1 2")', () => {
+    expect(parsePricePtBr('1 2')).toEqual({ ok: false, error: PRICE_INVALID_MESSAGE });
+    expect(parsePricePtBr(' 14.800 ')).toEqual({ ok: true, reais: 14800 });
+  });
+
+  it('rejects "-0" as a negative', () => {
+    expect(parsePricePtBr('-0')).toEqual({ ok: false, error: PRICE_NEGATIVE_MESSAGE });
+    expect(parsePricePtBr('-0,00')).toEqual({ ok: false, error: PRICE_NEGATIVE_MESSAGE });
+    expect(parsePricePtBr(-0)).toEqual({ ok: false, error: PRICE_NEGATIVE_MESSAGE });
   });
 
   it('rejects empty, invalid, and negative values', () => {
