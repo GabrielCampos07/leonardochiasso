@@ -1,7 +1,8 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { Observable, NEVER, Subject } from 'rxjs';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, NEVER, Subject, throwError } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminSessionService } from '../../core/admin-session.service';
 import { CatalogService } from '../../core/catalog.service';
@@ -137,18 +138,66 @@ describe('PdpPage catalog load', () => {
     fixture.destroy();
   });
 
-  it('skips the skeleton when the API catalog is already loaded without that slug', async () => {
+  it('still GETs when the catalog is loaded but does not contain the slug', async () => {
+    const get$ = new Subject<Product | undefined>();
     const { fixture, getProductBySlug } = await mountPdp({
       slug: 'nao-existe',
       products: [sample('outra')],
       loaded: true,
       usingFallback: false,
-      get$: NEVER,
+      get$,
     });
+    expect(getProductBySlug).toHaveBeenCalledWith('nao-existe');
+    expect(fixture.componentInstance.loading()).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.pdp--skeleton')).toBeTruthy();
+    expect(fixture.nativeElement.textContent).not.toContain('Produto não encontrado');
+
+    get$.next(undefined);
+    get$.complete();
+    fixture.detectChanges();
     expect(fixture.componentInstance.loading()).toBeFalse();
-    expect(fixture.nativeElement.querySelector('.pdp--skeleton')).toBeNull();
+    expect(fixture.componentInstance.loadError()).toBeFalse();
     expect(fixture.nativeElement.textContent).toContain('Produto não encontrado');
-    expect(getProductBySlug).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).not.toContain('Tentar de novo');
+    fixture.destroy();
+  });
+
+  it('shows Tentar de novo on a 5xx GET instead of Produto não encontrado', async () => {
+    const { fixture, getProductBySlug } = await mountPdp({
+      slug: 'look-api',
+      products: [],
+      loaded: false,
+      usingFallback: true,
+      get$: throwError(() => new HttpErrorResponse({ status: 500, statusText: 'Server Error' })),
+    });
+    expect(getProductBySlug).toHaveBeenCalledWith('look-api');
+    expect(fixture.componentInstance.loading()).toBeFalse();
+    expect(fixture.componentInstance.loadError()).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.pdp--skeleton')).toBeNull();
+    expect(fixture.nativeElement.textContent).toContain('Tentar de novo');
+    expect(fixture.nativeElement.textContent).not.toContain('Produto não encontrado');
+
+    getProductBySlug.and.returnValue(NEVER);
+    fixture.nativeElement.querySelector('lc-button')?.dispatchEvent(new Event('click'));
+    fixture.detectChanges();
+    expect(getProductBySlug).toHaveBeenCalledTimes(2);
+    expect(fixture.componentInstance.loading()).toBeTrue();
+    expect(fixture.componentInstance.loadError()).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.pdp--skeleton')).toBeTruthy();
+    fixture.destroy();
+  });
+
+  it('shows Tentar de novo on a network error instead of Produto não encontrado', async () => {
+    const { fixture } = await mountPdp({
+      slug: 'look-api',
+      products: [],
+      loaded: false,
+      usingFallback: true,
+      get$: throwError(() => new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' })),
+    });
+    expect(fixture.componentInstance.loadError()).toBeTrue();
+    expect(fixture.nativeElement.textContent).toContain('Tentar de novo');
+    expect(fixture.nativeElement.textContent).not.toContain('Produto não encontrado');
     fixture.destroy();
   });
 });

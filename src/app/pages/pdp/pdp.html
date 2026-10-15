@@ -255,6 +255,11 @@
       </div>
     </div>
   </section>
+} @else if (loadError()) {
+  <section class="pdp pdp--empty" role="alert">
+    <h1>Não foi possível carregar o produto</h1>
+    <lc-button label="Tentar de novo" (click)="retryLoad()" />
+  </section>
 } @else {
   <section class="pdp pdp--empty">
     <h1>Produto não encontrado</h1>
