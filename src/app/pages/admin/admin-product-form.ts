@@ -72,7 +72,41 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
   return (trimmed && trimmed !== slug ? trimmed : slug) as Collection;
 }
 
+export const NAME_REQUIRED_MESSAGE = 'Informe o nome.';
+export const COLLECTION_REQUIRED_MESSAGE = 'Selecione a coleção.';
 export const COLLECTION_PICKER_LOADING = 'Carregando…';
+
+export function colorLabelFromSwatches(colors: readonly ProductColor[]): string {
+  return colors.map((c) => c.name).join(' / ');
+}
+
+/** Map stored `colors` or a legacy "A / B" text string onto palette chips. */
+export function selectedSwatchesFromProduct(
+  product: { colors?: ProductColor[] | null; color?: string | null },
+  options: readonly ProductColor[],
+): ProductColor[] {
+  if (product.colors?.length) {
+    const ids = new Set(product.colors.map((c) => c.id));
+    return options.filter((s) => ids.has(s.id));
+  }
+  const names = (product.color ?? '')
+    .split('/')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (!names.length) return [];
+  return options.filter((s) => names.includes(s.name.toLowerCase()));
+}
+
+export function applySelectedSwatches(
+  product: Product,
+  colors: readonly ProductColor[],
+): Product {
+  return {
+    ...product,
+    colors: [...colors],
+    color: colorLabelFromSwatches(colors),
+  };
+}
 
 /**
  * Visible collection label — catalog / official name only.
@@ -156,6 +190,14 @@ export class AdminProductForm implements OnInit {
     return Boolean(slug) && this.collectionsLoading() && !this.selectedCollectionLabel();
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
+  readonly selectedColors = computed(() => this.draft()?.colors ?? []);
+  readonly availableColorOptions = computed(() => {
+    const taken = new Set(this.selectedColors().map((c) => c.id));
+    return this.swatchOptions.filter((s) => !taken.has(s.id));
+  });
+  readonly availableColorPickerOptions = computed<ListPickerOption[]>(() =>
+    this.availableColorOptions().map((s) => ({ value: s.id, label: s.name })),
+  );
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
   readonly statusOptions = computed(() =>
     this.isArchived() ? [...PRODUCT_STATUS_OPTIONS, ARCHIVED_STATUS_OPTION] : PRODUCT_STATUS_OPTIONS,
@@ -171,11 +213,12 @@ export class AdminProductForm implements OnInit {
   readonly uploadError = signal('');
   readonly saveError = signal('');
   readonly stockError = signal('');
+  readonly nameError = signal('');
+  readonly collectionError = signal('');
   readonly pendingFileLabel = signal('Escolher fotos');
   private pendingFiles: File[] = [];
 
   detailsText = '';
-  selectedSwatchIds: string[] = [];
   private slugLocked = false;
 
   ngOnInit(): void {
@@ -222,14 +265,19 @@ export class AdminProductForm implements OnInit {
   }
 
   loadDraft(p: Product): void {
-    this.draft.set({
-      ...p,
-      status: isArchivedAt(p.archivedAt)
-        ? 'archived'
-        : productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
-    });
+    const colors = selectedSwatchesFromProduct(p, this.swatchOptions);
+    this.draft.set(
+      applySelectedSwatches(
+        {
+          ...p,
+          status: isArchivedAt(p.archivedAt)
+            ? 'archived'
+            : productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
+        },
+        colors,
+      ),
+    );
     this.detailsText = (p.details ?? []).join('\n');
-    this.selectedSwatchIds = (p.colors ?? []).map((c) => c.id);
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
   }
 
@@ -251,12 +299,21 @@ export class AdminProductForm implements OnInit {
   onNameChange(name: string): void {
     const p = this.draft();
     if (!p) return;
+    if (this.nameError()) this.nameError.set(name.trim() ? '' : NAME_REQUIRED_MESSAGE);
     if (this.isNew() && !this.slugLocked) {
       const slug = slugifyName(name);
       this.draft.set({ ...p, name, slug, id: slug || p.id });
       return;
     }
     this.draft.set({ ...p, name });
+  }
+
+  onNameBlur(): void {
+    const p = this.draft();
+    if (!p) return;
+    const name = p.name.trim();
+    this.draft.set({ ...p, name });
+    this.nameError.set(name ? '' : NAME_REQUIRED_MESSAGE);
   }
 
   onSlugChange(slug: string): void {
@@ -304,6 +361,7 @@ export class AdminProductForm implements OnInit {
         this.apiCollections().find((item) => item.slug === parsed)?.name,
       ),
     });
+    this.collectionError.set('');
   }
 
   hasCollectionSelected(): boolean {
@@ -339,23 +397,25 @@ export class AdminProductForm implements OnInit {
     this.draft.set({ ...p, stockQty: parseStockQty(raw) });
   }
 
-  toggleSwatch(swatch: ProductColor): void {
-    const ids = new Set(this.selectedSwatchIds);
-    if (ids.has(swatch.id)) ids.delete(swatch.id);
-    else ids.add(swatch.id);
-    this.selectedSwatchIds = [...ids];
-    const colors = this.swatchOptions.filter((s) => ids.has(s.id));
+  addSwatchById(id: string): void {
+    const swatch = this.swatchOptions.find((s) => s.id === id);
+    if (swatch) this.addSwatch(swatch);
+  }
+
+  addSwatch(swatch: ProductColor): void {
+    const p = this.draft();
+    if (!p || this.selectedColors().some((c) => c.id === swatch.id)) return;
+    this.draft.set(applySelectedSwatches(p, [...this.selectedColors(), swatch]));
+  }
+
+  removeSwatch(swatch: ProductColor): void {
     const p = this.draft();
     if (!p) return;
-    this.draft.set({
-      ...p,
-      colors,
-      color: colors.length ? colors.map((c) => c.name).join(' / ') : p.color,
-    });
+    this.draft.set(applySelectedSwatches(p, this.selectedColors().filter((c) => c.id !== swatch.id)));
   }
 
   isSwatchSelected(id: string): boolean {
-    return this.selectedSwatchIds.includes(id);
+    return this.selectedColors().some((c) => c.id === id);
   }
 
   updatePiece(index: number, patch: Partial<ProductPiece>): void {
@@ -544,14 +604,19 @@ export class AdminProductForm implements OnInit {
     this.saveError.set('');
     const p = this.draft();
     if (!p) return;
-    if (!p.name.trim()) {
-      this.toast.info('Informe o nome do produto.');
+    const name = p.name.trim();
+    if (!name) {
+      this.nameError.set(NAME_REQUIRED_MESSAGE);
       return;
     }
+    this.nameError.set('');
     if (this.isNew() ? !this.hasCollectionSelected() : !p.collectionSlug) {
-      this.toast.info(this.isNew() ? 'Selecione a coleção do produto.' : 'Selecione uma coleção.');
+      this.collectionError.set(
+        this.isNew() ? COLLECTION_REQUIRED_MESSAGE : 'Selecione uma coleção.',
+      );
       return;
     }
+    this.collectionError.set('');
     const stockMessage = stockQtyError(p.stockQty);
     if (stockMessage) {
       this.stockError.set(stockMessage);
@@ -584,7 +649,13 @@ export class AdminProductForm implements OnInit {
       ...p,
       id: slug,
       slug,
-      name: p.name.trim(),
+      name,
+      color: colorLabelFromSwatches(p.colors ?? []),
+      colors: p.colors ?? [],
+      size: (p.size ?? '').trim(),
+      fabric: (p.fabric ?? '').trim(),
+      season: (p.season ?? '').trim(),
+      description: (p.description ?? '').trim(),
       collectionSlug: p.collectionSlug || slugFromCollection(p.collection),
       gallery: galleryUrls.length ? galleryUrls : p.gallery,
       details,

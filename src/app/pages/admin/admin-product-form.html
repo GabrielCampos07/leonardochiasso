@@ -9,11 +9,19 @@
           type="text"
           [ngModel]="p.name"
           (ngModelChange)="onNameChange($event)"
+          (blur)="onNameBlur()"
           name="name"
           autocomplete="off"
           required
+          [attr.aria-invalid]="nameError() ? 'true' : null"
+          [attr.aria-describedby]="nameError() ? 'atelier-product-name-error' : null"
         />
       </label>
+      @if (nameError()) {
+        <p id="atelier-product-name-error" class="admin-edit__upload-error" role="alert">
+          {{ nameError() }}
+        </p>
+      }
       @if (isNew()) {
         <label>
           Código (slug)
@@ -67,7 +75,11 @@
           (opened)="refreshCollections()"
         />
       </div>
-      @if (isNew() && collectionFromContext()) {
+      @if (collectionError()) {
+        <p id="atelier-product-collection-error" class="admin-edit__upload-error" role="alert">
+          {{ collectionError() }}
+        </p>
+      } @else if (isNew() && collectionFromContext()) {
         <p class="admin-edit__hint">
           Pré-preenchida pelo contexto da coleção. Pode confirmar ou alterar.
         </p>
@@ -186,32 +198,37 @@
 
     <fieldset>
       <legend>Cores</legend>
-      <label>
-        Texto da cor
-        <input
-          id="atelier-product-color"
-          type="text"
-          [ngModel]="p.color"
-          (ngModelChange)="patchField('color', $event)"
-          name="color"
-          autocomplete="off"
-        />
-      </label>
-      <p class="admin-edit__hint">Marque as bolinhas de cor (opcional):</p>
-      <div class="admin-edit__swatches">
-        @for (s of swatchOptions; track s.id) {
-          <button
-            type="button"
-            class="admin-edit__swatch"
-            [class.is-on]="isSwatchSelected(s.id)"
-            [style.--sw]="s.hex"
-            [attr.title]="s.name"
-            (click)="toggleSwatch(s)"
-          >
-            {{ s.name }}
-          </button>
+      <div class="admin-edit__chips" role="list" aria-label="Cores escolhidas">
+        @for (c of selectedColors(); track c.id) {
+          <span class="admin-edit__chip" role="listitem">
+            <span class="admin-edit__chip-dot" [style.background]="c.hex"></span>
+            {{ c.name }}
+            <button
+              type="button"
+              class="admin-edit__chip-remove"
+              [attr.aria-label]="'Remover ' + c.name"
+              (click)="removeSwatch(c)"
+            >
+              ×
+            </button>
+          </span>
+        } @empty {
+          <p class="admin-edit__hint">Nenhuma cor escolhida.</p>
         }
       </div>
+      @if (availableColorPickerOptions().length) {
+        <div class="admin-edit__field">
+          <span>Adicionar cor</span>
+          <lc-list-picker
+            controlId="atelier-product-color"
+            label="Adicionar cor"
+            placeholder="Escolher cor"
+            [options]="availableColorPickerOptions()"
+            value=""
+            (valueChange)="addSwatchById($event)"
+          />
+        </div>
+      }
     </fieldset>
 
     <fieldset>

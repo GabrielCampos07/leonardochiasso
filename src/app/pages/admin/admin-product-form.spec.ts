@@ -7,12 +7,18 @@ import { AdminCollectionsApiService } from '../../core/admin-collections-api.ser
 import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
+import { ADMIN_SWATCH_OPTIONS } from '../../core/admin-catalog.service';
 import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
+  COLLECTION_REQUIRED_MESSAGE,
+  NAME_REQUIRED_MESSAGE,
   STOCK_NEGATIVE_MESSAGE,
+  applySelectedSwatches,
   collectionSelectLabel,
+  colorLabelFromSwatches,
   parseStockQty,
+  selectedSwatchesFromProduct,
   stockQtyError,
 } from './admin-product-form';
 
@@ -87,6 +93,23 @@ describe('collectionSelectLabel', () => {
         { slug: 'teste-colecao2', name: 'TESTE-COLECAO2' },
       ]),
     ).toBe('TESTE-COLECAO2');
+  });
+});
+
+describe('selectedSwatchesFromProduct', () => {
+  it('turns a legacy "A / B" color string into palette chips', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Off-white / Black' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors.map((c) => c.id)).toEqual(['off-white', 'black']);
+    expect(colorLabelFromSwatches(colors)).toBe('Off-white / Black');
+  });
+
+  it('prefers stored color ids over leftover free text', () => {
+    const colors = selectedSwatchesFromProduct(
+      { color: 'Creme e ouro', colors: [ADMIN_SWATCH_OPTIONS.find((s) => s.id === 'sand')!] },
+      ADMIN_SWATCH_OPTIONS,
+    );
+    expect(colors.map((c) => c.id)).toEqual(['sand']);
+    expect(applySelectedSwatches(sampleProduct({ color: 'Creme' }), colors).color).toBe('Sand');
   });
 });
 
@@ -187,6 +210,61 @@ describe('AdminProductForm', () => {
     expect(fixture.componentInstance.currentStatus()).toBe('published');
     expect(fixture.nativeElement.querySelector('#atelier-product-status .is-on')?.textContent?.trim()).toBe(
       'Publicado',
+    );
+  });
+
+  it('picks colors as chips, never mixed with the old text field', () => {
+    expect(fixture.nativeElement.querySelector('#atelier-product-color-text')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name="color"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('select')).toBeNull();
+
+    fixture.componentInstance.addSwatchById('off-white');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white');
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual(['off-white']);
+    expect(fixture.nativeElement.textContent).toContain('Off-white');
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeTruthy();
+
+    fixture.componentInstance.addSwatchById('black');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white / Black');
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual(['off-white', 'black']);
+
+    fixture.componentInstance.removeSwatch(
+      fixture.componentInstance.selectedColors().find((c) => c.id === 'off-white')!,
+    );
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.color).toBe('Black');
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Black"]')).toBeTruthy();
+  });
+
+  it('shows an inline error next to an empty required name', () => {
+    fixture.componentInstance.onNameChange('   ');
+    fixture.componentInstance.onNameBlur();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.name).toBe('');
+    expect(fixture.componentInstance.nameError()).toBe(NAME_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-name-error')?.textContent?.trim()).toBe(
+      NAME_REQUIRED_MESSAGE,
+    );
+
+    saveProduct$.calls.reset();
+    fixture.componentInstance.save();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline collection error when saving without a collection', () => {
+    fixture.componentInstance.onCollectionSlugChange('');
+    fixture.detectChanges();
+    saveProduct$.calls.reset();
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.collectionError()).toBe(COLLECTION_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-collection-error')?.textContent?.trim()).toBe(
+      COLLECTION_REQUIRED_MESSAGE,
     );
   });
 
