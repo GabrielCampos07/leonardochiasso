@@ -80,7 +80,30 @@ export function colorLabelFromSwatches(colors: readonly ProductColor[]): string 
   return colors.map((c) => c.name).join(' / ');
 }
 
-/** Map stored `colors` or a legacy "A / B" text string onto palette chips. */
+/** Real combinations use a spaced slash. A slash without spaces is one color. */
+export const LEGACY_COLOR_SPLIT = ' / ';
+
+export function splitLegacyColorLabel(label: string): string[] {
+  const trimmed = label.trim();
+  if (!trimmed) return [];
+  return trimmed.split(LEGACY_COLOR_SPLIT).map((part) => part.trim()).filter(Boolean);
+}
+
+function matchKnownColor(
+  token: string,
+  options: readonly ProductColor[],
+): ProductColor | undefined {
+  const key = token.trim().toLowerCase();
+  if (!key) return undefined;
+  return options.find(
+    (swatch) => swatch.name.toLowerCase() === key || swatch.id.toLowerCase() === key,
+  );
+}
+
+/**
+ * Map stored `colors` or a legacy "A / B" text string onto palette chips.
+ * Form state only — opening a piece must not persist this mapping.
+ */
 export function selectedSwatchesFromProduct(
   product: { colors?: ProductColor[] | null; color?: string | null },
   options: readonly ProductColor[],
@@ -89,12 +112,20 @@ export function selectedSwatchesFromProduct(
     const ids = new Set(product.colors.map((c) => c.id));
     return options.filter((s) => ids.has(s.id));
   }
-  const names = (product.color ?? '')
-    .split('/')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  if (!names.length) return [];
-  return options.filter((s) => names.includes(s.name.toLowerCase()));
+  const raw = (product.color ?? '').trim();
+  if (!raw) return [];
+  const whole = matchKnownColor(raw, options);
+  if (whole) return [whole];
+  const matched: ProductColor[] = [];
+  const seen = new Set<string>();
+  for (const token of splitLegacyColorLabel(raw)) {
+    const hit = matchKnownColor(token, options);
+    if (hit && !seen.has(hit.id)) {
+      seen.add(hit.id);
+      matched.push(hit);
+    }
+  }
+  return matched;
 }
 
 export function applySelectedSwatches(
@@ -264,6 +295,7 @@ export class AdminProductForm implements OnInit {
     });
   }
 
+  /** Local form only. Does not write. Legacy color text becomes chips here. */
   loadDraft(p: Product): void {
     const colors = selectedSwatchesFromProduct(p, this.swatchOptions);
     this.draft.set(

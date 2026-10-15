@@ -19,6 +19,7 @@ import {
   colorLabelFromSwatches,
   parseStockQty,
   selectedSwatchesFromProduct,
+  splitLegacyColorLabel,
   stockQtyError,
 } from './admin-product-form';
 
@@ -97,13 +98,28 @@ describe('collectionSelectLabel', () => {
 });
 
 describe('selectedSwatchesFromProduct', () => {
-  it('turns a legacy "A / B" color string into palette chips', () => {
-    const colors = selectedSwatchesFromProduct({ color: 'Off-white / Black' }, ADMIN_SWATCH_OPTIONS);
+  const blackWhite = { id: 'black-white', name: 'Black/White', hex: '#111111' };
+  const known = [...ADMIN_SWATCH_OPTIONS, blackWhite];
+
+  it('splits only on a slash with spaces', () => {
+    expect(splitLegacyColorLabel('Off-white / Black')).toEqual(['Off-white', 'Black']);
+    expect(splitLegacyColorLabel('Black/White')).toEqual(['Black/White']);
+    const colors = selectedSwatchesFromProduct({ color: 'Off-white / Black' }, known);
     expect(colors.map((c) => c.id)).toEqual(['off-white', 'black']);
     expect(colorLabelFromSwatches(colors)).toBe('Off-white / Black');
   });
 
-  it('prefers stored color ids over leftover free text', () => {
+  it('keeps a slash without spaces as one color when it is on the known list', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Black/White' }, known);
+    expect(colors.map((c) => c.id)).toEqual(['black-white']);
+    expect(colors.map((c) => c.name)).toEqual(['Black/White']);
+  });
+
+  it('does not invent chips for a slash-without-spaces token missing from the known list', () => {
+    expect(selectedSwatchesFromProduct({ color: 'Black/White' }, ADMIN_SWATCH_OPTIONS)).toEqual([]);
+  });
+
+  it('prefers the known-colors list over leftover free text', () => {
     const colors = selectedSwatchesFromProduct(
       { color: 'Creme e ouro', colors: [ADMIN_SWATCH_OPTIONS.find((s) => s.id === 'sand')!] },
       ADMIN_SWATCH_OPTIONS,
@@ -130,6 +146,8 @@ describe('AdminProductForm', () => {
   let fixture: ComponentFixture<AdminProductForm>;
   let toast: { error: jasmine.Spy; success: jasmine.Spy; info: jasmine.Spy };
   let saveProduct$: jasmine.Spy;
+  let updateViaApi: jasmine.Spy;
+  let createViaApi: jasmine.Spy;
   let list: jasmine.Spy;
 
   beforeEach(async () => {
@@ -139,6 +157,8 @@ describe('AdminProductForm', () => {
       info: jasmine.createSpy('info'),
     };
     saveProduct$ = jasmine.createSpy('saveProduct$');
+    updateViaApi = jasmine.createSpy('updateViaApi');
+    createViaApi = jasmine.createSpy('createViaApi');
     list = jasmine.createSpy('list').and.returnValue(
       of([
         {
@@ -179,6 +199,8 @@ describe('AdminProductForm', () => {
             mediaOf: () => [],
             slugExists: () => false,
             saveProduct$,
+            updateViaApi,
+            createViaApi,
           },
         },
         { provide: AdminCollectionsApiService, useValue: { list } },
@@ -211,6 +233,42 @@ describe('AdminProductForm', () => {
     expect(fixture.nativeElement.querySelector('#atelier-product-status .is-on')?.textContent?.trim()).toBe(
       'Publicado',
     );
+  });
+
+  it('maps legacy color text to chips on open and does not PUT on cancel', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput(
+      'product',
+      sampleProduct({ color: 'Off-white / Black', colors: undefined }),
+    );
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual([
+      'off-white',
+      'black',
+    ]);
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white / Black');
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Black"]')).toBeTruthy();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(updateViaApi).not.toHaveBeenCalled();
+    expect(createViaApi).not.toHaveBeenCalled();
+
+    fixture.nativeElement.querySelector('.admin-edit__cancel')?.click();
+    fixture.detectChanges();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(updateViaApi).not.toHaveBeenCalled();
+    expect(createViaApi).not.toHaveBeenCalled();
+
+    saveProduct$.and.returnValue(of(sampleProduct({ color: 'Off-white / Black' })));
+    fixture.componentInstance.save();
+    expect(saveProduct$).toHaveBeenCalledTimes(1);
+    expect(saveProduct$.calls.mostRecent().args[0].color).toBe('Off-white / Black');
+    expect(saveProduct$.calls.mostRecent().args[0].colors?.map((c: { id: string }) => c.id)).toEqual([
+      'off-white',
+      'black',
+    ]);
   });
 
   it('picks colors as chips, never mixed with the old text field', () => {

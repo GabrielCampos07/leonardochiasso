@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
+import { Router } from '@angular/router';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
@@ -97,5 +98,89 @@ describe('AdminProductEditPage archived product', () => {
     const site = fixture.nativeElement.querySelector('.admin-edit__site') as HTMLButtonElement;
     expect(site.disabled).toBeTrue();
     expect(site.getAttribute('title')).toBe(SITE_UNAVAILABLE_HINT);
+  });
+});
+
+describe('AdminProductEditPage open then close', () => {
+  it('opens a piece with legacy color text and does not PUT on cancel', async () => {
+    const saveProduct$ = jasmine.createSpy('saveProduct$');
+    const updateViaApi = jasmine.createSpy('updateViaApi');
+    const createViaApi = jasmine.createSpy('createViaApi');
+    const get$ = jasmine.createSpy('get$').and.returnValue(
+      of({
+        id: 'look-novo',
+        slug: 'look-novo',
+        name: 'Look novo',
+        price: 800,
+        priceCents: 80000,
+        priceLabel: 'R$ 800,00',
+        color: 'Off-white / Black',
+        size: 'ÚNICO',
+        fabric: '',
+        season: 'Seasonless',
+        description: '',
+        details: [],
+        shipping: '',
+        thumb: '',
+        gallery: [],
+        category: 'feminino',
+        gender: 'feminino',
+        collection: 'Organic Dreams',
+        collectionSlug: 'organic-dreams',
+        stockQty: 1,
+      } satisfies Product),
+    );
+
+    await TestBed.configureTestingModule({
+      imports: [AdminProductEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { snapshot: { paramMap: convertToParamMap({ slug: 'look-novo' }) } },
+        },
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            get$,
+            saveProduct$,
+            updateViaApi,
+            createViaApi,
+            useApi: true,
+            mediaOf: () => [],
+            slugExists: () => false,
+          },
+        },
+        { provide: AdminCollectionsApiService, useValue: { list: () => of([]) } },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        {
+          provide: ToastService,
+          useValue: { success: () => undefined, error: () => undefined, info: () => undefined },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminProductEditPage);
+    const router = TestBed.inject(Router);
+    const navigate = spyOn(router, 'navigateByUrl').and.resolveTo(true);
+    fixture.detectChanges();
+
+    expect(get$).toHaveBeenCalledWith('look-novo');
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white / Black');
+    const form = fixture.nativeElement.querySelector('lc-admin-product-form') as HTMLElement;
+    expect(form.textContent).toContain('Off-white');
+    expect(form.textContent).toContain('Black');
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(updateViaApi).not.toHaveBeenCalled();
+    expect(createViaApi).not.toHaveBeenCalled();
+
+    (form.querySelector('.admin-edit__cancel') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(navigate).toHaveBeenCalled();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(updateViaApi).not.toHaveBeenCalled();
+    expect(createViaApi).not.toHaveBeenCalled();
+    fixture.destroy();
   });
 });
