@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, firstValueFrom, from, map, of, switchMap, tap, throwError } from 'rxjs';
+import { Observable, catchError, firstValueFrom, map, of, throwError } from 'rxjs';
 import { AdminCatalogService, adminHttpErrorMessage } from './admin-catalog.service';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
@@ -141,6 +141,19 @@ export function partitionAppendResults(
   return { added, failed };
 }
 
+/** Stable acquire order so a move A→B and a move B→A cannot deadlock. */
+export function orderedCollectionLockSlugs(...slugs: string[]): string[] {
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const raw of slugs) {
+    const slug = raw.trim();
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    next.push(slug);
+  }
+  return next.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
 /**
  * One-at-a-time queue per collection slug.
  * `PUT /products` rewrites the whole join table, so two in-flight writes would clobber each other.
@@ -159,6 +172,16 @@ export class CollectionProductsLock {
       ),
     );
     return next;
+  }
+
+  /** Nested `run` in sorted slug order. */
+  runMany<T>(collectionSlugs: readonly string[], task: () => Promise<T>): Promise<T> {
+    const ordered = orderedCollectionLockSlugs(...collectionSlugs);
+    const nest = (index: number): Promise<T> => {
+      if (index >= ordered.length) return task();
+      return this.run(ordered[index]!, () => nest(index + 1));
+    };
+    return nest(0);
   }
 }
 
@@ -231,20 +254,28 @@ export class AdminCollectionProductsService {
   /**
    * Same UPDATE as the product form collection change (`PATCH …/products/:slug`
    * with `collectionSlug`). Puts the piece at the end of the destination.
+   * Serialized on both collections (sorted slugs) so it cannot race a dest PUT.
    */
   moveToCollection(productSlug: string, fromSlug: string, toSlug: string): Observable<Product> {
-    return this.catalog.updateViaApi(productSlug, { collectionSlug: toSlug }).pipe(
-      tap(() => {
+    if (!STOCKROOM_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
+    return this.enqueueMany([fromSlug, toSlug], async () => {
+      try {
+        const updated = await firstValueFrom(
+          this.catalog.updateViaApi(productSlug, { collectionSlug: toSlug }),
+        );
         this.remember(toSlug, appendCollectionProductSlugs(this.current(toSlug), [productSlug]));
         this.remember(
           fromSlug,
           this.current(fromSlug).filter((slug) => slug !== productSlug),
         );
-      }),
-      catchError((err) =>
-        from(this.reloadBoth(fromSlug, toSlug)).pipe(switchMap(() => throwError(() => err))),
-      ),
-    );
+        return updated;
+      } catch (err) {
+        await this.reloadBoth(fromSlug, toSlug);
+        throw err;
+      }
+    });
   }
 
   /** POST /products/append — never a partial PUT. */
@@ -351,8 +382,12 @@ export class AdminCollectionProductsService {
   }
 
   private enqueue<T>(collectionSlug: string, task: () => Promise<T>): Observable<T> {
+    return this.enqueueMany([collectionSlug], task);
+  }
+
+  private enqueueMany<T>(collectionSlugs: readonly string[], task: () => Promise<T>): Observable<T> {
     return new Observable<T>((subscriber) => {
-      void this.lock.run(collectionSlug, async () => {
+      void this.lock.runMany(collectionSlugs, async () => {
         try {
           const value = await task();
           subscriber.next(value);

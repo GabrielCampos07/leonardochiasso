@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { NEVER, of, throwError } from 'rxjs';
+import { NEVER, Observable, of, throwError } from 'rxjs';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
@@ -20,6 +20,7 @@ import {
   appendCollectionProductSlugs,
   membershipWriteErrorMessage,
   mergeLiveOrderIntoMembership,
+  orderedCollectionLockSlugs,
   partitionAppendResults,
   planCollectionAddWrite,
 } from './admin-collection-products';
@@ -121,6 +122,23 @@ describe('addPieceStaggerDelay', () => {
   });
 });
 
+describe('orderedCollectionLockSlugs', () => {
+  it('dedupes and sorts slugs so opposite-direction moves acquire in the same order', () => {
+    expect(orderedCollectionLockSlugs('organic-dreams', 'niponic-dreams')).toEqual([
+      'niponic-dreams',
+      'organic-dreams',
+    ]);
+    expect(orderedCollectionLockSlugs('niponic-dreams', 'organic-dreams')).toEqual([
+      'niponic-dreams',
+      'organic-dreams',
+    ]);
+    expect(orderedCollectionLockSlugs(' organic-dreams ', 'organic-dreams', '', 'niponic-dreams')).toEqual([
+      'niponic-dreams',
+      'organic-dreams',
+    ]);
+  });
+});
+
 describe('CollectionProductsLock', () => {
   it('never runs two tasks for the same collection in parallel', async () => {
     const lock = new CollectionProductsLock();
@@ -135,6 +153,65 @@ describe('CollectionProductsLock', () => {
       });
     await Promise.all([work(), work(), work()]);
     expect(maxInflight).toBe(1);
+  });
+
+  it('waits for an in-flight dest reorder before a move into that collection', async () => {
+    const lock = new CollectionProductsLock();
+    let destBusy = true;
+    let moveStarted = false;
+    let destReleased!: () => void;
+    const destHold = new Promise<void>((resolve) => {
+      destReleased = resolve;
+    });
+
+    const reorder = lock.run('niponic-dreams', async () => {
+      await destHold;
+      destBusy = false;
+    });
+    const move = lock.runMany(['organic-dreams', 'niponic-dreams'], async () => {
+      expect(destBusy).toBe(false);
+      moveStarted = true;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(moveStarted).toBe(false);
+    destReleased();
+    await Promise.all([reorder, move]);
+    expect(moveStarted).toBe(true);
+  });
+
+  it('acquires both collection locks in sorted slug order so opposite moves cannot deadlock', async () => {
+    const lock = new CollectionProductsLock();
+    const events: string[] = [];
+    let releaseFirst!: () => void;
+    const firstHold = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+
+    const holdSortedFirst = lock.run('niponic-dreams', async () => {
+      events.push('first-held');
+      await firstHold;
+      events.push('first-released');
+    });
+    const aToB = lock.runMany(['organic-dreams', 'niponic-dreams'], async () => {
+      events.push('a-to-b');
+    });
+    const bToA = lock.runMany(['niponic-dreams', 'organic-dreams'], async () => {
+      events.push('b-to-a');
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(events).toEqual(['first-held']);
+    releaseFirst();
+    await Promise.race([
+      Promise.all([holdSortedFirst, aToB, bToA]),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('deadlock')), 1000);
+      }),
+    ]);
+    expect(events[0]).toBe('first-held');
+    expect(events[1]).toBe('first-released');
+    expect(events.slice(2).sort()).toEqual(['a-to-b', 'b-to-a']);
   });
 });
 
@@ -347,7 +424,99 @@ describe('AdminCollectionProductsService', () => {
     expect(service.current('organic-dreams')).toEqual(['arquivo', 'a', 'b']);
   });
 
+  it('does not PATCH a collection move while STOCKROOM_REORDER_ENABLED is false', async () => {
+    if (STOCKROOM_REORDER_ENABLED) return;
+    const patches: { slug: string; payload: { collectionSlug?: string } }[] = [];
+    const service = setup(
+      {},
+      {
+        updateViaApi: (slug, payload) => {
+          patches.push({ slug, payload });
+          return of({ slug, collectionSlug: payload.collectionSlug ?? '' }) as ReturnType<
+            AdminCatalogService['updateViaApi']
+          >;
+        },
+      },
+    );
+    const err = await new Promise<Error>((resolve, reject) => {
+      service.moveToCollection('vestido', 'organic-dreams', 'niponic-dreams').subscribe({
+        next: () => reject(new Error('expected lock')),
+        error: (e: unknown) => resolve(e as Error),
+      });
+    });
+    expect(err.message).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
+    expect(patches).toEqual([]);
+  });
+
+  it('waits for an in-flight dest reorder before PATCHing a move into that collection', async () => {
+    if (!STOCKROOM_REORDER_ENABLED) return;
+    let destPutReleased!: () => void;
+    const destHold = new Promise<void>((resolve) => {
+      destPutReleased = resolve;
+    });
+    let destPutStarted = false;
+    let destPutDone = false;
+    const puts: string[][] = [];
+    const patches: { slug: string; payload: { collectionSlug?: string } }[] = [];
+    const service = setup(
+      {
+        getProducts: (slug) =>
+          of({
+            productSlugs: slug === 'niponic-dreams' ? ['jaqueta'] : ['vestido'],
+          }),
+        setProducts: (slug, productSlugs) => {
+          if (slug === 'niponic-dreams' && patches.length) {
+            return throwError(() => httpErr(400));
+          }
+          destPutStarted = true;
+          puts.push([...productSlugs]);
+          return new Observable<SetCollectionProductsResult>((subscriber) => {
+            void destHold.then(() => {
+              destPutDone = true;
+              subscriber.next(result(slug, productSlugs));
+              subscriber.complete();
+            });
+          });
+        },
+      },
+      {
+        updateViaApi: (slug, payload) => {
+          if (!destPutDone) {
+            return throwError(() => httpErr(400));
+          }
+          patches.push({ slug, payload });
+          return of({ slug, collectionSlug: payload.collectionSlug ?? '' }) as ReturnType<
+            AdminCatalogService['updateViaApi']
+          >;
+        },
+      },
+    );
+    service.remember('organic-dreams', ['vestido']);
+    service.remember('niponic-dreams', ['jaqueta']);
+
+    const reorder = new Promise<SetCollectionProductsResult>((resolve, reject) => {
+      service.replaceLiveOrder('niponic-dreams', ['jaqueta']).subscribe({ next: resolve, error: reject });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(destPutStarted).toBe(true);
+    expect(patches).toEqual([]);
+
+    const move = new Promise((resolve, reject) => {
+      service
+        .persistAddedProduct('niponic-dreams', 'vestido', 'organic-dreams')
+        .subscribe({ next: resolve, error: reject });
+    });
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    expect(patches).toEqual([]);
+
+    destPutReleased();
+    await Promise.all([reorder, move]);
+    expect(puts).toEqual([['jaqueta']]);
+    expect(patches).toEqual([{ slug: 'vestido', payload: { collectionSlug: 'niponic-dreams' } }]);
+  });
+
   it('moves a piece between collections with PATCH collectionSlug, not POST append', async () => {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     const patches: { slug: string; payload: { collectionSlug?: string } }[] = [];
     const appends: string[][] = [];
     const service = setup(
@@ -384,6 +553,7 @@ describe('AdminCollectionProductsService', () => {
   });
 
   it('reloads source and destination after a failed collection move', async () => {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     const service = setup(
       {
         getProducts: (slug) =>
