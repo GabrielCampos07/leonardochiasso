@@ -3,3 +3,11 @@ api.leonardochiasso.com {
 	encode gzip
 	reverse_proxy api:3000
 }
+
+# Staging — container api-staging (docker-compose.staging.yml) na mesma rede.
+# Sem DNS ainda, o Caddy só fica tentando o certificado deste site; o bloco
+# acima não é afetado.
+api-staging.leonardochiasso.com {
+	encode gzip
+	reverse_proxy api-staging:3000
+}
