@@ -162,6 +162,11 @@ describe('AdminProductsPage reorder', () => {
 });
 
 describe('AdminProductsPage cache and skeleton', () => {
+  beforeEach(() => {
+    clearAdminListCache();
+    sessionStorage.clear();
+  });
+
   afterEach(() => {
     clearAdminListCache();
     sessionStorage.clear();
@@ -255,6 +260,11 @@ describe('AdminProductsPage cache and skeleton', () => {
 
     const fixture = TestBed.createComponent(AdminProductsPage);
     fixture.detectChanges();
+    fixture.componentInstance.setGenderFilter('feminino');
+    fixture.componentInstance.setCollectionFilter('Organic Dreams');
+    fixture.detectChanges();
+    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    expect(fixture.componentInstance.loading()).toBeTrue();
     expect(fixture.componentInstance.showSkeleton()).toBeTrue();
     expect(fixture.nativeElement.querySelectorAll('.admin-row--skel').length).toBeGreaterThan(1);
     fixture.destroy();

@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
 import { AdminCatalogService, membershipFieldsForUpdate } from './admin-catalog.service';
 import { ApiProductDto } from './catalog.service';
+import { LISTA_ORDER_MAINTENANCE_NOTICE, LISTA_REORDER_ENABLED } from './membership-order';
 import { Product } from './product.model';
 
 function sampleProduct(patch: Partial<Product> = {}): Product {
@@ -230,6 +231,19 @@ describe('AdminCatalogService create payload contract', () => {
     req.flush(
       createdDto(sampleProduct({ status: 'archived', archivedAt: '2026-10-01T00:00:00.000Z' })),
     );
+  });
+
+  it('does not PUT /admin/products/reorder while LISTA_REORDER_ENABLED is false', () => {
+    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    const box: { err?: Error } = {};
+    service.reorderViaApi(['look-b', 'look-a']).subscribe({
+      next: () => fail('expected lock'),
+      error: (e: unknown) => {
+        box.err = e as Error;
+      },
+    });
+    http.expectNone('http://payload.test/api/admin/products/reorder');
+    expect(box.err?.message).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
   });
 });
 

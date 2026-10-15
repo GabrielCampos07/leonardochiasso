@@ -113,6 +113,7 @@ export class AdminProductsPage implements OnInit {
   readonly collections = COLLECTIONS;
   readonly newPath = adminNewProductPath();
   readonly skeletonRows = Array.from({ length: ADMIN_LIST_SKELETON_ROWS }, (_, i) => i);
+  /** Product fetch only — not the reorder flag or the gender-order overlay. */
   readonly showSkeleton = computed(() => this.loading() && this.products().length === 0);
 
   readonly products = signal<Product[]>([]);
@@ -235,7 +236,6 @@ export class AdminProductsPage implements OnInit {
 
   private applyCollectionGenderOrder(): void {
     if (!LISTA_REORDER_ENABLED) {
-      this.orderLoading.set(false);
       return;
     }
     const slug = this.collectionSlugForOrder();
