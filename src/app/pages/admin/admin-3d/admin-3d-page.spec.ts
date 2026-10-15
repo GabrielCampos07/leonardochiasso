@@ -1,3 +1,4 @@
+import { LISTA_ORDER_MAINTENANCE_NOTICE, STOCKROOM_REORDER_ENABLED } from '../../../core/membership-order';
 import {
   ATELIER_HINT_COPY,
   HINT_AUTO_HIDE_MS,
@@ -134,6 +135,11 @@ describe('stockroomTitle', () => {
   it('names the focused collection with its piece count and draft state', () => {
     expect(stockroomTitle(racks, 'od')).toEqual({ name: 'Organic Dreams', detail: '17 peças', unpublished: false });
     expect(stockroomTitle(racks, 'cap')).toEqual({ name: 'Cápsula', detail: '1 peça', unpublished: true });
+  });
+
+  it('disables hanger reorder behind the same notice as the Lista', () => {
+    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+    expect(LISTA_ORDER_MAINTENANCE_NOTICE).toBe('Ordem em manutenção');
   });
 
   it('names the room on the overview and a draft by its typed name', () => {

@@ -57,6 +57,11 @@ import {
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ERROR_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { applyCdkListOrder, itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  LISTA_REORDER_ENABLED,
+  sortByMembershipSortOrder,
+} from '../../core/membership-order';
 import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
 import { isSoldOut } from '../../scene-engine/types';
 
@@ -85,8 +90,12 @@ export class AdminProductsPage implements OnInit {
   readonly showUnissexNotice = computed(() => this.category() === 'masculino');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
   readonly dragStartDelay = coarsePointerDragDelay();
+  /** Set `LISTA_REORDER_ENABLED` to true in membership-order.ts to restore Subir/Descer/drag. */
+  readonly listaReorderEnabled = LISTA_REORDER_ENABLED;
+  readonly orderMaintenanceNotice = LISTA_ORDER_MAINTENANCE_NOTICE;
   readonly canDrag = computed(
     () =>
+      LISTA_REORDER_ENABLED &&
       canReorderWithFilter(this.category()) &&
       !this.showArchived() &&
       !this.loading() &&
@@ -111,13 +120,15 @@ export class AdminProductsPage implements OnInit {
     const q = this.query().trim().toLowerCase();
     const cat = this.category();
     const col = this.collection();
-    return this.products().filter((p) => {
+    const rows = this.products().filter((p) => {
       if (!this.showArchived() && isArchivedAt(p.archivedAt)) return false;
       if (!matchesGenderFilter(p, cat)) return false;
       if (col !== 'todas' && p.collection !== col && p.collectionSlug !== col) return false;
       if (q && !p.name.toLowerCase().includes(q)) return false;
       return true;
     });
+    const slug = this.collectionSlugForOrder();
+    return slug ? sortByMembershipSortOrder(rows, slug) : rows;
   });
 
   constructor() {
@@ -197,6 +208,11 @@ export class AdminProductsPage implements OnInit {
   }
 
   onTodosDragAttempt(event?: Event): void {
+    if (!LISTA_REORDER_ENABLED) {
+      event?.preventDefault();
+      event?.stopPropagation();
+      return;
+    }
     if (this.loading() || this.orderLoading() || this.savingOrder()) {
       event?.preventDefault();
       event?.stopPropagation();
@@ -217,6 +233,10 @@ export class AdminProductsPage implements OnInit {
   }
 
   private applyCollectionGenderOrder(): void {
+    if (!LISTA_REORDER_ENABLED) {
+      this.orderLoading.set(false);
+      return;
+    }
     const slug = this.collectionSlugForOrder();
     const filter = this.category();
     if (!slug || !canReorderWithFilter(filter)) {
@@ -362,6 +382,7 @@ export class AdminProductsPage implements OnInit {
 
   /** Map filtered order back onto the full product list. */
   private applyVisibleOrder(visibleSlugs: string[], previousIds?: string[]): void {
+    if (!LISTA_REORDER_ENABLED) return;
     this.applyVisibleOrderLocal(visibleSlugs);
 
     const filter = this.category();
@@ -438,6 +459,7 @@ export class AdminProductsPage implements OnInit {
   }
 
   private restoreCollectionOrder(previousIds: string[]): void {
+    if (!LISTA_REORDER_ENABLED) return;
     const slug = this.collectionSlugForOrder();
     const filter = this.category();
     if (!slug || !canReorderWithFilter(filter)) return;

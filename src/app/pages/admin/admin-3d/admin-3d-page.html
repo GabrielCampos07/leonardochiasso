@@ -13,6 +13,9 @@
         <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
       }
       <span class="admin-3d__area-count">{{ stageTitle().detail }}</span>
+      @if (!stockroomReorderEnabled) {
+        <div class="admin-3d__notice" role="status">{{ orderMaintenanceNotice }}</div>
+      }
     </header>
   }
 

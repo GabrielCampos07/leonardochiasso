@@ -398,6 +398,7 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   private persistGenderOrder(previousIds: string[]): void {
+    if (!LISTA_REORDER_ENABLED) return;
     const collectionSlug = this.slug();
     const filter = this.genderFilter();
     if (!collectionSlug || this.isNew() || !canReorderWithFilter(filter)) return;
@@ -429,6 +430,7 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   private restoreGenderOrder(productIds: string[]): void {
+    if (!LISTA_REORDER_ENABLED) return;
     const collectionSlug = this.slug();
     const filter = this.genderFilter();
     if (!collectionSlug || !canReorderWithFilter(filter)) return;

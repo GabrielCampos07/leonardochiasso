@@ -176,7 +176,7 @@ describe('AdminCollectionProductsService', () => {
     expect(service.current('organic-dreams')).toEqual(['vestido', 'boa']);
   });
 
-  it('PUTs live order immediately with keepMissing even when GET membership never emits', async () => {
+  it('does not PUT live order while STOCKROOM_REORDER_ENABLED is false', async () => {
     const puts: { slugs: string[]; keepMissing?: boolean }[] = [];
     const service = setup(
       (_slug, productSlugs, opts) => {
@@ -190,8 +190,8 @@ describe('AdminCollectionProductsService', () => {
       service.replaceLiveOrder('organic-dreams', ['c', 'a', 'b']).subscribe({ next: resolve, error: reject });
     });
 
-    expect(puts).toEqual([{ slugs: ['c', 'a', 'b'], keepMissing: true }]);
-    expect(saved.productSlugs).toContain('arquivo');
+    expect(puts).toEqual([]);
+    expect(saved.productSlugs).toEqual([]);
   });
 });
 

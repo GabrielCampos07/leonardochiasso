@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, firstValueFrom, map, of } from 'rxjs';
 import { adminHttpErrorMessage } from './admin-catalog.service';
+import { STOCKROOM_REORDER_ENABLED } from './membership-order';
 import {
   AdminCollectionsApiService,
   SetCollectionProductsResult,
@@ -144,6 +145,9 @@ export class AdminCollectionProductsService {
     collectionSlug: string,
     liveOrdered: readonly string[],
   ): Observable<SetCollectionProductsResult> {
+    if (!STOCKROOM_REORDER_ENABLED) {
+      return of({ productSlugs: this.current(collectionSlug) } as SetCollectionProductsResult);
+    }
     return this.enqueue(collectionSlug, () => {
       const live = appendCollectionProductSlugs(liveOrdered, []);
       return this.write(collectionSlug, live, { keepMissing: true });

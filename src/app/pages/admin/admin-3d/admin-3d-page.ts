@@ -38,6 +38,10 @@ import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { formatPriceLabel, Product } from '../../../core/product.model';
 import { CollectionSlug } from '../../../core/routes';
 import { afterOverlayPaint } from '../../../core/after-overlay-paint';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  STOCKROOM_REORDER_ENABLED,
+} from '../../../core/membership-order';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
@@ -281,6 +285,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly hasCredits = sceneNeedsCredits(this.sceneMode);
   readonly creditsOpen = signal(false);
   readonly pieceDrag = signal<{ slug: string; x: number; y: number; over: string | null } | null>(null);
+  /** Set `STOCKROOM_REORDER_ENABLED` to true in membership-order.ts to restore drag / Shift+arrows. */
+  readonly stockroomReorderEnabled = STOCKROOM_REORDER_ENABLED;
+  readonly orderMaintenanceNotice = LISTA_ORDER_MAINTENANCE_NOTICE;
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
@@ -557,6 +564,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   onPiecePointerDown(event: PointerEvent, slug: string): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     if (!this.stockroom || event.button !== 0 || this.creating() || this.adding() || this.modalOpen) return;
     this.pieceDragStart = { slug, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
     this.pieceDragMoved = false;
@@ -653,6 +661,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private applyAndSavePieceOrder(rackId: string, previous: readonly string[], next: readonly string[]): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     const collectionSlug = collectionSlugFromUnitId(rackId);
     if (!collectionSlug || rackId === UNCOLLECTED_RACK_ID) return;
     const layout = reorderRackHangers(this.layout, rackId, next);
