@@ -357,6 +357,12 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.addSwatchById('off-white');
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('#atelier-product-color-custom')).toBeTruthy();
+    const customLabel = fixture.nativeElement.querySelector(
+      'label[for="atelier-product-color-custom"]',
+    ) as HTMLLabelElement;
+    const addBtn = fixture.nativeElement.querySelector('.admin-edit__custom-color-add') as HTMLButtonElement;
+    expect(customLabel?.textContent?.trim()).toBe('Adicionar cor personalizada');
+    expect(addBtn?.closest('label')).toBeNull();
 
     fixture.componentInstance.onCustomColorInput('  Cru natural  ');
     fixture.componentInstance.addCustomColor();
@@ -403,6 +409,25 @@ describe('AdminProductForm', () => {
     expect(enter.preventDefault).toHaveBeenCalled();
     expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toContain('off-white');
     expect(fixture.componentInstance.customColorText).toBe('');
+  });
+
+  it('ignores Enter while an IME is composing or keyCode is 229', () => {
+    fixture.componentInstance.onCustomColorInput('Cru natural');
+
+    const composing = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true });
+    spyOn(composing, 'preventDefault');
+    fixture.componentInstance.onCustomColorKeydown(composing);
+    expect(composing.preventDefault).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.draft()?.colors?.some((c) => c.name === 'Cru natural')).toBeFalse();
+    expect(fixture.componentInstance.customColorText).toBe('Cru natural');
+
+    const imeKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    Object.defineProperty(imeKey, 'keyCode', { value: 229 });
+    spyOn(imeKey, 'preventDefault');
+    fixture.componentInstance.onCustomColorKeydown(imeKey);
+    expect(imeKey.preventDefault).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.draft()?.colors?.some((c) => c.name === 'Cru natural')).toBeFalse();
+    expect(fixture.componentInstance.customColorText).toBe('Cru natural');
   });
 
   it('saves untouched padded fields exactly as stored', () => {
@@ -682,7 +707,7 @@ describe('AdminProductForm', () => {
     expect(list.calls.mostRecent().args).toEqual([false, { refresh: true }]);
   });
 
-  it('shows a multi-collection block in our error UI and modal, and changes nothing', () => {
+  it('shows a multi-collection block only in the modal, and changes nothing', () => {
     fixture.componentRef.setInput('isNew', false);
     fixture.componentRef.setInput('product', sampleProduct());
     fixture.componentInstance.ngOnInit();
@@ -701,16 +726,15 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.save();
     fixture.detectChanges();
 
-    const alert = fixture.nativeElement.querySelector('#atelier-product-save-error') as HTMLElement;
-    expect(alert?.textContent?.trim()).toBe(MULTI_COLLECTION_CHANGE_BLOCKED);
-    expect(toast.error).toHaveBeenCalledWith(MULTI_COLLECTION_CHANGE_BLOCKED);
-    expect(confirm.confirm).toHaveBeenCalledWith(
-      jasmine.objectContaining({
-        title: 'Coleção',
-        message: MULTI_COLLECTION_CHANGE_BLOCKED,
-      }),
-    );
-    expect(fixture.componentInstance.saveError()).toBe(MULTI_COLLECTION_CHANGE_BLOCKED);
+    expect(fixture.nativeElement.querySelector('#atelier-product-save-error')).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(confirm.confirm).toHaveBeenCalledWith({
+      title: 'Coleção',
+      message: MULTI_COLLECTION_CHANGE_BLOCKED,
+      confirmLabel: 'OK',
+      hideCancel: true,
+    });
+    expect(fixture.componentInstance.saveError()).toBe('');
   });
 
   it('shows the API error inline and as a toast on create 400', () => {

@@ -597,6 +597,7 @@ export class AdminProductForm implements OnInit {
 
   onCustomColorKeydown(event: KeyboardEvent): void {
     if (event.key !== 'Enter') return;
+    if (event.isComposing || event.keyCode === 229) return;
     event.preventDefault();
     this.addCustomColor();
   }
@@ -922,16 +923,17 @@ export class AdminProductForm implements OnInit {
       error: (err) => {
         this.setSaving(false);
         const message = adminHttpErrorMessage(err);
-        this.saveError.set(message);
-        this.toast.error(message);
         if (message === MULTI_COLLECTION_CHANGE_BLOCKED) {
           void this.confirm.confirm({
             title: 'Coleção',
             message,
             confirmLabel: 'OK',
-            cancelLabel: 'Fechar',
+            hideCancel: true,
           });
+          return;
         }
+        this.saveError.set(message);
+        this.toast.error(message);
       },
     });
   }

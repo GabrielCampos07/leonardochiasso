@@ -6,6 +6,8 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  /** Hide the cancel button — alert-style, one action. */
+  hideCancel?: boolean;
 }
 
 interface ConfirmState extends Required<ConfirmOptions> {
@@ -28,6 +30,7 @@ export class ConfirmService {
         confirmLabel: options.confirmLabel ?? 'Confirmar',
         cancelLabel: options.cancelLabel ?? 'Cancelar',
         destructive: options.destructive ?? false,
+        hideCancel: options.hideCancel ?? false,
         resolve,
       });
     });

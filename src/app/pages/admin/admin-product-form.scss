@@ -33,6 +33,10 @@
   font-size: 1.1rem;
 }
 
+.admin-edit__field > label {
+  margin-bottom: 0;
+}
+
 .admin-edit__form input,
 .admin-edit__form select,
 .admin-edit__form textarea {
