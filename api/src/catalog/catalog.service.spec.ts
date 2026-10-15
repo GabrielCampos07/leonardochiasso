@@ -3,6 +3,7 @@ import { ProductStatus } from '@prisma/client';
 import { CatalogCacheService } from '../cache/catalog-cache.service';
 import {
   CatalogService,
+  compareMembershipSortOrder,
   publicCollectionWhere,
   publicProductWhere,
 } from './catalog.service';
@@ -288,6 +289,63 @@ describe('CatalogService gender blocks', () => {
 
     const list = await service.listProducts(undefined, 'teste-ordem');
     expect(list.map((p) => p.slug)).toEqual(['teste-plumaria', 'teste-calca']);
+  });
+
+  it('compareMembershipSortOrder ties on productId', () => {
+    const left = {
+      id: 'id-z',
+      collections: [{ slug: 'teste-ordem', sortOrder: 2 }],
+    };
+    const right = {
+      id: 'id-a',
+      collections: [{ slug: 'teste-ordem', sortOrder: 2 }],
+    };
+    expect(compareMembershipSortOrder(left, right, 'teste-ordem')).toBeGreaterThan(0);
+    expect(compareMembershipSortOrder(right, left, 'teste-ordem')).toBeLessThan(0);
+  });
+
+  it('breaks a membership sortOrder tie on productId', async () => {
+    const { prisma, service } = make();
+    prisma.product.findMany.mockResolvedValue([
+      product({
+        id: 'id-teste-z',
+        slug: 'teste-z',
+        category: { slug: 'feminino' },
+        collections: [{ collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null }, sortOrder: 1 }],
+      }),
+      product({
+        id: 'id-teste-a',
+        slug: 'teste-a',
+        category: { slug: 'feminino' },
+        collections: [{ collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null }, sortOrder: 1 }],
+      }),
+      product({
+        id: 'id-teste-m',
+        slug: 'teste-m',
+        category: { slug: 'feminino' },
+        collections: [{ collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null }, sortOrder: 0 }],
+      }),
+    ]);
+
+    const list = await service.listProducts(undefined, 'teste-ordem');
+    expect(list.map((p) => p.id)).toEqual(['id-teste-m', 'id-teste-a', 'id-teste-z']);
+  });
+
+  it('asks Prisma for sortOrder then productId on the public collection include', async () => {
+    const { prisma, service } = make();
+    prisma.collection.findFirst.mockResolvedValue(null);
+    await expect(service.getCollectionBySlug('teste-ordem')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.collection.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          products: expect.objectContaining({
+            orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          }),
+        }),
+      }),
+    );
   });
 });
 

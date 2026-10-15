@@ -24,6 +24,17 @@ export function membershipSortOrder(
   return Number.MAX_SAFE_INTEGER;
 }
 
+/** sortOrder first; productId when two members share a sortOrder. */
+export function compareMembershipSortOrder(
+  a: { id: string; collections?: { slug: string; sortOrder?: number }[] | null },
+  b: { id: string; collections?: { slug: string; sortOrder?: number }[] | null },
+  collectionSlug: string,
+): number {
+  const byOrder = membershipSortOrder(a, collectionSlug) - membershipSortOrder(b, collectionSlug);
+  if (byOrder !== 0) return byOrder;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 /** Coleção pública = publicada (publishedAt definido) e não arquivada. */
 export const publicCollectionWhere = {
   publishedAt: { not: null },
@@ -85,9 +96,7 @@ export class CatalogService {
       });
       const mapped = products.map(mapProduct);
       if (collection) {
-        return [...mapped].sort(
-          (a, b) => membershipSortOrder(a, collection) - membershipSortOrder(b, collection),
-        );
+        return [...mapped].sort((a, b) => compareMembershipSortOrder(a, b, collection));
       }
       if (gender) return mapped;
       return sortByPublicGenderBlocks(mapped);
@@ -136,7 +145,7 @@ export class CatalogService {
             where: {
               product: { status: ProductStatus.published, archivedAt: null },
             },
-            orderBy: { sortOrder: 'asc' },
+            orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
             include: {
               product: { include: publicProductInclude },
             },

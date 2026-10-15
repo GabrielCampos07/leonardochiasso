@@ -49,8 +49,14 @@ function uniqueIds(ids: readonly string[]): string[] {
   return next;
 }
 
-export function sortMembersBySortOrder<T extends { sortOrder: number }>(members: readonly T[]): T[] {
-  return [...members].sort((a, b) => a.sortOrder - b.sortOrder);
+export function sortMembersBySortOrder<
+  T extends { sortOrder: number; productId: string },
+>(members: readonly T[]): T[] {
+  return [...members].sort((a, b) => {
+    const byOrder = a.sortOrder - b.sortOrder;
+    if (byOrder !== 0) return byOrder;
+    return a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0;
+  });
 }
 
 type GenderOrderDb = {

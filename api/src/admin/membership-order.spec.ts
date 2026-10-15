@@ -21,11 +21,21 @@ describe('membership-order (one collection order)', () => {
   it('sorts junction rows by sortOrder', () => {
     expect(
       sortMembersBySortOrder([
-        { id: 'b', sortOrder: 2 },
-        { id: 'a', sortOrder: 0 },
-        { id: 'c', sortOrder: 1 },
-      ]).map((row) => row.id),
+        { productId: 'b', sortOrder: 2 },
+        { productId: 'a', sortOrder: 0 },
+        { productId: 'c', sortOrder: 1 },
+      ]).map((row) => row.productId),
     ).toEqual(['a', 'c', 'b']);
+  });
+
+  it('breaks a sortOrder tie on productId', () => {
+    expect(
+      sortMembersBySortOrder([
+        { productId: 'id-teste-z', sortOrder: 1 },
+        { productId: 'id-teste-a', sortOrder: 1 },
+        { productId: 'id-teste-m', sortOrder: 0 },
+      ]).map((row) => row.productId),
+    ).toEqual(['id-teste-m', 'id-teste-a', 'id-teste-z']);
   });
 
   it('rewrites derived gender rows from membership, unissex on both lists', async () => {

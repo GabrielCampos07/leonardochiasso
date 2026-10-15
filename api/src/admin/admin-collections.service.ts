@@ -138,40 +138,46 @@ export class AdminCollectionsService {
     productSlugs: string[],
     keepMissing = false,
   ): Promise<CollectionDto & { productSlugs: string[] }> {
-    if (keepMissing) {
-      const current = await this.getProducts(slug);
-      productSlugs = mergeLiveOrderIntoMembership(current.productSlugs, productSlugs);
-    }
-    // Coleção e produtos são buscas independentes → em paralelo.
-    const [collection, products] = await Promise.all([
-      this.prisma.collection.findUnique({ where: { slug } }),
-      this.prisma.product.findMany({
-        where: { slug: { in: productSlugs } },
-        select: { id: true, slug: true, category: { select: { slug: true } } },
-      }),
-    ]);
+    const collection = await this.prisma.collection.findUnique({ where: { slug } });
     if (!collection) {
       throw new NotFoundException(`Collection not found: ${slug}`);
     }
-    if (products.length !== productSlugs.length) {
-      const found = new Set(products.map((p) => p.slug));
-      const missing = productSlugs.filter((s) => !found.has(s));
-      throw new BadRequestException(
-        `Unknown product slugs: ${missing.join(', ')}`,
-      );
-    }
 
-    const bySlug = new Map(products.map((p) => [p.slug, p.id]));
+    const nextSlugs = await this.prisma.$transaction(async (tx) => {
+      let ordered = productSlugs;
+      if (keepMissing) {
+        const current = await tx.productCollection.findMany({
+          where: { collectionId: collection.id },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          include: { product: { select: { slug: true } } },
+        });
+        ordered = mergeLiveOrderIntoMembership(
+          current.map((row) => row.product.slug),
+          productSlugs,
+        );
+      }
 
-    await this.prisma.$transaction(async (tx) => {
+      const products = await tx.product.findMany({
+        where: { slug: { in: ordered } },
+        select: { id: true, slug: true, category: { select: { slug: true } } },
+      });
+      if (products.length !== ordered.length) {
+        const found = new Set(products.map((p) => p.slug));
+        const missing = ordered.filter((s) => !found.has(s));
+        throw new BadRequestException(
+          `Unknown product slugs: ${missing.join(', ')}`,
+        );
+      }
+      const bySlug = new Map(products.map((p) => [p.slug, p]));
+
       await tx.productCollection.deleteMany({
         where: { collectionId: collection.id },
       });
-      if (productSlugs.length > 0) {
+      if (ordered.length > 0) {
         await tx.productCollection.createMany({
-          data: productSlugs.map((productSlug, index) => ({
+          data: ordered.map((productSlug, index) => ({
             collectionId: collection.id,
-            productId: bySlug.get(productSlug)!,
+            productId: requireProductBySlug(bySlug, productSlug).id,
             sortOrder: index,
           })),
         });
@@ -179,16 +185,17 @@ export class AdminCollectionsService {
       await rewriteDerivedGenderOrders(
         tx,
         collection.id,
-        productSlugs.map((productSlug) => {
-          const product = products.find((p) => p.slug === productSlug)!;
+        ordered.map((productSlug) => {
+          const product = requireProductBySlug(bySlug, productSlug);
           return { productId: product.id, gender: product.category.slug };
         }),
       );
+      return ordered;
     });
 
     return {
-      ...mapCollection(collection, productSlugs.length),
-      productSlugs,
+      ...mapCollection(collection, nextSlugs.length),
+      productSlugs: nextSlugs,
     };
   }
 
@@ -198,7 +205,7 @@ export class AdminCollectionsService {
       where: { slug },
       include: {
         products: {
-          orderBy: { sortOrder: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
           include: { product: { select: { slug: true } } },
         },
       },
@@ -219,7 +226,7 @@ export class AdminCollectionsService {
       include: {
         products: {
           include: { product: { include: { category: true } } },
-          orderBy: { sortOrder: 'asc' },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
         },
       },
     });
@@ -319,25 +326,28 @@ export class AdminCollectionsService {
     );
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.productCollection.deleteMany({
-        where: { collectionId: collection.id },
-      });
-      if (nextIds.length > 0) {
-        await tx.productCollection.createMany({
-          data: nextIds.map((productId, sortOrder) => ({
-            collectionId: collection.id,
-            productId,
-            sortOrder,
-          })),
+      for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
+        const productId = nextIds[sortOrder]!;
+        await tx.productCollection.update({
+          where: {
+            productId_collectionId: {
+              productId,
+              collectionId: collection.id,
+            },
+          },
+          data: { sortOrder },
         });
       }
       await rewriteDerivedGenderOrders(
         tx,
         collection.id,
-        nextIds.map((productId) => ({
-          productId,
-          gender: byId.get(productId)!.product.category.slug,
-        })),
+        nextIds.map((productId) => {
+          const row = byId.get(productId);
+          if (!row) {
+            throw new BadRequestException(`Unknown product id: ${productId}`);
+          }
+          return { productId, gender: row.product.category.slug };
+        }),
       );
     });
 
@@ -353,6 +363,17 @@ export class AdminCollectionsService {
     }
     return collection;
   }
+}
+
+function requireProductBySlug<T extends { slug: string }>(
+  bySlug: Map<string, T>,
+  slug: string,
+): T {
+  const product = bySlug.get(slug);
+  if (!product) {
+    throw new BadRequestException(`Unknown product slug: ${slug}`);
+  }
+  return product;
 }
 
 function mapCollection(
