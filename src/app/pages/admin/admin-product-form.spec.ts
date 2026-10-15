@@ -10,6 +10,7 @@ import { ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import { ADMIN_SWATCH_OPTIONS } from '../../core/admin-catalog.service';
 import {
+  PRICE_AMBIGUOUS_MESSAGE,
   PRICE_INVALID_MESSAGE,
   PRICE_NEGATIVE_MESSAGE,
   PRICE_REQUIRED_MESSAGE,
@@ -419,6 +420,13 @@ describe('AdminProductForm', () => {
     );
     fixture.componentInstance.save();
     expect(saveProduct$).not.toHaveBeenCalled();
+
+    fixture.componentInstance.onPriceChange('1,250');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_AMBIGUOUS_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
+      PRICE_AMBIGUOUS_MESSAGE,
+    );
 
     fixture.componentInstance.onPriceChange('abc');
     fixture.detectChanges();

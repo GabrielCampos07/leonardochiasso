@@ -1,4 +1,5 @@
 import {
+  PRICE_AMBIGUOUS_MESSAGE,
   PRICE_INVALID_MESSAGE,
   PRICE_NEGATIVE_MESSAGE,
   PRICE_REQUIRED_MESSAGE,
@@ -9,18 +10,42 @@ import {
 } from './price-input';
 
 describe('parsePricePtBr', () => {
-  it('treats a dot followed by exactly 3 digits as thousands', () => {
+  it('parses "14800" as 14800.00', () => {
+    expect(parsePricePtBr('14800')).toEqual({ ok: true, reais: 14800 });
+  });
+
+  it('parses "14.800" as 14800.00', () => {
     expect(parsePricePtBr('14.800')).toEqual({ ok: true, reais: 14800 });
-    expect(parsePricePtBr('1.250.000')).toEqual({ ok: true, reais: 1_250_000 });
+  });
+
+  it('parses "14.800,00" as 14800.00', () => {
+    expect(parsePricePtBr('14.800,00')).toEqual({ ok: true, reais: 14800 });
+  });
+
+  it('parses "1.250" as 1250.00', () => {
     expect(parsePricePtBr('1.250')).toEqual({ ok: true, reais: 1250 });
   });
 
-  it('treats a dot followed by 1–2 digits as decimal and a comma as decimal', () => {
-    expect(parsePricePtBr('12.50')).toEqual({ ok: true, reais: 12.5 });
+  it('parses "12,5" and "12.5" as 12.50', () => {
+    expect(parsePricePtBr('12,5')).toEqual({ ok: true, reais: 12.5 });
     expect(parsePricePtBr('12.5')).toEqual({ ok: true, reais: 12.5 });
+  });
+
+  it('strips "R$" and surrounding spaces from "R$ 14.800" and " 14.800 "', () => {
+    expect(parsePricePtBr('R$ 14.800')).toEqual({ ok: true, reais: 14800 });
+    expect(parsePricePtBr(' 14.800 ')).toEqual({ ok: true, reais: 14800 });
+  });
+
+  it('rejects "1,250" as ambiguous (comma followed by exactly 3 digits)', () => {
+    expect(parsePricePtBr('1,250')).toEqual({ ok: false, error: PRICE_AMBIGUOUS_MESSAGE });
+    expect(priceInputError('1,250')).toBe(PRICE_AMBIGUOUS_MESSAGE);
+  });
+
+  it('treats extra grouped thousands and mixed decimals', () => {
+    expect(parsePricePtBr('1.250.000')).toEqual({ ok: true, reais: 1_250_000 });
+    expect(parsePricePtBr('12.50')).toEqual({ ok: true, reais: 12.5 });
     expect(parsePricePtBr('12,50')).toEqual({ ok: true, reais: 12.5 });
     expect(parsePricePtBr('1.250,50')).toEqual({ ok: true, reais: 1250.5 });
-    expect(parsePricePtBr('14.800,00')).toEqual({ ok: true, reais: 14800 });
     expect(parsePricePtBr(12.5)).toEqual({ ok: true, reais: 12.5 });
   });
 

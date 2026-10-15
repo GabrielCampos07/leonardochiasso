@@ -3,6 +3,8 @@
 export const PRICE_REQUIRED_MESSAGE = 'Informe o preço.';
 export const PRICE_INVALID_MESSAGE = 'Preço inválido.';
 export const PRICE_NEGATIVE_MESSAGE = 'Preço não pode ser negativo.';
+export const PRICE_AMBIGUOUS_MESSAGE =
+  'Preço ambíguo. Use 1,25 para centavos ou 1.250 para milhar.';
 
 export type PriceParseOk = { ok: true; reais: number };
 export type PriceParseErr = { ok: false; error: string };
@@ -10,9 +12,11 @@ export type PriceParseResult = PriceParseOk | PriceParseErr;
 
 /**
  * Parse admin price text.
- * - `,` is always the decimal separator (`12,50` = 12.50).
+ * - `,` is the decimal separator (`12,50` = 12.50), except `,` + exactly 3 digits
+ *   (`1,250`) which is ambiguous and rejected.
  * - `.` followed by exactly 3 digits is thousands (`14.800` = 14800, `1.250.000` = 1250000).
  * - `.` followed by 1–2 digits is decimal (`12.50` = 12.50, `12.5` = 12.50).
+ * - Leading `R$` and surrounding spaces are stripped.
  */
 export function parsePricePtBr(raw: string | number | null | undefined): PriceParseResult {
   if (typeof raw === 'number') {
@@ -21,7 +25,9 @@ export function parsePricePtBr(raw: string | number | null | undefined): PricePa
     return { ok: true, reais: raw };
   }
 
-  const text = String(raw ?? '').trim();
+  const text = String(raw ?? '')
+    .replace(/^\s*R\$\s*/i, '')
+    .trim();
   if (!text) return { ok: false, error: PRICE_REQUIRED_MESSAGE };
   if (/[^\d.,\s-]/.test(text)) return { ok: false, error: PRICE_INVALID_MESSAGE };
 
@@ -42,6 +48,9 @@ export function parsePricePtBr(raw: string | number | null | undefined): PricePa
     const [intRaw = '', decRaw = ''] = body.split(',');
     if (!decRaw || !/^\d+$/.test(decRaw) || decRaw.includes('.')) {
       return { ok: false, error: PRICE_INVALID_MESSAGE };
+    }
+    if (decRaw.length === 3) {
+      return { ok: false, error: PRICE_AMBIGUOUS_MESSAGE };
     }
     const integer = stripThousandsDots(intRaw);
     if (integer == null) return { ok: false, error: PRICE_INVALID_MESSAGE };

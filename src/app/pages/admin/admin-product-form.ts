@@ -57,7 +57,12 @@ export { formatPriceInput, formatPriceCentsInput };
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
 export const STOCK_NEGATIVE_MESSAGE = 'Estoque não pode ser negativo.';
-export { PRICE_REQUIRED_MESSAGE, PRICE_INVALID_MESSAGE, PRICE_NEGATIVE_MESSAGE } from '../../core/price-input';
+export {
+  PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_INVALID_MESSAGE,
+  PRICE_NEGATIVE_MESSAGE,
+  PRICE_REQUIRED_MESSAGE,
+} from '../../core/price-input';
 
 /** Parsed stock for the API — rounds, does not clamp negatives. */
 export function parseStockQty(raw: string | number | null | undefined): number {
