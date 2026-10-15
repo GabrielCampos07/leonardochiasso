@@ -144,18 +144,17 @@ export class AdminCollectionsService {
     }
 
     const nextSlugs = await this.prisma.$transaction(async (tx) => {
-      let ordered = productSlugs;
-      if (keepMissing) {
-        const current = await tx.productCollection.findMany({
-          where: { collectionId: collection.id },
-          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
-          include: { product: { select: { slug: true } } },
-        });
-        ordered = mergeLiveOrderIntoMembership(
-          current.map((row) => row.product.slug),
-          productSlugs,
-        );
-      }
+      const current = await tx.productCollection.findMany({
+        where: { collectionId: collection.id },
+        orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+        include: { product: { select: { slug: true } } },
+      });
+      const ordered = keepMissing
+        ? mergeLiveOrderIntoMembership(
+            current.map((row) => row.product.slug),
+            productSlugs,
+          )
+        : productSlugs;
 
       const products = await tx.product.findMany({
         where: { slug: { in: ordered } },
@@ -169,19 +168,50 @@ export class AdminCollectionsService {
         );
       }
       const bySlug = new Map(products.map((p) => [p.slug, p]));
-
-      await tx.productCollection.deleteMany({
-        where: { collectionId: collection.id },
-      });
-      if (ordered.length > 0) {
-        await tx.productCollection.createMany({
-          data: ordered.map((productSlug, index) => ({
-            collectionId: collection.id,
-            productId: requireProductBySlug(bySlug, productSlug).id,
-            sortOrder: index,
-          })),
+      const nextIds = ordered.map(
+        (productSlug) => requireProductBySlug(bySlug, productSlug).id,
+      );
+      const nextIdSet = new Set(nextIds);
+      const currentIds = new Set(current.map((row) => row.productId));
+      const leaving = current
+        .map((row) => row.productId)
+        .filter((id) => !nextIdSet.has(id));
+      // keepMissing keeps every current member, so leaving is empty.
+      if (leaving.length > 0) {
+        await tx.productCollection.deleteMany({
+          where: { collectionId: collection.id, productId: { in: leaving } },
         });
       }
+
+      const newcomers: {
+        collectionId: string;
+        productId: string;
+        sortOrder: number;
+      }[] = [];
+      for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
+        const productId = nextIds[sortOrder]!;
+        if (currentIds.has(productId)) {
+          await tx.productCollection.update({
+            where: {
+              productId_collectionId: {
+                productId,
+                collectionId: collection.id,
+              },
+            },
+            data: { sortOrder },
+          });
+        } else {
+          newcomers.push({
+            collectionId: collection.id,
+            productId,
+            sortOrder,
+          });
+        }
+      }
+      if (newcomers.length > 0) {
+        await tx.productCollection.createMany({ data: newcomers });
+      }
+
       await rewriteDerivedGenderOrders(
         tx,
         collection.id,
