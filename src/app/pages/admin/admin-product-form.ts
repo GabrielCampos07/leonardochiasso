@@ -630,7 +630,11 @@ export class AdminProductForm implements OnInit {
     };
 
     this.setSaving(true);
-    this.adminCatalog.saveProduct$(next, { isNew: this.isNew(), details }).subscribe({
+    this.adminCatalog.saveProduct$(next, {
+      isNew: this.isNew(),
+      details,
+      original: this.isNew() ? undefined : this.product(),
+    }).subscribe({
       next: (saved) => {
         this.setSaving(false);
         this.saveError.set('');

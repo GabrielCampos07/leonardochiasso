@@ -138,9 +138,19 @@ export class AdminProductsService {
     delete dto.gender;
     const product = await this.prisma.product.findUnique({
       where: { slug },
-      include: { collections: true },
+      include: {
+        category: { select: { id: true, slug: true } },
+        collections: { include: { collection: { select: { slug: true } } } },
+      },
     });
     if (!product) throw new NotFoundException(`Product not found: ${slug}`);
+
+    const categoryUnchanged =
+      dto.category === undefined || dto.category === product.category.slug;
+    const currentCollectionSlug = product.collections[0]?.collection.slug;
+    const collectionUnchanged =
+      dto.collectionSlug === undefined ||
+      dto.collectionSlug === currentCollectionSlug;
 
     const data: Prisma.ProductUpdateInput = {};
 
@@ -179,7 +189,7 @@ export class AdminProductsService {
       data.slug = dto.slug;
     }
 
-    if (dto.category !== undefined) {
+    if (!categoryUnchanged) {
       const category = await this.prisma.category.findUnique({
         where: { slug: dto.category },
       });
@@ -189,37 +199,8 @@ export class AdminProductsService {
       data.category = { connect: { id: category.id } };
     }
 
-    if (dto.collectionSlug !== undefined) {
-      const collection = await this.prisma.collection.findUnique({
-        where: { slug: dto.collectionSlug },
-      });
-      if (!collection) {
-        throw new BadRequestException(
-          `Unknown collection: ${dto.collectionSlug}`,
-        );
-      }
-      const existingLink = product.collections.find(
-        (pc) => pc.collectionId === collection.id,
-      );
-      const maxPc = await this.prisma.productCollection.aggregate({
-        where: { collectionId: collection.id },
-        _max: { sortOrder: true },
-      });
-      const sortOrder =
-        existingLink?.sortOrder ?? (maxPc._max.sortOrder ?? -1) + 1;
-
-      await this.prisma.$transaction([
-        this.prisma.productCollection.deleteMany({
-          where: { productId: product.id },
-        }),
-        this.prisma.productCollection.create({
-          data: {
-            productId: product.id,
-            collectionId: collection.id,
-            sortOrder,
-          },
-        }),
-      ]);
+    if (!collectionUnchanged) {
+      await this.moveProductCollection(product, dto.collectionSlug!);
     }
 
     const updated = await this.prisma.product.update({
@@ -228,11 +209,68 @@ export class AdminProductsService {
       include: publishedProductInclude,
     });
 
-    if (dto.category !== undefined || dto.collectionSlug !== undefined) {
+    if (!categoryUnchanged || !collectionUnchanged) {
       await syncProductGenderOrders(this.prisma, updated.id);
     }
 
     return mapProduct(updated);
+  }
+
+  /**
+   * Move the join row to another collection. Never delete/recreate:
+   * keep sortOrder when it is a valid integer ≥ 0, otherwise append.
+   */
+  private async moveProductCollection(
+    product: {
+      id: string;
+      collections: { productId: string; collectionId: string; sortOrder: number }[];
+    },
+    collectionSlug: string,
+  ): Promise<void> {
+    const collection = await this.prisma.collection.findUnique({
+      where: { slug: collectionSlug },
+    });
+    if (!collection) {
+      throw new BadRequestException(`Unknown collection: ${collectionSlug}`);
+    }
+
+    const already = product.collections.find((pc) => pc.collectionId === collection.id);
+    if (already) return;
+
+    const current = product.collections[0];
+    const sortOrder =
+      current && isValidMembershipSortOrder(current.sortOrder)
+        ? current.sortOrder
+        : await this.nextCollectionSortOrder(collection.id);
+
+    if (current) {
+      await this.prisma.productCollection.update({
+        where: {
+          productId_collectionId: {
+            productId: product.id,
+            collectionId: current.collectionId,
+          },
+        },
+        data: { collectionId: collection.id, sortOrder },
+      });
+      return;
+    }
+
+    await this.prisma.productCollection.create({
+      data: {
+        productId: product.id,
+        collectionId: collection.id,
+        sortOrder,
+      },
+    });
+  }
+
+  private async nextCollectionSortOrder(collectionId: string): Promise<number> {
+    const maxPc = await this.prisma.productCollection.aggregate({
+      where: { collectionId },
+      _max: { sortOrder: true },
+    });
+    return (maxPc._max.sortOrder ?? -1) + 1;
   }
 
   async patchBySlug(
@@ -452,6 +490,10 @@ export class AdminProductsService {
     if (!product) throw new NotFoundException(`Product not found: ${slug}`);
     return mapProduct(product);
   }
+}
+
+function isValidMembershipSortOrder(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
 function setNested(

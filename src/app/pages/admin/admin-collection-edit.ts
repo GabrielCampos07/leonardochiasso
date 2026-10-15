@@ -57,6 +57,11 @@ import {
   productGender,
 } from '../../core/product-gender';
 import { applyCdkListOrder, itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  LISTA_REORDER_ENABLED,
+  sortByMembershipSortOrder,
+} from '../../core/membership-order';
 import { isSoldOut } from '../../scene-engine/types';
 
 function slugify(value: string): string {
@@ -91,6 +96,9 @@ export class AdminCollectionEditPage implements OnInit {
   readonly highlightGender = signal(false);
   readonly todosHint = signal('');
   readonly unissexNotice = MASCULINO_UNISSEX_NOTICE;
+  /** Set `LISTA_REORDER_ENABLED` to true in membership-order.ts to restore Subir/Descer/drag. */
+  readonly listaReorderEnabled = LISTA_REORDER_ENABLED;
+  readonly orderMaintenanceNotice = LISTA_ORDER_MAINTENANCE_NOTICE;
   readonly showUnissexNotice = computed(() => this.genderFilter() === 'masculino');
   readonly dragStartDelay = coarsePointerDragDelay();
   readonly orderLoading = signal(false);
@@ -119,7 +127,10 @@ export class AdminCollectionEditPage implements OnInit {
   readonly visibleProducts = signal<ApiProductDto[]>([]);
   readonly canDrag = computed(
     () =>
-      canReorderWithFilter(this.genderFilter()) && !this.loading() && !this.orderLoading(),
+      LISTA_REORDER_ENABLED &&
+      canReorderWithFilter(this.genderFilter()) &&
+      !this.loading() &&
+      !this.orderLoading(),
   );
   readonly coverUrl = computed(() =>
     resolveCollectionCover({
@@ -136,7 +147,6 @@ export class AdminCollectionEditPage implements OnInit {
   readonly savingOrder = signal(false);
   readonly orderError = signal('');
   private loadGen = 0;
-  private visibleGen = 0;
 
   ngOnInit(): void {
     this.route.paramMap.subscribe((params) => {
@@ -441,28 +451,8 @@ export class AdminCollectionEditPage implements OnInit {
   private refreshVisible(): void {
     const filter = this.genderFilter();
     const subset = livePiecesForOrder(this.products()).filter((p) => matchesGenderFilter(p, filter));
-    if (!canReorderWithFilter(filter) || this.isNew()) {
-      this.orderLoading.set(false);
-      this.visibleProducts.set(subset);
-      return;
-    }
-    const collectionSlug = this.slug();
-    const gen = ++this.visibleGen;
-    this.orderLoading.set(true);
+    this.orderLoading.set(false);
     this.visibleProducts.set(subset);
-    this.collectionOrder.get(collectionSlug, filter).subscribe({
-      next: (res) => {
-        if (gen !== this.visibleGen) return;
-        this.visibleProducts.set(applyProductIdOrder(subset, res.productIds));
-        this.orderLoading.set(false);
-      },
-      error: (err) => {
-        if (gen !== this.visibleGen) return;
-        this.visibleProducts.set(subset);
-        this.orderLoading.set(false);
-        this.toast.error(collectionOrderErrorMessage(err, 'Não foi possível carregar a ordem.'));
-      },
-    });
   }
 
   loadExisting(slug: string): void {
@@ -504,11 +494,14 @@ export class AdminCollectionEditPage implements OnInit {
         this.applyMeta(meta);
         const admin = adminProducts.ok ? adminProducts.value : [];
         const slugs = membership.ok ? membership.value.productSlugs : [];
+        const members = productsInCollection({ slug, id: meta.id, name: meta.name }, admin, []);
+        const hasMembershipSort = members.some((p) =>
+          p.collections?.some((c) => c.slug === slug && Number.isFinite(c.sortOrder)),
+        );
         this.products.set(
-          orderByMembership(
-            productsInCollection({ slug, id: meta.id, name: meta.name }, admin, []),
-            slugs,
-          ),
+          hasMembershipSort
+            ? sortByMembershipSortOrder(members, slug)
+            : orderByMembership(members, slugs),
         );
         writeAdminCache(adminListCacheKey('collection-detail', slug), {
           meta,
@@ -535,7 +528,7 @@ export class AdminCollectionEditPage implements OnInit {
     );
     if (!cached?.meta) return;
     this.applyMeta(cached.meta);
-    this.products.set(cached.products ?? []);
+    this.products.set(sortByMembershipSortOrder(cached.products ?? [], slug));
     this.refreshVisible();
   }
 

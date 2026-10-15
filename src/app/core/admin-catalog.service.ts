@@ -78,6 +78,32 @@ interface AdminCatalogStore {
   order: string[] | null;
 }
 
+/** PATCH body: send collectionSlug / category only when they actually changed. */
+export function membershipFieldsForUpdate(
+  product: Product,
+  original?: Product | null,
+): Pick<AdminUpdateProductPayload, 'category' | 'gender' | 'collectionSlug'> {
+  const nextCategory = storefrontCategory(product);
+  const nextGender = product.gender ?? nextCategory;
+  const nextCollection = product.collectionSlug || slugFromCollection(product.collection);
+  if (!original) {
+    return {
+      category: nextCategory,
+      gender: nextGender,
+      collectionSlug: nextCollection,
+    };
+  }
+  const prevCategory = storefrontCategory(original);
+  const prevGender = original.gender ?? prevCategory;
+  const prevCollection = original.collectionSlug || slugFromCollection(original.collection);
+  return {
+    ...(nextCategory !== prevCategory || nextGender !== prevGender
+      ? { category: nextCategory, gender: nextGender }
+      : {}),
+    ...(nextCollection !== prevCollection ? { collectionSlug: nextCollection } : {}),
+  };
+}
+
 interface PresignResponse {
   uploadUrl: string | null;
   storageKey: string;
@@ -325,7 +351,7 @@ export class AdminCatalogService {
   /** Persist create/update: API when enabled, otherwise localStorage. */
   saveProduct$(
     product: Product,
-    opts: { isNew: boolean; details: string[] },
+    opts: { isNew: boolean; details: string[]; original?: Product },
   ): Observable<Product> {
     if (!this.useApi) {
       const next = { ...product, details: opts.details };
@@ -379,11 +405,10 @@ export class AdminCatalogService {
       );
     }
 
+    const original = opts.original ?? this.get(product.slug);
     return this.updateViaApi(product.slug, {
       name: product.name.trim(),
-      category: storefrontCategory(product),
-      gender: product.gender ?? storefrontCategory(product),
-      collectionSlug,
+      ...membershipFieldsForUpdate(product, original),
       priceCents,
       stockQty,
       ...(status ? { status } : {}),
