@@ -35,11 +35,20 @@ function collectionWithMembers() {
 
 describe('AdminCollectionsService gender order', () => {
   function make() {
+    const members = collectionWithMembers();
     const tx = {
+      collection: {
+        findUnique: jest.fn().mockResolvedValue(members),
+      },
       collectionGenderOrder: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
-        findMany: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue(
+          members.genderOrders.map((row) => ({ ...row, collectionId: members.id })),
+        ),
+        create: jest.fn().mockResolvedValue({}),
+        update: jest.fn().mockResolvedValue({}),
+        delete: jest.fn().mockResolvedValue({}),
       },
       productCollection: {
         deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -52,11 +61,9 @@ describe('AdminCollectionsService gender order', () => {
     };
     const prisma = {
       collection: {
-        findUnique: jest.fn().mockResolvedValue(collectionWithMembers()),
+        findUnique: jest.fn().mockResolvedValue(members),
       },
-      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<unknown>) =>
-        fn(tx),
-      ),
+      $transaction: jest.fn(async (fn: (t: typeof tx) => Promise<unknown>) => fn(tx)),
       collectionGenderOrder: tx.collectionGenderOrder,
       product: tx.product,
     };
@@ -110,22 +117,29 @@ describe('AdminCollectionsService gender order', () => {
     });
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).not.toHaveBeenCalled();
-    expect(tx.productCollection.update).toHaveBeenCalledTimes(3);
+    expect(tx.productCollection.update).toHaveBeenCalledTimes(2);
     expect(tx.productCollection.update).toHaveBeenNthCalledWith(1, {
       where: { productId_collectionId: { productId: FEM, collectionId: 'col-teste' } },
       data: { sortOrder: 0 },
     });
     expect(tx.productCollection.update).toHaveBeenNthCalledWith(2, {
-      where: { productId_collectionId: { productId: MAS, collectionId: 'col-teste' } },
-      data: { sortOrder: 1 },
-    });
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(3, {
       where: { productId_collectionId: { productId: UNI, collectionId: 'col-teste' } },
       data: { sortOrder: 2 },
     });
-    expect(tx.collectionGenderOrder.deleteMany).toHaveBeenCalledWith({
+    expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
+    expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
+    expect(tx.collectionGenderOrder.findMany).toHaveBeenCalledWith({
       where: { collectionId: 'col-teste' },
     });
+    expect(tx.collectionGenderOrder.create).toHaveBeenCalledTimes(3);
+  });
+
+  it('reads membership inside $transaction with a 15s timeout', async () => {
+    const { service, prisma, tx } = make();
+    await service.setGenderOrder('teste-ordem', 'feminino', [FEM, UNI]);
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000 });
+    expect(tx.collection.findUnique).toHaveBeenCalled();
+    expect(prisma.collection.findUnique).not.toHaveBeenCalled();
   });
 
   it('PUT rejects duplicates', async () => {
@@ -161,6 +175,18 @@ describe('AdminCollectionsService gender order', () => {
     ).rejects.toThrow(
       `A ordem deve conter exatamente as peças ativas feminino (incluindo unissex) desta coleção (faltando ${UNI}).`,
     );
+  });
+
+  it('two concurrent PUTs commit without throwing and keep unique sortOrders', async () => {
+    const { service, store } = makeTransactional();
+    await Promise.all([
+      service.setGenderOrder('teste-ordem', 'feminino', [FEM, UNI]),
+      service.setGenderOrder('teste-ordem', 'feminino', [UNI, FEM]),
+    ]);
+    const orders = store.membership.map((row) => row.sortOrder).sort((a, b) => a - b);
+    expect(orders).toEqual([0, 1, 2]);
+    expect(new Set(store.membership.map((row) => row.productId)).size).toBe(3);
+    expect(store.membership).toHaveLength(3);
   });
 
   it('rolls back membership when the derived copy rewrite throws (Lista PUT)', async () => {
@@ -378,6 +404,20 @@ function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
           working.membership.filter((row) => row.collectionId === where.collectionId),
         ),
       },
+      collection: {
+        findUnique: jest.fn(async () => {
+          const base = collectionWithMembers();
+          return {
+            ...base,
+            products: base.products.map((pc) => ({
+              ...pc,
+              sortOrder:
+                working.membership.find((row) => row.productId === pc.productId)?.sortOrder ??
+                pc.sortOrder,
+            })),
+          };
+        }),
+      },
       collectionGenderOrder: {
         deleteMany: jest.fn(async ({ where }: { where: { collectionId: string } }) => {
           working.genderOrders = working.genderOrders.filter(
@@ -390,6 +430,61 @@ function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
           working.genderOrders.push(...data);
           return { count: data.length };
         }),
+        findMany: jest.fn(async ({ where }: { where: { collectionId: string } }) =>
+          working.genderOrders.filter((row) => row.collectionId === where.collectionId),
+        ),
+        create: jest.fn(async ({ data }: { data: OrderStore['genderOrders'][number] }) => {
+          if (opts.throwOnGenderCreate) throw new Error('derived copy failed');
+          working.genderOrders.push(data);
+          return data;
+        }),
+        update: jest.fn(
+          async ({
+            where,
+            data,
+          }: {
+            where: {
+              collectionId_gender_productId: {
+                collectionId: string;
+                gender: string;
+                productId: string;
+              };
+            };
+            data: { sortOrder: number };
+          }) => {
+            const row = working.genderOrders.find(
+              (item) =>
+                item.collectionId === where.collectionId_gender_productId.collectionId &&
+                item.gender === where.collectionId_gender_productId.gender &&
+                item.productId === where.collectionId_gender_productId.productId,
+            );
+            if (row) row.sortOrder = data.sortOrder;
+            return row;
+          },
+        ),
+        delete: jest.fn(
+          async ({
+            where,
+          }: {
+            where: {
+              collectionId_gender_productId: {
+                collectionId: string;
+                gender: string;
+                productId: string;
+              };
+            };
+          }) => {
+            working.genderOrders = working.genderOrders.filter(
+              (row) =>
+                !(
+                  row.collectionId === where.collectionId_gender_productId.collectionId &&
+                  row.gender === where.collectionId_gender_productId.gender &&
+                  row.productId === where.collectionId_gender_productId.productId
+                ),
+            );
+            return { count: 1 };
+          },
+        ),
       },
       product: { findMany: productFindMany },
     };

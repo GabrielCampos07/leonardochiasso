@@ -2,6 +2,7 @@ import {
   mergeLiveOrderIntoMembership,
   rewriteDerivedGenderOrders,
   sortMembersBySortOrder,
+  syncDerivedGenderOrders,
 } from './membership-order';
 
 const PLUMARIA = 'id-teste-plumaria';
@@ -58,6 +59,35 @@ describe('membership-order (one collection order)', () => {
         { collectionId: 'col-teste', productId: 'id-teste-uni', gender: 'masculino', sortOrder: 0 },
         { collectionId: 'col-teste', productId: 'id-teste-masc', gender: 'masculino', sortOrder: 1 },
       ],
+    });
+  });
+
+  it('syncs only changed derived gender rows', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      { productId: PLUMARIA, gender: 'feminino', sortOrder: 0 },
+      { productId: 'id-teste-old', gender: 'feminino', sortOrder: 1 },
+    ]);
+    const create = jest.fn().mockResolvedValue({});
+    const update = jest.fn().mockResolvedValue({});
+    const del = jest.fn().mockResolvedValue({});
+    await syncDerivedGenderOrders(
+      { collectionGenderOrder: { findMany, create, update, delete: del } },
+      'col-teste',
+      [
+        { productId: PLUMARIA, gender: 'feminino' },
+        { productId: 'id-teste-uni', gender: 'unissex' },
+      ],
+    );
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(update).not.toHaveBeenCalled();
+    expect(del).toHaveBeenCalledWith({
+      where: {
+        collectionId_gender_productId: {
+          collectionId: 'col-teste',
+          gender: 'feminino',
+          productId: 'id-teste-old',
+        },
+      },
     });
   });
 });

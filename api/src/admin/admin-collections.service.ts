@@ -20,6 +20,7 @@ import {
   mergeLiveOrderIntoMembership,
   rewriteDerivedGenderOrders,
   sortMembersBySortOrder,
+  syncDerivedGenderOrders,
 } from './membership-order';
 import { archivedAtWhere } from './archive-query';
 
@@ -285,105 +286,102 @@ export class AdminCollectionsService {
     productIds: string[],
   ): Promise<CollectionGenderOrderDto> {
     const gender = parseGenderList(genderRaw);
-    const collection = await this.prisma.collection.findUnique({
-      where: { slug },
-      include: {
-        products: {
-          include: { product: { include: { category: true } } },
-        },
-      },
-    });
-    if (!collection) {
-      throw new NotFoundException(`Collection not found: ${slug}`);
-    }
-
     if (new Set(productIds).size !== productIds.length) {
       throw new BadRequestException('A lista de peças contém itens repetidos.');
     }
 
-    const members = new Map(
-      collection.products.map((pc) => [pc.productId, pc]),
-    );
-    // Peças arquivadas não entram na ordenação: são ignoradas se enviadas.
-    productIds = productIds.filter(
-      (id) => !members.get(id)?.product.archivedAt,
-    );
-    const uniqueIds = new Set(productIds);
-    const notInCollection = productIds.filter((id) => !members.has(id));
-    if (notInCollection.length > 0) {
-      throw new BadRequestException(
-        `Peças que não pertencem a esta coleção: ${notInCollection.join(', ')}`,
-      );
-    }
-
-    const wrongGender = productIds.filter((id) => {
-      const pc = members.get(id)!;
-      return !matchesGenderList(pc.product.category.slug, gender);
-    });
-    if (wrongGender.length > 0) {
-      throw new BadRequestException(
-        `Peças fora do filtro ${gender} (aceita ${gender} ou unissex): ${wrongGender.join(', ')}`,
-      );
-    }
-
-    const expected = collection.products
-      .filter(
-        (pc) =>
-          !pc.product.archivedAt &&
-          matchesGenderList(pc.product.category.slug, gender),
-      )
-      .map((pc) => pc.productId);
-    const expectedSet = new Set(expected);
-    const missing = expected.filter((id) => !uniqueIds.has(id));
-    const extra = productIds.filter((id) => !expectedSet.has(id));
-    if (missing.length > 0 || extra.length > 0) {
-      const parts: string[] = [];
-      if (missing.length > 0) {
-        parts.push(`faltando ${missing.join(', ')}`);
-      }
-      if (extra.length > 0) {
-        parts.push(`sobrando ${extra.join(', ')}`);
-      }
-      throw new BadRequestException(
-        `A ordem deve conter exatamente as peças ativas ${gender} (incluindo unissex) desta coleção (${parts.join('; ')}). Recarregue a página e tente de novo.`,
-      );
-    }
-
-    const membership = sortMembersBySortOrder(collection.products).map(
-      (pc) => pc.productId,
-    );
-    const nextIds = mergeLiveOrderIntoMembership(membership, productIds);
-    const byId = new Map(
-      collection.products.map((pc) => [pc.productId, pc] as const),
-    );
-
-    await this.prisma.$transaction(async (tx) => {
-      for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
-        const productId = nextIds[sortOrder]!;
-        await tx.productCollection.update({
-          where: {
-            productId_collectionId: {
-              productId,
-              collectionId: collection.id,
+    return this.prisma.$transaction(
+      async (tx) => {
+        const collection = await tx.collection.findUnique({
+          where: { slug },
+          include: {
+            products: {
+              include: { product: { include: { category: true } } },
             },
           },
-          data: { sortOrder },
         });
-      }
-      await rewriteDerivedGenderOrders(
-        tx,
-        collection.id,
-        nextIds.map((productId) => {
-          const row = byId.get(productId);
-          if (!row) {
-            throw new BadRequestException(`Unknown product id: ${productId}`);
-          }
-          return { productId, gender: row.product.category.slug };
-        }),
-      );
-    });
+        if (!collection) {
+          throw new NotFoundException(`Collection not found: ${slug}`);
+        }
 
-    return { collection: slug, gender, productIds };
+        const members = new Map(collection.products.map((pc) => [pc.productId, pc]));
+        const liveIds = productIds.filter((id) => !members.get(id)?.product.archivedAt);
+        const uniqueIds = new Set(liveIds);
+        const notInCollection = liveIds.filter((id) => !members.has(id));
+        if (notInCollection.length > 0) {
+          throw new BadRequestException(
+            `Peças que não pertencem a esta coleção: ${notInCollection.join(', ')}`,
+          );
+        }
+
+        const wrongGender = liveIds.filter((id) => {
+          const pc = members.get(id)!;
+          return !matchesGenderList(pc.product.category.slug, gender);
+        });
+        if (wrongGender.length > 0) {
+          throw new BadRequestException(
+            `Peças fora do filtro ${gender} (aceita ${gender} ou unissex): ${wrongGender.join(', ')}`,
+          );
+        }
+
+        const expected = collection.products
+          .filter(
+            (pc) =>
+              !pc.product.archivedAt &&
+              matchesGenderList(pc.product.category.slug, gender),
+          )
+          .map((pc) => pc.productId);
+        const expectedSet = new Set(expected);
+        const missing = expected.filter((id) => !uniqueIds.has(id));
+        const extra = liveIds.filter((id) => !expectedSet.has(id));
+        if (missing.length > 0 || extra.length > 0) {
+          const parts: string[] = [];
+          if (missing.length > 0) {
+            parts.push(`faltando ${missing.join(', ')}`);
+          }
+          if (extra.length > 0) {
+            parts.push(`sobrando ${extra.join(', ')}`);
+          }
+          throw new BadRequestException(
+            `A ordem deve conter exatamente as peças ativas ${gender} (incluindo unissex) desta coleção (${parts.join('; ')}). Recarregue a página e tente de novo.`,
+          );
+        }
+
+        const membership = sortMembersBySortOrder(collection.products).map((pc) => pc.productId);
+        const nextIds = mergeLiveOrderIntoMembership(membership, liveIds);
+        const byId = new Map(collection.products.map((pc) => [pc.productId, pc] as const));
+
+        for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
+          const productId = nextIds[sortOrder]!;
+          const current = byId.get(productId);
+          if (current && current.sortOrder === sortOrder) continue;
+          await tx.productCollection.update({
+            where: {
+              productId_collectionId: {
+                productId,
+                collectionId: collection.id,
+              },
+            },
+            data: { sortOrder },
+          });
+        }
+
+        await syncDerivedGenderOrders(
+          tx,
+          collection.id,
+          nextIds.map((productId) => {
+            const row = byId.get(productId);
+            if (!row) {
+              throw new BadRequestException(`Unknown product id: ${productId}`);
+            }
+            return { productId, gender: row.product.category.slug };
+          }),
+        );
+
+        return { collection: slug, gender, productIds: liveIds };
+      },
+      { timeout: 15_000 },
+    );
   }
 
   private async requireCollection(slug: string) {

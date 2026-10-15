@@ -59,6 +59,38 @@ export function sortMembersBySortOrder<
   });
 }
 
+export type DerivedGenderRow = {
+  collectionId: string;
+  productId: string;
+  gender: CollectionGender;
+  sortOrder: number;
+};
+
+function genderRowKey(row: { gender: string; productId: string }): string {
+  return `${row.gender}:${row.productId}`;
+}
+
+export function derivedGenderRows(
+  collectionId: string,
+  members: readonly { productId: string; gender: string }[],
+): DerivedGenderRow[] {
+  const rows: DerivedGenderRow[] = [];
+  const lists: GenderList[] = ['feminino', 'masculino'];
+  for (const gender of lists) {
+    let index = 0;
+    for (const member of members) {
+      if (!listsForProductGender(member.gender).includes(gender)) continue;
+      rows.push({
+        collectionId,
+        productId: member.productId,
+        gender,
+        sortOrder: index++,
+      });
+    }
+  }
+  return rows;
+}
+
 /** Prisma `$transaction` client, or a structural mock in tests. */
 export type GenderOrderDb =
   | Prisma.TransactionClient
@@ -66,6 +98,36 @@ export type GenderOrderDb =
       collectionGenderOrder: {
         deleteMany(args: { where: { collectionId: string } }): Promise<unknown>;
         createMany(args: { data: unknown[] }): Promise<unknown>;
+      };
+    };
+
+export type SyncGenderOrderDb =
+  | Prisma.TransactionClient
+  | {
+      collectionGenderOrder: {
+        findMany(args: { where: { collectionId: string } }): Promise<
+          { productId: string; gender: string; sortOrder: number }[]
+        >;
+        create(args: { data: DerivedGenderRow }): Promise<unknown>;
+        update(args: {
+          where: {
+            collectionId_gender_productId: {
+              collectionId: string;
+              gender: CollectionGender;
+              productId: string;
+            };
+          };
+          data: { sortOrder: number };
+        }): Promise<unknown>;
+        delete(args: {
+          where: {
+            collectionId_gender_productId: {
+              collectionId: string;
+              gender: CollectionGender;
+              productId: string;
+            };
+          };
+        }): Promise<unknown>;
       };
     };
 
@@ -80,26 +142,52 @@ export async function rewriteDerivedGenderOrders(
   members: readonly { productId: string; gender: string }[],
 ): Promise<void> {
   await db.collectionGenderOrder.deleteMany({ where: { collectionId } });
-  const rows: {
-    collectionId: string;
-    productId: string;
-    gender: CollectionGender;
-    sortOrder: number;
-  }[] = [];
-  const lists: GenderList[] = ['feminino', 'masculino'];
-  for (const gender of lists) {
-    let index = 0;
-    for (const member of members) {
-      if (!listsForProductGender(member.gender).includes(gender)) continue;
-      rows.push({
-        collectionId,
-        productId: member.productId,
-        gender,
-        sortOrder: index++,
-      });
-    }
-  }
+  const rows = derivedGenderRows(collectionId, members);
   if (rows.length > 0) {
     await db.collectionGenderOrder.createMany({ data: rows });
+  }
+}
+
+/** Update / create / delete only the derived rows that actually changed. */
+export async function syncDerivedGenderOrders(
+  db: SyncGenderOrderDb,
+  collectionId: string,
+  members: readonly { productId: string; gender: string }[],
+): Promise<void> {
+  const desired = derivedGenderRows(collectionId, members);
+  const existing = await db.collectionGenderOrder.findMany({ where: { collectionId } });
+  const want = new Map(desired.map((row) => [genderRowKey(row), row]));
+  const have = new Map(existing.map((row) => [genderRowKey(row), row]));
+
+  for (const [key, row] of want) {
+    const prev = have.get(key);
+    if (!prev) {
+      await db.collectionGenderOrder.create({ data: row });
+      continue;
+    }
+    if (prev.sortOrder === row.sortOrder) continue;
+    await db.collectionGenderOrder.update({
+      where: {
+        collectionId_gender_productId: {
+          collectionId,
+          gender: row.gender,
+          productId: row.productId,
+        },
+      },
+      data: { sortOrder: row.sortOrder },
+    });
+  }
+
+  for (const row of existing) {
+    if (want.has(genderRowKey(row))) continue;
+    await db.collectionGenderOrder.delete({
+      where: {
+        collectionId_gender_productId: {
+          collectionId,
+          gender: row.gender as CollectionGender,
+          productId: row.productId,
+        },
+      },
+    });
   }
 }
