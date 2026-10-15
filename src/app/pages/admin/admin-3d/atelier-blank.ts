@@ -1,5 +1,5 @@
 import { slugifyName, uniqueAdminSlug } from '../../../core/admin-catalog.service';
-import { Collection, Product, formatPriceLabel } from '../../../core/product.model';
+import { Collection, Product, formatAdminPriceLabel } from '../../../core/product.model';
 import { JoiaPiece } from '../../../core/joias.data';
 import { CollectionSlug } from '../../../core/routes';
 import { UNCOLLECTED_RACK_ID } from '../../../scene-engine/types';
@@ -19,7 +19,7 @@ export function blankAtelierProduct(collectionSlug: string): Product {
     slug: '',
     name: '',
     price: 0,
-    priceLabel: formatPriceLabel(0),
+    priceLabel: formatAdminPriceLabel(0),
     priceCents: 0,
     color: '',
     size: 'ÚNICO',

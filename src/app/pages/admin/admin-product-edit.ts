@@ -1,8 +1,8 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AdminCatalogService, adminHttpErrorMessage, collectionFromSlug } from '../../core/admin-catalog.service';
 import { resolveAdminCollectionContext } from '../../core/admin-collection-context';
-import { Collection, Product, formatPriceLabel } from '../../core/product.model';
+import { Collection, Product, formatAdminPriceLabel } from '../../core/product.model';
 import {
   ADMIN_NEW_PRODUCT_SLUG,
   COLLECTION_SLUGS,
@@ -32,7 +32,7 @@ function blankProduct(collectionSlug: string | null): Product {
     slug: '',
     name: '',
     price: 0,
-    priceLabel: formatPriceLabel(0),
+    priceLabel: formatAdminPriceLabel(0),
     priceCents: 0,
     color: '',
     size: 'ÚNICO',
@@ -75,6 +75,7 @@ export class AdminProductEditPage implements OnInit {
   readonly collectionRequired = signal(false);
   readonly restoring = signal(false);
   readonly isArchived = computed(() => isArchivedAt(this.draft()?.archivedAt));
+  private readonly productForm = viewChild(AdminProductForm);
 
   ngOnInit(): void {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
@@ -125,6 +126,15 @@ export class AdminProductEditPage implements OnInit {
       .then(() => {
         window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
       });
+  }
+
+  async goBack(): Promise<void> {
+    const form = this.productForm();
+    if (form) {
+      await form.cancel();
+      return;
+    }
+    this.cancel();
   }
 
   cancel(): void {

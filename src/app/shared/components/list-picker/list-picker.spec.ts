@@ -37,4 +37,13 @@ describe('LcListPicker', () => {
     expect(trigger.textContent?.trim()).toBe('TESTE-COLECAO2');
     expect(trigger.textContent).not.toContain('teste-colecao2');
   });
+
+  it('marks the trigger invalid and described when asked', () => {
+    fixture.componentRef.setInput('invalid', true);
+    fixture.componentRef.setInput('describedBy', 'atelier-product-collection-error');
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector('#lc-list-picker') as HTMLElement;
+    expect(trigger.getAttribute('aria-invalid')).toBe('true');
+    expect(trigger.getAttribute('aria-describedby')).toBe('atelier-product-collection-error');
+  });
 });

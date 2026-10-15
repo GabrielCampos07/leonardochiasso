@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, map, of, shareReplay, tap } from 'rxjs';
-import { Collection, Product } from './product.model';
+import { Collection, Product, formatPriceLabel } from './product.model';
 import { PRODUCTS } from './products';
 import { CollectionSlug } from './routes';
 import { environment } from '../../environments/environment';
@@ -61,13 +61,17 @@ export interface ApiCollectionDto {
   products?: ApiProductDto[];
 }
 
-function formatPriceLabel(reais: number): string {
-  return reais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function publicPieceLabels(pieces: Product['pieces']): Product['pieces'] {
+  if (!pieces?.length) return pieces;
+  return pieces.map((piece) => ({
+    ...piece,
+    priceLabel: formatPriceLabel(piece.price),
+  }));
 }
 
-/** Map API product → storefront Product (price in whole BRL). */
+/** Map API product → storefront Product (reais from cents; omit ,00 when whole). */
 export function mapApiProduct(dto: ApiProductDto): Product {
-  const price = Math.round(dto.priceCents / 100);
+  const price = dto.priceCents / 100;
   const local = PRODUCTS.find((p) => p.slug === dto.slug || p.id === dto.slug);
   const gender = productGender({
     slug: dto.slug,
@@ -99,7 +103,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     collectionSlug: (primaryCollectionLabel(dto.collections).slug ||
       (!dto.collections?.length ? collectionNameToSlug(dto.collection || '') : '')) as CollectionSlug,
     collections: dto.collections,
-    pieces: (dto.pieces as Product['pieces']) ?? local?.pieces,
+    pieces: publicPieceLabels((dto.pieces as Product['pieces']) ?? local?.pieces),
     colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
     imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,
     artCouture: dto.artCouture ?? local?.artCouture,

@@ -6,20 +6,39 @@ import { AdminCatalogService, MULTI_COLLECTION_CHANGE_BLOCKED } from '../../core
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { ToastService } from '../../core/feedback/toast.service';
+import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
+import { ADMIN_SWATCH_OPTIONS } from '../../core/admin-catalog.service';
 import {
   PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_DECIMALS_MESSAGE,
   PRICE_INVALID_MESSAGE,
+  PRICE_MAX_MESSAGE,
   PRICE_NEGATIVE_MESSAGE,
   PRICE_REQUIRED_MESSAGE,
 } from '../../core/price-input';
 import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
+  COLLECTION_REQUIRED_MESSAGE,
+  NAME_MAX_LENGTH,
+  NAME_REQUIRED_MESSAGE,
   STOCK_NEGATIVE_MESSAGE,
+  applySelectedSwatches,
   collectionSelectLabel,
+  colorLabelFromSwatches,
+  CUSTOM_COLOR_DUPLICATE_MESSAGE,
+  CUSTOM_COLOR_REQUIRED_MESSAGE,
+  CUSTOM_COLOR_TOO_LONG_MESSAGE,
+  customColorError,
+  keepOrTrim,
+  LEAVE_WHILE_SAVING_MESSAGE,
+  LEAVE_WHILE_SAVING_TITLE,
   parseStockQty,
+  paletteColorsForSave,
+  SAVED_TOAST,
+  selectedSwatchesFromProduct,
+  splitLegacyColorLabel,
   stockQtyError,
 } from './admin-product-form';
 
@@ -97,6 +116,69 @@ describe('collectionSelectLabel', () => {
   });
 });
 
+describe('selectedSwatchesFromProduct', () => {
+  const blackWhite = { id: 'black-white', name: 'Black/White', hex: '#111111' };
+  const known = [...ADMIN_SWATCH_OPTIONS, blackWhite];
+
+  it('splits only on a slash with spaces', () => {
+    expect(splitLegacyColorLabel('Off-white / Black')).toEqual(['Off-white', 'Black']);
+    expect(splitLegacyColorLabel('Black/White')).toEqual(['Black/White']);
+    const colors = selectedSwatchesFromProduct({ color: 'Off-white / Black' }, known);
+    expect(colors.map((c) => c.id)).toEqual(['off-white', 'black']);
+    expect(colorLabelFromSwatches(colors)).toBe('Off-white / Black');
+  });
+
+  it('keeps a slash without spaces as one color when it is on the known list', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Black/White' }, known);
+    expect(colors.map((c) => c.id)).toEqual(['black-white']);
+    expect(colors.map((c) => c.name)).toEqual(['Black/White']);
+  });
+
+  it('keeps a slash without spaces as one free-text chip when it is not on the known list', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Black/White' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors.map((c) => c.name)).toEqual(['Black/White']);
+    expect(colors[0]?.id.startsWith('custom:')).toBeTrue();
+  });
+
+  it('keeps a free-text color like Cru natural as a chip', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Cru natural' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors.map((c) => c.name)).toEqual(['Cru natural']);
+    expect(colorLabelFromSwatches(colors)).toBe('Cru natural');
+  });
+
+  it('validates a custom color: empty, too long, and case-insensitive duplicate', () => {
+    expect(customColorError('   ', [])).toBe(CUSTOM_COLOR_REQUIRED_MESSAGE);
+    expect(customColorError('A'.repeat(41), [])).toBe(CUSTOM_COLOR_TOO_LONG_MESSAGE);
+    expect(
+      customColorError('CRU NATURAL', [{ id: 'custom:cru natural', name: 'Cru natural', hex: '#ccc' }]),
+    ).toBe(CUSTOM_COLOR_DUPLICATE_MESSAGE);
+    expect(customColorError('Cru natural', [])).toBe('');
+  });
+
+  it('keeps the loaded string when the field was not edited', () => {
+    expect(keepOrTrim('  ÚNICO  ', '  ÚNICO  ')).toBe('  ÚNICO  ');
+    expect(keepOrTrim('  M  ', '  ÚNICO  ')).toBe('M');
+  });
+
+  it('drops custom: chips from the colors array kept for save', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Cru natural' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors[0]?.id.startsWith('custom:')).toBeTrue();
+    expect(paletteColorsForSave(colors)).toEqual([]);
+    expect(paletteColorsForSave([ADMIN_SWATCH_OPTIONS[0]!, ...colors]).map((c) => c.id)).toEqual([
+      ADMIN_SWATCH_OPTIONS[0]!.id,
+    ]);
+  });
+
+  it('prefers the known-colors list over leftover free text', () => {
+    const colors = selectedSwatchesFromProduct(
+      { color: 'Creme e ouro', colors: [ADMIN_SWATCH_OPTIONS.find((s) => s.id === 'sand')!] },
+      ADMIN_SWATCH_OPTIONS,
+    );
+    expect(colors.map((c) => c.id)).toEqual(['sand']);
+    expect(applySelectedSwatches(sampleProduct({ color: 'Creme' }), colors).color).toBe('Sand');
+  });
+});
+
 describe('stockQtyError', () => {
   it('uses the API copy for negatives', () => {
     expect(stockQtyError(-1)).toBe(STOCK_NEGATIVE_MESSAGE);
@@ -115,6 +197,8 @@ describe('AdminProductForm', () => {
   let toast: { error: jasmine.Spy; success: jasmine.Spy; info: jasmine.Spy };
   let confirm: { confirm: jasmine.Spy };
   let saveProduct$: jasmine.Spy;
+  let updateViaApi: jasmine.Spy;
+  let createViaApi: jasmine.Spy;
   let list: jasmine.Spy;
 
   beforeEach(async () => {
@@ -123,8 +207,10 @@ describe('AdminProductForm', () => {
       success: jasmine.createSpy('success'),
       info: jasmine.createSpy('info'),
     };
-    confirm = { confirm: jasmine.createSpy('confirm').and.returnValue(Promise.resolve(true)) };
+    confirm = { confirm: jasmine.createSpy('confirm').and.resolveTo(true) };
     saveProduct$ = jasmine.createSpy('saveProduct$');
+    updateViaApi = jasmine.createSpy('updateViaApi');
+    createViaApi = jasmine.createSpy('createViaApi');
     list = jasmine.createSpy('list').and.returnValue(
       of([
         {
@@ -165,6 +251,8 @@ describe('AdminProductForm', () => {
             mediaOf: () => [],
             slugExists: () => false,
             saveProduct$,
+            updateViaApi,
+            createViaApi,
           },
         },
         { provide: AdminCollectionsApiService, useValue: { list } },
@@ -197,6 +285,242 @@ describe('AdminProductForm', () => {
     expect(fixture.componentInstance.currentStatus()).toBe('published');
     expect(fixture.nativeElement.querySelector('#atelier-product-status .is-on')?.textContent?.trim()).toBe(
       'Publicado',
+    );
+  });
+
+  it('maps legacy color text to chips on open and does not PUT on cancel', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput(
+      'product',
+      sampleProduct({ color: 'Off-white / Black', colors: undefined }),
+    );
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual([
+      'off-white',
+      'black',
+    ]);
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white / Black');
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Black"]')).toBeTruthy();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(updateViaApi).not.toHaveBeenCalled();
+    expect(createViaApi).not.toHaveBeenCalled();
+
+    fixture.nativeElement.querySelector('.admin-edit__cancel')?.click();
+    fixture.detectChanges();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(updateViaApi).not.toHaveBeenCalled();
+    expect(createViaApi).not.toHaveBeenCalled();
+
+    saveProduct$.and.returnValue(of(sampleProduct({ color: 'Off-white / Black' })));
+    fixture.componentInstance.save();
+    expect(saveProduct$).toHaveBeenCalledTimes(1);
+    expect(saveProduct$.calls.mostRecent().args[0].color).toBe('Off-white / Black');
+    expect(saveProduct$.calls.mostRecent().args[0].colors).toBeUndefined();
+  });
+
+  it('saves Cru natural and off-white  /  black exactly as stored when chips are not edited', () => {
+    const cru = sampleProduct({ color: 'Cru natural', colors: undefined });
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', cru);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.name)).toEqual(['Cru natural']);
+    saveProduct$.and.returnValue(of(cru));
+    fixture.componentInstance.save();
+    const cruPayload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(cruPayload.color).toBe('Cru natural');
+    expect(cruPayload.colors).toBeUndefined();
+
+    const spaced = sampleProduct({ color: 'off-white  /  black', colors: undefined });
+    fixture.componentRef.setInput('product', spaced);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual([
+      'off-white',
+      'black',
+    ]);
+    saveProduct$.and.returnValue(of(spaced));
+    fixture.componentInstance.save();
+    const spacedPayload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(spacedPayload.color).toBe('off-white  /  black');
+    expect(spacedPayload.colors).toBeUndefined();
+    expect(spacedPayload.color).toBe(spaced.color);
+    expect(spacedPayload.colors).toEqual(spaced.colors);
+  });
+
+  it('adds a custom color from the text field without dropping the others', () => {
+    fixture.componentInstance.addSwatchById('off-white');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#atelier-product-color-custom')).toBeTruthy();
+    const customLabel = fixture.nativeElement.querySelector(
+      'label[for="atelier-product-color-custom"]',
+    ) as HTMLLabelElement;
+    const addBtn = fixture.nativeElement.querySelector('.admin-edit__custom-color-add') as HTMLButtonElement;
+    expect(customLabel?.textContent?.trim()).toBe('Adicionar cor personalizada');
+    expect(addBtn?.closest('label')).toBeNull();
+
+    fixture.componentInstance.onCustomColorInput('  Cru natural  ');
+    fixture.componentInstance.addCustomColor();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe('');
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.name)).toEqual([
+      'Off-white',
+      'Cru natural',
+    ]);
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Cru natural"]')).toBeTruthy();
+
+    saveProduct$.and.returnValue(of(sampleProduct({ color: 'Off-white / Cru natural' })));
+    fixture.componentInstance.save();
+    const payload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(payload.color).toBe('Off-white / Cru natural');
+    expect(payload.colors?.map((c) => c.id)).toEqual(['off-white']);
+    expect(JSON.stringify(payload)).not.toContain('custom:');
+  });
+
+  it('adds a custom color on Enter and shows inline Portuguese errors', () => {
+    (fixture.nativeElement.querySelector('.admin-edit__custom-color-add') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe(CUSTOM_COLOR_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-color-custom-error')?.textContent?.trim()).toBe(
+      CUSTOM_COLOR_REQUIRED_MESSAGE,
+    );
+
+    fixture.componentInstance.onCustomColorInput('A'.repeat(41));
+    fixture.componentInstance.addCustomColor();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe(CUSTOM_COLOR_TOO_LONG_MESSAGE);
+
+    fixture.componentInstance.addSwatchById('black');
+    fixture.componentInstance.onCustomColorInput('BLACK');
+    fixture.componentInstance.addCustomColor();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe(CUSTOM_COLOR_DUPLICATE_MESSAGE);
+
+    fixture.componentInstance.onCustomColorInput('off-white');
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    spyOn(enter, 'preventDefault');
+    fixture.componentInstance.onCustomColorKeydown(enter);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toContain('off-white');
+    expect(fixture.componentInstance.customColorText).toBe('');
+  });
+
+  it('ignores Enter while an IME is composing or keyCode is 229', () => {
+    fixture.componentInstance.onCustomColorInput('Cru natural');
+
+    const composing = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true });
+    spyOn(composing, 'preventDefault');
+    fixture.componentInstance.onCustomColorKeydown(composing);
+    expect(composing.preventDefault).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.draft()?.colors?.some((c) => c.name === 'Cru natural')).toBeFalse();
+    expect(fixture.componentInstance.customColorText).toBe('Cru natural');
+
+    const imeKey = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    Object.defineProperty(imeKey, 'keyCode', { value: 229 });
+    spyOn(imeKey, 'preventDefault');
+    fixture.componentInstance.onCustomColorKeydown(imeKey);
+    expect(imeKey.preventDefault).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.draft()?.colors?.some((c) => c.name === 'Cru natural')).toBeFalse();
+    expect(fixture.componentInstance.customColorText).toBe('Cru natural');
+  });
+
+  it('saves untouched padded fields exactly as stored', () => {
+    const stored = sampleProduct({
+      size: '  ÚNICO  ',
+      fabric: 'linho ',
+      season: ' Seasonless',
+      description: 'texto  ',
+      color: 'Cru natural',
+      colors: undefined,
+    });
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', stored);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    saveProduct$.and.returnValue(of(stored));
+    fixture.componentInstance.save();
+    const payload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(payload.size).toBe('  ÚNICO  ');
+    expect(payload.fabric).toBe('linho ');
+    expect(payload.season).toBe(' Seasonless');
+    expect(payload.description).toBe('texto  ');
+    expect(payload.color).toBe('Cru natural');
+    expect(payload.colors).toBeUndefined();
+  });
+
+  it('asks the browser before unload when dirty or saving', () => {
+    const event = { preventDefault: jasmine.createSpy('preventDefault'), returnValue: false };
+    fixture.componentInstance.onBeforeUnload(event as unknown as BeforeUnloadEvent);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+
+    fixture.componentInstance.onNameChange('Look alterado');
+    fixture.componentInstance.onBeforeUnload(event as unknown as BeforeUnloadEvent);
+    expect(event.preventDefault).toHaveBeenCalled();
+
+    event.preventDefault.calls.reset();
+    fixture.componentInstance['saving'].set(true);
+    fixture.componentInstance.onBeforeUnload(event as unknown as BeforeUnloadEvent);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('picks colors as chips, never mixed with the old text field', () => {
+    expect(fixture.nativeElement.querySelector('#atelier-product-color-text')).toBeNull();
+    expect(fixture.nativeElement.querySelector('input[name="color"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('select')).toBeNull();
+
+    fixture.componentInstance.addSwatchById('off-white');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white');
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual(['off-white']);
+    expect(fixture.nativeElement.textContent).toContain('Off-white');
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeTruthy();
+
+    fixture.componentInstance.addSwatchById('black');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.color).toBe('Off-white / Black');
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual(['off-white', 'black']);
+
+    fixture.componentInstance.removeSwatch(
+      fixture.componentInstance.selectedColors().find((c) => c.id === 'off-white')!,
+    );
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.color).toBe('Black');
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Black"]')).toBeTruthy();
+  });
+
+  it('shows an inline error next to an empty required name', () => {
+    fixture.componentInstance.onNameChange('   ');
+    fixture.componentInstance.onNameBlur();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.name).toBe('');
+    expect(fixture.componentInstance.nameError()).toBe(NAME_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-name-error')?.textContent?.trim()).toBe(
+      NAME_REQUIRED_MESSAGE,
+    );
+
+    saveProduct$.calls.reset();
+    fixture.componentInstance.save();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('shows an inline collection error when saving without a collection', () => {
+    fixture.componentInstance.onCollectionSlugChange('');
+    fixture.detectChanges();
+    saveProduct$.calls.reset();
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+    expect(saveProduct$).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.collectionError()).toBe(COLLECTION_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-collection-error')?.textContent?.trim()).toBe(
+      COLLECTION_REQUIRED_MESSAGE,
     );
   });
 
@@ -247,6 +571,26 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.save();
     expect(saveProduct$).toHaveBeenCalled();
     expect(saveProduct$.calls.mostRecent().args[0].priceCents).toBe(1480000);
+    expect((fixture.componentInstance.draft()?.priceLabel ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'R$ 14.800,00',
+    );
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).toContain('R$ 14.800,00');
+  });
+
+  it('admin preview always shows 2 decimals for 1480000 cents (R$ 14.800,00)', () => {
+    fixture.componentInstance.loadDraft(
+      sampleProduct({
+        price: 14800,
+        priceCents: 1_480_000,
+        priceLabel: 'R$ 14.800',
+      }),
+    );
+    fixture.detectChanges();
+    expect((fixture.componentInstance.draft()?.priceLabel ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'R$ 14.800,00',
+    );
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).toContain('R$ 14.800,00');
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).not.toMatch(/R\$ 14\.800(?!,)/);
   });
 
   it('parses pt-BR price text and shows inline errors', () => {
@@ -257,6 +601,11 @@ describe('AdminProductForm', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.draft()?.price).toBe(12.5);
     expect(fixture.componentInstance.draft()?.priceCents).toBe(1250);
+    expect((fixture.componentInstance.draft()?.priceLabel ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'R$ 12,50',
+    );
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).toContain('R$ 12,50');
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).not.toContain('R$ 13,00');
     expect(fixture.componentInstance.priceError()).toBe('');
 
     fixture.componentInstance.onPriceChange('1.250,50');
@@ -282,6 +631,29 @@ describe('AdminProductForm', () => {
     expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
       PRICE_AMBIGUOUS_MESSAGE,
     );
+
+    fixture.componentInstance.onPriceChange('12,999');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_AMBIGUOUS_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('12,5000');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_DECIMALS_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
+      PRICE_DECIMALS_MESSAGE,
+    );
+
+    fixture.componentInstance.onPriceChange('10.000.000');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_MAX_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('1 2');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_INVALID_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('-0');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_NEGATIVE_MESSAGE);
 
     fixture.componentInstance.onPriceChange('abc');
     fixture.detectChanges();
@@ -335,7 +707,7 @@ describe('AdminProductForm', () => {
     expect(list.calls.mostRecent().args).toEqual([false, { refresh: true }]);
   });
 
-  it('shows a multi-collection block in our error UI and modal, and changes nothing', () => {
+  it('shows a multi-collection block only in the modal, and changes nothing', () => {
     fixture.componentRef.setInput('isNew', false);
     fixture.componentRef.setInput('product', sampleProduct());
     fixture.componentInstance.ngOnInit();
@@ -354,16 +726,15 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.save();
     fixture.detectChanges();
 
-    const alert = fixture.nativeElement.querySelector('#atelier-product-save-error') as HTMLElement;
-    expect(alert?.textContent?.trim()).toBe(MULTI_COLLECTION_CHANGE_BLOCKED);
-    expect(toast.error).toHaveBeenCalledWith(MULTI_COLLECTION_CHANGE_BLOCKED);
-    expect(confirm.confirm).toHaveBeenCalledWith(
-      jasmine.objectContaining({
-        title: 'Coleção',
-        message: MULTI_COLLECTION_CHANGE_BLOCKED,
-      }),
-    );
-    expect(fixture.componentInstance.saveError()).toBe(MULTI_COLLECTION_CHANGE_BLOCKED);
+    expect(fixture.nativeElement.querySelector('#atelier-product-save-error')).toBeNull();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(confirm.confirm).toHaveBeenCalledWith({
+      title: 'Coleção',
+      message: MULTI_COLLECTION_CHANGE_BLOCKED,
+      confirmLabel: 'OK',
+      hideCancel: true,
+    });
+    expect(fixture.componentInstance.saveError()).toBe('');
   });
 
   it('shows the API error inline and as a toast on create 400', () => {
@@ -462,6 +833,106 @@ describe('AdminProductForm', () => {
     );
     expect(toast.error).toHaveBeenCalledWith('Falha interna ao salvar.');
   });
+
+  it('caps the name at 200 characters and shows a counter', () => {
+    const long = 'A'.repeat(220);
+    fixture.componentInstance.onNameChange(long);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.name.length).toBe(NAME_MAX_LENGTH);
+    expect(fixture.nativeElement.querySelector('#atelier-product-name-count')?.textContent?.trim()).toBe(
+      `${NAME_MAX_LENGTH}/${NAME_MAX_LENGTH}`,
+    );
+    expect(
+      (fixture.nativeElement.querySelector('#atelier-product-name') as HTMLInputElement).getAttribute('maxlength'),
+    ).toBe(String(NAME_MAX_LENGTH));
+  });
+
+  it('does not open the confirm modal when closing with no changes', async () => {
+    const cancelled = jasmine.createSpy('cancelled');
+    fixture.componentInstance.cancelled.subscribe(cancelled);
+    expect(fixture.componentInstance.isDirty()).toBeFalse();
+    await fixture.componentInstance.cancel();
+    expect(confirm.confirm).not.toHaveBeenCalled();
+    expect(cancelled).toHaveBeenCalled();
+  });
+
+  it('asks before leaving while a save is in progress', async () => {
+    confirm.confirm.and.resolveTo(false);
+    const cancelled = jasmine.createSpy('cancelled');
+    fixture.componentInstance.cancelled.subscribe(cancelled);
+    fixture.componentInstance['saving'].set(true);
+    fixture.detectChanges();
+    const cancelBtn = fixture.nativeElement.querySelector('.admin-edit__cancel') as HTMLButtonElement;
+    expect(cancelBtn.disabled).toBeFalse();
+
+    await fixture.componentInstance.cancel();
+    expect(confirm.confirm).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        title: LEAVE_WHILE_SAVING_TITLE,
+        message: LEAVE_WHILE_SAVING_MESSAGE,
+      }),
+    );
+    expect(cancelled).not.toHaveBeenCalled();
+
+    confirm.confirm.and.resolveTo(true);
+    await fixture.componentInstance.cancel();
+    expect(cancelled).toHaveBeenCalled();
+  });
+
+  it('puts aria-pressed only on color options, not Remover, and marks Coleção and Preço', () => {
+    fixture.componentInstance.addSwatchById('off-white');
+    fixture.componentInstance.onCollectionSlugChange('');
+    fixture.componentInstance.onPriceChange('');
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+
+    const remove = fixture.nativeElement.querySelector(
+      '[aria-label="Remover Off-white"]',
+    ) as HTMLButtonElement;
+    expect(remove).toBeTruthy();
+    expect(remove.getAttribute('aria-pressed')).toBeNull();
+
+    (fixture.nativeElement.querySelector('#atelier-product-color') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const colorOption = fixture.nativeElement.querySelector(
+      '#atelier-product-color-list [role="option"]',
+    ) as HTMLButtonElement;
+    expect(colorOption.getAttribute('aria-pressed')).not.toBeNull();
+
+    const collection = fixture.nativeElement.querySelector(
+      '#atelier-product-collection',
+    ) as HTMLButtonElement;
+    expect(collection.getAttribute('aria-invalid')).toBe('true');
+    expect(collection.getAttribute('aria-describedby')).toBe('atelier-product-collection-error');
+
+    const price = fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement;
+    expect(price.getAttribute('aria-invalid')).toBe('true');
+    expect(price.getAttribute('aria-describedby')).toBe('atelier-product-price-error');
+  });
+
+  it('shows Salvo. with SAVE_TOAST_MS', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', sampleProduct({ status: 'published' }));
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    saveProduct$.and.returnValue(of(sampleProduct({ status: 'published' })));
+    fixture.componentInstance.save();
+    expect(toast.success).toHaveBeenCalledWith(SAVED_TOAST, { durationMs: SAVE_TOAST_MS });
+  });
+
+  it('asks before canceling when the form is dirty', async () => {
+    confirm.confirm.and.resolveTo(false);
+    const cancelled = jasmine.createSpy('cancelled');
+    fixture.componentInstance.cancelled.subscribe(cancelled);
+    fixture.componentInstance.onNameChange('Look alterado');
+    await fixture.componentInstance.cancel();
+    expect(confirm.confirm).toHaveBeenCalled();
+    expect(cancelled).not.toHaveBeenCalled();
+
+    confirm.confirm.and.resolveTo(true);
+    await fixture.componentInstance.cancel();
+    expect(cancelled).toHaveBeenCalled();
+  });
 });
 
 describe('AdminProductForm collection picker while catalog loads', () => {
@@ -484,6 +955,7 @@ describe('AdminProductForm collection picker while catalog loads', () => {
         },
         { provide: AdminCollectionsApiService, useValue: { list: () => pending.asObservable() } },
         { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
         {
           provide: ToastService,
           useValue: { error: () => undefined, success: () => undefined, info: () => undefined },

@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
-import { CatalogService } from './catalog.service';
+import { CatalogService, mapApiProduct } from './catalog.service';
 
 describe('CatalogService getProductsByCollection', () => {
   const originalDemo = environment.demoMode;
@@ -86,5 +86,46 @@ describe('CatalogService getProductsByCollection', () => {
       products: [],
     });
     expect(box.value).toBe(0);
+  });
+});
+
+function asBrl(label: string): string {
+  return label.replace(/\u00a0/g, ' ');
+}
+
+function dto(priceCents: number) {
+  return {
+    id: '1',
+    slug: 'look-preco',
+    name: 'Look preço',
+    description: '',
+    details: [],
+    shipping: null,
+    priceCents,
+    currency: 'BRL',
+    color: null,
+    size: null,
+    fabric: null,
+    season: null,
+    category: 'feminino',
+    collection: 'Organic Dreams',
+    thumb: '',
+    gallery: [],
+  };
+}
+
+describe('mapApiProduct price', () => {
+  it('shows 1480000 cents as R$ 14.800 on the public site', () => {
+    const product = mapApiProduct(dto(1_480_000));
+    expect(product.price).toBe(14800);
+    expect(product.priceCents).toBe(1_480_000);
+    expect(asBrl(product.priceLabel)).toBe('R$ 14.800');
+  });
+
+  it('shows 1250 cents as R$ 12,50 on the public site, not R$ 13,00', () => {
+    const product = mapApiProduct(dto(1250));
+    expect(product.price).toBe(12.5);
+    expect(product.priceCents).toBe(1250);
+    expect(asBrl(product.priceLabel)).toBe('R$ 12,50');
   });
 });

@@ -99,9 +99,13 @@
   align-items: center;
   min-height: 44px;
   margin-bottom: 10px;
+  padding: 0;
+  border: none;
+  background: transparent;
   font-size: 1.1rem;
-  color: var(--lc-ash);
+  color: color-mix(in srgb, var(--lc-void) 78%, var(--lc-ash));
   text-decoration: none;
+  cursor: pointer;
 }
 
 .admin-edit__back:hover {

@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, of } from 'rxjs';
+import { formatPriceLabel } from './product.model';
 import { environment } from '../../environments/environment';
 
 export type OrderStatus =
@@ -67,11 +68,8 @@ export class OrdersService {
     return STATUS_LABELS[status] ?? status;
   }
 
-  formatMoney(cents: number, currency = 'BRL'): string {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency,
-    }).format(cents / 100);
+  formatMoney(cents: number, _currency = 'BRL'): string {
+    return formatPriceLabel(cents / 100);
   }
 
   formatDate(iso: string): string {

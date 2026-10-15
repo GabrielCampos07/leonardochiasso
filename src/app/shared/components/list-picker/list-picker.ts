@@ -24,6 +24,8 @@ function isEmptyPickerLabel(label: string, placeholder: string): boolean {
         [attr.aria-label]="label() || null"
         [attr.aria-expanded]="open()"
         [attr.aria-busy]="loading() ? 'true' : null"
+        [attr.aria-invalid]="invalid() ? 'true' : null"
+        [attr.aria-describedby]="describedBy() || null"
         aria-haspopup="listbox"
         [attr.aria-controls]="listId"
         (click)="toggle($event)"
@@ -44,6 +46,7 @@ function isEmptyPickerLabel(label: string, placeholder: string): boolean {
                 type="button"
                 role="option"
                 [attr.aria-selected]="value() === opt.value"
+                [attr.aria-pressed]="optionPressed() ? value() === opt.value : null"
                 [class.is-on]="value() === opt.value"
                 (click)="pick(opt.value, $event)"
               >
@@ -149,6 +152,10 @@ export class LcListPicker {
   readonly resolvedLabel = input('');
   /** True while the catalog is loading a preselected value. */
   readonly loading = input(false);
+  readonly invalid = input(false);
+  readonly describedBy = input('');
+  /** Color options use aria-pressed; collection options do not. */
+  readonly optionPressed = input(false);
   readonly valueChange = output<string>();
   readonly opened = output<void>();
 
