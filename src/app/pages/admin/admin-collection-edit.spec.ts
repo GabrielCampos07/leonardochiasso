@@ -1,7 +1,6 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { NEVER, Subject, of, throwError } from 'rxjs';
+import { NEVER, Subject, of } from 'rxjs';
 import { ADMIN_LOAD_TIMEOUT_MESSAGE, ADMIN_LOAD_TIMEOUT_MS } from '../../core/admin-archive';
 import { adminListCacheKey, clearAdminListCache, writeAdminCache } from '../../core/admin-list-cache';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
@@ -11,6 +10,11 @@ import { ApiProductDto } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { MASCULINO_UNISSEX_NOTICE, matchesGenderFilter, productGender } from '../../core/product-gender';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  LISTA_REORDER_ENABLED,
+  sortByMembershipSortOrder,
+} from '../../core/membership-order';
 import {
   AdminCollectionEditPage,
   findAdminCollection,
@@ -32,7 +36,9 @@ function dto(patch: Partial<ApiProductDto> & Pick<ApiProductDto, 'slug' | 'name'
     season: null,
     category: patch.gender === 'masculino' ? 'masculino' : 'feminino',
     collection: 'TESTE-COLECAO2',
-    collections: [{ slug: 'teste-colecao2', name: 'TESTE-COLECAO2' }],
+    collections: patch.collections ?? [
+      { slug: 'teste-colecao2', name: 'TESTE-COLECAO2', sortOrder: 0 },
+    ],
     thumb: '',
     gallery: [],
     stockQty: 1,
@@ -114,6 +120,49 @@ describe('productsInCollection', () => {
     expect(rows.map((p) => p.slug)).toEqual(['c', 'a', 'b']);
   });
 
+  it('Lista order matches public API membership sort, including ties', () => {
+    const collection = 'organic-dreams';
+    const adminList = [
+      dto({
+        slug: 'pantalona-rasgo',
+        name: 'Pantalona Rasgo',
+        gender: 'feminino',
+        id: 'id-z',
+        collections: [{ slug: collection, name: 'Organic Dreams', sortOrder: 1 }],
+      }),
+      dto({
+        slug: 'vestido-lg-assimetrico',
+        name: 'Vestido Lg Assimétrico',
+        gender: 'feminino',
+        id: 'id-a',
+        collections: [{ slug: collection, name: 'Organic Dreams', sortOrder: 1 }],
+      }),
+      dto({
+        slug: 'vestido-longo-mosaico-textil',
+        name: 'Vestido longo mosaico textil',
+        gender: 'feminino',
+        id: 'id-m',
+        collections: [{ slug: collection, name: 'Organic Dreams', sortOrder: 0 }],
+      }),
+    ];
+    const lista = sortByMembershipSortOrder(
+      productsInCollection({ slug: collection }, adminList, []),
+      collection,
+    );
+    const publicApi = [...adminList].sort((a, b) => {
+      const ao = a.collections?.find((c) => c.slug === collection)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      const bo = b.collections?.find((c) => c.slug === collection)?.sortOrder ?? Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+    });
+    expect(lista.map((p) => p.slug)).toEqual(publicApi.map((p) => p.slug));
+    expect(lista.map((p) => p.name)).toEqual([
+      'Vestido longo mosaico textil',
+      'Vestido Lg Assimétrico',
+      'Pantalona Rasgo',
+    ]);
+  });
+
   it('keeps unissex in both admin gender filters', () => {
     const uni = { slug: 'trench', gender: 'unissex', category: 'feminino' };
     expect(productGender(uni)).toBe('unissex');
@@ -126,18 +175,38 @@ describe('AdminCollectionEditPage gender UX', () => {
   let fixture: ComponentFixture<AdminCollectionEditPage>;
   let toast: { error: jasmine.Spy; success: jasmine.Spy; info: jasmine.Spy };
   let orderGet: Subject<{ collection: string; gender: 'masculino'; productIds: string[] }>;
+  let getOrder: jasmine.Spy;
   let put: jasmine.Spy;
 
   const pieces = [
-    dto({ slug: 'f1', name: 'F1', gender: 'feminino', id: 'id-f1' }),
-    dto({ slug: 'u1', name: 'U1', gender: 'unissex', id: 'id-u1' }),
-    dto({ slug: 'm1', name: 'M1', gender: 'masculino', id: 'id-m1' }),
+    dto({
+      slug: 'f1',
+      name: 'F1',
+      gender: 'feminino',
+      id: 'id-f1',
+      collections: [{ slug: 'teste-colecao2', name: 'TESTE-COLECAO2', sortOrder: 0 }],
+    }),
+    dto({
+      slug: 'u1',
+      name: 'U1',
+      gender: 'unissex',
+      id: 'id-u1',
+      collections: [{ slug: 'teste-colecao2', name: 'TESTE-COLECAO2', sortOrder: 1 }],
+    }),
+    dto({
+      slug: 'm1',
+      name: 'M1',
+      gender: 'masculino',
+      id: 'id-m1',
+      collections: [{ slug: 'teste-colecao2', name: 'TESTE-COLECAO2', sortOrder: 2 }],
+    }),
     dto({
       slug: 'old',
       name: 'Old',
       gender: 'masculino',
       id: 'id-old',
       archivedAt: '2026-10-01T00:00:00.000Z',
+      collections: [{ slug: 'teste-colecao2', name: 'TESTE-COLECAO2', sortOrder: 3 }],
     }),
   ];
 
@@ -148,6 +217,7 @@ describe('AdminCollectionEditPage gender UX', () => {
       info: jasmine.createSpy('info'),
     };
     orderGet = new Subject();
+    getOrder = jasmine.createSpy('get').and.returnValue(orderGet.asObservable());
     put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
     const meta = {
       id: 'col-1',
@@ -183,7 +253,7 @@ describe('AdminCollectionEditPage gender UX', () => {
         {
           provide: AdminCollectionOrderService,
           useValue: {
-            get: () => orderGet.asObservable(),
+            get: getOrder,
             put,
           },
         },
@@ -206,41 +276,42 @@ describe('AdminCollectionEditPage gender UX', () => {
     expect(api.getPublicDetail).not.toHaveBeenCalled();
   });
 
+  it('shows Ordem em manutenção and hides Subir/Descer/drag while reorder is disabled', () => {
+    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    fixture.detectChanges();
+    const notice = fixture.nativeElement.querySelector(
+      '.admin-col-products__notice[role="status"]',
+    ) as HTMLElement;
+    expect(notice?.tagName).toBe('DIV');
+    expect(notice?.textContent?.trim()).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
+    expect(fixture.nativeElement.textContent).not.toContain('Subir');
+    expect(fixture.nativeElement.textContent).not.toContain('Descer');
+    expect(fixture.nativeElement.querySelector('.admin-col-products__handle')).toBeNull();
+    expect(fixture.componentInstance.canDrag()).toBeFalse();
+  });
+
   it('shows the Masculino notice as soon as that filter is on', () => {
     fixture.componentInstance.setGenderFilter('masculino');
     fixture.detectChanges();
-    const notice = fixture.nativeElement.querySelector('.admin-col-products__notice') as HTMLElement;
-    expect(notice?.textContent?.trim()).toBe(MASCULINO_UNISSEX_NOTICE);
+    const notices = [...fixture.nativeElement.querySelectorAll('.admin-col-products__notice')].map(
+      (el: HTMLElement) => el.textContent?.trim(),
+    );
+    expect(notices).toContain(MASCULINO_UNISSEX_NOTICE);
     expect(fixture.componentInstance.showUnissexNotice()).toBeTrue();
   });
 
-  it('keeps the current pieces visible while the order GET is in flight', () => {
+  it('reads Lista order from sortOrder + productId and does not GET gender-order', () => {
     fixture.componentInstance.setGenderFilter('masculino');
-    fixture.detectChanges();
-    expect(fixture.componentInstance.orderLoading()).toBeTrue();
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
-    expect(fixture.nativeElement.querySelectorAll('.admin-col-products__row').length).toBe(2);
-    expect(fixture.nativeElement.textContent).toContain('U1');
-
-    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-m1', 'id-u1'] });
     fixture.detectChanges();
     expect(fixture.componentInstance.orderLoading()).toBeFalse();
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['M1', 'U1']);
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
+    expect(getOrder).not.toHaveBeenCalled();
   });
 
-  it('toasts when a gender-order PUT fails', () => {
+  it('does not persist Subir/Descer/drag while reorder is disabled', () => {
     fixture.componentInstance.setGenderFilter('masculino');
-    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
-    put.and.returnValue(
-      throwError(
-        () =>
-          new HttpErrorResponse({
-            status: 400,
-            statusText: 'Bad Request',
-            error: { message: 'productIds must match the gender list' },
-          }),
-      ),
-    );
+    fixture.detectChanges();
+    fixture.componentInstance.move('u1', 1);
     fixture.componentInstance.onDrop({
       previousIndex: 0,
       currentIndex: 1,
@@ -253,76 +324,15 @@ describe('AdminCollectionEditPage gender UX', () => {
         ],
       },
     } as never);
-    fixture.detectChanges();
-    expect(put).toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalled();
-    expect(String(toast.error.calls.mostRecent().args[0])).toBe('productIds must match the gender list');
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(fixture.componentInstance.orderError()).toBe('productIds must match the gender list');
-    expect(fixture.nativeElement.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
-      'productIds must match the gender list',
-    );
+    expect(put).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
   });
 
-  it('applies the dropped order immediately, before the PUT finishes', () => {
+  it('omits archived products from the Lista', () => {
     fixture.componentInstance.setGenderFilter('masculino');
-    orderGet.next({ collection: 'teste-colecao2', gender: 'masculino', productIds: ['id-u1', 'id-m1'] });
-    fixture.detectChanges();
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
-
-    const pending = new Subject<{ collection: string; gender: 'masculino'; productIds: string[] }>();
-    put.and.returnValue(pending.asObservable());
-    const bound = [...fixture.componentInstance.visibleProducts()];
-
-    fixture.componentInstance.onDrop({
-      previousIndex: 0,
-      currentIndex: 1,
-      distance: { x: 0, y: 80 },
-      dropPoint: { x: 10, y: 120 },
-      container: {
-        data: bound,
-        getSortedItems: () => [
-          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 0, bottom: 80, height: 80 }) } } },
-          { element: { nativeElement: { getBoundingClientRect: () => ({ top: 80, bottom: 160, height: 80 }) } } },
-        ],
-      },
-    } as never);
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['m1', 'u1']);
-    expect(bound.map((p) => p.slug)).toEqual(['m1', 'u1']);
-    expect(put).toHaveBeenCalled();
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
-
-    pending.error(
-      new HttpErrorResponse({
-        status: 400,
-        statusText: 'Bad Request',
-        error: { message: 'productIds must match the gender list' },
-      }),
-    );
-    fixture.detectChanges();
-    expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
-    expect(toast.error).toHaveBeenCalledWith('productIds must match the gender list', jasmine.any(Object));
-  });
-
-  it('omits archived products from the reorder list and PUT body', () => {
-    fixture.componentInstance.setGenderFilter('masculino');
-    orderGet.next({
-      collection: 'teste-colecao2',
-      gender: 'masculino',
-      productIds: ['id-u1', 'id-m1', 'id-old'],
-    });
     fixture.detectChanges();
     expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).toEqual(['u1', 'm1']);
     expect(fixture.componentInstance.visibleProducts().map((p) => p.slug)).not.toContain('old');
-
-    fixture.componentInstance.move('u1', 1);
-    expect(put).toHaveBeenCalled();
-    const ids = put.calls.mostRecent().args[2] as string[];
-    expect(ids).toEqual(['id-m1', 'id-u1']);
-    expect(ids).not.toContain('id-old');
   });
 });
 

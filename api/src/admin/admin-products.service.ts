@@ -20,6 +20,9 @@ import {
   UpdateProductDto,
 } from './dto/admin-products.dto';
 
+export const MULTI_COLLECTION_CHANGE_BLOCKED =
+  'Esta peça está em mais de uma coleção; a troca de coleção está bloqueada.';
+
 @Injectable()
 export class AdminProductsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -138,9 +141,22 @@ export class AdminProductsService {
     delete dto.gender;
     const product = await this.prisma.product.findUnique({
       where: { slug },
-      include: { collections: true },
+      include: {
+        category: { select: { id: true, slug: true } },
+        collections: {
+          include: { collection: { select: { slug: true } } },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+        },
+      },
     });
     if (!product) throw new NotFoundException(`Product not found: ${slug}`);
+
+    const categoryUnchanged =
+      dto.category === undefined || dto.category === product.category.slug;
+    const currentCollectionSlug = product.collections[0]?.collection.slug;
+    const collectionUnchanged =
+      dto.collectionSlug === undefined ||
+      dto.collectionSlug === currentCollectionSlug;
 
     const data: Prisma.ProductUpdateInput = {};
 
@@ -179,7 +195,7 @@ export class AdminProductsService {
       data.slug = dto.slug;
     }
 
-    if (dto.category !== undefined) {
+    if (!categoryUnchanged) {
       const category = await this.prisma.category.findUnique({
         where: { slug: dto.category },
       });
@@ -189,37 +205,11 @@ export class AdminProductsService {
       data.category = { connect: { id: category.id } };
     }
 
-    if (dto.collectionSlug !== undefined) {
-      const collection = await this.prisma.collection.findUnique({
-        where: { slug: dto.collectionSlug },
-      });
-      if (!collection) {
-        throw new BadRequestException(
-          `Unknown collection: ${dto.collectionSlug}`,
-        );
+    if (!collectionUnchanged) {
+      if (product.collections.length > 1) {
+        throw new BadRequestException(MULTI_COLLECTION_CHANGE_BLOCKED);
       }
-      const existingLink = product.collections.find(
-        (pc) => pc.collectionId === collection.id,
-      );
-      const maxPc = await this.prisma.productCollection.aggregate({
-        where: { collectionId: collection.id },
-        _max: { sortOrder: true },
-      });
-      const sortOrder =
-        existingLink?.sortOrder ?? (maxPc._max.sortOrder ?? -1) + 1;
-
-      await this.prisma.$transaction([
-        this.prisma.productCollection.deleteMany({
-          where: { productId: product.id },
-        }),
-        this.prisma.productCollection.create({
-          data: {
-            productId: product.id,
-            collectionId: collection.id,
-            sortOrder,
-          },
-        }),
-      ]);
+      return this.updateMovingCollection(slug, product, dto.collectionSlug!, data);
     }
 
     const updated = await this.prisma.product.update({
@@ -228,9 +218,79 @@ export class AdminProductsService {
       include: publishedProductInclude,
     });
 
-    if (dto.category !== undefined || dto.collectionSlug !== undefined) {
+    if (!categoryUnchanged) {
       await syncProductGenderOrders(this.prisma, updated.id);
     }
+
+    return mapProduct(updated);
+  }
+
+  /**
+   * Move the one join row to the end of the new collection
+   * (`max(sortOrder)+1`). Row update, product.update, gender-order sync and
+   * the max+1 aggregate run in a single `$transaction`. Never delete/recreate.
+   */
+  private async updateMovingCollection(
+    slug: string,
+    product: {
+      id: string;
+      collections: { productId: string; collectionId: string; sortOrder: number }[];
+    },
+    collectionSlug: string,
+    data: Prisma.ProductUpdateInput,
+  ): Promise<ProductDto> {
+    const collection = await this.prisma.collection.findUnique({
+      where: { slug: collectionSlug },
+    });
+    if (!collection) {
+      throw new BadRequestException(`Unknown collection: ${collectionSlug}`);
+    }
+
+    const current = product.collections[0];
+    if (current?.collectionId === collection.id) {
+      const updated = await this.prisma.product.update({
+        where: { slug },
+        data,
+        include: publishedProductInclude,
+      });
+      return mapProduct(updated);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const maxPc = await tx.productCollection.aggregate({
+        where: { collectionId: collection.id },
+        _max: { sortOrder: true },
+      });
+      const sortOrder = (maxPc._max.sortOrder ?? -1) + 1;
+
+      if (current) {
+        await tx.productCollection.update({
+          where: {
+            productId_collectionId: {
+              productId: product.id,
+              collectionId: current.collectionId,
+            },
+          },
+          data: { collectionId: collection.id, sortOrder },
+        });
+      } else {
+        await tx.productCollection.create({
+          data: {
+            productId: product.id,
+            collectionId: collection.id,
+            sortOrder,
+          },
+        });
+      }
+
+      const next = await tx.product.update({
+        where: { slug },
+        data,
+        include: publishedProductInclude,
+      });
+      await syncProductGenderOrders(tx, next.id);
+      return next;
+    });
 
     return mapProduct(updated);
   }

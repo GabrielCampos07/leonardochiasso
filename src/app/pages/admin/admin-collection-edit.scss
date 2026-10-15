@@ -155,6 +155,11 @@
   background: var(--lc-white);
 }
 
+.admin-col-products__list--readonly .admin-col-products__row {
+  grid-template-columns: 72px 1fr auto;
+  cursor: default;
+}
+
 .admin-col-products__row:active {
   cursor: grabbing;
 }
