@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   Allow,
   ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -314,17 +315,13 @@ export class UpdateCollectionDto {
 
 export class SetCollectionProductsDto {
   @IsArray()
+  @ArrayUnique({ message: 'A lista de peças contém slugs repetidos.' })
   @IsString({ each: true })
   @Matches(SLUG_PATTERN, {
     each: true,
     message: 'productSlugs must contain valid kebab-case slugs.',
   })
   productSlugs!: string[];
-
-  /** 3D reorder: keep members that are not in productSlugs (archived / unloaded). */
-  @IsOptional()
-  @IsBoolean()
-  keepMissing?: boolean;
 }
 
 export class CollectionGenderQueryDto {
@@ -334,6 +331,7 @@ export class CollectionGenderQueryDto {
 
 export class ReorderCollectionGenderDto {
   @IsArray()
+  @ArrayUnique({ message: 'A lista de peças contém itens repetidos.' })
   @IsUUID('4', { each: true })
   productIds!: string[];
 }
