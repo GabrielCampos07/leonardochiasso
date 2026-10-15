@@ -23,6 +23,7 @@ import {
   COLLECTION_REQUIRED_MESSAGE,
   NAME_MAX_LENGTH,
   NAME_REQUIRED_MESSAGE,
+  NOTHING_TO_SAVE_HINT,
   STOCK_NEGATIVE_MESSAGE,
   applySelectedSwatches,
   collectionSelectLabel,
@@ -646,6 +647,13 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.onPriceChange('10.000.000');
     fixture.detectChanges();
     expect(fixture.componentInstance.priceError()).toBe(PRICE_MAX_MESSAGE);
+    expect(fixture.componentInstance.priceText).toBe('10.000.000,00');
+    expect((fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement).value).toBe(
+      '10.000.000,00',
+    );
+    const priceErr = fixture.nativeElement.querySelector('#atelier-product-price-error') as HTMLElement;
+    expect(priceErr).toBeTruthy();
+    expect(parseFloat(getComputedStyle(priceErr).marginBottom)).toBeGreaterThan(0);
 
     fixture.componentInstance.onPriceChange('1 2');
     fixture.detectChanges();
@@ -918,6 +926,28 @@ describe('AdminProductForm', () => {
     saveProduct$.and.returnValue(of(sampleProduct({ status: 'published' })));
     fixture.componentInstance.save();
     expect(toast.success).toHaveBeenCalledWith(SAVED_TOAST, { durationMs: SAVE_TOAST_MS });
+  });
+
+  it('disables Salvar while the form is clean and leaves room above the sticky bar', () => {
+    expect(fixture.componentInstance.isDirty()).toBeFalse();
+    const save = fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement;
+    expect(save.disabled).toBeTrue();
+    expect(save.getAttribute('title')).toBe(NOTHING_TO_SAVE_HINT);
+    expect(save.getAttribute('aria-describedby')?.split(/\s+/)).toContain('atelier-product-save-clean');
+    expect(fixture.nativeElement.querySelector('#atelier-product-save-clean')?.textContent?.trim()).toBe(
+      NOTHING_TO_SAVE_HINT,
+    );
+    const form = fixture.nativeElement.querySelector('.admin-edit__form') as HTMLElement;
+    expect(parseFloat(getComputedStyle(form).paddingBottom)).toBeGreaterThanOrEqual(160);
+
+    fixture.componentInstance.onNameChange('Look alterado');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isDirty()).toBeTrue();
+    const dirtySave = fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement;
+    expect(dirtySave.disabled).toBeFalse();
+    expect(dirtySave.getAttribute('title')).toBeNull();
+    expect(dirtySave.getAttribute('aria-describedby')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#atelier-product-save-clean')).toBeNull();
   });
 
   it('asks before canceling when the form is dirty', async () => {

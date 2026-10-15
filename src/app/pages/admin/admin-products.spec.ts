@@ -4,12 +4,14 @@ import { NEVER, Subject, of } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
 import { adminListCacheKey, clearAdminListCache, writeAdminListCache } from '../../core/admin-list-cache';
+import { clearAdminProductsView, writeAdminProductsView } from '../../core/admin-products-view';
 import { CatalogService } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
+  TODAS_COLLECTION_ORDER_NOTE,
 } from '../../core/membership-order';
 import { Product } from '../../core/product.model';
 import { AdminProductsPage } from './admin-products';
@@ -55,6 +57,9 @@ describe('AdminProductsPage reorder', () => {
   ];
 
   beforeEach(async () => {
+    clearAdminListCache();
+    clearAdminProductsView();
+    sessionStorage.clear();
     toast = {
       error: jasmine.createSpy('error'),
       success: jasmine.createSpy('success'),
@@ -106,6 +111,38 @@ describe('AdminProductsPage reorder', () => {
     expect(fixture.nativeElement.textContent).not.toContain('Descer');
     expect(fixture.nativeElement.querySelector('.admin-row__handle')).toBeNull();
     expect(fixture.componentInstance.canDrag()).toBeFalse();
+  });
+
+  it('explains that site order is per collection while the filter is Todas', () => {
+    expect(fixture.componentInstance.collection()).toBe('todas');
+    expect(fixture.nativeElement.textContent).toContain(TODAS_COLLECTION_ORDER_NOTE);
+    fixture.componentInstance.setCollectionFilter('Organic Dreams');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).not.toContain(TODAS_COLLECTION_ORDER_NOTE);
+    fixture.componentInstance.setCollectionFilter('todas');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain(TODAS_COLLECTION_ORDER_NOTE);
+  });
+
+  it('keeps Arquivados and search after the list remounts (CANCELAR)', async () => {
+    fixture.componentInstance.setQuery('mosaico');
+    fixture.componentInstance.onArchivedFilter(true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.query()).toBe('mosaico');
+    expect(fixture.componentInstance.showArchived()).toBeTrue();
+    fixture.destroy();
+
+    const remount = TestBed.createComponent(AdminProductsPage);
+    remount.detectChanges();
+    await remount.whenStable();
+    remount.detectChanges();
+    expect(remount.componentInstance.query()).toBe('mosaico');
+    expect(remount.componentInstance.showArchived()).toBeTrue();
+    expect((remount.nativeElement.querySelector('input[type="search"]') as HTMLInputElement).value).toBe(
+      'mosaico',
+    );
+    expect((remount.nativeElement.querySelector('.admin-list__check input') as HTMLInputElement).checked).toBeTrue();
+    remount.destroy();
   });
 
   it('reads Lista order from sortOrder + productId and does not GET gender-order', () => {
@@ -164,6 +201,7 @@ describe('AdminProductsPage reorder', () => {
 describe('AdminProductsPage cache and skeleton', () => {
   beforeEach(() => {
     clearAdminListCache();
+    clearAdminProductsView();
     sessionStorage.clear();
   });
 

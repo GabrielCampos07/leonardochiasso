@@ -63,7 +63,7 @@ export class PdpPage implements OnInit {
 
   readonly home = ROUTES.home;
   readonly product = signal<Product | null>(null);
-  /** Page-local: true until getProductBySlug emits. */
+  /** False once the snapshot or GET has resolved — missing slugs skip the skeleton. */
   readonly loading = signal(true);
   readonly activeImage = signal(0);
   readonly selectedPieceId = signal<string | null>(null);
@@ -133,19 +133,28 @@ export class PdpPage implements OnInit {
 
   ngOnInit(): void {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
+    const apiCatalogReady = this.catalog.loaded() && !this.catalog.usingFallback();
+    if (apiCatalogReady) {
+      this.applyResolved(this.catalog.products().find((item) => item.slug === slug) ?? null);
+      return;
+    }
     this.loading.set(true);
     this.catalog.getProductBySlug(slug).subscribe((p) => {
-      this.product.set(p ?? null);
-      this.activeImage.set(0);
-      this.manualGallery.set(false);
-      this.selectedPieceId.set(p?.pieces?.[0]?.id ?? null);
-      this.selectedColorId.set(null);
-      this.syncImageFromSelection();
-      this.loading.set(false);
-      if (p?.category === 'masculino' || p?.category === 'feminino') {
-        this.chrome.setActive(p.category);
-      }
+      this.applyResolved(p ?? null);
     });
+  }
+
+  private applyResolved(p: Product | null): void {
+    this.product.set(p);
+    this.activeImage.set(0);
+    this.manualGallery.set(false);
+    this.selectedPieceId.set(p?.pieces?.[0]?.id ?? null);
+    this.selectedColorId.set(null);
+    this.syncImageFromSelection();
+    this.loading.set(false);
+    if (p?.category === 'masculino' || p?.category === 'feminino') {
+      this.chrome.setActive(p.category);
+    }
   }
 
   selectPiece(pieceId: string): void {

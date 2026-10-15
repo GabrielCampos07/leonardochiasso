@@ -123,6 +123,11 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/plp/plp').then((m) => m.PlpPage),
       },
       {
+        path: `colecoes/:collectionSlug`,
+        pathMatch: 'full',
+        redirectTo: `${PATH.collection}/:collectionSlug`,
+      },
+      {
         path: PATH.femininoNovidades,
         pathMatch: 'full',
         redirectTo: redirectGenderHome('feminino'),

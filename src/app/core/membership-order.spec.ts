@@ -2,6 +2,7 @@ import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
   STOCKROOM_REORDER_ENABLED,
+  TODAS_COLLECTION_ORDER_NOTE,
   compareMembershipSortOrder,
   membershipSortOrder,
   sortByMembershipSortOrder,
@@ -61,5 +62,8 @@ describe('membership order (Lista == public API)', () => {
     expect(LISTA_REORDER_ENABLED).toBeFalse();
     expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
     expect(LISTA_ORDER_MAINTENANCE_NOTICE).toBe('Ordem em manutenção');
+    expect(TODAS_COLLECTION_ORDER_NOTE).toBe(
+      'A ordem do site é definida por coleção — filtre por uma coleção para ver a ordem real.',
+    );
   });
 });

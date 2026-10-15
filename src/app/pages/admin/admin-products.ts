@@ -55,12 +55,14 @@ import {
   readAdminListCache,
   writeAdminListCache,
 } from '../../core/admin-list-cache';
+import { readAdminProductsView, writeAdminProductsView } from '../../core/admin-products-view';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ERROR_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { applyCdkListOrder, itemMidpoints, resolveCdkDropIndex } from '../../core/cdk-drop-index';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
+  TODAS_COLLECTION_ORDER_NOTE,
   sortByMembershipSortOrder,
 } from '../../core/membership-order';
 import { hangerPriceFromFields } from '../../scene-engine/hanger-price';
@@ -94,6 +96,8 @@ export class AdminProductsPage implements OnInit {
   /** Set `LISTA_REORDER_ENABLED` to true in membership-order.ts to restore Subir/Descer/drag. */
   readonly listaReorderEnabled = LISTA_REORDER_ENABLED;
   readonly orderMaintenanceNotice = LISTA_ORDER_MAINTENANCE_NOTICE;
+  readonly todasCollectionOrderNote = TODAS_COLLECTION_ORDER_NOTE;
+  readonly showTodasCollectionOrderNote = computed(() => this.collection() === 'todas');
   readonly canDrag = computed(
     () =>
       LISTA_REORDER_ENABLED &&
@@ -134,6 +138,7 @@ export class AdminProductsPage implements OnInit {
   });
 
   constructor() {
+    this.restoreView();
     this.hydrateFromCache(this.showArchived());
     this.load$
       .pipe(
@@ -196,16 +201,23 @@ export class AdminProductsPage implements OnInit {
     return productGender(p);
   }
 
+  setQuery(raw: string): void {
+    this.query.set(raw);
+    this.persistView();
+  }
+
   setGenderFilter(raw: string): void {
     const next: GenderFilter = raw === 'masculino' || raw === 'feminino' ? raw : 'todos';
     this.category.set(next);
     this.todosHint.set('');
     this.highlightGender.set(false);
+    this.persistView();
     this.applyCollectionGenderOrder();
   }
 
   setCollectionFilter(raw: string): void {
     this.collection.set(raw || 'todas');
+    this.persistView();
     this.applyCollectionGenderOrder();
   }
 
@@ -261,8 +273,26 @@ export class AdminProductsPage implements OnInit {
 
   onArchivedFilter(show: boolean): void {
     this.showArchived.set(show);
+    this.persistView();
     this.hydrateFromCache(show);
     this.refresh();
+  }
+
+  private restoreView(): void {
+    const view = readAdminProductsView();
+    this.query.set(view.query);
+    this.category.set(view.category);
+    this.collection.set(view.collection);
+    this.showArchived.set(view.showArchived);
+  }
+
+  private persistView(): void {
+    writeAdminProductsView({
+      query: this.query(),
+      category: this.category(),
+      collection: this.collection(),
+      showArchived: this.showArchived(),
+    });
   }
 
   async archive(slug: string): Promise<void> {

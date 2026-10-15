@@ -95,6 +95,7 @@ import {
   DESKTOP_ONLY_HINT,
   DESKTOP_ONLY_TITLE,
   STOCKROOM_HINT_COPY,
+  STOCKROOM_HINT_GESTURE,
   adminSceneMode,
   isDesktopOnlyBlocked,
   isStockroomMode,
@@ -151,7 +152,8 @@ export const ATELIER_HINT_COPY = 'Clique · arraste · ← → · scroll';
 
 /** Same stockroom line for `/admin/3d`, `?cc0=1` and `?sketchfab=1`. */
 export function gestureHintCopy(mode: ReturnType<typeof adminSceneMode>): string {
-  return isStockroomMode(mode) ? STOCKROOM_HINT_COPY : ATELIER_HINT_COPY;
+  if (!isStockroomMode(mode)) return ATELIER_HINT_COPY;
+  return STOCKROOM_REORDER_ENABLED ? STOCKROOM_HINT_COPY : STOCKROOM_HINT_GESTURE;
 }
 
 /** Count the 5s hide from the first painted frame, not from boot, so a slow kit still shows the hint. */
