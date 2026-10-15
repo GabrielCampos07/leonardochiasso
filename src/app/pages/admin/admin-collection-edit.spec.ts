@@ -360,6 +360,51 @@ describe('AdminCollectionEditPage cached detail', () => {
     TestBed.resetTestingModule();
   });
 
+  it('shows skeleton rows after a reload when the collection-detail cache is empty', async () => {
+    clearAdminListCache();
+    sessionStorage.clear();
+    const put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
+    await TestBed.configureTestingModule({
+      imports: [AdminCollectionEditPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: { paramMap: of(convertToParamMap({ slug: 'teste-ordem2' })) },
+        },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            list: () => NEVER,
+            getPublicDetail: jasmine.createSpy('getPublicDetail').and.callFake(() => {
+              throw new Error('admin must not GET /api/collections/:slug');
+            }),
+            getProducts: () => NEVER,
+            listAdminProducts: () => NEVER,
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put },
+        },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: { error: () => undefined, success: () => undefined, info: () => undefined } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AdminCollectionEditPage);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.loading()).toBeTrue();
+    expect(fixture.componentInstance.products().length).toBe(0);
+    expect(fixture.componentInstance.showSkeleton()).toBeTrue();
+    expect(fixture.nativeElement.querySelector('[aria-label="Carregando coleção"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.admin-row--skel').length).toBeGreaterThan(1);
+    expect(fixture.nativeElement.textContent).toContain('Carregando…');
+    expect(fixture.nativeElement.textContent).not.toContain('Editar coleção');
+    fixture.destroy();
+  });
+
   it('shows the cached members with atualizando… and keeps reorder off until the admin GET returns', async () => {
     writeAdminCache(adminListCacheKey('collection-detail', 'teste-ordem2'), {
       meta,

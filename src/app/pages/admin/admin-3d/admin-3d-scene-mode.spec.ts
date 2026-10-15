@@ -1,5 +1,7 @@
 import {
   STOCKROOM_HINT_COPY,
+  STOCKROOM_HINT_GESTURE,
+  STOCKROOM_HINT_REORDER,
   STOCKROOM_MIN_WIDTH,
   adminSceneMode,
   isDesktopOnlyBlocked,
@@ -50,9 +52,12 @@ describe('isStockroomMode / sceneNeedsCredits', () => {
 
 describe('stockroom hint copy', () => {
   it('names the stockroom gestures and stays free of Fechar', () => {
+    expect(STOCKROOM_HINT_GESTURE).toContain('Clique na peça');
+    expect(STOCKROOM_HINT_GESTURE).toContain('scroll');
+    expect(STOCKROOM_HINT_GESTURE).not.toContain(STOCKROOM_HINT_REORDER);
     expect(STOCKROOM_HINT_COPY).toContain('Clique na peça');
     expect(STOCKROOM_HINT_COPY).toContain('scroll');
-    expect(STOCKROOM_HINT_COPY).toContain('segure a foto e solte sobre outra peça para reordenar');
+    expect(STOCKROOM_HINT_COPY).toContain(STOCKROOM_HINT_REORDER);
     expect(STOCKROOM_HINT_COPY).not.toMatch(/fechar/i);
   });
 });
