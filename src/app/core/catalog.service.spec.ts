@@ -1,8 +1,9 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
 import { CatalogService, mapApiProduct } from './catalog.service';
+import { Product } from './product.model';
 
 describe('CatalogService getProductsByCollection', () => {
   const originalDemo = environment.demoMode;
@@ -113,6 +114,68 @@ function dto(priceCents: number) {
     gallery: [],
   };
 }
+
+describe('CatalogService getProductBySlug', () => {
+  const originalDemo = environment.demoMode;
+  const originalBase = environment.apiBaseUrl;
+  let http: HttpTestingController;
+  let service: CatalogService;
+
+  beforeEach(() => {
+    environment.demoMode = false;
+    environment.apiBaseUrl = 'http://catalog.test';
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting(), CatalogService],
+    });
+    http = TestBed.inject(HttpTestingController);
+    service = TestBed.inject(CatalogService);
+  });
+
+  afterEach(() => {
+    http.verify();
+    environment.demoMode = originalDemo;
+    environment.apiBaseUrl = originalBase;
+  });
+
+  it('returns undefined on 404 so the PDP can show não encontrado', () => {
+    const box: { value?: Product | undefined | 'pending' } = { value: 'pending' };
+    service.getProductBySlug('nao-existe').subscribe((p) => {
+      box.value = p;
+    });
+    http
+      .expectOne('http://catalog.test/api/products/nao-existe')
+      .flush('missing', { status: 404, statusText: 'Not Found' });
+    expect(box.value).toBeUndefined();
+  });
+
+  it('throws on 5xx instead of falling back to a local product', () => {
+    const box: { err?: HttpErrorResponse } = {};
+    service.getProductBySlug('look-api').subscribe({
+      next: () => fail('expected 5xx'),
+      error: (e: unknown) => {
+        box.err = e as HttpErrorResponse;
+      },
+    });
+    http
+      .expectOne('http://catalog.test/api/products/look-api')
+      .flush('boom', { status: 503, statusText: 'Unavailable' });
+    expect(box.err?.status).toBe(503);
+  });
+
+  it('throws on a network error (status 0)', () => {
+    const box: { err?: HttpErrorResponse } = {};
+    service.getProductBySlug('look-api').subscribe({
+      next: () => fail('expected network error'),
+      error: (e: unknown) => {
+        box.err = e as HttpErrorResponse;
+      },
+    });
+    http
+      .expectOne('http://catalog.test/api/products/look-api')
+      .error(new ProgressEvent('error'));
+    expect(box.err?.status).toBe(0);
+  });
+});
 
 describe('mapApiProduct price', () => {
   it('shows 1480000 cents as R$ 14.800 on the public site', () => {
