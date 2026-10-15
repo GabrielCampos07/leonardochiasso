@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, of, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { adminHttpErrorMessage } from './admin-catalog.service';
+import { LISTA_ORDER_MAINTENANCE_NOTICE, LISTA_REORDER_ENABLED } from './membership-order';
 
 export type CollectionOrderGender = 'feminino' | 'masculino';
 
@@ -84,6 +85,9 @@ export class AdminCollectionOrderService {
     gender: CollectionOrderGender,
     productIds: string[],
   ): Observable<CollectionGenderOrder> {
+    if (!LISTA_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
     const body: CollectionGenderOrderBody = { productIds };
     if (environment.demoMode || !this.baseUrl) {
       return of(saveLocal(slug, gender, productIds));

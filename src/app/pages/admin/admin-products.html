@@ -70,7 +70,7 @@
   }
 
   @if (!listaReorderEnabled) {
-    <div class="admin-list__notice" role="status">{{ orderMaintenanceNotice }}</div>
+    <lc-admin-notice>{{ orderMaintenanceNotice }}</lc-admin-notice>
   }
   @if (todosHint()) {
     <p class="admin-list__hint" role="status">{{ todosHint() }}</p>

@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { LcAdminNotice } from '../../shared/components/feedback/admin-notice';
 import { LcSegmented } from '../../shared/components/segmented/segmented';
 import { Subject, switchMap, tap } from 'rxjs';
 import {
@@ -68,7 +69,7 @@ import { isSoldOut } from '../../scene-engine/types';
 @Component({
   selector: 'lc-admin-products',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule, LcSegmented],
+  imports: [FormsModule, RouterLink, DragDropModule, LcSegmented, LcAdminNotice],
   templateUrl: './admin-products.html',
   styleUrl: './admin-products.scss',
 })

@@ -1,7 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, firstValueFrom, map, of } from 'rxjs';
+import { Observable, catchError, firstValueFrom, map, of, throwError } from 'rxjs';
 import { adminHttpErrorMessage } from './admin-catalog.service';
-import { STOCKROOM_REORDER_ENABLED } from './membership-order';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  LISTA_REORDER_ENABLED,
+  STOCKROOM_REORDER_ENABLED,
+} from './membership-order';
 import {
   AdminCollectionsApiService,
   SetCollectionProductsResult,
@@ -131,6 +135,9 @@ export class AdminCollectionProductsService {
 
   /** Full replace (reorder / remove). Still serialized per collection. */
   replace(collectionSlug: string, productSlugs: readonly string[]): Observable<SetCollectionProductsResult> {
+    if (!LISTA_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
     return this.enqueue(collectionSlug, () => {
       const next = appendCollectionProductSlugs(productSlugs, []);
       return this.write(collectionSlug, next);
@@ -156,6 +163,9 @@ export class AdminCollectionProductsService {
 
   /** Current list + newcomers at the end, one PUT. */
   append(collectionSlug: string, incoming: readonly string[]): Observable<SetCollectionProductsResult> {
+    if (!STOCKROOM_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
     return this.enqueue(collectionSlug, () => {
       const next = appendCollectionProductSlugs(this.current(collectionSlug), incoming);
       return this.write(collectionSlug, next);

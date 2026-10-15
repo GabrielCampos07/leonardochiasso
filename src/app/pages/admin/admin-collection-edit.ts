@@ -21,6 +21,7 @@ import { AdminCollectionProductsService } from '../../core/admin-collection-prod
 import { ApiProductDto } from '../../core/catalog.service';
 import { productBelongsToCollection, resolveCollectionCover } from '../../core/collection-cover';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
+import { LcAdminNotice } from '../../shared/components/feedback/admin-notice';
 import { LcSegmented } from '../../shared/components/segmented/segmented';
 import {
   ADMIN_NEW_COLLECTION_SLUG,
@@ -78,7 +79,7 @@ function slugify(value: string): string {
 @Component({
   selector: 'lc-admin-collection-edit',
   standalone: true,
-  imports: [FormsModule, RouterLink, DragDropModule, CollectionCover, LcSegmented],
+  imports: [FormsModule, RouterLink, DragDropModule, CollectionCover, LcSegmented, LcAdminNotice],
   templateUrl: './admin-collection-edit.html',
   styleUrls: ['./admin-product-edit.scss', './admin-products.scss', './admin-collection-edit.scss'],
 })
@@ -366,6 +367,7 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   async removeProduct(productSlug: string): Promise<void> {
+    if (!LISTA_REORDER_ENABLED) return;
     const ok = await this.confirm.confirm({
       title: 'Remover da coleção',
       message: 'Remover este produto da coleção? (o produto não é apagado)',
@@ -379,6 +381,7 @@ export class AdminCollectionEditPage implements OnInit {
   }
 
   private persistMembership(): void {
+    if (!LISTA_REORDER_ENABLED) return;
     const collectionSlug = this.slug();
     if (!collectionSlug || this.isNew()) return;
     this.savingOrder.set(true);

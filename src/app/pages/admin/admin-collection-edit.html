@@ -135,7 +135,7 @@
         </div>
 
         @if (!listaReorderEnabled) {
-          <div class="admin-col-products__notice" role="status">{{ orderMaintenanceNotice }}</div>
+          <lc-admin-notice>{{ orderMaintenanceNotice }}</lc-admin-notice>
         }
         @if (todosHint()) {
           <p class="admin-col-products__hint" role="status">{{ todosHint() }}</p>
@@ -220,13 +220,15 @@
                     </button>
                   </div>
                 }
-                <button
-                  type="button"
-                  class="admin-row__order-btn"
-                  (click)="removeProduct(p.slug)"
-                >
-                  Remover
-                </button>
+                @if (listaReorderEnabled) {
+                  <button
+                    type="button"
+                    class="admin-row__order-btn"
+                    (click)="removeProduct(p.slug)"
+                  >
+                    Remover
+                  </button>
+                }
               </div>
             </li>
           } @empty {

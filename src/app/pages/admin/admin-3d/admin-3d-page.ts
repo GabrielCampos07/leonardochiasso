@@ -116,6 +116,7 @@ import {
   type AddPieceCreatePayload,
   type AddPieceItemError,
 } from './collection-add-piece-panel';
+import { LcAdminNotice } from '../../../shared/components/feedback/admin-notice';
 import { CollectionCreatePanel } from './collection-create-panel';
 import { StockroomCreditsPanel } from './stockroom-credits-panel';
 import {
@@ -236,7 +237,7 @@ export function clampCreatePanel(
 @Component({
   selector: 'lc-admin-3d-page',
   standalone: true,
-  imports: [CollectionCreatePanel, CollectionAddPiecePanel, StockroomCreditsPanel],
+  imports: [CollectionCreatePanel, CollectionAddPiecePanel, StockroomCreditsPanel, LcAdminNotice],
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
@@ -352,7 +353,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     if (!unit) return null;
     return { id: unit.id, name: unit.name, kind: unit.kind, hangers: unit.hangers.length };
   });
-  readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
+  readonly showAddPieceButton = computed(
+    () => STOCKROOM_REORDER_ENABLED && Boolean(this.activeUnit()) && !this.adding(),
+  );
   readonly moreOpen = signal(false);
   readonly switcherOpen = signal(false);
   readonly focusedName = computed(() => {
@@ -468,7 +471,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     }
     this.engine.onClick((slug) => this.openEditor(slug));
     this.engine.onEmptyUnit((id) => {
-      if (this.adding()) return;
+      if (!STOCKROOM_REORDER_ENABLED || this.adding()) return;
       this.openAddPanel(id);
     });
     this.engine.onHover((slug, pointer) => this.setHoverTip(slug, pointer));
@@ -834,6 +837,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   addPieceToFocused(): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     this.moreOpen.set(false);
     this.switcherOpen.set(false);
     const unit = this.activeUnit();
@@ -1097,6 +1101,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private openAddPanel(unitId: string): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     if (this.creating() || this.adding() || this.modalOpen || this.addSaving()) return;
     const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
     const unit = unitsOfKind(this.layout, kind).find((r) => r.id === unitId);

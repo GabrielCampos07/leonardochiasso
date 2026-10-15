@@ -1,5 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { NEVER, of, tap, delay, throwError } from 'rxjs';
+import { NEVER, of } from 'rxjs';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  LISTA_REORDER_ENABLED,
+  STOCKROOM_REORDER_ENABLED,
+} from './membership-order';
 import {
   ADD_PIECE_STAGGER_MS,
   AdminCollectionProductsService,
@@ -102,78 +107,40 @@ describe('AdminCollectionProductsService', () => {
     return TestBed.inject(AdminCollectionProductsService);
   }
 
-  it('groups selected pieces into one PUT that still contains the pieces that already existed', async () => {
-    const calls: string[][] = [];
+  it('does not append while STOCKROOM_REORDER_ENABLED is false', async () => {
+    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+    const puts: string[][] = [];
     const service = setup((_slug, productSlugs) => {
-      calls.push([...productSlugs]);
+      puts.push([...productSlugs]);
       return of(result('organic-dreams', productSlugs));
     });
-
-    service.remember('organic-dreams', ['vestido-longo', 'saia-midi']);
-    const saved = await new Promise<SetCollectionProductsResult>((resolve, reject) => {
-      service.append('organic-dreams', ['cinto', 'jaqueta']).subscribe({ next: resolve, error: reject });
+    service.remember('organic-dreams', ['vestido-longo']);
+    const err = await new Promise<Error>((resolve, reject) => {
+      service.append('organic-dreams', ['cinto']).subscribe({
+        next: () => reject(new Error('expected lock')),
+        error: (e: unknown) => resolve(e as Error),
+      });
     });
-
-    expect(calls).toEqual([['vestido-longo', 'saia-midi', 'cinto', 'jaqueta']]);
-    expect(saved.productSlugs).toContain('vestido-longo');
-    expect(saved.productSlugs).toContain('saia-midi');
-    expect(saved.productSlugs.at(-2)).toBe('cinto');
-    expect(saved.productSlugs.at(-1)).toBe('jaqueta');
-    expect(service.current('organic-dreams')).toEqual(['vestido-longo', 'saia-midi', 'cinto', 'jaqueta']);
+    expect(err.message).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
+    expect(puts).toEqual([]);
+    expect(service.current('organic-dreams')).toEqual(['vestido-longo']);
   });
 
-  it('serializes two appends so the second PUT includes the first newcomer', async () => {
-    const calls: string[][] = [];
-    let inflight = 0;
-    let maxInflight = 0;
+  it('does not replace while LISTA_REORDER_ENABLED is false', async () => {
+    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    const puts: string[][] = [];
     const service = setup((_slug, productSlugs) => {
-      inflight += 1;
-      maxInflight = Math.max(maxInflight, inflight);
-      return of(result('organic-dreams', productSlugs)).pipe(
-        delay(20),
-        tap(() => {
-          inflight -= 1;
-          calls.push([...productSlugs]);
-        }),
-      );
-    });
-
-    service.remember('organic-dreams', ['a', 'b']);
-    await Promise.all([
-      new Promise((resolve, reject) =>
-        service.append('organic-dreams', ['c']).subscribe({ next: resolve, error: reject }),
-      ),
-      new Promise((resolve, reject) =>
-        service.append('organic-dreams', ['d']).subscribe({ next: resolve, error: reject }),
-      ),
-    ]);
-
-    expect(maxInflight).toBe(1);
-    expect(calls).toEqual([
-      ['a', 'b', 'c'],
-      ['a', 'b', 'c', 'd'],
-    ]);
-  });
-
-  it('falls back to per-item PUTs and keeps the failed slug out of the saved list', async () => {
-    let calls = 0;
-    const service = setup((_slug, productSlugs) => {
-      calls += 1;
-      if (calls === 1) return throwError(() => new Error('grouped failed'));
-      if (productSlugs.includes('ruim')) return throwError(() => ({ status: 400, error: { message: 'slug inválido' } }));
+      puts.push([...productSlugs]);
       return of(result('organic-dreams', productSlugs));
     });
-
-    service.remember('organic-dreams', ['vestido']);
-    const batch = await new Promise<{ added: string[]; failed: { slug: string; message: string }[] }>(
-      (resolve, reject) => {
-        service.tryAppend('organic-dreams', ['boa', 'ruim']).subscribe({ next: resolve, error: reject });
-      },
-    );
-
-    expect(batch.added).toEqual(['boa']);
-    expect(batch.failed.map((item) => item.slug)).toEqual(['ruim']);
-    expect(service.current('organic-dreams')).toEqual(['vestido', 'boa']);
+    const err = await new Promise<Error>((resolve, reject) => {
+      service.replace('organic-dreams', ['a', 'b']).subscribe({
+        next: () => reject(new Error('expected lock')),
+        error: (e: unknown) => resolve(e as Error),
+      });
+    });
+    expect(err.message).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
+    expect(puts).toEqual([]);
   });
 
   it('does not PUT live order while STOCKROOM_REORDER_ENABLED is false', async () => {

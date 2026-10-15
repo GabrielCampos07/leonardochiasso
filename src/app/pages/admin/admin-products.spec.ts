@@ -99,7 +99,7 @@ describe('AdminProductsPage reorder', () => {
 
   it('shows Ordem em manutenção and hides Subir/Descer/drag while reorder is disabled', () => {
     expect(LISTA_REORDER_ENABLED).toBeFalse();
-    const notice = fixture.nativeElement.querySelector('.admin-list__notice[role="status"]') as HTMLElement;
+    const notice = fixture.nativeElement.querySelector('lc-admin-notice[role="status"]') as HTMLElement;
     expect(notice?.textContent?.trim()).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
     expect(fixture.nativeElement.textContent).not.toContain('Arraste para reordenar · ↑↓ também funciona');
     expect(fixture.nativeElement.textContent).not.toContain('Subir');
