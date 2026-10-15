@@ -706,11 +706,12 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 export function syncPriceFields(price: number): Pick<Product, 'price' | 'priceLabel' | 'priceCents'> {
-  const safe = Math.max(0, Math.round(price));
+  const cents = Math.round(price * 100);
+  const reais = cents / 100;
   return {
-    price: safe,
-    priceLabel: formatPriceLabel(safe),
-    priceCents: safe * 100,
+    price: reais,
+    priceLabel: formatPriceLabel(reais),
+    priceCents: cents,
   };
 }
 

@@ -146,16 +146,23 @@
         Valor em R$
         <input
           id="atelier-product-price"
-          type="number"
-          min="0"
-          step="1"
-          [ngModel]="p.price"
-          (ngModelChange)="onPriceChange($event)"
+          type="text"
+          inputmode="decimal"
+          [value]="priceText"
+          (input)="onPriceChange($any($event.target).value)"
           name="price"
           autocomplete="transaction-amount"
+          [attr.aria-invalid]="priceError() ? 'true' : null"
+          [attr.aria-describedby]="priceError() ? 'atelier-product-price-error' : null"
         />
       </label>
-      <p class="admin-edit__hint">Mostra como: {{ p.priceLabel }}</p>
+      @if (priceError()) {
+        <p id="atelier-product-price-error" class="admin-edit__upload-error" role="alert">
+          {{ priceError() }}
+        </p>
+      } @else {
+        <p class="admin-edit__hint">Mostra como: {{ p.priceLabel }}</p>
+      }
       <label>
         Estoque
         <input

@@ -8,6 +8,12 @@ import { CatalogService } from '../../core/catalog.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import {
+  PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_INVALID_MESSAGE,
+  PRICE_NEGATIVE_MESSAGE,
+  PRICE_REQUIRED_MESSAGE,
+} from '../../core/price-input';
+import {
   AdminProductForm,
   COLLECTION_PICKER_LOADING,
   STOCK_NEGATIVE_MESSAGE,
@@ -218,6 +224,71 @@ describe('AdminProductForm', () => {
     expect(trigger.textContent?.replace(/\s+/g, ' ').trim()).toBe('TESTE-COLECAO2');
     expect(trigger.textContent).not.toContain('Selecione a coleção');
     expect(trigger.textContent).not.toContain('teste-colecao2');
+  });
+
+  it('loads priceCents 1480000 as 14.800,00 and saves the same cents with no edits', () => {
+    const loaded = sampleProduct({
+      price: 14800,
+      priceCents: 1480000,
+      priceLabel: 'R$ 14.800,00',
+    });
+    fixture.componentInstance.loadDraft(loaded);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.priceText).toBe('14.800,00');
+    const input = fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement;
+    expect(input.value).toBe('14.800,00');
+
+    saveProduct$.and.returnValue(of(loaded));
+    fixture.componentInstance.save();
+    expect(saveProduct$).toHaveBeenCalled();
+    expect(saveProduct$.calls.mostRecent().args[0].priceCents).toBe(1480000);
+  });
+
+  it('parses pt-BR price text and shows inline errors', () => {
+    const input = fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement;
+    expect(input.type).toBe('text');
+
+    fixture.componentInstance.onPriceChange('12,50');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.draft()?.price).toBe(12.5);
+    expect(fixture.componentInstance.draft()?.priceCents).toBe(1250);
+    expect(fixture.componentInstance.priceError()).toBe('');
+
+    fixture.componentInstance.onPriceChange('1.250,50');
+    expect(fixture.componentInstance.draft()?.price).toBe(1250.5);
+    expect(fixture.componentInstance.draft()?.priceCents).toBe(125050);
+
+    fixture.componentInstance.onPriceChange('12.50');
+    expect(fixture.componentInstance.draft()?.price).toBe(12.5);
+
+    saveProduct$.calls.reset();
+    fixture.componentInstance.onPriceChange('');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
+      PRICE_REQUIRED_MESSAGE,
+    );
+    fixture.componentInstance.save();
+    expect(saveProduct$).not.toHaveBeenCalled();
+
+    fixture.componentInstance.onPriceChange('1,250');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_AMBIGUOUS_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-price-error')?.textContent?.trim()).toBe(
+      PRICE_AMBIGUOUS_MESSAGE,
+    );
+
+    fixture.componentInstance.onPriceChange('abc');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_INVALID_MESSAGE);
+
+    fixture.componentInstance.onPriceChange('-12,50');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.priceError()).toBe(PRICE_NEGATIVE_MESSAGE);
+    saveProduct$.calls.reset();
+    fixture.componentInstance.save();
+    expect(saveProduct$).not.toHaveBeenCalled();
   });
 
   it('keeps a negative stock, validates with the API copy, and still sends it', () => {
