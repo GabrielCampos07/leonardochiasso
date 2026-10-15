@@ -25,6 +25,7 @@ function setup() {
       delete: jest.fn(),
     },
     productCollection: { deleteMany: jest.fn(), createMany: jest.fn(), update: jest.fn() },
+    $queryRaw: jest.fn().mockResolvedValue([{ id: collection.id }]),
   };
   const prisma = {
     collection: { findUnique: jest.fn().mockResolvedValue(collection) },
@@ -33,28 +34,30 @@ function setup() {
   return { service: new AdminCollectionsService(prisma as never), tx };
 }
 
-describe('gender order ignores archived products', () => {
-  it('GET excludes archived', async () => {
+describe('gender order keeps archived pieces in position', () => {
+  it('GET includes archived in membership order', async () => {
     const { service } = setup();
     const r = await service.getGenderOrder('teste-colecao3', 'feminino');
-    expect(r.productIds).toEqual(['a', 'u']);
+    expect(r.productIds).toEqual(['a', 'f1', 'u']);
   });
-  it('PUT accepts only active ids', async () => {
+  it('PUT keeps archived in the per-gender copy', async () => {
     const { service, tx } = setup();
-    const r = await service.setGenderOrder('teste-colecao3', 'feminino', ['u', 'a']);
-    expect(r.productIds).toEqual(['u', 'a']);
+    const r = await service.setGenderOrder('teste-colecao3', 'feminino', ['u', 'f1', 'a']);
+    expect(r.productIds).toEqual(['u', 'f1', 'a']);
     expect(tx.collectionGenderOrder.create).toHaveBeenCalled();
     expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
   });
-  it('PUT strips archived ids instead of 400', async () => {
-    const { service } = setup();
-    const r = await service.setGenderOrder('teste-colecao3', 'feminino', ['f1', 'a', 'u']);
-    expect(r.productIds).toEqual(['a', 'u']);
+  it('PUT 400s when an archived piece is missing from the gender list', async () => {
+    const { service, tx } = setup();
+    await expect(
+      service.setGenderOrder('teste-colecao3', 'feminino', ['u', 'a']),
+    ).rejects.toThrow(/faltando f1/);
+    expect(tx.productCollection.update).not.toHaveBeenCalled();
   });
   it('PUT still 400s (PT) when an active piece is missing', async () => {
     const { service } = setup();
     await expect(service.setGenderOrder('teste-colecao3', 'feminino', ['a'])).rejects.toThrow(
-      /faltando u/,
+      /faltando/,
     );
     await expect(service.setGenderOrder('teste-colecao3', 'feminino', ['a'])).rejects.toBeInstanceOf(
       BadRequestException,

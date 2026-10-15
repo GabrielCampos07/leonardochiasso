@@ -64,7 +64,7 @@ export class AdminCollectionsController {
     @Param('slug') slug: string,
     @Body() dto: SetCollectionProductsDto,
   ) {
-    return this.collections.setProducts(slug, dto.productSlugs, dto.keepMissing === true);
+    return this.collections.setProducts(slug, dto.productSlugs);
   }
 
   @Post(':slug/products/append')

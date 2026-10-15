@@ -64,6 +64,7 @@ describe('AdminCollectionsService gender order', () => {
         findMany: jest.fn().mockResolvedValue([]),
         findUnique: jest.fn().mockResolvedValue(null),
       },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: members.id }]),
     };
     const prisma = {
       collection: {
@@ -139,6 +140,13 @@ describe('AdminCollectionsService gender order', () => {
     const { service, prisma, tx } = make();
     await service.setGenderOrder('teste-ordem', 'feminino', [FEM, UNI]);
     expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000 });
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(String((tx.$queryRaw.mock.calls[0][0] as TemplateStringsArray).join(' '))).toMatch(
+      /FOR UPDATE/i,
+    );
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.collection.findUnique.mock.invocationCallOrder[0],
+    );
     expect(tx.collection.findUnique).toHaveBeenCalled();
     expect(prisma.collection.findUnique).not.toHaveBeenCalled();
   });
@@ -174,7 +182,7 @@ describe('AdminCollectionsService gender order', () => {
     await expect(
       service.setGenderOrder('teste-ordem', 'feminino', [FEM]),
     ).rejects.toThrow(
-      `A ordem deve conter exatamente as peças ativas feminino (incluindo unissex) desta coleção (faltando ${UNI}).`,
+      `A ordem deve conter exatamente as peças feminino (incluindo unissex e arquivadas) desta coleção (faltando ${UNI}).`,
     );
   });
 
@@ -200,130 +208,108 @@ describe('AdminCollectionsService gender order', () => {
   });
 
   it('rolls back membership when the derived copy rewrite throws (3D PUT)', async () => {
-    const { service, store, productFindMany } = makeTransactional({ throwOnGenderCreate: true });
-    productFindMany.mockResolvedValue([
-      { id: FEM, slug: 'teste-fem', category: { slug: 'feminino' } },
-      { id: UNI, slug: 'teste-uni', category: { slug: 'unissex' } },
-      { id: MAS, slug: 'teste-masc', category: { slug: 'masculino' } },
-    ]);
+    const { service, store } = makeTransactional({ throwOnGenderCreate: true });
     const before = snapshotStore(store);
     await expect(
-      service.setProducts('teste-ordem', ['teste-fem', 'teste-uni', 'teste-masc']),
+      service.setProducts('teste-ordem', ['teste-o1', 'teste-o2', 'teste-masc']),
     ).rejects.toThrow('derived copy failed');
     expect(store).toEqual(before);
   });
 
-  it('keepMissing merges live slugs and syncs only changed rows in the same transaction', async () => {
-    const { service, tx, prisma } = make();
+  it('locks the collection with FOR UPDATE before reading membership', async () => {
+    const { service, tx } = make();
     tx.productCollection.findMany.mockResolvedValue([
-      { productId: 'id-arquivo', sortOrder: 0, product: { slug: 'teste-arquivo' } },
-      { productId: 'id-a', sortOrder: 1, product: { slug: 'teste-a' } },
-      { productId: 'id-b', sortOrder: 2, product: { slug: 'teste-b' } },
-      { productId: 'id-c', sortOrder: 3, product: { slug: 'teste-c' } },
+      {
+        productId: 'id-a',
+        sortOrder: 0,
+        product: { slug: 'teste-a', category: { slug: 'feminino' } },
+      },
+      {
+        productId: 'id-b',
+        sortOrder: 1,
+        product: { slug: 'teste-b', category: { slug: 'feminino' } },
+      },
     ]);
-    tx.product.findMany.mockResolvedValue([
-      { id: 'id-arquivo', slug: 'teste-arquivo', category: { slug: 'feminino' } },
-      { id: 'id-a', slug: 'teste-a', category: { slug: 'feminino' } },
-      { id: 'id-b', slug: 'teste-b', category: { slug: 'feminino' } },
-      { id: 'id-c', slug: 'teste-c', category: { slug: 'feminino' } },
+    await service.setProducts('teste-ordem', ['teste-b', 'teste-a']);
+    expect(tx.$queryRaw).toHaveBeenCalled();
+    expect(String((tx.$queryRaw.mock.calls[0][0] as TemplateStringsArray).join(' '))).toMatch(
+      /FOR UPDATE/i,
+    );
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.productCollection.findMany.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('PUT products 400s and writes nothing when a current member is missing', async () => {
+    const { service, tx } = make();
+    tx.productCollection.findMany.mockResolvedValue([
+      {
+        productId: 'id-arquivo',
+        sortOrder: 0,
+        product: { slug: 'teste-arquivo', category: { slug: 'feminino' } },
+      },
+      {
+        productId: 'id-a',
+        sortOrder: 1,
+        product: { slug: 'teste-a', category: { slug: 'feminino' } },
+      },
+      {
+        productId: 'id-b',
+        sortOrder: 2,
+        product: { slug: 'teste-b', category: { slug: 'feminino' } },
+      },
     ]);
 
-    const result = await service.setProducts('teste-ordem', ['teste-c', 'teste-a', 'teste-b'], true);
-
-    expect(result.productSlugs).toEqual([
-      'teste-arquivo',
-      'teste-c',
-      'teste-a',
-      'teste-b',
-    ]);
-    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000 });
-    expect(tx.collection.findUnique).toHaveBeenCalled();
-    expect(prisma.collection.findUnique).not.toHaveBeenCalled();
-    expect(tx.productCollection.findMany).toHaveBeenCalledWith({
-      where: { collectionId: 'col-teste' },
-      orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
-      include: { product: { select: { slug: true } } },
-    });
+    await expect(
+      service.setProducts('teste-ordem', ['teste-b', 'teste-a']),
+    ).rejects.toThrow(/faltando teste-arquivo/);
+    expect(tx.productCollection.update).not.toHaveBeenCalled();
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).not.toHaveBeenCalled();
-    expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
-      { productId: 'id-c', sortOrder: 1 },
-      { productId: 'id-a', sortOrder: 2 },
-      { productId: 'id-b', sortOrder: 3 },
-    ]);
-    expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
-    expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
-    expect(tx.collectionGenderOrder.findMany).toHaveBeenCalled();
   });
 
-  it('does not delete or recreate existing product_collections members on the 3D PUT', async () => {
+  it('PUT products 400s and writes nothing when a slug is not a member', async () => {
     const { service, tx } = make();
     tx.productCollection.findMany.mockResolvedValue([
-      { productId: 'id-arquivo', sortOrder: 0, product: { slug: 'teste-arquivo' } },
-      { productId: 'id-a', sortOrder: 1, product: { slug: 'teste-a' } },
-      { productId: 'id-b', sortOrder: 2, product: { slug: 'teste-b' } },
-    ]);
-    tx.product.findMany.mockResolvedValue([
-      { id: 'id-a', slug: 'teste-a', category: { slug: 'feminino' } },
-      { id: 'id-b', slug: 'teste-b', category: { slug: 'feminino' } },
-      { id: 'id-novo', slug: 'teste-novo', category: { slug: 'feminino' } },
-    ]);
-
-    const result = await service.setProducts('teste-ordem', [
-      'teste-b',
-      'teste-novo',
-      'teste-a',
+      {
+        productId: 'id-a',
+        sortOrder: 0,
+        product: { slug: 'teste-a', category: { slug: 'feminino' } },
+      },
+      {
+        productId: 'id-b',
+        sortOrder: 1,
+        product: { slug: 'teste-b', category: { slug: 'feminino' } },
+      },
     ]);
 
-    expect(result.productSlugs).toEqual(['teste-b', 'teste-novo', 'teste-a']);
-    expect(tx.productCollection.deleteMany).toHaveBeenCalledTimes(1);
-    expect(tx.productCollection.deleteMany).toHaveBeenCalledWith({
-      where: { collectionId: 'col-teste', productId: { in: ['id-arquivo'] } },
-    });
-    expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
-      { productId: 'id-b', sortOrder: 0 },
-      { productId: 'id-a', sortOrder: 2 },
-    ]);
-    expect(tx.productCollection.createMany).toHaveBeenCalledTimes(1);
-    expect(tx.productCollection.createMany).toHaveBeenCalledWith({
-      data: [{ collectionId: 'col-teste', productId: 'id-novo', sortOrder: 1 }],
-    });
-    const createdIds = tx.productCollection.createMany.mock.calls.flatMap(
-      (call: [{ data: { productId: string }[] }]) => call[0].data.map((row) => row.productId),
-    );
-    const deletedIds =
-      (tx.productCollection.deleteMany.mock.calls[0]?.[0] as {
-        where: { productId: { in: string[] } };
-      })?.where.productId.in ?? [];
-    expect(createdIds).not.toEqual(expect.arrayContaining(['id-a', 'id-b']));
-    expect(deletedIds).not.toEqual(expect.arrayContaining(['id-a', 'id-b']));
-  });
-
-  it('names a missing slug with 400 instead of crashing on find!', async () => {
-    const { service, tx } = make();
-    tx.product.findMany.mockResolvedValue([
-      { id: FEM, slug: 'teste-fem', category: { slug: 'feminino' } },
-      { id: UNI, slug: 'teste-uni', category: { slug: 'unissex' } },
-    ]);
     await expect(
-      service.setProducts('teste-ordem', ['teste-fem', 'teste-sumiu']),
-    ).rejects.toThrow('Unknown product slug: teste-sumiu');
+      service.setProducts('teste-ordem', ['teste-a', 'teste-b', 'teste-novo']),
+    ).rejects.toThrow(/sobrando teste-novo/);
+    expect(tx.productCollection.update).not.toHaveBeenCalled();
+    expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(tx.productCollection.createMany).not.toHaveBeenCalled();
   });
 
-  it('reorders draft TESTE-O1/O2 with keepMissing without recreating their joins', async () => {
-    const { service, tx } = make();
+  it('reorders only existing members including drafts and never deletes or creates joins', async () => {
+    const { service, tx, prisma } = make();
     tx.productCollection.findMany.mockResolvedValue([
-      { productId: 'id-o1', sortOrder: 0, product: { slug: 'teste-o1' } },
-      { productId: 'id-o2', sortOrder: 1, product: { slug: 'teste-o2' } },
-    ]);
-    tx.product.findMany.mockResolvedValue([
-      { id: 'id-o1', slug: 'teste-o1', status: 'draft', category: { slug: 'feminino' } },
-      { id: 'id-o2', slug: 'teste-o2', status: 'draft', category: { slug: 'feminino' } },
+      {
+        productId: 'id-o1',
+        sortOrder: 0,
+        product: { slug: 'teste-o1', status: 'draft', category: { slug: 'feminino' } },
+      },
+      {
+        productId: 'id-o2',
+        sortOrder: 1,
+        product: { slug: 'teste-o2', status: 'draft', category: { slug: 'feminino' } },
+      },
     ]);
 
-    const result = await service.setProducts('teste-ordem', ['teste-o2', 'teste-o1'], true);
+    const result = await service.setProducts('teste-ordem', ['teste-o2', 'teste-o1']);
 
     expect(result.productSlugs).toEqual(['teste-o2', 'teste-o1']);
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { timeout: 15_000 });
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).not.toHaveBeenCalled();
     expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
@@ -332,6 +318,21 @@ describe('AdminCollectionsService gender order', () => {
     ]);
     expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
     expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
+  });
+
+  it('400s duplicate slugs in the PUT body without writing', async () => {
+    const { service, tx } = make();
+    tx.productCollection.findMany.mockResolvedValue([
+      {
+        productId: 'id-a',
+        sortOrder: 0,
+        product: { slug: 'teste-a', category: { slug: 'feminino' } },
+      },
+    ]);
+    await expect(
+      service.setProducts('teste-ordem', ['teste-a', 'teste-a']),
+    ).rejects.toThrow('A lista de peças contém slugs repetidos.');
+    expect(tx.productCollection.update).not.toHaveBeenCalled();
   });
 
   it('swaps two pieces A<->B without colliding sortOrder (setProducts)', async () => {
@@ -349,7 +350,7 @@ describe('AdminCollectionsService gender order', () => {
       { collectionId: 'col-teste', productId: 'id-b', gender: 'feminino', sortOrder: 1 },
     ];
 
-    const result = await service.setProducts('teste-ordem', ['teste-b', 'teste-a'], true);
+    const result = await service.setProducts('teste-ordem', ['teste-b', 'teste-a']);
 
     expect(result.productSlugs).toEqual(['teste-b', 'teste-a']);
     expect(sortedMembership(store)).toEqual([
@@ -381,11 +382,11 @@ describe('AdminCollectionsService gender order', () => {
       { collectionId: 'col-teste', productId: 'id-c', gender: 'feminino', sortOrder: 2 },
     ];
 
-    const result = await service.setProducts(
-      'teste-ordem',
-      ['teste-c', 'teste-a', 'teste-b'],
-      true,
-    );
+    const result = await service.setProducts('teste-ordem', [
+      'teste-c',
+      'teste-a',
+      'teste-b',
+    ]);
 
     expect(result.productSlugs).toEqual(['teste-c', 'teste-a', 'teste-b']);
     expect(sortedMembership(store)).toEqual([
@@ -420,8 +421,8 @@ describe('AdminCollectionsService gender order', () => {
       { id: MAS, slug: 'teste-masc', status: 'published', category: { slug: 'masculino' } },
     ]);
     await Promise.all([
-      service.setProducts('teste-ordem', ['teste-o1', 'teste-o2'], true),
-      service.setProducts('teste-ordem', ['teste-o2', 'teste-o1'], true),
+      service.setProducts('teste-ordem', ['teste-o1', 'teste-o2', 'teste-masc']),
+      service.setProducts('teste-ordem', ['teste-o2', 'teste-o1', 'teste-masc']),
     ]);
     const orders = store.membership.map((row) => row.sortOrder).sort((a, b) => a - b);
     expect(orders).toEqual([0, 1, 2]);
@@ -442,12 +443,14 @@ describe('AdminCollectionsService gender order', () => {
     const result = await service.appendProducts('teste-ordem', ['teste-o1']);
 
     expect(result.productSlugs).toEqual(['teste-a', 'teste-b', 'teste-o1']);
+    expect(tx.$queryRaw).toHaveBeenCalled();
     expect(tx.productCollection.update).not.toHaveBeenCalled();
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.delete).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).toHaveBeenCalledTimes(1);
     expect(tx.productCollection.createMany).toHaveBeenCalledWith({
       data: [{ collectionId: 'col-teste', productId: 'id-novo', sortOrder: 2 }],
+      skipDuplicates: true,
     });
   });
 
@@ -467,6 +470,7 @@ describe('AdminCollectionsService gender order', () => {
     const result = await service.removeProduct('teste-ordem', 'teste-b');
 
     expect(result.productSlugs).toEqual(['teste-a', 'teste-c']);
+    expect(tx.$queryRaw).toHaveBeenCalled();
     expect(tx.productCollection.delete).toHaveBeenCalledTimes(1);
     expect(tx.productCollection.delete).toHaveBeenCalledWith({
       where: { productId_collectionId: { productId: 'id-b', collectionId: 'col-teste' } },
@@ -497,6 +501,15 @@ const SLUG_BY_ID: Record<string, string> = {
   'id-a': 'teste-a',
   'id-b': 'teste-b',
   'id-c': 'teste-c',
+};
+
+const GENDER_BY_ID: Record<string, string> = {
+  [FEM]: 'feminino',
+  [UNI]: 'unissex',
+  [MAS]: 'masculino',
+  'id-a': 'feminino',
+  'id-b': 'feminino',
+  'id-c': 'feminino',
 };
 
 function expectTwoPhaseMembershipUpdates(
@@ -670,7 +683,10 @@ function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
             )
             .map((row) => ({
               ...row,
-              product: { slug: SLUG_BY_ID[row.productId] ?? row.productId },
+              product: {
+                slug: SLUG_BY_ID[row.productId] ?? row.productId,
+                category: { slug: GENDER_BY_ID[row.productId] ?? 'feminino' },
+              },
             })),
         ),
       },
@@ -770,6 +786,7 @@ function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
           );
         }),
       },
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'col-teste' }]),
     };
   }
 
