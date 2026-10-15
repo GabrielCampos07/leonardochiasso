@@ -35,13 +35,13 @@ export function sortByMembershipSortOrder<
  * Set to `true` to re-enable those controls. Leave `false` so the Lista
  * only displays `product_collections.sortOrder` + productId (same as 3D/site).
  */
-export const LISTA_REORDER_ENABLED = false;
+export const LISTA_REORDER_ENABLED = true;
 
 /**
  * 3D hanger drag and Shift+←/→. Same notice as the Lista.
  * Set to `true` together with `LISTA_REORDER_ENABLED` when order is writable again.
  */
-export const STOCKROOM_REORDER_ENABLED = false;
+export const STOCKROOM_REORDER_ENABLED = true;
 
 export const LISTA_ORDER_MAINTENANCE_NOTICE = 'Ordem em manutenção';
 
