@@ -17,7 +17,10 @@ import {
   AdminCollectionOrderService,
   collectionOrderErrorMessage,
 } from '../../core/admin-collection-order.service';
-import { AdminCollectionProductsService } from '../../core/admin-collection-products';
+import {
+  AdminCollectionProductsService,
+  membershipWriteErrorMessage,
+} from '../../core/admin-collection-products';
 import { ApiProductDto } from '../../core/catalog.service';
 import { productBelongsToCollection, resolveCollectionCover } from '../../core/collection-cover';
 import { CollectionCover } from '../../shared/components/collection-cover/collection-cover';
@@ -375,26 +378,20 @@ export class AdminCollectionEditPage implements OnInit {
       destructive: true,
     });
     if (!ok) return;
-    this.products.set(this.products().filter((p) => p.slug !== productSlug));
-    this.visibleProducts.set(this.visibleProducts().filter((p) => p.slug !== productSlug));
-    this.persistMembership();
-  }
-
-  private persistMembership(): void {
-    if (!LISTA_REORDER_ENABLED) return;
     const collectionSlug = this.slug();
     if (!collectionSlug || this.isNew()) return;
     this.savingOrder.set(true);
-    const slugs = this.products().map((p) => p.slug);
-    this.collectionProducts.remember(collectionSlug, slugs);
-    this.collectionProducts.replace(collectionSlug, slugs).subscribe({
+    this.collectionProducts.remove(collectionSlug, productSlug).subscribe({
       next: () => {
         this.savingOrder.set(false);
         this.flash('Coleção atualizada.');
+        this.loadExisting(collectionSlug);
       },
-      error: (err: { error?: { message?: string | string[] } }) => {
+      error: (err: unknown) => {
         this.savingOrder.set(false);
-        this.error.set(this.formatError(err, 'Não foi possível salvar a coleção.'));
+        const message = membershipWriteErrorMessage(err, 'Não foi possível remover a peça.');
+        this.error.set(message);
+        this.toast.error(message, { durationMs: ERROR_TOAST_MS });
         this.loadExisting(collectionSlug);
       },
     });

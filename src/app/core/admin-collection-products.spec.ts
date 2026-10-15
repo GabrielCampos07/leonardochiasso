@@ -1,5 +1,6 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { NEVER, of } from 'rxjs';
+import { NEVER, of, throwError } from 'rxjs';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
@@ -9,8 +10,14 @@ import {
   ADD_PIECE_STAGGER_MS,
   AdminCollectionProductsService,
   CollectionProductsLock,
+  MEMBERSHIP_WRITE_BAD_REQUEST,
+  MEMBERSHIP_WRITE_BUSY,
+  MEMBERSHIP_WRITE_CONFLICT,
+  MEMBERSHIP_WRITE_NOT_FOUND,
+  SerialTaskQueue,
   addPieceStaggerDelay,
   appendCollectionProductSlugs,
+  membershipWriteErrorMessage,
   mergeLiveOrderIntoMembership,
   partitionAppendResults,
 } from './admin-collection-products';
@@ -29,6 +36,10 @@ function result(slug: string, productSlugs: string[]): SetCollectionProductsResu
     publishedAt: null,
     productSlugs,
   };
+}
+
+function httpErr(status: number): HttpErrorResponse {
+  return new HttpErrorResponse({ status, statusText: String(status) });
 }
 
 describe('appendCollectionProductSlugs', () => {
@@ -58,6 +69,21 @@ describe('mergeLiveOrderIntoMembership', () => {
     ]);
     expect(mergeLiveOrderIntoMembership(['a', 'arquivo', 'b'], ['b', 'a'])).toEqual(['b', 'arquivo', 'a']);
   });
+
+  it('keeps archived and draft members in the full list', () => {
+    expect(
+      mergeLiveOrderIntoMembership(['arquivo', 'draft-x', 'a', 'b', 'c'], ['c', 'a', 'b']),
+    ).toEqual(['arquivo', 'draft-x', 'c', 'a', 'b']);
+  });
+});
+
+describe('membershipWriteErrorMessage', () => {
+  it('maps 400/409/404/503 to clear pt-BR copy', () => {
+    expect(membershipWriteErrorMessage(httpErr(400))).toBe(MEMBERSHIP_WRITE_BAD_REQUEST);
+    expect(membershipWriteErrorMessage(httpErr(409))).toBe(MEMBERSHIP_WRITE_CONFLICT);
+    expect(membershipWriteErrorMessage(httpErr(404))).toBe(MEMBERSHIP_WRITE_NOT_FOUND);
+    expect(membershipWriteErrorMessage(httpErr(503))).toBe(MEMBERSHIP_WRITE_BUSY);
+  });
 });
 
 describe('addPieceStaggerDelay', () => {
@@ -86,33 +112,75 @@ describe('CollectionProductsLock', () => {
   });
 });
 
+describe('SerialTaskQueue', () => {
+  it('runs the second drag only after the first persist finishes, then recomputes', async () => {
+    const queue = new SerialTaskQueue();
+    let slugs = ['a', 'b', 'c'];
+    let persistStarted = 0;
+    let firstReleased!: () => void;
+    const firstHold = new Promise<void>((resolve) => {
+      firstReleased = resolve;
+    });
+
+    const drag1 = queue.run(async () => {
+      const from = slugs.indexOf('a');
+      const to = slugs.indexOf('b');
+      const next = [...slugs];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item!);
+      persistStarted += 1;
+      await firstHold;
+      slugs = next;
+    });
+    const drag2 = queue.run(async () => {
+      const from = slugs.indexOf('a');
+      const to = slugs.indexOf('c');
+      const next = [...slugs];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item!);
+      persistStarted += 1;
+      slugs = next;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(persistStarted).toBe(1);
+    firstReleased();
+    await Promise.all([drag1, drag2]);
+    expect(persistStarted).toBe(2);
+    expect(slugs).toEqual(['b', 'c', 'a']);
+  });
+});
+
 describe('AdminCollectionProductsService', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  function setup(
-    setProducts: (
-      slug: string,
-      productSlugs: string[],
-      opts?: { keepMissing?: boolean },
-    ) => ReturnType<AdminCollectionsApiService['setProducts']>,
-    getProducts: (slug: string) => ReturnType<AdminCollectionsApiService['getProducts']> = () =>
-      of({ productSlugs: [] }),
-  ): AdminCollectionProductsService {
+  function setup(api: Partial<AdminCollectionsApiService>): AdminCollectionProductsService {
     TestBed.configureTestingModule({
       providers: [
         AdminCollectionProductsService,
-        { provide: AdminCollectionsApiService, useValue: { setProducts, getProducts } },
+        {
+          provide: AdminCollectionsApiService,
+          useValue: {
+            setProducts: () => of(result('organic-dreams', [])),
+            getProducts: () => of({ productSlugs: [] }),
+            appendProducts: () => of(result('organic-dreams', [])),
+            removeProduct: () => of(result('organic-dreams', [])),
+            ...api,
+          },
+        },
       ],
     });
     return TestBed.inject(AdminCollectionProductsService);
   }
 
   it('does not append while STOCKROOM_REORDER_ENABLED is false', async () => {
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
-    const puts: string[][] = [];
-    const service = setup((_slug, productSlugs) => {
-      puts.push([...productSlugs]);
-      return of(result('organic-dreams', productSlugs));
+    if (STOCKROOM_REORDER_ENABLED) return;
+    const appends: string[][] = [];
+    const service = setup({
+      appendProducts: (_slug, productSlugs) => {
+        appends.push([...productSlugs]);
+        return of(result('organic-dreams', productSlugs));
+      },
     });
     service.remember('organic-dreams', ['vestido-longo']);
     const err = await new Promise<Error>((resolve, reject) => {
@@ -122,16 +190,18 @@ describe('AdminCollectionProductsService', () => {
       });
     });
     expect(err.message).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
-    expect(puts).toEqual([]);
+    expect(appends).toEqual([]);
     expect(service.current('organic-dreams')).toEqual(['vestido-longo']);
   });
 
   it('does not replace while LISTA_REORDER_ENABLED is false', async () => {
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    if (LISTA_REORDER_ENABLED) return;
     const puts: string[][] = [];
-    const service = setup((_slug, productSlugs) => {
-      puts.push([...productSlugs]);
-      return of(result('organic-dreams', productSlugs));
+    const service = setup({
+      setProducts: (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
+        return of(result('organic-dreams', productSlugs));
+      },
     });
     const err = await new Promise<Error>((resolve, reject) => {
       service.replace('organic-dreams', ['a', 'b']).subscribe({
@@ -144,14 +214,15 @@ describe('AdminCollectionProductsService', () => {
   });
 
   it('does not PUT live order while STOCKROOM_REORDER_ENABLED is false', async () => {
-    const puts: { slugs: string[]; keepMissing?: boolean }[] = [];
-    const service = setup(
-      (_slug, productSlugs, opts) => {
-        puts.push({ slugs: [...productSlugs], keepMissing: opts?.keepMissing });
+    if (STOCKROOM_REORDER_ENABLED) return;
+    const puts: string[][] = [];
+    const service = setup({
+      setProducts: (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
         return of(result('organic-dreams', ['arquivo', ...productSlugs]));
       },
-      () => NEVER,
-    );
+      getProducts: () => NEVER,
+    });
 
     const saved = await new Promise<SetCollectionProductsResult>((resolve, reject) => {
       service.replaceLiveOrder('organic-dreams', ['c', 'a', 'b']).subscribe({ next: resolve, error: reject });
@@ -159,6 +230,85 @@ describe('AdminCollectionProductsService', () => {
 
     expect(puts).toEqual([]);
     expect(saved.productSlugs).toEqual([]);
+  });
+
+  it('PUTs the full member list including archived and draft', async () => {
+    if (!STOCKROOM_REORDER_ENABLED) return;
+    const puts: string[][] = [];
+    const service = setup({
+      getProducts: () => of({ productSlugs: ['arquivo', 'draft-x', 'a', 'b', 'c'] }),
+      setProducts: (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
+        return of(result('organic-dreams', productSlugs));
+      },
+    });
+    await new Promise<SetCollectionProductsResult>((resolve, reject) => {
+      service.replaceLiveOrder('organic-dreams', ['c', 'a', 'b']).subscribe({ next: resolve, error: reject });
+    });
+    expect(puts).toEqual([['arquivo', 'draft-x', 'c', 'a', 'b']]);
+  });
+
+  it('POSTs append and never a partial PUT', async () => {
+    if (!STOCKROOM_REORDER_ENABLED) return;
+    const appends: string[][] = [];
+    const puts: string[][] = [];
+    const service = setup({
+      appendProducts: (_slug, productSlugs) => {
+        appends.push([...productSlugs]);
+        return of(result('organic-dreams', ['a', 'nova']));
+      },
+      setProducts: (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
+        return of(result('organic-dreams', productSlugs));
+      },
+    });
+    service.remember('organic-dreams', ['a']);
+    await new Promise<SetCollectionProductsResult>((resolve, reject) => {
+      service.append('organic-dreams', ['nova']).subscribe({ next: resolve, error: reject });
+    });
+    expect(appends).toEqual([['nova']]);
+    expect(puts).toEqual([]);
+    expect(service.current('organic-dreams')).toEqual(['a', 'nova']);
+  });
+
+  it('DELETEs a member and never a partial PUT', async () => {
+    if (!LISTA_REORDER_ENABLED) return;
+    const deleted: string[] = [];
+    const puts: string[][] = [];
+    const service = setup({
+      removeProduct: (_slug, productSlug) => {
+        deleted.push(productSlug);
+        return of(result('organic-dreams', ['b']));
+      },
+      setProducts: (_slug, productSlugs) => {
+        puts.push([...productSlugs]);
+        return of(result('organic-dreams', productSlugs));
+      },
+    });
+    await new Promise<SetCollectionProductsResult>((resolve, reject) => {
+      service.remove('organic-dreams', 'a').subscribe({ next: resolve, error: reject });
+    });
+    expect(deleted).toEqual(['a']);
+    expect(puts).toEqual([]);
+    expect(service.current('organic-dreams')).toEqual(['b']);
+  });
+
+  it('reloads membership from the server after a write error and leaves no optimistic list', async () => {
+    if (!STOCKROOM_REORDER_ENABLED) return;
+    const service = setup({
+      getProducts: () => of({ productSlugs: ['arquivo', 'a', 'b'] }),
+      setProducts: () => throwError(() => httpErr(409)),
+    });
+    service.remember('organic-dreams', ['c', 'a', 'b']);
+    const err = await new Promise<HttpErrorResponse>((resolve, reject) => {
+      service.replaceLiveOrder('organic-dreams', ['b', 'a']).subscribe({
+        next: () => reject(new Error('expected 409')),
+        error: (e: unknown) => resolve(e as HttpErrorResponse),
+      });
+    });
+    expect(err.status).toBe(409);
+    expect(membershipWriteErrorMessage(err)).toBe(MEMBERSHIP_WRITE_CONFLICT);
+    expect(service.current('organic-dreams')).toEqual(['arquivo', 'a', 'b']);
   });
 });
 

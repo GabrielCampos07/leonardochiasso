@@ -51,8 +51,7 @@ describe('stockroom piece order', () => {
     expect(moveSlugById(['a', 'b', 'c'], 'gone', 1)).toBeNull();
   });
 
-  it('ignores Shift+arrow while STOCKROOM_REORDER_ENABLED is false', () => {
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+  it('consumes Shift+arrow only while STOCKROOM_REORDER_ENABLED is on', () => {
     expect(PIECE_REORDER_KEYSHORTCUTS).toBe('Shift+ArrowLeft Shift+ArrowRight');
     const piece = document.createElement('div');
     piece.setAttribute('data-slug', 'a');
@@ -66,9 +65,15 @@ describe('stockroom piece order', () => {
     const prevent = spyOn(event, 'preventDefault').and.callThrough();
     const stop = spyOn(event, 'stopPropagation').and.callThrough();
     Object.defineProperty(event, 'target', { value: piece });
-    expect(consumePieceReorderKey(event)).toBeNull();
-    expect(prevent).not.toHaveBeenCalled();
-    expect(stop).not.toHaveBeenCalled();
+    if (!STOCKROOM_REORDER_ENABLED) {
+      expect(consumePieceReorderKey(event)).toBeNull();
+      expect(prevent).not.toHaveBeenCalled();
+      expect(stop).not.toHaveBeenCalled();
+    } else {
+      expect(consumePieceReorderKey(event)).toEqual({ slug: 'a', delta: 1 });
+      expect(prevent).toHaveBeenCalled();
+      expect(stop).toHaveBeenCalled();
+    }
     piece.remove();
   });
 
@@ -86,12 +91,15 @@ describe('stockroom piece order', () => {
     expect(save).not.toHaveBeenCalled();
     expect(
       saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save, 'b'),
-    ).toBeFalse();
-    expect(save).not.toHaveBeenCalled();
+    ).toBe(STOCKROOM_REORDER_ENABLED);
+    if (STOCKROOM_REORDER_ENABLED) {
+      expect(save).toHaveBeenCalled();
+    } else {
+      expect(save).not.toHaveBeenCalled();
+    }
   });
 
-  it('does not save Shift+arrow while stockroom reorder is disabled', () => {
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+  it('saves Shift+arrow only while stockroom reorder is enabled', () => {
     const piece = document.createElement('div');
     piece.setAttribute('data-slug', 'b');
     const event = new KeyboardEvent('keydown', {
@@ -102,10 +110,17 @@ describe('stockroom piece order', () => {
     });
     Object.defineProperty(event, 'target', { value: piece });
     const save = jasmine.createSpy('save');
-    expect(
-      saveFromKeyboardReorder(event, [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }], save),
-    ).toBeFalse();
-    expect(save).not.toHaveBeenCalled();
+    const ran = saveFromKeyboardReorder(
+      event,
+      [{ id: 'organic-dreams', slugs: ['a', 'b', 'c'] }],
+      save,
+    );
+    expect(ran).toBe(STOCKROOM_REORDER_ENABLED);
+    if (!STOCKROOM_REORDER_ENABLED) {
+      expect(save).not.toHaveBeenCalled();
+    } else {
+      expect(save).toHaveBeenCalled();
+    }
     piece.remove();
   });
 

@@ -58,19 +58,23 @@ describe('stockroom first-open hint', () => {
   const empty = { get: () => null };
 
   it('uses the stockroom line on /admin/3d with no flag, and on the retired aliases', () => {
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
-    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_GESTURE);
-    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'cc0' ? '1' : null) }))).toBe(STOCKROOM_HINT_GESTURE);
-    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'sketchfab' ? '1' : null) }))).toBe(STOCKROOM_HINT_GESTURE);
+    const expected = STOCKROOM_REORDER_ENABLED ? STOCKROOM_HINT_COPY : STOCKROOM_HINT_GESTURE;
+    expect(gestureHintCopy(adminSceneMode(empty))).toBe(expected);
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'cc0' ? '1' : null) }))).toBe(expected);
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'sketchfab' ? '1' : null) }))).toBe(expected);
     expect(STOCKROOM_HINT_COPY).toContain('Clique na peça · arraste move');
     expect(STOCKROOM_HINT_COPY).toContain(STOCKROOM_HINT_REORDER);
   });
 
-  it('hides the reorder line while STOCKROOM_REORDER_ENABLED is false', () => {
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
-    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_GESTURE);
-    expect(gestureHintCopy(adminSceneMode(empty))).not.toContain(STOCKROOM_HINT_REORDER);
-    expect(gestureHintCopy(adminSceneMode(empty))).not.toContain('para reordenar');
+  it('shows the reorder line only while STOCKROOM_REORDER_ENABLED is true', () => {
+    if (!STOCKROOM_REORDER_ENABLED) {
+      expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_GESTURE);
+      expect(gestureHintCopy(adminSceneMode(empty))).not.toContain(STOCKROOM_HINT_REORDER);
+      expect(gestureHintCopy(adminSceneMode(empty))).not.toContain('para reordenar');
+      return;
+    }
+    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_COPY);
+    expect(gestureHintCopy(adminSceneMode(empty))).toContain(STOCKROOM_HINT_REORDER);
   });
 
   it('keeps the atelier line only for ?atelier=1', () => {
@@ -145,8 +149,7 @@ describe('stockroomTitle', () => {
     expect(stockroomTitle(racks, 'cap')).toEqual({ name: 'Cápsula', detail: '1 peça', unpublished: true });
   });
 
-  it('disables hanger reorder behind the same notice as the Lista', () => {
-    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+  it('shares the Lista maintenance notice for hanger reorder', () => {
     expect(LISTA_ORDER_MAINTENANCE_NOTICE).toBe('Ordem em manutenção');
   });
 

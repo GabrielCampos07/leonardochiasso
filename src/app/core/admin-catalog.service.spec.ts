@@ -234,7 +234,7 @@ describe('AdminCatalogService create payload contract', () => {
   });
 
   it('does not PUT /admin/products/reorder while LISTA_REORDER_ENABLED is false', () => {
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    if (LISTA_REORDER_ENABLED) return;
     const box: { err?: Error } = {};
     service.reorderViaApi(['look-b', 'look-a']).subscribe({
       next: () => fail('expected lock'),
