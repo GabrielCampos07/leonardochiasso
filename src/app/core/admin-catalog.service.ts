@@ -148,6 +148,9 @@ export function slugFromCollection(collection: Collection): CollectionSlug {
   return COLLECTION_SLUGS.organicDreams;
 }
 
+export const MULTI_COLLECTION_CHANGE_BLOCKED =
+  'Esta peça está em mais de uma coleção; a troca de coleção está bloqueada.';
+
 export function adminHttpErrorMessage(err: unknown, fallback = 'Não foi possível salvar.'): string {
   if (err instanceof HttpErrorResponse) {
     const body = err.error;

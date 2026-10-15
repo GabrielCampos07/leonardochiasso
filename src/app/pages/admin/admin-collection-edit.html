@@ -135,7 +135,7 @@
         </div>
 
         @if (!listaReorderEnabled) {
-          <p class="admin-col-products__notice" role="status">{{ orderMaintenanceNotice }}</p>
+          <div class="admin-col-products__notice" role="status">{{ orderMaintenanceNotice }}</div>
         }
         @if (todosHint()) {
           <p class="admin-col-products__hint" role="status">{{ todosHint() }}</p>

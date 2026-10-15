@@ -279,10 +279,11 @@ describe('AdminCollectionEditPage gender UX', () => {
   it('shows Ordem em manutenção and hides Subir/Descer/drag while reorder is disabled', () => {
     expect(LISTA_REORDER_ENABLED).toBeFalse();
     fixture.detectChanges();
-    const notices = [...fixture.nativeElement.querySelectorAll('.admin-col-products__notice')].map(
-      (el: HTMLElement) => el.textContent?.trim(),
-    );
-    expect(notices).toContain(LISTA_ORDER_MAINTENANCE_NOTICE);
+    const notice = fixture.nativeElement.querySelector(
+      '.admin-col-products__notice[role="status"]',
+    ) as HTMLElement;
+    expect(notice?.tagName).toBe('DIV');
+    expect(notice?.textContent?.trim()).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
     expect(fixture.nativeElement.textContent).not.toContain('Subir');
     expect(fixture.nativeElement.textContent).not.toContain('Descer');
     expect(fixture.nativeElement.querySelector('.admin-col-products__handle')).toBeNull();

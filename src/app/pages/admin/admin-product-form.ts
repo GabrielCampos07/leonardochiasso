@@ -13,6 +13,7 @@ import {
 import {
   ADMIN_SWATCH_OPTIONS,
   AdminCatalogService,
+  MULTI_COLLECTION_CHANGE_BLOCKED,
   adminHttpErrorMessage,
   collectionFromSlug,
   slugFromCollection,
@@ -652,6 +653,14 @@ export class AdminProductForm implements OnInit {
         const message = adminHttpErrorMessage(err);
         this.saveError.set(message);
         this.toast.error(message);
+        if (message === MULTI_COLLECTION_CHANGE_BLOCKED) {
+          void this.confirm.confirm({
+            title: 'Coleção',
+            message,
+            confirmLabel: 'OK',
+            cancelLabel: 'Fechar',
+          });
+        }
       },
     });
   }

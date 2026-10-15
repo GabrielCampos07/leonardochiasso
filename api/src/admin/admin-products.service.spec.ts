@@ -1,6 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ProductStatus } from '@prisma/client';
-import { AdminProductsService } from './admin-products.service';
+import {
+  AdminProductsService,
+  MULTI_COLLECTION_CHANGE_BLOCKED,
+} from './admin-products.service';
 
 function productRow(over: Record<string, unknown> = {}) {
   return {
@@ -243,7 +246,7 @@ describe('AdminProductsService update (membership join)', () => {
         aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
         create: jest.fn(),
       },
-      $transaction: jest.fn(),
+      $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma)),
     };
     return prisma;
   }
@@ -294,8 +297,18 @@ describe('AdminProductsService update (membership join)', () => {
     expect(prisma.collection.findUnique).not.toHaveBeenCalled();
     expect(prisma.category.findUnique).not.toHaveBeenCalled();
     expect(prisma.collectionGenderOrder.findMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(queryCount(prisma)).toBe(2);
     expect(prisma.product.update.mock.calls[0][0].data).toEqual({ name: 'Vestido editado' });
+    expect(prisma.product.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          collections: expect.objectContaining({
+            orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          }),
+        }),
+      }),
+    );
   });
 
   it('skips the join write when collectionSlug and category are unchanged', async () => {
@@ -317,7 +330,7 @@ describe('AdminProductsService update (membership join)', () => {
     expect(queryCount(prisma)).toBe(2);
   });
 
-  it('changing the collection updates one row and never deletes', async () => {
+  it('changing the collection updates one row at max(sortOrder)+1 and never deletes', async () => {
     const prisma = makePrisma();
     prisma.product.findUnique
       .mockResolvedValueOnce(loadedProduct())
@@ -327,16 +340,17 @@ describe('AdminProductsService update (membership join)', () => {
         collections: [{ collectionId: COL_NP }],
       });
     prisma.collection.findUnique.mockResolvedValue({ id: COL_NP, slug: 'niponic-dreams' });
+    prisma.productCollection.aggregate.mockResolvedValue({ _max: { sortOrder: 7 } });
     prisma.productCollection.update.mockResolvedValue({
       productId: 'p1',
       collectionId: COL_NP,
-      sortOrder: 4,
+      sortOrder: 8,
     });
     prisma.product.update.mockResolvedValue(
       productRow({
         collections: [
           {
-            sortOrder: 4,
+            sortOrder: 8,
             collection: { slug: 'niponic-dreams', name: 'Niponic Dreams', archivedAt: null },
           },
         ],
@@ -345,16 +359,56 @@ describe('AdminProductsService update (membership join)', () => {
     const service = new AdminProductsService(prisma as never);
     await service.update('vestido', { collectionSlug: 'niponic-dreams' } as never);
 
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(prisma.productCollection.create).not.toHaveBeenCalled();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.productCollection.aggregate).toHaveBeenCalledWith({
+      where: { collectionId: COL_NP },
+      _max: { sortOrder: true },
+    });
     expect(prisma.productCollection.update).toHaveBeenCalledTimes(1);
     expect(prisma.productCollection.update).toHaveBeenCalledWith({
       where: {
         productId_collectionId: { productId: 'p1', collectionId: COL_OD },
       },
-      data: { collectionId: COL_NP, sortOrder: 4 },
+      data: { collectionId: COL_NP, sortOrder: 8 },
     });
-    expect(prisma.productCollection.aggregate).not.toHaveBeenCalled();
+    expect(prisma.product.update).toHaveBeenCalled();
+    expect(prisma.collectionGenderOrder.findMany).toHaveBeenCalled();
+  });
+
+  it('refuses a collection change when the piece has more than one join row', async () => {
+    const prisma = makePrisma();
+    prisma.product.findUnique.mockResolvedValue(
+      loadedProduct({
+        collections: [
+          {
+            productId: 'p1',
+            collectionId: COL_OD,
+            sortOrder: 0,
+            collection: { slug: 'organic-dreams' },
+          },
+          {
+            productId: 'p1',
+            collectionId: COL_NP,
+            sortOrder: 1,
+            collection: { slug: 'niponic-dreams' },
+          },
+        ],
+      }),
+    );
+    const service = new AdminProductsService(prisma as never);
+    await expect(
+      service.update('vestido', { collectionSlug: 'brazilian-dreams' } as never),
+    ).rejects.toThrow(MULTI_COLLECTION_CHANGE_BLOCKED);
+    await expect(
+      service.update('vestido', { collectionSlug: 'brazilian-dreams' } as never),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.collection.findUnique).not.toHaveBeenCalled();
+    expect(prisma.productCollection.update).not.toHaveBeenCalled();
+    expect(prisma.productCollection.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.product.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });
