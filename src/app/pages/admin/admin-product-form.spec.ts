@@ -446,9 +446,11 @@ describe('AdminProductForm', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.draft()?.price).toBe(12.5);
     expect(fixture.componentInstance.draft()?.priceCents).toBe(1250);
-    expect(fixture.componentInstance.draft()?.priceLabel).toBe('R$ 12,50');
-    expect(fixture.nativeElement.textContent).toContain('R$ 12,50');
-    expect(fixture.nativeElement.textContent).not.toContain('R$ 13,00');
+    expect((fixture.componentInstance.draft()?.priceLabel ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'R$ 12,50',
+    );
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).toContain('R$ 12,50');
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).not.toContain('R$ 13,00');
     expect(fixture.componentInstance.priceError()).toBe('');
 
     fixture.componentInstance.onPriceChange('1.250,50');

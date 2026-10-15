@@ -111,6 +111,6 @@ describe('mapApiProduct price', () => {
     });
     expect(product.price).toBe(12.5);
     expect(product.priceCents).toBe(1250);
-    expect(product.priceLabel).toBe('R$ 12,50');
+    expect(product.priceLabel.replace(/\u00a0/g, ' ')).toBe('R$ 12,50');
   });
 });
