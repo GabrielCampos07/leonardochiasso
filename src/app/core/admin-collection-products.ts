@@ -1,6 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, firstValueFrom, map, of, throwError } from 'rxjs';
-import { adminHttpErrorMessage } from './admin-catalog.service';
+import { AdminCatalogService, adminHttpErrorMessage } from './admin-catalog.service';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
@@ -10,13 +11,33 @@ import {
   AdminCollectionsApiService,
   SetCollectionProductsResult,
 } from './admin-collections-api.service';
+import { Product } from './product.model';
 
 /** Visual gap between hangers when several pieces are added in one confirm. */
 export const ADD_PIECE_STAGGER_MS = 80;
 
+export const MEMBERSHIP_WRITE_BAD_REQUEST =
+  'A lista de peças da coleção está inconsistente. Recarregue a página.';
+export const MEMBERSHIP_WRITE_CONFLICT = 'Conflito ao salvar a ordem. Recarregue e tente de novo.';
+export const MEMBERSHIP_WRITE_NOT_FOUND = 'Coleção ou peça não encontrada.';
+export const MEMBERSHIP_WRITE_BUSY = 'O servidor está ocupado. Tente de novo em instantes.';
+
+export function membershipWriteErrorMessage(
+  err: unknown,
+  fallback = 'Não foi possível salvar a ordem.',
+): string {
+  if (err instanceof HttpErrorResponse) {
+    if (err.status === 400) return MEMBERSHIP_WRITE_BAD_REQUEST;
+    if (err.status === 409) return MEMBERSHIP_WRITE_CONFLICT;
+    if (err.status === 404) return MEMBERSHIP_WRITE_NOT_FOUND;
+    if (err.status === 503) return MEMBERSHIP_WRITE_BUSY;
+  }
+  return adminHttpErrorMessage(err, fallback);
+}
+
 /**
  * Reorder only the live/loaded slugs; keep every other member (archived,
- * not loaded) in its existing slot. `PUT /products` is a full replace.
+ * draft, not loaded) in its existing slot. `PUT /products` is an exact set.
  */
 export function mergeLiveOrderIntoMembership(
   membership: readonly string[],
@@ -86,6 +107,28 @@ export interface CollectionProductAppendBatch {
   failed: { slug: string; message: string }[];
 }
 
+export type CollectionAddWrite =
+  | { kind: 'move'; productSlug: string; fromSlug: string; toSlug: string }
+  | { kind: 'append'; productSlug: string; toSlug: string };
+
+/**
+ * A piece belongs to one collection. Adding a hanger that already lives on
+ * another rack is a collection change (PATCH collectionSlug), not POST append.
+ */
+export function planCollectionAddWrite(
+  productSlug: string,
+  destSlug: string,
+  currentCollectionSlug?: string | null,
+): CollectionAddWrite {
+  const product = productSlug.trim();
+  const to = destSlug.trim();
+  const from = currentCollectionSlug?.trim() ?? '';
+  if (from && to && from !== to) {
+    return { kind: 'move', productSlug: product, fromSlug: from, toSlug: to };
+  }
+  return { kind: 'append', productSlug: product, toSlug: to };
+}
+
 export function partitionAppendResults(
   rows: readonly CollectionProductAppendItem[],
 ): CollectionProductAppendBatch {
@@ -96,6 +139,19 @@ export function partitionAppendResults(
     else failed.push({ slug: row.slug, message: row.message || 'Não foi possível adicionar esta peça.' });
   }
   return { added, failed };
+}
+
+/** Stable acquire order so a move A→B and a move B→A cannot deadlock. */
+export function orderedCollectionLockSlugs(...slugs: string[]): string[] {
+  const seen = new Set<string>();
+  const next: string[] = [];
+  for (const raw of slugs) {
+    const slug = raw.trim();
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    next.push(slug);
+  }
+  return next.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /**
@@ -117,11 +173,36 @@ export class CollectionProductsLock {
     );
     return next;
   }
+
+  /** Nested `run` in sorted slug order. */
+  runMany<T>(collectionSlugs: readonly string[], task: () => Promise<T>): Promise<T> {
+    const ordered = orderedCollectionLockSlugs(...collectionSlugs);
+    const nest = (index: number): Promise<T> => {
+      if (index >= ordered.length) return task();
+      return this.run(ordered[index]!, () => nest(index + 1));
+    };
+    return nest(0);
+  }
+}
+
+/** Single-lane queue: task N starts only after task N-1 settles. */
+export class SerialTaskQueue {
+  private tail: Promise<unknown> = Promise.resolve();
+
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const next = this.tail.then(task, task);
+    this.tail = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
 }
 
 @Injectable({ providedIn: 'root' })
 export class AdminCollectionProductsService {
   private readonly api = inject(AdminCollectionsApiService);
+  private readonly catalog = inject(AdminCatalogService);
   private readonly lock = new CollectionProductsLock();
   private readonly lists = new Map<string, string[]>();
 
@@ -133,20 +214,17 @@ export class AdminCollectionProductsService {
     return [...(this.lists.get(collectionSlug) ?? [])];
   }
 
-  /** Full replace (reorder / remove). Still serialized per collection. */
+  /** Full replace (reorder). GET membership, merge live order, PUT the exact set. */
   replace(collectionSlug: string, productSlugs: readonly string[]): Observable<SetCollectionProductsResult> {
     if (!LISTA_REORDER_ENABLED) {
       return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
     }
-    return this.enqueue(collectionSlug, () => {
-      const next = appendCollectionProductSlugs(productSlugs, []);
-      return this.write(collectionSlug, next);
-    });
+    return this.enqueue(collectionSlug, () => this.putFullMembership(collectionSlug, productSlugs));
   }
 
   /**
-   * 3D drag: PUT the server membership with live hangers reordered in place.
-   * Archived / unloaded slugs stay linked.
+   * 3D drag: GET the server membership, merge live hangers in place, PUT the
+   * exact set (archived + draft stay linked).
    */
   replaceLiveOrder(
     collectionSlug: string,
@@ -155,24 +233,63 @@ export class AdminCollectionProductsService {
     if (!STOCKROOM_REORDER_ENABLED) {
       return of({ productSlugs: this.current(collectionSlug) } as SetCollectionProductsResult);
     }
-    return this.enqueue(collectionSlug, () => {
-      const live = appendCollectionProductSlugs(liveOrdered, []);
-      return this.write(collectionSlug, live, { keepMissing: true });
+    return this.enqueue(collectionSlug, () => this.putFullMembership(collectionSlug, liveOrdered));
+  }
+
+  /**
+   * Add to a rack: PATCH collectionSlug when the piece already belongs to
+   * another collection (same single UPDATE as the piece edit form, at the end).
+   * Otherwise POST append.
+   */
+  persistAddedProduct(
+    destSlug: string,
+    productSlug: string,
+    currentCollectionSlug?: string | null,
+  ): Observable<Product | SetCollectionProductsResult> {
+    const plan = planCollectionAddWrite(productSlug, destSlug, currentCollectionSlug);
+    if (plan.kind === 'move') return this.moveToCollection(plan.productSlug, plan.fromSlug, plan.toSlug);
+    return this.append(plan.toSlug, [plan.productSlug]);
+  }
+
+  /**
+   * Same UPDATE as the product form collection change (`PATCH …/products/:slug`
+   * with `collectionSlug`). Puts the piece at the end of the destination.
+   * Serialized on both collections (sorted slugs) so it cannot race a dest PUT.
+   */
+  moveToCollection(productSlug: string, fromSlug: string, toSlug: string): Observable<Product> {
+    if (!STOCKROOM_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
+    return this.enqueueMany([fromSlug, toSlug], async () => {
+      try {
+        const updated = await firstValueFrom(
+          this.catalog.updateViaApi(productSlug, { collectionSlug: toSlug }),
+        );
+        this.remember(toSlug, appendCollectionProductSlugs(this.current(toSlug), [productSlug]));
+        this.remember(
+          fromSlug,
+          this.current(fromSlug).filter((slug) => slug !== productSlug),
+        );
+        return updated;
+      } catch (err) {
+        await this.reloadBoth(fromSlug, toSlug);
+        throw err;
+      }
     });
   }
 
-  /** Current list + newcomers at the end, one PUT. */
+  /** POST /products/append — never a partial PUT. */
   append(collectionSlug: string, incoming: readonly string[]): Observable<SetCollectionProductsResult> {
     if (!STOCKROOM_REORDER_ENABLED) {
       return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
     }
-    return this.enqueue(collectionSlug, () => {
-      const next = appendCollectionProductSlugs(this.current(collectionSlug), incoming);
-      return this.write(collectionSlug, next);
-    });
+    const slugs = incoming.map((slug) => slug.trim()).filter(Boolean);
+    return this.enqueue(collectionSlug, () =>
+      this.writeOrReload(collectionSlug, () => firstValueFrom(this.api.appendProducts(collectionSlug, slugs))),
+    );
   }
 
-  /** One PUT per slug so a failure does not roll back pieces that already landed. */
+  /** One POST append per slug so a failure does not roll back pieces that already landed. */
   appendEach(
     collectionSlug: string,
     incoming: readonly string[],
@@ -190,7 +307,7 @@ export class AdminCollectionProductsService {
             results.push({
               slug: trimmed,
               ok: false,
-              message: adminHttpErrorMessage(err, 'Não foi possível adicionar esta peça.'),
+              message: membershipWriteErrorMessage(err, 'Não foi possível adicionar esta peça.'),
             });
           }
         }
@@ -201,7 +318,7 @@ export class AdminCollectionProductsService {
   }
 
   /**
-   * Grouped PUT first; if it fails, retry per item so successful pieces stay
+   * Grouped POST append first; if it fails, retry per item so successful pieces stay
    * associated and failed slugs can remain selected.
    */
   tryAppend(collectionSlug: string, incoming: readonly string[]): Observable<CollectionProductAppendBatch> {
@@ -213,20 +330,64 @@ export class AdminCollectionProductsService {
     );
   }
 
-  private write(
+  /** DELETE /products/:productSlug — never a partial PUT. */
+  remove(collectionSlug: string, productSlug: string): Observable<SetCollectionProductsResult> {
+    if (!LISTA_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
+    return this.enqueue(collectionSlug, () =>
+      this.writeOrReload(collectionSlug, () =>
+        firstValueFrom(this.api.removeProduct(collectionSlug, productSlug)),
+      ),
+    );
+  }
+
+  private async putFullMembership(
     collectionSlug: string,
-    productSlugs: string[],
-    opts: { keepMissing?: boolean } = {},
+    liveOrdered: readonly string[],
   ): Promise<SetCollectionProductsResult> {
-    return firstValueFrom(this.api.setProducts(collectionSlug, productSlugs, opts)).then((result) => {
-      this.remember(collectionSlug, result.productSlugs);
-      return result;
+    return this.writeOrReload(collectionSlug, async () => {
+      const membership = await firstValueFrom(this.api.getProducts(collectionSlug));
+      const next = mergeLiveOrderIntoMembership(membership.productSlugs, liveOrdered);
+      return firstValueFrom(this.api.setProducts(collectionSlug, next));
     });
   }
 
+  private async writeOrReload(
+    collectionSlug: string,
+    write: () => Promise<SetCollectionProductsResult>,
+  ): Promise<SetCollectionProductsResult> {
+    try {
+      const result = await write();
+      this.remember(collectionSlug, result.productSlugs);
+      return result;
+    } catch (err) {
+      await this.reloadFromServer(collectionSlug);
+      throw err;
+    }
+  }
+
+  private async reloadFromServer(collectionSlug: string): Promise<void> {
+    try {
+      const membership = await firstValueFrom(this.api.getProducts(collectionSlug));
+      this.remember(collectionSlug, membership.productSlugs);
+    } catch {
+      // Keep the last known list if the reload also fails.
+    }
+  }
+
+  private async reloadBoth(fromSlug: string, toSlug: string): Promise<void> {
+    await this.reloadFromServer(fromSlug);
+    if (toSlug !== fromSlug) await this.reloadFromServer(toSlug);
+  }
+
   private enqueue<T>(collectionSlug: string, task: () => Promise<T>): Observable<T> {
+    return this.enqueueMany([collectionSlug], task);
+  }
+
+  private enqueueMany<T>(collectionSlugs: readonly string[], task: () => Promise<T>): Observable<T> {
     return new Observable<T>((subscriber) => {
-      void this.lock.run(collectionSlug, async () => {
+      void this.lock.runMany(collectionSlugs, async () => {
         try {
           const value = await task();
           subscriber.next(value);

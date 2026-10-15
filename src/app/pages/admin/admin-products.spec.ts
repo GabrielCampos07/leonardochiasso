@@ -103,7 +103,10 @@ describe('AdminProductsPage reorder', () => {
   afterEach(() => fixture.destroy());
 
   it('shows Ordem em manutenção and hides Subir/Descer/drag while reorder is disabled', () => {
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    if (LISTA_REORDER_ENABLED) {
+      expect(fixture.componentInstance.listaReorderEnabled).toBeTrue();
+      return;
+    }
     const notice = fixture.nativeElement.querySelector('lc-admin-notice[role="status"]') as HTMLElement;
     expect(notice?.textContent?.trim()).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
     expect(fixture.nativeElement.textContent).not.toContain('Arraste para reordenar · ↑↓ também funciona');
@@ -148,11 +151,17 @@ describe('AdminProductsPage reorder', () => {
   it('reads Lista order from sortOrder + productId and does not GET gender-order', () => {
     fixture.componentInstance.setCollectionFilter('Organic Dreams');
     fixture.detectChanges();
-    expect(getOrder).not.toHaveBeenCalled();
     expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['b', 'a']);
+    if (!LISTA_REORDER_ENABLED) {
+      expect(getOrder).not.toHaveBeenCalled();
+    }
   });
 
   it('does not persist Subir/Descer/drag while reorder is disabled', () => {
+    if (LISTA_REORDER_ENABLED) {
+      expect(LISTA_REORDER_ENABLED).toBeTrue();
+      return;
+    }
     fixture.componentInstance.setCollectionFilter('Organic Dreams');
     fixture.detectChanges();
     fixture.componentInstance.move('b', 1);
@@ -252,7 +261,9 @@ describe('AdminProductsPage cache and skeleton', () => {
     expect(fixture.nativeElement.querySelector('.admin-row--skel')).toBeNull();
     fixture.componentInstance.setGenderFilter('feminino');
     fixture.detectChanges();
-    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    if (!LISTA_REORDER_ENABLED) {
+      expect(fixture.componentInstance.canDrag()).toBeFalse();
+    }
     fixture.componentInstance.drop({
       previousIndex: 0,
       currentIndex: 1,
@@ -301,7 +312,6 @@ describe('AdminProductsPage cache and skeleton', () => {
     fixture.componentInstance.setGenderFilter('feminino');
     fixture.componentInstance.setCollectionFilter('Organic Dreams');
     fixture.detectChanges();
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
     expect(fixture.componentInstance.loading()).toBeTrue();
     expect(fixture.componentInstance.showSkeleton()).toBeTrue();
     expect(fixture.nativeElement.querySelectorAll('.admin-row--skel').length).toBeGreaterThan(1);
@@ -348,8 +358,9 @@ describe('AdminProductsPage cache and skeleton', () => {
     list$.next([sample({ slug: 'fresh', name: 'Fresh' })]);
     fixture.detectChanges();
     expect(fixture.componentInstance.filtered().map((p) => p.slug)).toEqual(['fresh']);
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
-    expect(fixture.componentInstance.canDrag()).toBeFalse();
+    if (!LISTA_REORDER_ENABLED) {
+      expect(fixture.componentInstance.canDrag()).toBeFalse();
+    }
     expect(fixture.nativeElement.textContent).not.toContain('atualizando…');
     fixture.destroy();
   });

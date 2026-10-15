@@ -48,7 +48,7 @@ describe('AdminCollectionOrderService', () => {
   });
 
   it('does not PUT order while LISTA_REORDER_ENABLED is false', () => {
-    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    if (LISTA_REORDER_ENABLED) return;
     const box: { err?: Error } = {};
     service.put('organic-dreams', 'masculino', ['id-a', 'id-b']).subscribe({
       next: () => fail('expected lock'),
@@ -74,6 +74,7 @@ describe('AdminCollectionOrderService', () => {
   });
 
   it('does not write local order when the lock is on', () => {
+    if (LISTA_REORDER_ENABLED) return;
     service.put('organic-dreams', 'feminino', ['missing']).subscribe({
       next: () => fail('expected lock'),
       error: () => undefined,

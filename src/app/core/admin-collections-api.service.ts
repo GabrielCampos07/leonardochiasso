@@ -92,14 +92,26 @@ export class AdminCollectionsApiService {
     });
   }
 
-  setProducts(
-    slug: string,
-    productSlugs: string[],
-    opts: { keepMissing?: boolean } = {},
-  ): Observable<SetCollectionProductsResult> {
+  /** Exact-set PUT — every current member (live, draft, archived) in the new order. */
+  setProducts(slug: string, productSlugs: string[]): Observable<SetCollectionProductsResult> {
     return this.http.put<SetCollectionProductsResult>(
       `${this.url}/${encodeURIComponent(slug)}/products`,
-      { productSlugs, ...(opts.keepMissing ? { keepMissing: true } : {}) },
+      { productSlugs },
+      { withCredentials: true },
+    );
+  }
+
+  appendProducts(slug: string, productSlugs: string[]): Observable<SetCollectionProductsResult> {
+    return this.http.post<SetCollectionProductsResult>(
+      `${this.url}/${encodeURIComponent(slug)}/products/append`,
+      { productSlugs },
+      { withCredentials: true },
+    );
+  }
+
+  removeProduct(slug: string, productSlug: string): Observable<SetCollectionProductsResult> {
+    return this.http.delete<SetCollectionProductsResult>(
+      `${this.url}/${encodeURIComponent(slug)}/products/${encodeURIComponent(productSlug)}`,
       { withCredentials: true },
     );
   }
