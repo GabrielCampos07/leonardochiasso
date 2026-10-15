@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import {
   CartItem,
   cartLineKey,
+  formatPriceLabel,
   productWithPiece,
 } from './product.model';
 import { CatalogService } from './catalog.service';
@@ -54,7 +55,7 @@ export class CartService {
   readonly subtotalLabel = computed(() =>
     PRICES_ON_REQUEST
       ? PRICE_ON_REQUEST_LABEL
-      : this.subtotal().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      : formatPriceLabel(this.subtotal()),
   );
 
   constructor() {

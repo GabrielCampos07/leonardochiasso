@@ -436,6 +436,26 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.save();
     expect(saveProduct$).toHaveBeenCalled();
     expect(saveProduct$.calls.mostRecent().args[0].priceCents).toBe(1480000);
+    expect((fixture.componentInstance.draft()?.priceLabel ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'R$ 14.800,00',
+    );
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).toContain('R$ 14.800,00');
+  });
+
+  it('admin preview always shows 2 decimals for 1480000 cents (R$ 14.800,00)', () => {
+    fixture.componentInstance.loadDraft(
+      sampleProduct({
+        price: 14800,
+        priceCents: 1_480_000,
+        priceLabel: 'R$ 14.800',
+      }),
+    );
+    fixture.detectChanges();
+    expect((fixture.componentInstance.draft()?.priceLabel ?? '').replace(/\u00a0/g, ' ')).toBe(
+      'R$ 14.800,00',
+    );
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).toContain('R$ 14.800,00');
+    expect(fixture.nativeElement.textContent.replace(/\u00a0/g, ' ')).not.toMatch(/R\$ 14\.800(?!,)/);
   });
 
   it('parses pt-BR price text and shows inline errors', () => {

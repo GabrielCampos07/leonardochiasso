@@ -2,7 +2,7 @@ import { Component, OnInit, computed, inject, signal, viewChild } from '@angular
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AdminCatalogService, adminHttpErrorMessage, collectionFromSlug } from '../../core/admin-catalog.service';
 import { resolveAdminCollectionContext } from '../../core/admin-collection-context';
-import { Collection, Product, formatPriceLabel } from '../../core/product.model';
+import { Collection, Product, formatAdminPriceLabel } from '../../core/product.model';
 import {
   ADMIN_NEW_PRODUCT_SLUG,
   COLLECTION_SLUGS,
@@ -32,7 +32,7 @@ function blankProduct(collectionSlug: string | null): Product {
     slug: '',
     name: '',
     price: 0,
-    priceLabel: formatPriceLabel(0),
+    priceLabel: formatAdminPriceLabel(0),
     priceCents: 0,
     color: '',
     size: 'ÚNICO',

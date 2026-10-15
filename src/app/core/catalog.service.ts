@@ -61,7 +61,15 @@ export interface ApiCollectionDto {
   products?: ApiProductDto[];
 }
 
-/** Map API product → storefront Product (reais from cents, 2 decimals). */
+function publicPieceLabels(pieces: Product['pieces']): Product['pieces'] {
+  if (!pieces?.length) return pieces;
+  return pieces.map((piece) => ({
+    ...piece,
+    priceLabel: formatPriceLabel(piece.price),
+  }));
+}
+
+/** Map API product → storefront Product (reais from cents; omit ,00 when whole). */
 export function mapApiProduct(dto: ApiProductDto): Product {
   const price = dto.priceCents / 100;
   const local = PRODUCTS.find((p) => p.slug === dto.slug || p.id === dto.slug);
@@ -95,7 +103,7 @@ export function mapApiProduct(dto: ApiProductDto): Product {
     collectionSlug: (primaryCollectionLabel(dto.collections).slug ||
       (!dto.collections?.length ? collectionNameToSlug(dto.collection || '') : '')) as CollectionSlug,
     collections: dto.collections,
-    pieces: (dto.pieces as Product['pieces']) ?? local?.pieces,
+    pieces: publicPieceLabels((dto.pieces as Product['pieces']) ?? local?.pieces),
     colorVariants: (dto.colorVariants as Product['colorVariants']) ?? local?.colorVariants,
     imageBindings: (dto.imageBindings as Product['imageBindings']) ?? local?.imageBindings,
     artCouture: dto.artCouture ?? local?.artCouture,

@@ -212,7 +212,7 @@ export interface Product {
   id: string;
   slug: string;
   name: string;
-  /** Whole BRL (storefront / cart) */
+  /** Reais (storefront / cart), including cents when present. */
   price: number;
   /** Optional API cents — present when hydrated from catalog API */
   priceCents?: number;
@@ -291,13 +291,26 @@ export function productWithPiece(product: Product, pieceId?: string | null): Pro
   };
 }
 
-export function formatPriceLabel(reais: number): string {
-  return reais.toLocaleString('pt-BR', {
+function formatBrl(reais: number, alwaysCents: boolean): string {
+  const cents = Math.round(reais * 100);
+  const amount = cents / 100;
+  const showCents = alwaysCents || cents % 100 !== 0;
+  return amount.toLocaleString('pt-BR', {
     style: 'currency',
     currency: 'BRL',
-    minimumFractionDigits: 2,
+    minimumFractionDigits: showCents ? 2 : 0,
     maximumFractionDigits: 2,
   });
+}
+
+/** Public site: "R$ 14.800" when whole; "R$ 12,50" when there are cents. */
+export function formatPriceLabel(reais: number): string {
+  return formatBrl(reais, false);
+}
+
+/** Admin preview: always two decimals — "R$ 14.800,00". */
+export function formatAdminPriceLabel(reais: number): string {
+  return formatBrl(reais, true);
 }
 
 /** Resolve hero image URL/index when user picks a piece and/or color on PDP. */

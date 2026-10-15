@@ -23,7 +23,7 @@ import {
   ProductMedia,
   ProductPiece,
   SWATCH,
-  formatPriceLabel,
+  formatAdminPriceLabel,
   productStatusForApi,
 } from './product.model';
 import { PRODUCTS } from './products';
@@ -714,7 +714,7 @@ export function syncPriceFields(price: number): Pick<Product, 'price' | 'priceLa
   const reais = cents / 100;
   return {
     price: reais,
-    priceLabel: formatPriceLabel(reais),
+    priceLabel: formatAdminPriceLabel(reais),
     priceCents: cents,
   };
 }
@@ -724,7 +724,7 @@ export function syncPiecePrice(piece: ProductPiece, price: number): ProductPiece
   return {
     ...piece,
     price: safe,
-    priceLabel: formatPriceLabel(safe),
+    priceLabel: formatAdminPriceLabel(safe),
   };
 }
 

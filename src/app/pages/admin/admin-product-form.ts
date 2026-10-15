@@ -36,7 +36,7 @@ import {
   ProductStatusValue,
   SITE_UNAVAILABLE_HINT,
   canOpenProductOnSite,
-  formatPriceLabel,
+  formatAdminPriceLabel,
   productStatusForApi,
 } from '../../core/product.model';
 import { PRICES_ON_REQUEST } from '../../core/pricing';
@@ -356,8 +356,11 @@ export class AdminProductForm implements OnInit {
     this.loadedColor = p.color ?? '';
     this.loadedColors = p.colors;
     this.loadedChipKey = chipKey(colors);
-    this.draft.set(
-      applySelectedSwatches(
+    const cents = Number.isFinite(p.priceCents)
+      ? Number(p.priceCents)
+      : Math.round((p.price ?? 0) * 100);
+    this.draft.set({
+      ...applySelectedSwatches(
         {
           ...p,
           status: isArchivedAt(p.archivedAt)
@@ -366,12 +369,10 @@ export class AdminProductForm implements OnInit {
         },
         colors,
       ),
-    );
+      ...syncPriceFields(cents / 100),
+    });
     this.detailsText = (p.details ?? []).join('\n');
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
-    const cents = Number.isFinite(p.priceCents)
-      ? Number(p.priceCents)
-      : Math.round((p.price ?? 0) * 100);
     this.priceText = formatPriceCentsInput(cents);
     this.priceError.set('');
     this.baseline = this.fingerprint();
@@ -573,7 +574,7 @@ export class AdminProductForm implements OnInit {
         id,
         name: `Peça ${n}`,
         price: 0,
-        priceLabel: formatPriceLabel(0),
+        priceLabel: formatAdminPriceLabel(0),
       },
       0,
     );

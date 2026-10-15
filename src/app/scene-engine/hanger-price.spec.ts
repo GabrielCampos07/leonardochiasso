@@ -10,8 +10,8 @@ import {
 
 describe('hangerPriceLabel', () => {
   it('formats a numeric price in pt-BR and marks it when hidden on the site', () => {
-    expect(hangerPriceLabel(289)).toMatch(/R\$\s*289,00/);
-    expect(hangerPriceLabel(7200)).toMatch(/R\$\s*7\.200,00/);
+    expect(hangerPriceLabel(289).replace(/\u00a0/g, ' ')).toMatch(/R\$\s*289(?!,)/);
+    expect(hangerPriceLabel(7200).replace(/\u00a0/g, ' ')).toMatch(/R\$\s*7\.200(?!,)/);
     if (PRICES_ON_REQUEST) {
       expect(hangerPriceLabel(7200)).toContain('oculto no site');
       expect(hangerPriceLabel(7200)).toContain(HIDDEN_ON_SITE_SUFFIX.trim());
@@ -37,7 +37,9 @@ describe('resolveCurrentPrice', () => {
 
 describe('hangerPriceFromFields', () => {
   it('uses the live current/promo price, not stock', () => {
-    expect(hangerPriceFromFields({ price: 400, promoPrice: 289 })).toMatch(/R\$\s*289,00/);
+    expect(hangerPriceFromFields({ price: 400, promoPrice: 289 }).replace(/\u00a0/g, ' ')).toMatch(
+      /R\$\s*289(?!,)/,
+    );
     expect(hangerPriceFromFields({ priceLabel: 'Sob consulta' })).toBe('Sob consulta');
   });
 
@@ -45,7 +47,7 @@ describe('hangerPriceFromFields', () => {
     const label = hangerPriceFromFields({ price: 7200 });
     expect(formatHangerTooltip('Vestido', label)).toBe(`Vestido · ${label}`);
     if (PRICES_ON_REQUEST) {
-      expect(label).toMatch(/R\$\s*7\.200,00 \(oculto no site\)/);
+      expect(label.replace(/\u00a0/g, ' ')).toMatch(/R\$\s*7\.200 \(oculto no site\)/);
     }
     expect(hangerPriceFromFields({ price: 0, priceLabel: '' })).toBe(PRICE_ON_INQUIRY_LABEL);
   });
@@ -57,7 +59,7 @@ describe('formatHangerTooltip', () => {
       `Blusa laço / calça cetim · ${hangerPriceLabel(289)}`,
     );
     expect(formatHangerTooltip('Blusa laço / calça cetim', hangerPriceLabel(289))).toMatch(
-      /Blusa laço \/ calça cetim · R\$\s*289,00/,
+      /Blusa laço \/ calça cetim · R\$\s*289(?!,)/,
     );
   });
 });
