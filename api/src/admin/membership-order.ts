@@ -1,4 +1,4 @@
-import { CollectionGender } from '@prisma/client';
+import { CollectionGender, Prisma } from '@prisma/client';
 import { GenderList, listsForProductGender } from '../catalog/gender';
 
 /**
@@ -59,12 +59,15 @@ export function sortMembersBySortOrder<
   });
 }
 
-type GenderOrderDb = {
-  collectionGenderOrder: {
-    deleteMany: (args: { where: { collectionId: string } }) => Promise<unknown>;
-    createMany: (args: { data: unknown[] }) => Promise<unknown>;
-  };
-};
+/** Prisma `$transaction` client, or a structural mock in tests. */
+export type GenderOrderDb =
+  | Prisma.TransactionClient
+  | {
+      collectionGenderOrder: {
+        deleteMany(args: { where: { collectionId: string } }): Promise<unknown>;
+        createMany(args: { data: unknown[] }): Promise<unknown>;
+      };
+    };
 
 /**
  * Derived copy of the one membership order into collection_gender_orders.
