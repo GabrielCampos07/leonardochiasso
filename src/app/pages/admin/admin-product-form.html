@@ -412,7 +412,7 @@
       <button
         type="submit"
         class="admin-edit__save"
-        [disabled]="saving() || archiving()"
+        [disabled]="saving() || archiving() || !isDirty()"
         [attr.aria-busy]="saving()"
         [attr.aria-describedby]="saveError() ? 'atelier-product-save-error' : null"
       >

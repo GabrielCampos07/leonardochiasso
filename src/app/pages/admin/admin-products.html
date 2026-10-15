@@ -31,7 +31,7 @@
   <div class="admin-list__filters">
     <label>
       Buscar pelo nome
-      <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+      <input type="search" [ngModel]="query()" (ngModelChange)="setQuery($event)" />
     </label>
     <div class="admin-list__filter-block">
       <span>Gênero</span>

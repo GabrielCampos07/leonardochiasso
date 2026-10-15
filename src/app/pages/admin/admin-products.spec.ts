@@ -4,6 +4,7 @@ import { NEVER, Subject, of } from 'rxjs';
 import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionOrderService } from '../../core/admin-collection-order.service';
 import { adminListCacheKey, clearAdminListCache, writeAdminListCache } from '../../core/admin-list-cache';
+import { clearAdminProductsView, writeAdminProductsView } from '../../core/admin-products-view';
 import { CatalogService } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
@@ -56,6 +57,9 @@ describe('AdminProductsPage reorder', () => {
   ];
 
   beforeEach(async () => {
+    clearAdminListCache();
+    clearAdminProductsView();
+    sessionStorage.clear();
     toast = {
       error: jasmine.createSpy('error'),
       success: jasmine.createSpy('success'),
@@ -120,6 +124,50 @@ describe('AdminProductsPage reorder', () => {
     expect(fixture.nativeElement.textContent).toContain(TODAS_COLLECTION_ORDER_NOTE);
   });
 
+  it('keeps Arquivados and search after the list remounts (CANCELAR)', async () => {
+    fixture.componentInstance.setQuery('mosaico');
+    fixture.componentInstance.onArchivedFilter(true);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.query()).toBe('mosaico');
+    expect(fixture.componentInstance.showArchived()).toBeTrue();
+    fixture.destroy();
+    TestBed.resetTestingModule();
+
+    await TestBed.configureTestingModule({
+      imports: [AdminProductsPage],
+      providers: [
+        provideRouter([]),
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            useApi: true,
+            list$: () => of(pieces),
+            setOrder: () => undefined,
+            reorderViaApi: () => of(void 0),
+            archiveViaApi: () => of(null),
+            restoreViaApi: () => of(null),
+          },
+        },
+        {
+          provide: AdminCollectionOrderService,
+          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
+        },
+        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
+        { provide: ToastService, useValue: toast },
+      ],
+    }).compileComponents();
+    const remount = TestBed.createComponent(AdminProductsPage);
+    remount.detectChanges();
+    expect(remount.componentInstance.query()).toBe('mosaico');
+    expect(remount.componentInstance.showArchived()).toBeTrue();
+    expect((remount.nativeElement.querySelector('input[type="search"]') as HTMLInputElement).value).toBe(
+      'mosaico',
+    );
+    expect((remount.nativeElement.querySelector('.admin-list__check input') as HTMLInputElement).checked).toBeTrue();
+    remount.destroy();
+  });
+
   it('reads Lista order from sortOrder + productId and does not GET gender-order', () => {
     fixture.componentInstance.setCollectionFilter('Organic Dreams');
     fixture.detectChanges();
@@ -176,6 +224,7 @@ describe('AdminProductsPage reorder', () => {
 describe('AdminProductsPage cache and skeleton', () => {
   beforeEach(() => {
     clearAdminListCache();
+    clearAdminProductsView();
     sessionStorage.clear();
   });
 

@@ -646,6 +646,13 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.onPriceChange('10.000.000');
     fixture.detectChanges();
     expect(fixture.componentInstance.priceError()).toBe(PRICE_MAX_MESSAGE);
+    expect(fixture.componentInstance.priceText).toBe('10.000.000,00');
+    expect((fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement).value).toBe(
+      '10.000.000,00',
+    );
+    const priceErr = fixture.nativeElement.querySelector('#atelier-product-price-error') as HTMLElement;
+    expect(priceErr).toBeTruthy();
+    expect(parseFloat(getComputedStyle(priceErr).marginBottom)).toBeGreaterThan(0);
 
     fixture.componentInstance.onPriceChange('1 2');
     fixture.detectChanges();
@@ -918,6 +925,19 @@ describe('AdminProductForm', () => {
     saveProduct$.and.returnValue(of(sampleProduct({ status: 'published' })));
     fixture.componentInstance.save();
     expect(toast.success).toHaveBeenCalledWith(SAVED_TOAST, { durationMs: SAVE_TOAST_MS });
+  });
+
+  it('disables Salvar while the form is clean and leaves room above the sticky bar', () => {
+    expect(fixture.componentInstance.isDirty()).toBeFalse();
+    const save = fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement;
+    expect(save.disabled).toBeTrue();
+    const form = fixture.nativeElement.querySelector('.admin-edit__form') as HTMLElement;
+    expect(parseFloat(getComputedStyle(form).paddingBottom)).toBeGreaterThanOrEqual(160);
+
+    fixture.componentInstance.onNameChange('Look alterado');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.isDirty()).toBeTrue();
+    expect((fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement).disabled).toBeFalse();
   });
 
   it('asks before canceling when the form is dirty', async () => {

@@ -564,6 +564,7 @@ export class AdminProductForm implements OnInit {
     const parsed = parsePricePtBr(raw);
     if (!parsed.ok) {
       this.priceError.set(parsed.error);
+      if (parsed.reais != null) this.priceText = formatPriceInput(parsed.reais);
       return;
     }
     this.priceError.set('');

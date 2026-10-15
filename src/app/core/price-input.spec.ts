@@ -66,9 +66,21 @@ describe('parsePricePtBr', () => {
 
   it('rejects values above R$ 9.999.999,99', () => {
     expect(parsePricePtBr('9.999.999,99')).toEqual({ ok: true, reais: 9_999_999.99 });
-    expect(parsePricePtBr('10.000.000')).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });
-    expect(parsePricePtBr('10000000')).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });
-    expect(parsePricePtBr(10_000_000)).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });
+    expect(parsePricePtBr('10.000.000')).toEqual({
+      ok: false,
+      error: PRICE_MAX_MESSAGE,
+      reais: 10_000_000,
+    });
+    expect(parsePricePtBr('10000000')).toEqual({
+      ok: false,
+      error: PRICE_MAX_MESSAGE,
+      reais: 10_000_000,
+    });
+    expect(parsePricePtBr(10_000_000)).toEqual({
+      ok: false,
+      error: PRICE_MAX_MESSAGE,
+      reais: 10_000_000,
+    });
   });
 
   it('rejects "12,999" and "12,5000" with more than 2 decimal places', () => {
