@@ -1,4 +1,7 @@
+import { STOCKROOM_REORDER_ENABLED } from '../../../core/membership-order';
 import type { SceneHanger, SceneLayout } from '../../../scene-engine/types';
+
+export { STOCKROOM_REORDER_ENABLED };
 
 /** Long collections page sideways; start auto-pan once we have this many pieces. */
 export const REORDER_AUTOSCROLL_MIN_PIECES = 10;
@@ -43,6 +46,7 @@ export function consumePieceReorderKey(
   event: KeyboardEvent,
   fallbackSlug?: string | null,
 ): { slug: string; delta: -1 | 1 } | null {
+  if (!STOCKROOM_REORDER_ENABLED) return null;
   const delta = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0;
   if (!delta || !event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return null;
   const slug = pieceSlugFromKeyTarget(event.target) ?? fallbackSlug?.trim() ?? null;

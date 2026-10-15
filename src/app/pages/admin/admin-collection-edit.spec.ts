@@ -177,6 +177,7 @@ describe('AdminCollectionEditPage gender UX', () => {
   let orderGet: Subject<{ collection: string; gender: 'masculino'; productIds: string[] }>;
   let getOrder: jasmine.Spy;
   let put: jasmine.Spy;
+  let replace: jasmine.Spy;
 
   const pieces = [
     dto({
@@ -219,6 +220,7 @@ describe('AdminCollectionEditPage gender UX', () => {
     orderGet = new Subject();
     getOrder = jasmine.createSpy('get').and.returnValue(orderGet.asObservable());
     put = jasmine.createSpy('put').and.returnValue(of({ productIds: [] }));
+    replace = jasmine.createSpy('replace').and.returnValue(of({}));
     const meta = {
       id: 'col-1',
       slug: 'teste-colecao2',
@@ -257,7 +259,7 @@ describe('AdminCollectionEditPage gender UX', () => {
             put,
           },
         },
-        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace: () => of({}) } },
+        { provide: AdminCollectionProductsService, useValue: { remember: () => undefined, replace } },
         { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
         { provide: ToastService, useValue: toast },
       ],
@@ -279,10 +281,8 @@ describe('AdminCollectionEditPage gender UX', () => {
   it('shows Ordem em manutenção and hides Subir/Descer/drag while reorder is disabled', () => {
     expect(LISTA_REORDER_ENABLED).toBeFalse();
     fixture.detectChanges();
-    const notice = fixture.nativeElement.querySelector(
-      '.admin-col-products__notice[role="status"]',
-    ) as HTMLElement;
-    expect(notice?.tagName).toBe('DIV');
+    const notice = fixture.nativeElement.querySelector('lc-admin-notice[role="status"]') as HTMLElement;
+    expect(notice?.tagName).toBe('LC-ADMIN-NOTICE');
     expect(notice?.textContent?.trim()).toBe(LISTA_ORDER_MAINTENANCE_NOTICE);
     expect(fixture.nativeElement.textContent).not.toContain('Subir');
     expect(fixture.nativeElement.textContent).not.toContain('Descer');
@@ -306,6 +306,13 @@ describe('AdminCollectionEditPage gender UX', () => {
     expect(fixture.componentInstance.orderLoading()).toBeFalse();
     expect(fixture.componentInstance.visibleProducts().map((p) => p.name)).toEqual(['U1', 'M1']);
     expect(getOrder).not.toHaveBeenCalled();
+  });
+
+  it('does not remove a piece while reorder is disabled', async () => {
+    expect(fixture.nativeElement.textContent).not.toContain('Remover');
+    await fixture.componentInstance.removeProduct('u1');
+    expect(replace).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.products().map((p) => p.slug)).toContain('u1');
   });
 
   it('does not persist Subir/Descer/drag while reorder is disabled', () => {

@@ -96,6 +96,17 @@
   white-space: nowrap;
 }
 
+.admin-3d__notice {
+  flex: none;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--lc-void) 14%, transparent);
+  background: color-mix(in srgb, var(--lc-ash) 12%, var(--lc-white));
+}
+
 .admin-3d__area-name {
   overflow: hidden;
   text-overflow: ellipsis;
