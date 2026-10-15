@@ -2,9 +2,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
-import { AdminCatalogService } from '../../core/admin-catalog.service';
+import { AdminCatalogService, MULTI_COLLECTION_CHANGE_BLOCKED } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
+import { ConfirmService } from '../../core/feedback/confirm.service';
 import { ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import {
@@ -112,6 +113,7 @@ describe('stockQtyError', () => {
 describe('AdminProductForm', () => {
   let fixture: ComponentFixture<AdminProductForm>;
   let toast: { error: jasmine.Spy; success: jasmine.Spy; info: jasmine.Spy };
+  let confirm: { confirm: jasmine.Spy };
   let saveProduct$: jasmine.Spy;
   let list: jasmine.Spy;
 
@@ -121,6 +123,7 @@ describe('AdminProductForm', () => {
       success: jasmine.createSpy('success'),
       info: jasmine.createSpy('info'),
     };
+    confirm = { confirm: jasmine.createSpy('confirm').and.returnValue(Promise.resolve(true)) };
     saveProduct$ = jasmine.createSpy('saveProduct$');
     list = jasmine.createSpy('list').and.returnValue(
       of([
@@ -166,6 +169,7 @@ describe('AdminProductForm', () => {
         },
         { provide: AdminCollectionsApiService, useValue: { list } },
         { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
+        { provide: ConfirmService, useValue: confirm },
         { provide: ToastService, useValue: toast },
       ],
     }).compileComponents();
@@ -329,6 +333,37 @@ describe('AdminProductForm', () => {
     expect(labels).toContain('TESTE-COLECAO');
     expect(labels).not.toContain('teste-colecao');
     expect(list.calls.mostRecent().args).toEqual([false, { refresh: true }]);
+  });
+
+  it('shows a multi-collection block in our error UI and modal, and changes nothing', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', sampleProduct());
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    saveProduct$.and.returnValue(
+      throwError(
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            statusText: 'Bad Request',
+            error: { message: MULTI_COLLECTION_CHANGE_BLOCKED },
+          }),
+      ),
+    );
+
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+
+    const alert = fixture.nativeElement.querySelector('#atelier-product-save-error') as HTMLElement;
+    expect(alert?.textContent?.trim()).toBe(MULTI_COLLECTION_CHANGE_BLOCKED);
+    expect(toast.error).toHaveBeenCalledWith(MULTI_COLLECTION_CHANGE_BLOCKED);
+    expect(confirm.confirm).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        title: 'Coleção',
+        message: MULTI_COLLECTION_CHANGE_BLOCKED,
+      }),
+    );
+    expect(fixture.componentInstance.saveError()).toBe(MULTI_COLLECTION_CHANGE_BLOCKED);
   });
 
   it('shows the API error inline and as a toast on create 400', () => {

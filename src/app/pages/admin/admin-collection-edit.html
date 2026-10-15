@@ -107,7 +107,11 @@
           <div>
             <h2>Produtos</h2>
             <p>
-              Arraste com Masculino ou Feminino para reordenar. Em Todos, escolha um gênero.
+              @if (listaReorderEnabled) {
+                Arraste com Masculino ou Feminino para reordenar. Em Todos, escolha um gênero.
+              } @else {
+                Ordem da coleção (a mesma do site e do 3D).
+              }
             </p>
           </div>
           <a
@@ -130,6 +134,9 @@
           />
         </div>
 
+        @if (!listaReorderEnabled) {
+          <div class="admin-col-products__notice" role="status">{{ orderMaintenanceNotice }}</div>
+        }
         @if (todosHint()) {
           <p class="admin-col-products__hint" role="status">{{ todosHint() }}</p>
         }
@@ -162,6 +169,7 @@
         } @else {
         <ul
           class="admin-list__rows admin-col-products__list"
+          [class.admin-col-products__list--readonly]="!listaReorderEnabled"
           cdkDropList
           [cdkDropListData]="visibleProducts()"
           [cdkDropListDisabled]="!canDrag() || savingOrder()"
@@ -174,12 +182,14 @@
               [cdkDragDisabled]="!canDrag() || savingOrder()"
               [cdkDragStartDelay]="dragStartDelay"
             >
-              <span
-                class="admin-col-products__handle"
-                cdkDragHandle
-                aria-hidden="true"
-                (pointerdown)="onTodosDragAttempt($event)"
-              >⋮⋮</span>
+              @if (listaReorderEnabled) {
+                <span
+                  class="admin-col-products__handle"
+                  cdkDragHandle
+                  aria-hidden="true"
+                  (pointerdown)="onTodosDragAttempt($event)"
+                >⋮⋮</span>
+              }
               <lc-collection-cover class="admin-col-products__thumb" [src]="p.thumb" [alt]="p.name" />
               <div class="admin-row__info">
                 <strong>{{ p.name }}</strong>
@@ -190,24 +200,26 @@
               </div>
               <div class="admin-row__actions">
                 <a class="admin-row__edit" [routerLink]="productEditPath(p.slug)">Editar</a>
-                <div class="admin-row__order">
-                  <button
-                    type="button"
-                    class="admin-row__order-btn"
-                    (click)="move(p.slug, -1)"
-                    [disabled]="i === 0 || savingOrder() || !canDrag()"
-                  >
-                    <span aria-hidden="true">↑</span> Subir
-                  </button>
-                  <button
-                    type="button"
-                    class="admin-row__order-btn"
-                    (click)="move(p.slug, 1)"
-                    [disabled]="i === visibleProducts().length - 1 || savingOrder() || !canDrag()"
-                  >
-                    <span aria-hidden="true">↓</span> Descer
-                  </button>
-                </div>
+                @if (listaReorderEnabled) {
+                  <div class="admin-row__order">
+                    <button
+                      type="button"
+                      class="admin-row__order-btn"
+                      (click)="move(p.slug, -1)"
+                      [disabled]="i === 0 || savingOrder() || !canDrag()"
+                    >
+                      <span aria-hidden="true">↑</span> Subir
+                    </button>
+                    <button
+                      type="button"
+                      class="admin-row__order-btn"
+                      (click)="move(p.slug, 1)"
+                      [disabled]="i === visibleProducts().length - 1 || savingOrder() || !canDrag()"
+                    >
+                      <span aria-hidden="true">↓</span> Descer
+                    </button>
+                  </div>
+                }
                 <button
                   type="button"
                   class="admin-row__order-btn"

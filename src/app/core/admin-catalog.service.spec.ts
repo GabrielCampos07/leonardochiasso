@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
-import { AdminCatalogService } from './admin-catalog.service';
+import { AdminCatalogService, membershipFieldsForUpdate } from './admin-catalog.service';
 import { ApiProductDto } from './catalog.service';
 import { Product } from './product.model';
 
@@ -183,6 +183,40 @@ describe('AdminCatalogService create payload contract', () => {
     req.flush(createdDto(sampleProduct({ status: 'draft' })));
   });
 
+  it('omits collectionSlug and category on a normal name save', () => {
+    const original = sampleProduct();
+    service
+      .saveProduct$(sampleProduct({ name: 'Look editado' }), {
+        isNew: false,
+        details: ['linha 1'],
+        original,
+      })
+      .subscribe();
+    const req = http.expectOne('http://payload.test/api/admin/products/look-unissex');
+    expect(req.request.body.name).toBe('Look editado');
+    expect(req.request.body.collectionSlug).toBeUndefined();
+    expect(req.request.body.category).toBeUndefined();
+    expect(req.request.body.gender).toBeUndefined();
+    req.flush(createdDto(sampleProduct({ name: 'Look editado' })));
+  });
+
+  it('sends collectionSlug only when the collection changes', () => {
+    const original = sampleProduct();
+    service
+      .saveProduct$(
+        sampleProduct({
+          collectionSlug: 'niponic-dreams' as Product['collectionSlug'],
+          collection: 'Niponic Dreams' as Product['collection'],
+        }),
+        { isNew: false, details: [], original },
+      )
+      .subscribe();
+    const req = http.expectOne('http://payload.test/api/admin/products/look-unissex');
+    expect(req.request.body.collectionSlug).toBe('niponic-dreams');
+    expect(req.request.body.category).toBeUndefined();
+    req.flush(createdDto(sampleProduct({ collectionSlug: 'niponic-dreams' as Product['collectionSlug'] })));
+  });
+
   it('omits status when saving an archived piece so it stays archived', () => {
     service
       .saveProduct$(
@@ -196,5 +230,22 @@ describe('AdminCatalogService create payload contract', () => {
     req.flush(
       createdDto(sampleProduct({ status: 'archived', archivedAt: '2026-10-01T00:00:00.000Z' })),
     );
+  });
+});
+
+describe('membershipFieldsForUpdate', () => {
+  it('omits collection and category when they are unchanged', () => {
+    const original = sampleProduct();
+    expect(membershipFieldsForUpdate(sampleProduct({ name: 'Outro' }), original)).toEqual({});
+  });
+
+  it('includes only the field that changed', () => {
+    const original = sampleProduct();
+    expect(
+      membershipFieldsForUpdate(
+        sampleProduct({ collectionSlug: 'niponic-dreams' as Product['collectionSlug'] }),
+        original,
+      ),
+    ).toEqual({ collectionSlug: 'niponic-dreams' });
   });
 });
