@@ -44,3 +44,7 @@ export const LISTA_REORDER_ENABLED = false;
 export const STOCKROOM_REORDER_ENABLED = false;
 
 export const LISTA_ORDER_MAINTENANCE_NOTICE = 'Ordem em manutenção';
+
+/** Lista `/admin/produtos` with the collection filter on "Todas". */
+export const TODAS_COLLECTION_ORDER_NOTE =
+  'A ordem do site é definida por coleção — filtre por uma coleção para ver a ordem real.';

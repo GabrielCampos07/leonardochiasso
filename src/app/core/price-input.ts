@@ -11,7 +11,7 @@ export const PRICE_MAX_CENTS = 999_999_999;
 export const PRICE_MAX_REAIS = 9_999_999.99;
 
 export type PriceParseOk = { ok: true; reais: number };
-export type PriceParseErr = { ok: false; error: string };
+export type PriceParseErr = { ok: false; error: string; reais?: number };
 export type PriceParseResult = PriceParseOk | PriceParseErr;
 
 /**
@@ -98,7 +98,9 @@ export function parsePricePtBr(raw: string | number | null | undefined): PricePa
 
 function finishParsed(reais: number): PriceParseResult {
   const cents = Math.round(reais * 100);
-  if (cents > PRICE_MAX_CENTS) return { ok: false, error: PRICE_MAX_MESSAGE };
+  if (cents > PRICE_MAX_CENTS) {
+    return { ok: false, error: PRICE_MAX_MESSAGE, reais: cents / 100 };
+  }
   return { ok: true, reais: cents / 100 };
 }
 

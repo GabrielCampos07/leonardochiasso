@@ -10,7 +10,7 @@ import {
   rackCounterLabel,
   stockroomTitle,
 } from './admin-3d-page';
-import { STOCKROOM_HINT_COPY, adminSceneMode } from './admin-3d-scene-mode';
+import { STOCKROOM_HINT_COPY, STOCKROOM_HINT_GESTURE, STOCKROOM_HINT_REORDER, adminSceneMode } from './admin-3d-scene-mode';
 import { OVERVIEW_FOCUS_ID, collectionSwitcherItems } from '../../../scene-engine/camera-guide';
 import { DRAFT_UNIT_ID } from '../../../scene-engine/unit-layout';
 import { rackArrowDelta, rackPanProgress, rackStartPanX } from '../../../scene-engine/rack-pan';
@@ -58,11 +58,19 @@ describe('stockroom first-open hint', () => {
   const empty = { get: () => null };
 
   it('uses the stockroom line on /admin/3d with no flag, and on the retired aliases', () => {
-    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_COPY);
-    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'cc0' ? '1' : null) }))).toBe(STOCKROOM_HINT_COPY);
-    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'sketchfab' ? '1' : null) }))).toBe(STOCKROOM_HINT_COPY);
+    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_GESTURE);
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'cc0' ? '1' : null) }))).toBe(STOCKROOM_HINT_GESTURE);
+    expect(gestureHintCopy(adminSceneMode({ get: (n) => (n === 'sketchfab' ? '1' : null) }))).toBe(STOCKROOM_HINT_GESTURE);
     expect(STOCKROOM_HINT_COPY).toContain('Clique na peça · arraste move');
-    expect(STOCKROOM_HINT_COPY).toContain('segure a foto e solte sobre outra peça para reordenar');
+    expect(STOCKROOM_HINT_COPY).toContain(STOCKROOM_HINT_REORDER);
+  });
+
+  it('hides the reorder line while STOCKROOM_REORDER_ENABLED is false', () => {
+    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+    expect(gestureHintCopy(adminSceneMode(empty))).toBe(STOCKROOM_HINT_GESTURE);
+    expect(gestureHintCopy(adminSceneMode(empty))).not.toContain(STOCKROOM_HINT_REORDER);
+    expect(gestureHintCopy(adminSceneMode(empty))).not.toContain('para reordenar');
   });
 
   it('keeps the atelier line only for ?atelier=1', () => {
