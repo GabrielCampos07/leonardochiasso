@@ -23,6 +23,8 @@ import {
 } from './membership-order';
 import { archivedAtWhere } from './archive-query';
 
+export { mergeLiveOrderIntoMembership };
+
 export interface CollectionGenderOrderDto {
   collection: string;
   gender: GenderList;
@@ -430,44 +432,6 @@ function mapCollection(
     productCount,
     coverImage: resolveCollectionCoverImage(c.slug, c.products ?? []),
   };
-}
-
-/** Reorder only provided slugs; keep every other member in its slot. */
-export function mergeLiveOrderIntoMembership(
-  membership: readonly string[],
-  liveOrdered: readonly string[],
-): string[] {
-  const live: string[] = [];
-  const seenLive = new Set<string>();
-  for (const raw of liveOrdered) {
-    const slug = raw.trim();
-    if (!slug || seenLive.has(slug)) continue;
-    seenLive.add(slug);
-    live.push(slug);
-  }
-  const next: string[] = [];
-  const seen = new Set<string>();
-  let i = 0;
-  for (const raw of membership) {
-    const slug = raw.trim();
-    if (!slug || seen.has(slug)) continue;
-    if (seenLive.has(slug)) {
-      const take = live[i++];
-      if (!take || seen.has(take)) continue;
-      seen.add(take);
-      next.push(take);
-    } else {
-      seen.add(slug);
-      next.push(slug);
-    }
-  }
-  while (i < live.length) {
-    const take = live[i++];
-    if (!take || seen.has(take)) continue;
-    seen.add(take);
-    next.push(take);
-  }
-  return next;
 }
 
 function parseOptionalDate(
