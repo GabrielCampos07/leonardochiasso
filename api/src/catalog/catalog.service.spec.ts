@@ -3,6 +3,7 @@ import { ProductStatus } from '@prisma/client';
 import { CatalogCacheService } from '../cache/catalog-cache.service';
 import {
   CatalogService,
+  compareMembershipSortOrder,
   publicCollectionWhere,
   publicProductWhere,
 } from './catalog.service';
@@ -212,47 +213,139 @@ describe('CatalogService gender blocks', () => {
     );
   });
 
-  it('collection detail is feminino block then masculino, unissex not duplicated', async () => {
+  it('collection detail follows product_collections.sortOrder, not genderOrders', async () => {
     const { prisma, service } = make();
     const f1 = product({
       id: 'f1',
-      slug: 'f1',
+      slug: 'teste-plumaria',
       category: { slug: 'feminino' },
     });
     const u1 = product({
       id: 'u1',
-      slug: 'u1',
+      slug: 'teste-uni',
       category: { slug: 'unissex' },
     });
     const m1 = product({
       id: 'm1',
-      slug: 'm1',
+      slug: 'teste-calca',
       category: { slug: 'masculino' },
     });
     prisma.collection.findFirst.mockResolvedValue({
-      id: 'col-1',
-      slug: 'organic-dreams',
-      name: 'Organic Dreams',
+      id: 'col-teste',
+      slug: 'teste-ordem',
+      name: 'TESTE-ORDEM',
       description: null,
       sortOrder: 1,
-      publishedAt: null,
+      publishedAt: new Date('2026-01-01'),
       archivedAt: null,
       products: [
-        { productId: 'm1', sortOrder: 0, product: m1 },
-        { productId: 'u1', sortOrder: 1, product: u1 },
-        { productId: 'f1', sortOrder: 2, product: f1 },
+        { productId: 'f1', sortOrder: 0, product: f1 },
+        { productId: 'm1', sortOrder: 1, product: m1 },
+        { productId: 'u1', sortOrder: 2, product: u1 },
       ],
       genderOrders: [
+        { productId: 'm1', gender: 'masculino', sortOrder: 0 },
         { productId: 'u1', gender: 'feminino', sortOrder: 0 },
         { productId: 'f1', gender: 'feminino', sortOrder: 1 },
-        { productId: 'm1', gender: 'masculino', sortOrder: 0 },
-        { productId: 'u1', gender: 'masculino', sortOrder: 1 },
       ],
     });
 
-    const detail = await service.getCollectionBySlug('organic-dreams');
-    expect(detail.products.map((p) => p.id)).toEqual(['u1', 'f1', 'm1']);
-    expect(detail.products.filter((p) => p.gender === 'unissex')).toHaveLength(1);
+    const detail = await service.getCollectionBySlug('teste-ordem');
+    expect(detail.products.map((p) => p.slug)).toEqual([
+      'teste-plumaria',
+      'teste-calca',
+      'teste-uni',
+    ]);
+  });
+
+  it('?collection lists by membership sortOrder, ignoring recommendOrder', async () => {
+    const { prisma, service } = make();
+    prisma.product.findMany.mockResolvedValue([
+      product({
+        id: 'calca',
+        slug: 'teste-calca',
+        recommendOrder: 0,
+        category: { slug: 'masculino' },
+        collections: [
+          {
+            collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null },
+            sortOrder: 1,
+          },
+        ],
+      }),
+      product({
+        id: 'plumaria',
+        slug: 'teste-plumaria',
+        recommendOrder: 9,
+        category: { slug: 'feminino' },
+        collections: [
+          {
+            collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null },
+            sortOrder: 0,
+          },
+        ],
+      }),
+    ]);
+
+    const list = await service.listProducts(undefined, 'teste-ordem');
+    expect(list.map((p) => p.slug)).toEqual(['teste-plumaria', 'teste-calca']);
+  });
+
+  it('compareMembershipSortOrder ties on productId', () => {
+    const left = {
+      id: 'id-z',
+      collections: [{ slug: 'teste-ordem', sortOrder: 2 }],
+    };
+    const right = {
+      id: 'id-a',
+      collections: [{ slug: 'teste-ordem', sortOrder: 2 }],
+    };
+    expect(compareMembershipSortOrder(left, right, 'teste-ordem')).toBeGreaterThan(0);
+    expect(compareMembershipSortOrder(right, left, 'teste-ordem')).toBeLessThan(0);
+  });
+
+  it('breaks a membership sortOrder tie on productId', async () => {
+    const { prisma, service } = make();
+    prisma.product.findMany.mockResolvedValue([
+      product({
+        id: 'id-teste-z',
+        slug: 'teste-z',
+        category: { slug: 'feminino' },
+        collections: [{ collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null }, sortOrder: 1 }],
+      }),
+      product({
+        id: 'id-teste-a',
+        slug: 'teste-a',
+        category: { slug: 'feminino' },
+        collections: [{ collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null }, sortOrder: 1 }],
+      }),
+      product({
+        id: 'id-teste-m',
+        slug: 'teste-m',
+        category: { slug: 'feminino' },
+        collections: [{ collection: { slug: 'teste-ordem', name: 'TESTE', archivedAt: null }, sortOrder: 0 }],
+      }),
+    ]);
+
+    const list = await service.listProducts(undefined, 'teste-ordem');
+    expect(list.map((p) => p.id)).toEqual(['id-teste-m', 'id-teste-a', 'id-teste-z']);
+  });
+
+  it('asks Prisma for sortOrder then productId on the public collection include', async () => {
+    const { prisma, service } = make();
+    prisma.collection.findFirst.mockResolvedValue(null);
+    await expect(service.getCollectionBySlug('teste-ordem')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.collection.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          products: expect.objectContaining({
+            orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          }),
+        }),
+      }),
+    );
   });
 });
 

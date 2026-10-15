@@ -17,7 +17,7 @@ import {
   ROUTES,
   collectionPath,
 } from '../../core/routes';
-import { groupShopProducts, matchesPublicGenderHub } from '../../core/product-gender';
+import { matchesPublicGenderHub } from '../../core/product-gender';
 import { AdminJoiasCatalogService } from '../../core/admin-joias-catalog.service';
 import { JoiaPiece } from '../../core/joias.data';
 import { displayPriceLabel } from '../../core/pricing';
@@ -162,7 +162,7 @@ export class PlpPage implements OnInit {
         return list;
       case 'recomendados':
       default:
-        return groupShopProducts(list);
+        return list;
     }
   });
 

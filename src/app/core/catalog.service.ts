@@ -204,7 +204,8 @@ export class CatalogService {
         const api = (col.products ?? [])
           .map(mapApiProduct)
           .filter((p) => !isArchivedAt(p.archivedAt));
-        return groupShopProducts(api);
+        // Keep GET /api/collections/:slug order (product_collections.sortOrder).
+        return api;
       }),
       catchError(() => of([])),
     );
