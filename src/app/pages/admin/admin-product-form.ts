@@ -43,7 +43,7 @@ import { PRICES_ON_REQUEST } from '../../core/pricing';
 import { ADMIN_NEW_PRODUCT_SLUG, COLLECTION_SLUGS, CollectionSlug, productPath } from '../../core/routes';
 import { archiveAwareError, confirmArchivePiece, isArchivedAt } from '../../core/admin-archive';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { ToastService } from '../../core/feedback/toast.service';
+import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
 import {
   PRICE_REQUIRED_MESSAGE,
@@ -97,6 +97,9 @@ export const COLLECTION_PICKER_LOADING = 'Carregando…';
 export const SAVED_TOAST = 'Salvo.';
 export const UNSAVED_TITLE = 'Descartar alterações?';
 export const UNSAVED_MESSAGE = 'Há alterações que ainda não foram salvas.';
+export const LEAVE_WHILE_SAVING_TITLE = 'Sair agora?';
+export const LEAVE_WHILE_SAVING_MESSAGE = 'O salvamento ainda está em andamento.';
+export const CUSTOM_SWATCH_PREFIX = 'custom:';
 
 export function colorLabelFromSwatches(colors: readonly ProductColor[]): string {
   return colors.map((c) => c.name).join(' / ');
@@ -124,8 +127,21 @@ function matchKnownColor(
 
 function freeTextSwatch(token: string): ProductColor {
   const name = token.trim();
-  const id = `custom:${name.toLowerCase()}`;
+  const id = `${CUSTOM_SWATCH_PREFIX}${name.toLowerCase()}`;
   return { id, name, hex: '#C4C0B8' };
+}
+
+export function isCustomSwatch(color: ProductColor): boolean {
+  return color.id.startsWith(CUSTOM_SWATCH_PREFIX);
+}
+
+/** Palette ids only — free text stays on the `color` string, never as custom: items. */
+export function paletteColorsForSave(colors: readonly ProductColor[]): ProductColor[] {
+  return colors.filter((c) => !isCustomSwatch(c));
+}
+
+function chipKey(colors: readonly ProductColor[]): string {
+  return colors.map((c) => c.id).join('\0');
 }
 
 /**
@@ -287,6 +303,9 @@ export class AdminProductForm implements OnInit {
   detailsText = '';
   private slugLocked = false;
   private baseline = '';
+  private loadedColor = '';
+  private loadedColors: ProductColor[] | undefined;
+  private loadedChipKey = '';
 
   ngOnInit(): void {
     this.loadDraft(structuredClone(this.product()));
@@ -334,6 +353,9 @@ export class AdminProductForm implements OnInit {
   /** Local form only. Does not write. Legacy color text becomes chips here. */
   loadDraft(p: Product): void {
     const colors = selectedSwatchesFromProduct(p, this.swatchOptions);
+    this.loadedColor = p.color ?? '';
+    this.loadedColors = p.colors;
+    this.loadedChipKey = chipKey(colors);
     this.draft.set(
       applySelectedSwatches(
         {
@@ -759,13 +781,14 @@ export class AdminProductForm implements OnInit {
       .filter((piece) => piece.name);
 
     const galleryUrls = this.galleryItems().map((m) => m.cdnUrl);
+    const chipsChanged = chipKey(p.colors ?? []) !== this.loadedChipKey;
     const next: Product = {
       ...p,
       id: slug,
       slug,
       name,
-      color: colorLabelFromSwatches(p.colors ?? []),
-      colors: p.colors ?? [],
+      color: chipsChanged ? colorLabelFromSwatches(p.colors ?? []) : this.loadedColor,
+      colors: chipsChanged ? paletteColorsForSave(p.colors ?? []) : this.loadedColors,
       size: (p.size ?? '').trim(),
       fabric: (p.fabric ?? '').trim(),
       season: (p.season ?? '').trim(),
@@ -791,7 +814,7 @@ export class AdminProductForm implements OnInit {
         this.loadDraft(structuredClone(saved));
         this.baseline = this.fingerprint();
         this.toast.success(this.isNew() ? 'Produto criado.' : SAVED_TOAST, {
-          durationMs: 6400,
+          durationMs: SAVE_TOAST_MS,
         });
         this.settleAfterSave();
         this.saved.emit(saved);
@@ -829,7 +852,18 @@ export class AdminProductForm implements OnInit {
   }
 
   async cancel(): Promise<void> {
-    if (this.saving()) return;
+    if (this.saving()) {
+      const ok = await this.confirm.confirm({
+        title: LEAVE_WHILE_SAVING_TITLE,
+        message: LEAVE_WHILE_SAVING_MESSAGE,
+        confirmLabel: 'Sair',
+        cancelLabel: 'Esperar',
+        destructive: true,
+      });
+      if (!ok) return;
+      this.cancelled.emit();
+      return;
+    }
     if (this.isDirty()) {
       const ok = await this.confirm.confirm({
         title: UNSAVED_TITLE,

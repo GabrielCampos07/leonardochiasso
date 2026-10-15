@@ -6,7 +6,7 @@ import { AdminCatalogService } from '../../core/admin-catalog.service';
 import { AdminCollectionsApiService } from '../../core/admin-collections-api.service';
 import { CatalogService } from '../../core/catalog.service';
 import { ConfirmService } from '../../core/feedback/confirm.service';
-import { ToastService } from '../../core/feedback/toast.service';
+import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { PRODUCT_STATUS_OPTIONS, Product, SITE_UNAVAILABLE_HINT } from '../../core/product.model';
 import { ADMIN_SWATCH_OPTIONS } from '../../core/admin-catalog.service';
 import {
@@ -27,7 +27,11 @@ import {
   applySelectedSwatches,
   collectionSelectLabel,
   colorLabelFromSwatches,
+  LEAVE_WHILE_SAVING_MESSAGE,
+  LEAVE_WHILE_SAVING_TITLE,
   parseStockQty,
+  paletteColorsForSave,
+  SAVED_TOAST,
   selectedSwatchesFromProduct,
   splitLegacyColorLabel,
   stockQtyError,
@@ -135,6 +139,15 @@ describe('selectedSwatchesFromProduct', () => {
     const colors = selectedSwatchesFromProduct({ color: 'Cru natural' }, ADMIN_SWATCH_OPTIONS);
     expect(colors.map((c) => c.name)).toEqual(['Cru natural']);
     expect(colorLabelFromSwatches(colors)).toBe('Cru natural');
+  });
+
+  it('drops custom: chips from the colors array kept for save', () => {
+    const colors = selectedSwatchesFromProduct({ color: 'Cru natural' }, ADMIN_SWATCH_OPTIONS);
+    expect(colors[0]?.id.startsWith('custom:')).toBeTrue();
+    expect(paletteColorsForSave(colors)).toEqual([]);
+    expect(paletteColorsForSave([ADMIN_SWATCH_OPTIONS[0]!, ...colors]).map((c) => c.id)).toEqual([
+      ADMIN_SWATCH_OPTIONS[0]!.id,
+    ]);
   });
 
   it('prefers the known-colors list over leftover free text', () => {
@@ -286,10 +299,39 @@ describe('AdminProductForm', () => {
     fixture.componentInstance.save();
     expect(saveProduct$).toHaveBeenCalledTimes(1);
     expect(saveProduct$.calls.mostRecent().args[0].color).toBe('Off-white / Black');
-    expect(saveProduct$.calls.mostRecent().args[0].colors?.map((c: { id: string }) => c.id)).toEqual([
+    expect(saveProduct$.calls.mostRecent().args[0].colors).toBeUndefined();
+  });
+
+  it('saves Cru natural and off-white  /  black exactly as stored when chips are not edited', () => {
+    const cru = sampleProduct({ color: 'Cru natural', colors: undefined });
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', cru);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.name)).toEqual(['Cru natural']);
+    saveProduct$.and.returnValue(of(cru));
+    fixture.componentInstance.save();
+    const cruPayload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(cruPayload.color).toBe('Cru natural');
+    expect(cruPayload.colors).toBeUndefined();
+
+    const spaced = sampleProduct({ color: 'off-white  /  black', colors: undefined });
+    fixture.componentRef.setInput('product', spaced);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toEqual([
       'off-white',
       'black',
     ]);
+    saveProduct$.and.returnValue(of(spaced));
+    fixture.componentInstance.save();
+    const spacedPayload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(spacedPayload.color).toBe('off-white  /  black');
+    expect(spacedPayload.colors).toBeUndefined();
+    expect(spacedPayload.color).toBe(spaced.color);
+    expect(spacedPayload.colors).toEqual(spaced.colors);
   });
 
   it('picks colors as chips, never mixed with the old text field', () => {
@@ -404,6 +446,9 @@ describe('AdminProductForm', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.draft()?.price).toBe(12.5);
     expect(fixture.componentInstance.draft()?.priceCents).toBe(1250);
+    expect(fixture.componentInstance.draft()?.priceLabel).toBe('R$ 12,50');
+    expect(fixture.nativeElement.textContent).toContain('R$ 12,50');
+    expect(fixture.nativeElement.textContent).not.toContain('R$ 13,00');
     expect(fixture.componentInstance.priceError()).toBe('');
 
     fixture.componentInstance.onPriceChange('1.250,50');
@@ -613,6 +658,79 @@ describe('AdminProductForm', () => {
     expect(
       (fixture.nativeElement.querySelector('#atelier-product-name') as HTMLInputElement).getAttribute('maxlength'),
     ).toBe(String(NAME_MAX_LENGTH));
+  });
+
+  it('does not open the confirm modal when closing with no changes', async () => {
+    const cancelled = jasmine.createSpy('cancelled');
+    fixture.componentInstance.cancelled.subscribe(cancelled);
+    expect(fixture.componentInstance.isDirty()).toBeFalse();
+    await fixture.componentInstance.cancel();
+    expect(confirm.confirm).not.toHaveBeenCalled();
+    expect(cancelled).toHaveBeenCalled();
+  });
+
+  it('asks before leaving while a save is in progress', async () => {
+    confirm.confirm.and.resolveTo(false);
+    const cancelled = jasmine.createSpy('cancelled');
+    fixture.componentInstance.cancelled.subscribe(cancelled);
+    fixture.componentInstance['saving'].set(true);
+    fixture.detectChanges();
+    const cancelBtn = fixture.nativeElement.querySelector('.admin-edit__cancel') as HTMLButtonElement;
+    expect(cancelBtn.disabled).toBeFalse();
+
+    await fixture.componentInstance.cancel();
+    expect(confirm.confirm).toHaveBeenCalledWith(
+      jasmine.objectContaining({
+        title: LEAVE_WHILE_SAVING_TITLE,
+        message: LEAVE_WHILE_SAVING_MESSAGE,
+      }),
+    );
+    expect(cancelled).not.toHaveBeenCalled();
+
+    confirm.confirm.and.resolveTo(true);
+    await fixture.componentInstance.cancel();
+    expect(cancelled).toHaveBeenCalled();
+  });
+
+  it('puts aria-pressed only on color options, not Remover, and marks Coleção and Preço', () => {
+    fixture.componentInstance.addSwatchById('off-white');
+    fixture.componentInstance.onCollectionSlugChange('');
+    fixture.componentInstance.onPriceChange('');
+    fixture.componentInstance.save();
+    fixture.detectChanges();
+
+    const remove = fixture.nativeElement.querySelector(
+      '[aria-label="Remover Off-white"]',
+    ) as HTMLButtonElement;
+    expect(remove).toBeTruthy();
+    expect(remove.getAttribute('aria-pressed')).toBeNull();
+
+    (fixture.nativeElement.querySelector('#atelier-product-color') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const colorOption = fixture.nativeElement.querySelector(
+      '#atelier-product-color-list [role="option"]',
+    ) as HTMLButtonElement;
+    expect(colorOption.getAttribute('aria-pressed')).not.toBeNull();
+
+    const collection = fixture.nativeElement.querySelector(
+      '#atelier-product-collection',
+    ) as HTMLButtonElement;
+    expect(collection.getAttribute('aria-invalid')).toBe('true');
+    expect(collection.getAttribute('aria-describedby')).toBe('atelier-product-collection-error');
+
+    const price = fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement;
+    expect(price.getAttribute('aria-invalid')).toBe('true');
+    expect(price.getAttribute('aria-describedby')).toBe('atelier-product-price-error');
+  });
+
+  it('shows Salvo. with SAVE_TOAST_MS', () => {
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', sampleProduct({ status: 'published' }));
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    saveProduct$.and.returnValue(of(sampleProduct({ status: 'published' })));
+    fixture.componentInstance.save();
+    expect(toast.success).toHaveBeenCalledWith(SAVED_TOAST, { durationMs: SAVE_TOAST_MS });
   });
 
   it('asks before canceling when the form is dirty', async () => {

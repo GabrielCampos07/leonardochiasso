@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, map, of, shareReplay, tap } from 'rxjs';
-import { Collection, Product } from './product.model';
+import { Collection, Product, formatPriceLabel } from './product.model';
 import { PRODUCTS } from './products';
 import { CollectionSlug } from './routes';
 import { environment } from '../../environments/environment';
@@ -61,13 +61,9 @@ export interface ApiCollectionDto {
   products?: ApiProductDto[];
 }
 
-function formatPriceLabel(reais: number): string {
-  return reais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
-
-/** Map API product → storefront Product (price in whole BRL). */
+/** Map API product → storefront Product (reais from cents, 2 decimals). */
 export function mapApiProduct(dto: ApiProductDto): Product {
-  const price = Math.round(dto.priceCents / 100);
+  const price = dto.priceCents / 100;
   const local = PRODUCTS.find((p) => p.slug === dto.slug || p.id === dto.slug);
   const gender = productGender({
     slug: dto.slug,

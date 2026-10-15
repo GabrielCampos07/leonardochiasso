@@ -292,7 +292,12 @@ export function productWithPiece(product: Product, pieceId?: string | null): Pro
 }
 
 export function formatPriceLabel(reais: number): string {
-  return reais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return reais.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 /** Resolve hero image URL/index when user picks a piece and/or color on PDP. */

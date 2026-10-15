@@ -74,6 +74,8 @@
           [value]="p.collectionSlug || ''"
           [resolvedLabel]="selectedCollectionLabel()"
           [loading]="collectionPickerLoading()"
+          [invalid]="!!collectionError()"
+          [describedBy]="collectionError() ? 'atelier-product-collection-error' : ''"
           (valueChange)="onCollectionSlugChange($event)"
           (opened)="refreshCollections()"
         />
@@ -222,7 +224,6 @@
               type="button"
               class="admin-edit__chip-remove"
               [attr.aria-label]="'Remover ' + c.name"
-              [attr.aria-pressed]="true"
               (click)="removeSwatch(c)"
             >
               ×
@@ -241,6 +242,7 @@
             placeholder="Escolher cor"
             [options]="availableColorPickerOptions()"
             value=""
+            [optionPressed]="true"
             (valueChange)="addSwatchById($event)"
           />
         </div>
@@ -388,7 +390,7 @@
       >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>
-      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving() || archiving()">
+      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="archiving()">
         Cancelar
       </button>
       @if (!isNew() && !isArchived()) {

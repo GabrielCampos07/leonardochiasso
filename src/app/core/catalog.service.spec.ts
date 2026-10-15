@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { environment } from '../../environments/environment';
-import { CatalogService } from './catalog.service';
+import { CatalogService, mapApiProduct } from './catalog.service';
 
 describe('CatalogService getProductsByCollection', () => {
   const originalDemo = environment.demoMode;
@@ -86,5 +86,31 @@ describe('CatalogService getProductsByCollection', () => {
       products: [],
     });
     expect(box.value).toBe(0);
+  });
+});
+
+describe('mapApiProduct price', () => {
+  it('keeps cents as reais with 2 decimals — 1250 is R$ 12,50, not R$ 13,00', () => {
+    const product = mapApiProduct({
+      id: '1',
+      slug: 'look-preco',
+      name: 'Look preço',
+      description: '',
+      details: [],
+      shipping: null,
+      priceCents: 1250,
+      currency: 'BRL',
+      color: null,
+      size: null,
+      fabric: null,
+      season: null,
+      category: 'feminino',
+      collection: 'Organic Dreams',
+      thumb: '',
+      gallery: [],
+    });
+    expect(product.price).toBe(12.5);
+    expect(product.priceCents).toBe(1250);
+    expect(product.priceLabel).toBe('R$ 12,50');
   });
 });

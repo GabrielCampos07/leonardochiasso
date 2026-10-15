@@ -366,12 +366,14 @@ export class AdminCatalogService {
             status,
             details: opts.details,
             pieces: product.pieces?.length ? product.pieces : undefined,
-            colorVariants: product.colors?.length
-              ? product.colors.map((c) => ({
-                  colorId: c.id,
-                  name: c.name,
-                  hex: c.hex,
-                }))
+            colorVariants: product.colors?.filter((c) => !c.id.startsWith('custom:')).length
+              ? product.colors
+                  .filter((c) => !c.id.startsWith('custom:'))
+                  .map((c) => ({
+                    colorId: c.id,
+                    name: c.name,
+                    hex: c.hex,
+                  }))
               : undefined,
             shippingCopy: product.shipping || undefined,
           }),
@@ -395,12 +397,14 @@ export class AdminCatalogService {
       season: product.season || undefined,
       details: opts.details,
       pieces: product.pieces ?? [],
-      colorVariants: product.colors?.length
-        ? product.colors.map((c) => ({
-            colorId: c.id,
-            name: c.name,
-            hex: c.hex,
-          }))
+      colorVariants: product.colors?.filter((c) => !c.id.startsWith('custom:')).length
+        ? product.colors
+            .filter((c) => !c.id.startsWith('custom:'))
+            .map((c) => ({
+              colorId: c.id,
+              name: c.name,
+              hex: c.hex,
+            }))
         : [],
     });
   }
