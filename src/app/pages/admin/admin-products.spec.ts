@@ -131,33 +131,10 @@ describe('AdminProductsPage reorder', () => {
     expect(fixture.componentInstance.query()).toBe('mosaico');
     expect(fixture.componentInstance.showArchived()).toBeTrue();
     fixture.destroy();
-    TestBed.resetTestingModule();
 
-    await TestBed.configureTestingModule({
-      imports: [AdminProductsPage],
-      providers: [
-        provideRouter([]),
-        {
-          provide: AdminCatalogService,
-          useValue: {
-            useApi: true,
-            list$: () => of(pieces),
-            setOrder: () => undefined,
-            reorderViaApi: () => of(void 0),
-            archiveViaApi: () => of(null),
-            restoreViaApi: () => of(null),
-          },
-        },
-        {
-          provide: AdminCollectionOrderService,
-          useValue: { get: () => of({ productIds: [] }), put: () => of({ productIds: [] }) },
-        },
-        { provide: CatalogService, useValue: { refreshLocalCatalog: () => undefined } },
-        { provide: ConfirmService, useValue: { confirm: () => Promise.resolve(true) } },
-        { provide: ToastService, useValue: toast },
-      ],
-    }).compileComponents();
     const remount = TestBed.createComponent(AdminProductsPage);
+    remount.detectChanges();
+    await remount.whenStable();
     remount.detectChanges();
     expect(remount.componentInstance.query()).toBe('mosaico');
     expect(remount.componentInstance.showArchived()).toBeTrue();
