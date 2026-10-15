@@ -1,4 +1,7 @@
 import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  LISTA_REORDER_ENABLED,
+  STOCKROOM_REORDER_ENABLED,
   compareMembershipSortOrder,
   membershipSortOrder,
   sortByMembershipSortOrder,
@@ -52,5 +55,11 @@ describe('membership order (Lista == public API)', () => {
       'vestido-lg-assimetrico',
       'pantalona-rasgo',
     ]);
+  });
+
+  it('keeps Lista and 3D reorder off with the same maintenance notice', () => {
+    expect(LISTA_REORDER_ENABLED).toBeFalse();
+    expect(STOCKROOM_REORDER_ENABLED).toBeFalse();
+    expect(LISTA_ORDER_MAINTENANCE_NOTICE).toBe('Ordem em manutenção');
   });
 });

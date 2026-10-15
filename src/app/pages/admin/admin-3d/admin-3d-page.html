@@ -13,6 +13,9 @@
         <span class="admin-3d__pill admin-3d__pill--draft">Rascunho</span>
       }
       <span class="admin-3d__area-count">{{ stageTitle().detail }}</span>
+      @if (!stockroomReorderEnabled) {
+        <lc-admin-notice [compact]="true">{{ orderMaintenanceNotice }}</lc-admin-notice>
+      }
     </header>
   }
 
@@ -47,7 +50,7 @@
             [attr.aria-label]="piece.name"
             [attr.aria-describedby]="'piece-tip-' + piece.slug"
             [attr.aria-grabbed]="pieceDrag()?.slug === piece.slug"
-            aria-keyshortcuts="Shift+ArrowLeft Shift+ArrowRight"
+            [attr.aria-keyshortcuts]="stockroomReorderEnabled ? 'Shift+ArrowLeft Shift+ArrowRight' : null"
             [style.left.px]="piece.x"
             [style.top.px]="piece.y"
             [style.width.px]="piece.w"
@@ -225,7 +228,7 @@
         >
           + Nova coleção
         </button>
-        @if (activeUnit()) {
+        @if (stockroomReorderEnabled && activeUnit()) {
           <button type="button" class="admin-3d__peca" [disabled]="adding()" (click)="addPieceToFocused()">
             + Peça
           </button>
@@ -345,7 +348,7 @@
         →
       </button>
       <div class="admin-3d__pager-actions">
-        @if (activeUnit()) {
+        @if (stockroomReorderEnabled && activeUnit()) {
           <button type="button" class="admin-3d__peca" [disabled]="adding()" (click)="addPieceToFocused()">
             + Peça
           </button>

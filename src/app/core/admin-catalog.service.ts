@@ -30,6 +30,7 @@ import { PRODUCTS } from './products';
 import { COLLECTION_SLUGS, CollectionSlug } from './routes';
 import { ProductGender, storefrontCategory } from './product-gender';
 import { recommendRank, sortByRecommendOrder } from './recommend-order';
+import { LISTA_ORDER_MAINTENANCE_NOTICE, LISTA_REORDER_ENABLED } from './membership-order';
 
 const STORAGE_KEY = 'lc-admin-catalog';
 
@@ -434,6 +435,9 @@ export class AdminCatalogService {
   }
 
   reorderViaApi(orderedSlugs: string[]): Observable<{ updated: number }> {
+    if (!LISTA_REORDER_ENABLED) {
+      return throwError(() => new Error(LISTA_ORDER_MAINTENANCE_NOTICE));
+    }
     return this.http
       .put<{ updated: number }>(
         `${this.baseUrl}/api/admin/products/reorder`,

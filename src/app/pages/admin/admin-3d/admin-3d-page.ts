@@ -38,6 +38,10 @@ import { JoiaPiece, joiaGallery } from '../../../core/joias.data';
 import { formatPriceLabel, Product } from '../../../core/product.model';
 import { CollectionSlug } from '../../../core/routes';
 import { afterOverlayPaint } from '../../../core/after-overlay-paint';
+import {
+  LISTA_ORDER_MAINTENANCE_NOTICE,
+  STOCKROOM_REORDER_ENABLED,
+} from '../../../core/membership-order';
 import { Admin3dBootService } from '../../../core/admin-3d-boot.service';
 import { leaveAdmin3dToList } from '../../../core/admin-return-url';
 import { environment } from '../../../../environments/environment';
@@ -112,6 +116,7 @@ import {
   type AddPieceCreatePayload,
   type AddPieceItemError,
 } from './collection-add-piece-panel';
+import { LcAdminNotice } from '../../../shared/components/feedback/admin-notice';
 import { CollectionCreatePanel } from './collection-create-panel';
 import { StockroomCreditsPanel } from './stockroom-credits-panel';
 import {
@@ -232,7 +237,7 @@ export function clampCreatePanel(
 @Component({
   selector: 'lc-admin-3d-page',
   standalone: true,
-  imports: [CollectionCreatePanel, CollectionAddPiecePanel, StockroomCreditsPanel],
+  imports: [CollectionCreatePanel, CollectionAddPiecePanel, StockroomCreditsPanel, LcAdminNotice],
   templateUrl: './admin-3d-page.html',
   styleUrl: './admin-3d-page.scss',
 })
@@ -281,6 +286,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   readonly hasCredits = sceneNeedsCredits(this.sceneMode);
   readonly creditsOpen = signal(false);
   readonly pieceDrag = signal<{ slug: string; x: number; y: number; over: string | null } | null>(null);
+  /** Set `STOCKROOM_REORDER_ENABLED` to true in membership-order.ts to restore drag / Shift+arrows. */
+  readonly stockroomReorderEnabled = STOCKROOM_REORDER_ENABLED;
+  readonly orderMaintenanceNotice = LISTA_ORDER_MAINTENANCE_NOTICE;
   readonly webglUnavailable = signal(false);
   readonly showBoot = computed(
     () =>
@@ -345,7 +353,9 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     if (!unit) return null;
     return { id: unit.id, name: unit.name, kind: unit.kind, hangers: unit.hangers.length };
   });
-  readonly showAddPieceButton = computed(() => Boolean(this.activeUnit()) && !this.adding());
+  readonly showAddPieceButton = computed(
+    () => STOCKROOM_REORDER_ENABLED && Boolean(this.activeUnit()) && !this.adding(),
+  );
   readonly moreOpen = signal(false);
   readonly switcherOpen = signal(false);
   readonly focusedName = computed(() => {
@@ -461,7 +471,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
     }
     this.engine.onClick((slug) => this.openEditor(slug));
     this.engine.onEmptyUnit((id) => {
-      if (this.adding()) return;
+      if (!STOCKROOM_REORDER_ENABLED || this.adding()) return;
       this.openAddPanel(id);
     });
     this.engine.onHover((slug, pointer) => this.setHoverTip(slug, pointer));
@@ -557,6 +567,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   onPiecePointerDown(event: PointerEvent, slug: string): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     if (!this.stockroom || event.button !== 0 || this.creating() || this.adding() || this.modalOpen) return;
     this.pieceDragStart = { slug, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
     this.pieceDragMoved = false;
@@ -653,6 +664,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private applyAndSavePieceOrder(rackId: string, previous: readonly string[], next: readonly string[]): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     const collectionSlug = collectionSlugFromUnitId(rackId);
     if (!collectionSlug || rackId === UNCOLLECTED_RACK_ID) return;
     const layout = reorderRackHangers(this.layout, rackId, next);
@@ -825,6 +837,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   addPieceToFocused(): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     this.moreOpen.set(false);
     this.switcherOpen.set(false);
     const unit = this.activeUnit();
@@ -1088,6 +1101,7 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
   }
 
   private openAddPanel(unitId: string): void {
+    if (!STOCKROOM_REORDER_ENABLED) return;
     if (this.creating() || this.adding() || this.modalOpen || this.addSaving()) return;
     const kind = this.line() === 'joias' ? 'vitrine' : 'rack';
     const unit = unitsOfKind(this.layout, kind).find((r) => r.id === unitId);

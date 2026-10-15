@@ -37,4 +37,10 @@ export function sortByMembershipSortOrder<
  */
 export const LISTA_REORDER_ENABLED = false;
 
+/**
+ * 3D hanger drag and Shift+←/→. Same notice as the Lista.
+ * Set to `true` together with `LISTA_REORDER_ENABLED` when order is writable again.
+ */
+export const STOCKROOM_REORDER_ENABLED = false;
+
 export const LISTA_ORDER_MAINTENANCE_NOTICE = 'Ordem em manutenção';

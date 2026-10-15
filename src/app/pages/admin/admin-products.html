@@ -3,8 +3,10 @@
     <div>
       <h1>Produtos</h1>
       <p>
-        @if (useApi) {
+        @if (useApi && listaReorderEnabled) {
           Arraste para reordenar · ↑↓ também funciona. Clique em Editar para mudar textos, preço ou fotos.
+        } @else if (useApi) {
+          Clique em Editar para mudar textos, preço ou fotos.
         } @else {
           Clique em Editar para mudar nome, texto, preço, cores ou fotos.
         }
@@ -67,6 +69,9 @@
     </p>
   }
 
+  @if (!listaReorderEnabled) {
+    <lc-admin-notice>{{ orderMaintenanceNotice }}</lc-admin-notice>
+  }
   @if (todosHint()) {
     <p class="admin-list__hint" role="status">{{ todosHint() }}</p>
   }
@@ -117,15 +122,17 @@
         [cdkDragDisabled]="savingOrder() || !canDrag()"
         [cdkDragStartDelay]="dragStartDelay"
       >
-        <button
-          type="button"
-          class="admin-row__handle"
-          cdkDragHandle
-          aria-label="Arrastar para reordenar"
-          (pointerdown)="onTodosDragAttempt($event)"
-        >
-          ⋮⋮
-        </button>
+        @if (listaReorderEnabled) {
+          <button
+            type="button"
+            class="admin-row__handle"
+            cdkDragHandle
+            aria-label="Arrastar para reordenar"
+            (pointerdown)="onTodosDragAttempt($event)"
+          >
+            ⋮⋮
+          </button>
+        }
         <img [src]="p.thumb" [alt]="p.name" width="160" height="213" />
         <div class="admin-row__info">
           <strong>{{ p.name }}</strong>
@@ -152,24 +159,26 @@
               Arquivar
             </button>
           }
-          <div class="admin-row__order">
-            <button
-              type="button"
-              class="admin-row__order-btn"
-              (click)="move(p.slug, -1)"
-              [disabled]="i === 0 || savingOrder() || !canDrag()"
-            >
-              <span aria-hidden="true">↑</span> Subir
-            </button>
-            <button
-              type="button"
-              class="admin-row__order-btn"
-              (click)="move(p.slug, 1)"
-              [disabled]="i === filtered().length - 1 || savingOrder() || !canDrag()"
-            >
-              <span aria-hidden="true">↓</span> Descer
-            </button>
-          </div>
+          @if (listaReorderEnabled) {
+            <div class="admin-row__order">
+              <button
+                type="button"
+                class="admin-row__order-btn"
+                (click)="move(p.slug, -1)"
+                [disabled]="i === 0 || savingOrder() || !canDrag()"
+              >
+                <span aria-hidden="true">↑</span> Subir
+              </button>
+              <button
+                type="button"
+                class="admin-row__order-btn"
+                (click)="move(p.slug, 1)"
+                [disabled]="i === filtered().length - 1 || savingOrder() || !canDrag()"
+              >
+                <span aria-hidden="true">↓</span> Descer
+              </button>
+            </div>
+          }
         </div>
       </li>
     } @empty {
