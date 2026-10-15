@@ -165,7 +165,7 @@ describe('mapCatalogToScene', () => {
     const layout = mapCatalogToScene(collections, [
       { slug: 'vestido', name: 'Vestido', collectionSlug: 'organic-dreams', price: 289, stockQty: 2 },
     ]);
-    expect(layout.racks[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*289,00/);
+    expect(layout.racks[0]?.hangers[0]?.priceLabel.replace(/\u00a0/g, ' ')).toMatch(/R\$\s*289(?!,)/);
   });
 
   it('prefers promo/current price over the list price', () => {
@@ -179,7 +179,7 @@ describe('mapCatalogToScene', () => {
         stockQty: 6,
       },
     ]);
-    expect(layout.racks[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*289,00/);
+    expect(layout.racks[0]?.hangers[0]?.priceLabel.replace(/\u00a0/g, ' ')).toMatch(/R\$\s*289(?!,)/);
     expect(layout.racks[0]?.hangers[0]?.stockQty).toBe(6);
   });
 
@@ -320,7 +320,7 @@ describe('mapJoiasToVitrines', () => {
     expect(vitrines[0]?.hangers).toHaveSize(VITRINE_CAPACITY);
     expect(vitrines[1]?.hangers).toHaveSize(2);
     expect(vitrines[0]?.hangers[0]?.kind).toBe('jewelry');
-    expect(vitrines[0]?.hangers[0]?.priceLabel).toMatch(/R\$\s*180,00/);
+    expect(vitrines[0]?.hangers[0]?.priceLabel.replace(/\u00a0/g, ' ')).toMatch(/R\$\s*180(?!,)/);
   });
 
   it('omits archived jewelry and archived jewelry collections', () => {

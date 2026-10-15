@@ -23,7 +23,7 @@ import {
   ProductMedia,
   ProductPiece,
   SWATCH,
-  formatPriceLabel,
+  formatAdminPriceLabel,
   productStatusForApi,
 } from './product.model';
 import { PRODUCTS } from './products';
@@ -396,12 +396,14 @@ export class AdminCatalogService {
             status,
             details: opts.details,
             pieces: product.pieces?.length ? product.pieces : undefined,
-            colorVariants: product.colors?.length
-              ? product.colors.map((c) => ({
-                  colorId: c.id,
-                  name: c.name,
-                  hex: c.hex,
-                }))
+            colorVariants: product.colors?.filter((c) => !c.id.startsWith('custom:')).length
+              ? product.colors
+                  .filter((c) => !c.id.startsWith('custom:'))
+                  .map((c) => ({
+                    colorId: c.id,
+                    name: c.name,
+                    hex: c.hex,
+                  }))
               : undefined,
             shippingCopy: product.shipping || undefined,
           }),
@@ -424,12 +426,14 @@ export class AdminCatalogService {
       season: product.season || undefined,
       details: opts.details,
       pieces: product.pieces ?? [],
-      colorVariants: product.colors?.length
-        ? product.colors.map((c) => ({
-            colorId: c.id,
-            name: c.name,
-            hex: c.hex,
-          }))
+      colorVariants: product.colors?.filter((c) => !c.id.startsWith('custom:')).length
+        ? product.colors
+            .filter((c) => !c.id.startsWith('custom:'))
+            .map((c) => ({
+              colorId: c.id,
+              name: c.name,
+              hex: c.hex,
+            }))
         : [],
     });
   }
@@ -742,7 +746,7 @@ export function syncPriceFields(price: number): Pick<Product, 'price' | 'priceLa
   const reais = cents / 100;
   return {
     price: reais,
-    priceLabel: formatPriceLabel(reais),
+    priceLabel: formatAdminPriceLabel(reais),
     priceCents: cents,
   };
 }
@@ -752,7 +756,7 @@ export function syncPiecePrice(piece: ProductPiece, price: number): ProductPiece
   return {
     ...piece,
     price: safe,
-    priceLabel: formatPriceLabel(safe),
+    priceLabel: formatAdminPriceLabel(safe),
   };
 }
 

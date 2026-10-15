@@ -5,6 +5,10 @@ export const PRICE_INVALID_MESSAGE = 'Preço inválido.';
 export const PRICE_NEGATIVE_MESSAGE = 'Preço não pode ser negativo.';
 export const PRICE_AMBIGUOUS_MESSAGE =
   'Preço ambíguo. Use 1,25 para centavos ou 1.250 para milhar.';
+export const PRICE_DECIMALS_MESSAGE = 'Use no máximo 2 casas decimais.';
+export const PRICE_MAX_MESSAGE = 'Preço máximo: R$ 9.999.999,99.';
+export const PRICE_MAX_CENTS = 999_999_999;
+export const PRICE_MAX_REAIS = 9_999_999.99;
 
 export type PriceParseOk = { ok: true; reais: number };
 export type PriceParseErr = { ok: false; error: string };
@@ -16,22 +20,24 @@ export type PriceParseResult = PriceParseOk | PriceParseErr;
  *   (`1,250`) which is ambiguous and rejected.
  * - `.` followed by exactly 3 digits is thousands (`14.800` = 14800, `1.250.000` = 1250000).
  * - `.` followed by 1–2 digits is decimal (`12.50` = 12.50, `12.5` = 12.50).
- * - Leading `R$` and surrounding spaces are stripped.
+ * - Leading `R$` and surrounding spaces are stripped; spaces inside the number are rejected.
+ * - More than 2 decimal digits is rejected. Max is R$ 9.999.999,99.
  */
 export function parsePricePtBr(raw: string | number | null | undefined): PriceParseResult {
   if (typeof raw === 'number') {
     if (!Number.isFinite(raw)) return { ok: false, error: PRICE_INVALID_MESSAGE };
-    if (raw < 0) return { ok: false, error: PRICE_NEGATIVE_MESSAGE };
-    return { ok: true, reais: raw };
+    if (raw < 0 || Object.is(raw, -0)) return { ok: false, error: PRICE_NEGATIVE_MESSAGE };
+    return finishParsed(raw);
   }
 
   const text = String(raw ?? '')
     .replace(/^\s*R\$\s*/i, '')
     .trim();
   if (!text) return { ok: false, error: PRICE_REQUIRED_MESSAGE };
-  if (/[^\d.,\s-]/.test(text)) return { ok: false, error: PRICE_INVALID_MESSAGE };
+  if (/\s/.test(text)) return { ok: false, error: PRICE_INVALID_MESSAGE };
+  if (/[^\d.,-]/.test(text)) return { ok: false, error: PRICE_INVALID_MESSAGE };
 
-  const compact = text.replace(/\s/g, '');
+  const compact = text;
   if (!compact || compact === '-' || compact === ',' || compact === '.') {
     return { ok: false, error: PRICE_INVALID_MESSAGE };
   }
@@ -52,6 +58,9 @@ export function parsePricePtBr(raw: string | number | null | undefined): PricePa
     if (decRaw.length === 3) {
       return { ok: false, error: PRICE_AMBIGUOUS_MESSAGE };
     }
+    if (decRaw.length > 2) {
+      return { ok: false, error: PRICE_DECIMALS_MESSAGE };
+    }
     const integer = stripThousandsDots(intRaw);
     if (integer == null) return { ok: false, error: PRICE_INVALID_MESSAGE };
     normalized = `${sign}${integer}.${decRaw}`;
@@ -66,6 +75,8 @@ export function parsePricePtBr(raw: string | number | null | undefined): PricePa
       const integer = stripThousandsDots(body);
       if (integer == null) return { ok: false, error: PRICE_INVALID_MESSAGE };
       normalized = `${sign}${integer}`;
+    } else if (last.length > 3) {
+      return { ok: false, error: PRICE_DECIMALS_MESSAGE };
     } else {
       return { ok: false, error: PRICE_INVALID_MESSAGE };
     }
@@ -79,8 +90,16 @@ export function parsePricePtBr(raw: string | number | null | undefined): PricePa
   }
   const n = Number(normalized);
   if (!Number.isFinite(n)) return { ok: false, error: PRICE_INVALID_MESSAGE };
-  if (n < 0) return { ok: false, error: PRICE_NEGATIVE_MESSAGE };
-  return { ok: true, reais: n };
+  if (sign === '-' || n < 0 || Object.is(n, -0)) {
+    return { ok: false, error: PRICE_NEGATIVE_MESSAGE };
+  }
+  return finishParsed(n);
+}
+
+function finishParsed(reais: number): PriceParseResult {
+  const cents = Math.round(reais * 100);
+  if (cents > PRICE_MAX_CENTS) return { ok: false, error: PRICE_MAX_MESSAGE };
+  return { ok: true, reais: cents / 100 };
 }
 
 /** Each `.` in the integer part must be followed by exactly 3 digits. */

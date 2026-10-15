@@ -1,4 +1,4 @@
-import { Product, SWATCH } from './product.model';
+import { Product, SWATCH, formatPriceLabel } from './product.model';
 import { withCdnUrls } from './media-url';
 import { COLLECTION_SLUGS } from './routes';
 import { sortByRecommendOrder } from './recommend-order';
@@ -28,7 +28,19 @@ const OBI_COLORS = [SWATCH.offWhite, SWATCH.black, SWATCH.vermelho];
  * and falls back here when `http://localhost:3000` is unreachable.
  * Seed source for `api/prisma/seed.ts` — keep in sync when editing products.
  */
-export const PRODUCTS: Product[] = withCdnUrls([
+function withPublicPriceLabels(products: Product[]): Product[] {
+  return products.map((p) => ({
+    ...p,
+    priceLabel: formatPriceLabel(p.price),
+    pieces: p.pieces?.map((piece) => ({
+      ...piece,
+      priceLabel: formatPriceLabel(piece.price),
+    })),
+  }));
+}
+
+export const PRODUCTS: Product[] = withCdnUrls(
+  withPublicPriceLabels([
   {
     id: 'calca-pantalona-rasgo',
     slug: 'calca-pantalona-rasgo',
@@ -2866,7 +2878,8 @@ export const PRODUCTS: Product[] = withCdnUrls([
     collection: 'Niponic Dreams',
     collectionSlug: COLLECTION_SLUGS.niponicDreams,
   },
-]);
+  ]),
+);
 
 export function getProductBySlug(slug: string): Product | undefined {
   return PRODUCTS.find((p) => p.slug === slug);

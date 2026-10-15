@@ -69,7 +69,12 @@ import { TOAST_BG, TOAST_ERROR_BG, TOAST_ERROR_TEXT, TOAST_TEXT } from './contra
       bottom: auto;
     }
     .lc-toast--success {
+      border-width: 2px;
       border-color: ${TOAST_TEXT};
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      box-shadow: 0 10px 36px rgb(14 12 14 / 22%);
     }
     .lc-toast--error {
       border-color: ${TOAST_ERROR_TEXT};

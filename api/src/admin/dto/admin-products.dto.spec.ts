@@ -57,6 +57,25 @@ describe('admin product gender DTO', () => {
     );
   });
 
+  it('rejects priceCents above R$ 9.999.999,99', async () => {
+    const create = await validate(
+      plainToInstance(CreateProductDto, { ...baseCreate, category: 'feminino', priceCents: 1_000_000_000 }),
+    );
+    expect(create.find((e) => e.property === 'priceCents')?.constraints?.max).toBe(
+      'Preço máximo: R$ 9.999.999,99.',
+    );
+
+    const update = await validate(plainToInstance(UpdateProductDto, { priceCents: 1_000_000_000 }));
+    expect(update.find((e) => e.property === 'priceCents')?.constraints?.max).toBe(
+      'Preço máximo: R$ 9.999.999,99.',
+    );
+
+    const ok = await validate(
+      plainToInstance(CreateProductDto, { ...baseCreate, category: 'feminino', priceCents: 999_999_999 }),
+    );
+    expect(ok.filter((e) => e.property === 'priceCents')).toEqual([]);
+  });
+
   it('requires UUID productIds on the reorder body', async () => {
     const ok = await validate(
       plainToInstance(ReorderCollectionGenderDto, {

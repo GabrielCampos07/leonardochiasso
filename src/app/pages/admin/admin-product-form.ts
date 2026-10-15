@@ -1,5 +1,5 @@
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { LcListPicker, ListPickerOption } from '../../shared/components/list-picker/list-picker';
@@ -37,7 +37,7 @@ import {
   ProductStatusValue,
   SITE_UNAVAILABLE_HINT,
   canOpenProductOnSite,
-  formatPriceLabel,
+  formatAdminPriceLabel,
   productStatusForApi,
 } from '../../core/product.model';
 import { PRICES_ON_REQUEST } from '../../core/pricing';
@@ -60,7 +60,9 @@ const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 export const STOCK_NEGATIVE_MESSAGE = 'Estoque não pode ser negativo.';
 export {
   PRICE_AMBIGUOUS_MESSAGE,
+  PRICE_DECIMALS_MESSAGE,
   PRICE_INVALID_MESSAGE,
+  PRICE_MAX_MESSAGE,
   PRICE_NEGATIVE_MESSAGE,
   PRICE_REQUIRED_MESSAGE,
 } from '../../core/price-input';
@@ -87,7 +89,125 @@ function collectionLabelForSlug(slug: string, name?: string | null): Collection 
   return (trimmed && trimmed !== slug ? trimmed : slug) as Collection;
 }
 
+export const NAME_REQUIRED_MESSAGE = 'Informe o nome.';
+export const NAME_MAX_LENGTH = 200;
+export const NAME_TOO_LONG_MESSAGE = 'O nome pode ter no máximo 200 caracteres.';
+export const DESCRIPTION_MAX_LENGTH = 5000;
+export const COLLECTION_REQUIRED_MESSAGE = 'Selecione a coleção.';
 export const COLLECTION_PICKER_LOADING = 'Carregando…';
+export const SAVED_TOAST = 'Salvo.';
+export const UNSAVED_TITLE = 'Descartar alterações?';
+export const UNSAVED_MESSAGE = 'Há alterações que ainda não foram salvas.';
+export const LEAVE_WHILE_SAVING_TITLE = 'Sair agora?';
+export const LEAVE_WHILE_SAVING_MESSAGE = 'O salvamento ainda está em andamento.';
+export const CUSTOM_SWATCH_PREFIX = 'custom:';
+export const CUSTOM_COLOR_MAX = 40;
+export const CUSTOM_COLOR_REQUIRED_MESSAGE = 'Informe a cor.';
+export const CUSTOM_COLOR_TOO_LONG_MESSAGE = 'A cor pode ter no máximo 40 caracteres.';
+export const CUSTOM_COLOR_DUPLICATE_MESSAGE = 'Essa cor já foi adicionada.';
+
+export function keepOrTrim(current: string, loaded: string): string {
+  return current === loaded ? loaded : current.trim();
+}
+
+export function customColorError(
+  raw: string,
+  selected: readonly ProductColor[],
+): string {
+  const name = raw.trim();
+  if (!name) return CUSTOM_COLOR_REQUIRED_MESSAGE;
+  if (name.length > CUSTOM_COLOR_MAX) return CUSTOM_COLOR_TOO_LONG_MESSAGE;
+  const key = name.toLowerCase();
+  if (selected.some((c) => c.name.toLowerCase() === key || c.id.toLowerCase() === key)) {
+    return CUSTOM_COLOR_DUPLICATE_MESSAGE;
+  }
+  return '';
+}
+
+export function colorLabelFromSwatches(colors: readonly ProductColor[]): string {
+  return colors.map((c) => c.name).join(' / ');
+}
+
+/** Real combinations use a spaced slash. A slash without spaces is one color. */
+export const LEGACY_COLOR_SPLIT = ' / ';
+
+export function splitLegacyColorLabel(label: string): string[] {
+  const trimmed = label.trim();
+  if (!trimmed) return [];
+  return trimmed.split(LEGACY_COLOR_SPLIT).map((part) => part.trim()).filter(Boolean);
+}
+
+function matchKnownColor(
+  token: string,
+  options: readonly ProductColor[],
+): ProductColor | undefined {
+  const key = token.trim().toLowerCase();
+  if (!key) return undefined;
+  return options.find(
+    (swatch) => swatch.name.toLowerCase() === key || swatch.id.toLowerCase() === key,
+  );
+}
+
+function freeTextSwatch(token: string): ProductColor {
+  const name = token.trim();
+  const id = `${CUSTOM_SWATCH_PREFIX}${name.toLowerCase()}`;
+  return { id, name, hex: '#C4C0B8' };
+}
+
+export function isCustomSwatch(color: ProductColor): boolean {
+  return color.id.startsWith(CUSTOM_SWATCH_PREFIX);
+}
+
+/** Palette ids only — free text stays on the `color` string, never as custom: items. */
+export function paletteColorsForSave(colors: readonly ProductColor[]): ProductColor[] {
+  return colors.filter((c) => !isCustomSwatch(c));
+}
+
+function chipKey(colors: readonly ProductColor[]): string {
+  return colors.map((c) => c.id).join('\0');
+}
+
+/**
+ * Map stored `colors` or a legacy "A / B" text string onto palette chips.
+ * Form state only — opening a piece must not persist this mapping.
+ * Unknown names stay as chips so free text is never dropped.
+ */
+export function selectedSwatchesFromProduct(
+  product: { colors?: ProductColor[] | null; color?: string | null },
+  options: readonly ProductColor[],
+): ProductColor[] {
+  if (product.colors?.length) {
+    const fromIds = product.colors.map(
+      (c) => options.find((s) => s.id === c.id) ?? c,
+    );
+    return fromIds;
+  }
+  const raw = (product.color ?? '').trim();
+  if (!raw) return [];
+  const whole = matchKnownColor(raw, options);
+  if (whole) return [whole];
+  const matched: ProductColor[] = [];
+  const seen = new Set<string>();
+  for (const token of splitLegacyColorLabel(raw)) {
+    const hit = matchKnownColor(token, options) ?? freeTextSwatch(token);
+    if (!seen.has(hit.id)) {
+      seen.add(hit.id);
+      matched.push(hit);
+    }
+  }
+  return matched;
+}
+
+export function applySelectedSwatches(
+  product: Product,
+  colors: readonly ProductColor[],
+): Product {
+  return {
+    ...product,
+    colors: [...colors],
+    color: colorLabelFromSwatches(colors),
+  };
+}
 
 /**
  * Visible collection label — catalog / official name only.
@@ -171,6 +291,14 @@ export class AdminProductForm implements OnInit {
     return Boolean(slug) && this.collectionsLoading() && !this.selectedCollectionLabel();
   });
   readonly swatchOptions = ADMIN_SWATCH_OPTIONS;
+  readonly selectedColors = computed(() => this.draft()?.colors ?? []);
+  readonly availableColorOptions = computed(() => {
+    const taken = new Set(this.selectedColors().map((c) => c.id));
+    return this.swatchOptions.filter((s) => !taken.has(s.id));
+  });
+  readonly availableColorPickerOptions = computed<ListPickerOption[]>(() =>
+    this.availableColorOptions().map((s) => ({ value: s.id, label: s.name })),
+  );
   readonly genderOptions = PRODUCT_GENDER_OPTIONS;
   readonly statusOptions = computed(() =>
     this.isArchived() ? [...PRODUCT_STATUS_OPTIONS, ARCHIVED_STATUS_OPTION] : PRODUCT_STATUS_OPTIONS,
@@ -178,6 +306,8 @@ export class AdminProductForm implements OnInit {
   readonly siteUnavailableHint = SITE_UNAVAILABLE_HINT;
   readonly pricesOnRequest = PRICES_ON_REQUEST;
   readonly useApi = this.adminCatalog.useApi;
+  readonly nameMaxLength = NAME_MAX_LENGTH;
+  readonly descriptionMaxLength = DESCRIPTION_MAX_LENGTH;
 
   readonly draft = signal<Product | null>(null);
   readonly galleryItems = signal<ProductMedia[]>([]);
@@ -186,14 +316,36 @@ export class AdminProductForm implements OnInit {
   readonly uploadError = signal('');
   readonly saveError = signal('');
   readonly stockError = signal('');
+  readonly nameError = signal('');
+  readonly collectionError = signal('');
   readonly priceError = signal('');
   priceText = '';
+  customColorText = '';
+  readonly customColorError = signal('');
+  readonly customColorMax = CUSTOM_COLOR_MAX;
   readonly pendingFileLabel = signal('Escolher fotos');
   private pendingFiles: File[] = [];
 
   detailsText = '';
-  selectedSwatchIds: string[] = [];
   private slugLocked = false;
+  private baseline = '';
+  private loadedColor = '';
+  private loadedColors: ProductColor[] | undefined;
+  private loadedChipKey = '';
+  private loadedName = '';
+  private loadedSlug = '';
+  private loadedSize = '';
+  private loadedFabric = '';
+  private loadedSeason = '';
+  private loadedDescription = '';
+  private loadedDetails: string[] = [];
+  private loadedDetailsText = '';
+  private loadedThumb = '';
+  private loadedPrice = 0;
+  private loadedPriceCents = 0;
+  private loadedPriceLabel = '';
+  private loadedPriceText = '';
+  private loadedStockQty = 0;
 
   ngOnInit(): void {
     this.loadDraft(structuredClone(this.product()));
@@ -238,21 +390,72 @@ export class AdminProductForm implements OnInit {
     });
   }
 
+  /** Local form only. Does not write. Legacy color text becomes chips here. */
   loadDraft(p: Product): void {
-    this.draft.set({
-      ...p,
-      status: isArchivedAt(p.archivedAt)
-        ? 'archived'
-        : productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
-    });
-    this.detailsText = (p.details ?? []).join('\n');
-    this.selectedSwatchIds = (p.colors ?? []).map((c) => c.id);
-    this.galleryItems.set(this.adminCatalog.mediaOf(p));
+    const colors = selectedSwatchesFromProduct(p, this.swatchOptions);
+    this.loadedColor = p.color ?? '';
+    this.loadedColors = p.colors;
+    this.loadedChipKey = chipKey(colors);
+    this.loadedName = p.name;
+    this.loadedSlug = p.slug;
+    this.loadedSize = p.size ?? '';
+    this.loadedFabric = p.fabric ?? '';
+    this.loadedSeason = p.season ?? '';
+    this.loadedDescription = p.description ?? '';
+    this.loadedDetails = [...(p.details ?? [])];
+    this.loadedDetailsText = (p.details ?? []).join('\n');
+    this.loadedThumb = p.thumb ?? '';
+    this.loadedPrice = p.price;
+    this.loadedPriceLabel = p.priceLabel;
+    this.loadedStockQty = p.stockQty ?? 0;
+    this.customColorText = '';
+    this.customColorError.set('');
     const cents = Number.isFinite(p.priceCents)
       ? Number(p.priceCents)
       : Math.round((p.price ?? 0) * 100);
+    this.draft.set({
+      ...applySelectedSwatches(
+        {
+          ...p,
+          status: isArchivedAt(p.archivedAt)
+            ? 'archived'
+            : productStatusForApi(p.status, this.isNew() ? 'draft' : 'published'),
+        },
+        colors,
+      ),
+      ...syncPriceFields(cents / 100),
+    });
+    this.detailsText = this.loadedDetailsText;
+    this.galleryItems.set(this.adminCatalog.mediaOf(p));
     this.priceText = formatPriceCentsInput(cents);
+    this.loadedPriceCents = cents;
+    this.loadedPriceText = this.priceText;
     this.priceError.set('');
+    this.baseline = this.fingerprint();
+  }
+
+  isDirty(): boolean {
+    return this.fingerprint() !== this.baseline;
+  }
+
+  private fingerprint(): string {
+    const p = this.draft();
+    return JSON.stringify({
+      name: p?.name,
+      slug: p?.slug,
+      color: p?.color,
+      colors: p?.colors?.map((c) => c.id),
+      description: p?.description,
+      details: this.detailsText,
+      price: this.priceText,
+      collectionSlug: p?.collectionSlug,
+      stockQty: p?.stockQty,
+      size: p?.size,
+      fabric: p?.fabric,
+      season: p?.season,
+      status: p?.status,
+      gender: p?.gender,
+    });
   }
 
   currentStatus(): ProductStatusValue {
@@ -273,12 +476,24 @@ export class AdminProductForm implements OnInit {
   onNameChange(name: string): void {
     const p = this.draft();
     if (!p) return;
+    const clipped = name.length > NAME_MAX_LENGTH ? name.slice(0, NAME_MAX_LENGTH) : name;
+    if (this.nameError()) {
+      this.nameError.set(clipped.trim() ? '' : NAME_REQUIRED_MESSAGE);
+    }
     if (this.isNew() && !this.slugLocked) {
-      const slug = slugifyName(name);
-      this.draft.set({ ...p, name, slug, id: slug || p.id });
+      const slug = slugifyName(clipped);
+      this.draft.set({ ...p, name: clipped, slug, id: slug || p.id });
       return;
     }
+    this.draft.set({ ...p, name: clipped });
+  }
+
+  onNameBlur(): void {
+    const p = this.draft();
+    if (!p) return;
+    const name = p.name.trim();
     this.draft.set({ ...p, name });
+    this.nameError.set(name ? '' : NAME_REQUIRED_MESSAGE);
   }
 
   onSlugChange(slug: string): void {
@@ -326,6 +541,7 @@ export class AdminProductForm implements OnInit {
         this.apiCollections().find((item) => item.slug === parsed)?.name,
       ),
     });
+    this.collectionError.set('');
   }
 
   hasCollectionSelected(): boolean {
@@ -367,23 +583,50 @@ export class AdminProductForm implements OnInit {
     this.draft.set({ ...p, stockQty: parseStockQty(raw) });
   }
 
-  toggleSwatch(swatch: ProductColor): void {
-    const ids = new Set(this.selectedSwatchIds);
-    if (ids.has(swatch.id)) ids.delete(swatch.id);
-    else ids.add(swatch.id);
-    this.selectedSwatchIds = [...ids];
-    const colors = this.swatchOptions.filter((s) => ids.has(s.id));
+  addSwatchById(id: string): void {
+    const swatch = this.swatchOptions.find((s) => s.id === id);
+    if (swatch) this.addSwatch(swatch);
+  }
+
+  onCustomColorInput(raw: string): void {
+    this.customColorText = raw;
+    if (this.customColorError()) {
+      this.customColorError.set(customColorError(raw, this.selectedColors()));
+    }
+  }
+
+  onCustomColorKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter') return;
+    if (event.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    this.addCustomColor();
+  }
+
+  addCustomColor(): void {
+    const error = customColorError(this.customColorText, this.selectedColors());
+    this.customColorError.set(error);
+    if (error) return;
+    const name = this.customColorText.trim();
+    const swatch = matchKnownColor(name, this.swatchOptions) ?? freeTextSwatch(name);
+    this.addSwatch(swatch);
+    this.customColorText = '';
+    this.customColorError.set('');
+  }
+
+  addSwatch(swatch: ProductColor): void {
+    const p = this.draft();
+    if (!p || this.selectedColors().some((c) => c.id === swatch.id)) return;
+    this.draft.set(applySelectedSwatches(p, [...this.selectedColors(), swatch]));
+  }
+
+  removeSwatch(swatch: ProductColor): void {
     const p = this.draft();
     if (!p) return;
-    this.draft.set({
-      ...p,
-      colors,
-      color: colors.length ? colors.map((c) => c.name).join(' / ') : p.color,
-    });
+    this.draft.set(applySelectedSwatches(p, this.selectedColors().filter((c) => c.id !== swatch.id)));
   }
 
   isSwatchSelected(id: string): boolean {
-    return this.selectedSwatchIds.includes(id);
+    return this.selectedColors().some((c) => c.id === id);
   }
 
   updatePiece(index: number, patch: Partial<ProductPiece>): void {
@@ -412,7 +655,7 @@ export class AdminProductForm implements OnInit {
         id,
         name: `Peça ${n}`,
         price: 0,
-        priceLabel: formatPriceLabel(0),
+        priceLabel: formatAdminPriceLabel(0),
       },
       0,
     );
@@ -572,14 +815,20 @@ export class AdminProductForm implements OnInit {
     this.saveError.set('');
     const p = this.draft();
     if (!p) return;
-    if (!p.name.trim()) {
-      this.toast.info('Informe o nome do produto.');
+    const name = keepOrTrim(p.name, this.loadedName);
+    if (!name.trim()) {
+      this.nameError.set(NAME_REQUIRED_MESSAGE);
+      queueMicrotask(() => document.getElementById('atelier-product-name')?.focus());
       return;
     }
+    this.nameError.set('');
     if (this.isNew() ? !this.hasCollectionSelected() : !p.collectionSlug) {
-      this.toast.info(this.isNew() ? 'Selecione a coleção do produto.' : 'Selecione uma coleção.');
+      this.collectionError.set(
+        this.isNew() ? COLLECTION_REQUIRED_MESSAGE : 'Selecione uma coleção.',
+      );
       return;
     }
+    this.collectionError.set('');
     const priceParsed = parsePricePtBr(this.priceText);
     if (!priceParsed.ok) {
       this.priceError.set(priceParsed.error);
@@ -592,12 +841,15 @@ export class AdminProductForm implements OnInit {
       this.saveError.set(stockMessage);
     }
 
-    const details = this.detailsText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const details =
+      this.detailsText === this.loadedDetailsText
+        ? this.loadedDetails
+        : this.detailsText
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean);
 
-    let slug = p.slug.trim();
+    let slug = this.isNew() ? p.slug.trim() : keepOrTrim(p.slug, this.loadedSlug);
     if (this.isNew()) {
       slug = uniqueAdminSlug(
         slug || p.name,
@@ -614,20 +866,39 @@ export class AdminProductForm implements OnInit {
       .filter((piece) => piece.name);
 
     const galleryUrls = this.galleryItems().map((m) => m.cdnUrl);
+    const chipsChanged = chipKey(p.colors ?? []) !== this.loadedChipKey;
+    const pricePatch =
+      this.priceText === this.loadedPriceText
+        ? {
+            price: this.loadedPrice,
+            priceCents: this.loadedPriceCents,
+            priceLabel: this.loadedPriceLabel,
+          }
+        : syncPriceFields(priceParsed.reais);
     const next: Product = {
       ...p,
       id: slug,
       slug,
-      name: p.name.trim(),
+      name,
+      color: chipsChanged ? colorLabelFromSwatches(p.colors ?? []) : this.loadedColor,
+      colors: chipsChanged ? paletteColorsForSave(p.colors ?? []) : this.loadedColors,
+      size: keepOrTrim(p.size ?? '', this.loadedSize),
+      fabric: keepOrTrim(p.fabric ?? '', this.loadedFabric),
+      season: keepOrTrim(p.season ?? '', this.loadedSeason),
+      description: keepOrTrim(p.description ?? '', this.loadedDescription),
       collectionSlug: p.collectionSlug || slugFromCollection(p.collection),
       gallery: galleryUrls.length ? galleryUrls : p.gallery,
       details,
-      thumb: p.thumb.trim() || galleryUrls[0] || p.thumb,
+      thumb:
+        p.thumb === this.loadedThumb
+          ? this.loadedThumb
+          : p.thumb.trim() || galleryUrls[0] || p.thumb,
       pieces: pieces.length ? pieces : undefined,
       media: this.galleryItems(),
-      stockQty: parseStockQty(p.stockQty),
+      stockQty:
+        p.stockQty === this.loadedStockQty ? this.loadedStockQty : parseStockQty(p.stockQty),
       status: this.isArchived() ? 'archived' : this.currentStatus(),
-      ...syncPriceFields(priceParsed.reais),
+      ...pricePatch,
     };
 
     this.setSaving(true);
@@ -642,7 +913,8 @@ export class AdminProductForm implements OnInit {
         if (!this.useApi) this.catalog.refreshLocalCatalog();
         if (this.isNew()) this.slugLocked = true;
         this.loadDraft(structuredClone(saved));
-        this.toast.success(this.isNew() ? 'Produto criado.' : 'Salvo.', {
+        this.baseline = this.fingerprint();
+        this.toast.success(this.isNew() ? 'Produto criado.' : SAVED_TOAST, {
           durationMs: SAVE_TOAST_MS,
         });
         this.settleAfterSave();
@@ -651,16 +923,17 @@ export class AdminProductForm implements OnInit {
       error: (err) => {
         this.setSaving(false);
         const message = adminHttpErrorMessage(err);
-        this.saveError.set(message);
-        this.toast.error(message);
         if (message === MULTI_COLLECTION_CHANGE_BLOCKED) {
           void this.confirm.confirm({
             title: 'Coleção',
             message,
             confirmLabel: 'OK',
-            cancelLabel: 'Fechar',
+            hideCancel: true,
           });
+          return;
         }
+        this.saveError.set(message);
+        this.toast.error(message);
       },
     });
   }
@@ -688,9 +961,45 @@ export class AdminProductForm implements OnInit {
     });
   }
 
-  cancel(): void {
-    if (this.saving()) return;
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.saving() || this.isDirty()) {
+      event.preventDefault();
+      event.returnValue = true;
+    }
+  }
+
+  async cancel(): Promise<void> {
+    if (this.saving()) {
+      const ok = await this.confirm.confirm({
+        title: LEAVE_WHILE_SAVING_TITLE,
+        message: LEAVE_WHILE_SAVING_MESSAGE,
+        confirmLabel: 'Sair',
+        cancelLabel: 'Esperar',
+        destructive: true,
+      });
+      if (!ok) return;
+      this.cancelled.emit();
+      return;
+    }
+    if (this.isDirty()) {
+      const ok = await this.confirm.confirm({
+        title: UNSAVED_TITLE,
+        message: UNSAVED_MESSAGE,
+        confirmLabel: 'Descartar',
+        cancelLabel: 'Continuar editando',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     this.cancelled.emit();
+  }
+
+  onDescriptionChange(raw: string): void {
+    const p = this.draft();
+    if (!p) return;
+    const description = raw.length > DESCRIPTION_MAX_LENGTH ? raw.slice(0, DESCRIPTION_MAX_LENGTH) : raw;
+    this.draft.set({ ...p, description });
   }
 
   private setSaving(value: boolean): void {

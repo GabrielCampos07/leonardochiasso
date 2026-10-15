@@ -26,7 +26,7 @@ describe('from-catalog prices', () => {
       stockQty: 3,
     });
     expect(input.price).toBe(289);
-    expect(hangerPriceFromFields(input)).toMatch(/R\$\s*289,00/);
+    expect(hangerPriceFromFields(input).replace(/\u00a0/g, ' ')).toMatch(/R\$\s*289(?!,)/);
   });
 
   it('reads priceCents and optional promo from the API dto', () => {
@@ -53,7 +53,7 @@ describe('from-catalog prices', () => {
     } as never);
     expect(input.price).toBe(400);
     expect(input.promoPrice).toBe(289);
-    expect(hangerPriceFromFields(input)).toMatch(/R\$\s*289,00/);
+    expect(hangerPriceFromFields(input).replace(/\u00a0/g, ' ')).toMatch(/R\$\s*289(?!,)/);
   });
 
   it('keeps product_collections.sortOrder so the scene can hang in membership order', () => {

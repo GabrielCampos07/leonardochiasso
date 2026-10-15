@@ -2,18 +2,29 @@
   <form class="admin-edit__form" (ngSubmit)="save()">
     <fieldset>
       <legend>Básico</legend>
-      <label>
-        Nome
+      <label [class.is-invalid]="nameError()">
+        Nome <span class="admin-edit__req" aria-hidden="true">*</span>
         <input
           id="atelier-product-name"
           type="text"
           [ngModel]="p.name"
           (ngModelChange)="onNameChange($event)"
+          (blur)="onNameBlur()"
           name="name"
           autocomplete="off"
           required
+          [attr.maxlength]="nameMaxLength"
+          [class.is-invalid]="nameError()"
+          [attr.aria-invalid]="nameError() ? 'true' : null"
+          [attr.aria-describedby]="nameError() ? 'atelier-product-name-error atelier-product-name-count' : 'atelier-product-name-count'"
         />
       </label>
+      <p id="atelier-product-name-count" class="admin-edit__count">{{ p.name.length }}/{{ nameMaxLength }}</p>
+      @if (nameError()) {
+        <p id="atelier-product-name-error" class="admin-edit__upload-error" role="alert">
+          {{ nameError() }}
+        </p>
+      }
       @if (isNew()) {
         <label>
           Código (slug)
@@ -54,7 +65,7 @@
         <p class="admin-edit__hint">Rascunho — a peça não aparece no site até ser publicada.</p>
       }
       <div class="admin-edit__field">
-        <span>Coleção</span>
+        <span>Coleção <span class="admin-edit__req" aria-hidden="true">*</span></span>
         <lc-list-picker
           controlId="atelier-product-collection"
           label="Coleção"
@@ -63,11 +74,17 @@
           [value]="p.collectionSlug || ''"
           [resolvedLabel]="selectedCollectionLabel()"
           [loading]="collectionPickerLoading()"
+          [invalid]="!!collectionError()"
+          [describedBy]="collectionError() ? 'atelier-product-collection-error' : ''"
           (valueChange)="onCollectionSlugChange($event)"
           (opened)="refreshCollections()"
         />
       </div>
-      @if (isNew() && collectionFromContext()) {
+      @if (collectionError()) {
+        <p id="atelier-product-collection-error" class="admin-edit__upload-error" role="alert">
+          {{ collectionError() }}
+        </p>
+      } @else if (isNew() && collectionFromContext()) {
         <p class="admin-edit__hint">
           Pré-preenchida pelo contexto da coleção. Pode confirmar ou alterar.
         </p>
@@ -95,11 +112,16 @@
           id="atelier-product-description"
           rows="5"
           [ngModel]="p.description"
-          (ngModelChange)="patchField('description', $event)"
+          (ngModelChange)="onDescriptionChange($event)"
           name="description"
           autocomplete="off"
+          [attr.maxlength]="descriptionMaxLength"
+          [attr.aria-describedby]="'atelier-product-description-count'"
         ></textarea>
       </label>
+      <p id="atelier-product-description-count" class="admin-edit__count">
+        {{ (p.description ?? '').length }}/{{ descriptionMaxLength }}
+      </p>
       <label>
         Detalhes (uma linha por item)
         <textarea
@@ -193,30 +215,64 @@
 
     <fieldset>
       <legend>Cores</legend>
-      <label>
-        Texto da cor
-        <input
-          id="atelier-product-color"
-          type="text"
-          [ngModel]="p.color"
-          (ngModelChange)="patchField('color', $event)"
-          name="color"
-          autocomplete="off"
-        />
-      </label>
-      <p class="admin-edit__hint">Marque as bolinhas de cor (opcional):</p>
-      <div class="admin-edit__swatches">
-        @for (s of swatchOptions; track s.id) {
-          <button
-            type="button"
-            class="admin-edit__swatch"
-            [class.is-on]="isSwatchSelected(s.id)"
-            [style.--sw]="s.hex"
-            [attr.title]="s.name"
-            (click)="toggleSwatch(s)"
-          >
-            {{ s.name }}
+      <div class="admin-edit__chips" role="list" aria-label="Cores escolhidas">
+        @for (c of selectedColors(); track c.id) {
+          <span class="admin-edit__chip" role="listitem">
+            <span class="admin-edit__chip-dot" [style.background]="c.hex"></span>
+            {{ c.name }}
+            <button
+              type="button"
+              class="admin-edit__chip-remove"
+              [attr.aria-label]="'Remover ' + c.name"
+              (click)="removeSwatch(c)"
+            >
+              ×
+            </button>
+          </span>
+        } @empty {
+          <p class="admin-edit__hint">Nenhuma cor escolhida.</p>
+        }
+      </div>
+      @if (availableColorPickerOptions().length) {
+        <div class="admin-edit__field">
+          <span>Adicionar cor</span>
+          <lc-list-picker
+            controlId="atelier-product-color"
+            label="Adicionar cor"
+            placeholder="Escolher cor"
+            [options]="availableColorPickerOptions()"
+            value=""
+            [optionPressed]="true"
+            (valueChange)="addSwatchById($event)"
+          />
+        </div>
+      }
+      <div class="admin-edit__field">
+        <label for="atelier-product-color-custom" [class.is-invalid]="customColorError()">
+          Adicionar cor personalizada
+        </label>
+        <span class="admin-edit__custom-color">
+          <input
+            id="atelier-product-color-custom"
+            type="text"
+            [value]="customColorText"
+            (input)="onCustomColorInput($any($event.target).value)"
+            (keydown)="onCustomColorKeydown($event)"
+            name="customColor"
+            autocomplete="off"
+            [attr.maxlength]="customColorMax + 8"
+            [class.is-invalid]="customColorError()"
+            [attr.aria-invalid]="customColorError() ? 'true' : null"
+            [attr.aria-describedby]="customColorError() ? 'atelier-product-color-custom-error' : null"
+          />
+          <button type="button" class="admin-edit__custom-color-add" (click)="addCustomColor()">
+            Adicionar
           </button>
+        </span>
+        @if (customColorError()) {
+          <p id="atelier-product-color-custom-error" class="admin-edit__upload-error" role="alert">
+            {{ customColorError() }}
+          </p>
         }
       </div>
     </fieldset>
@@ -362,7 +418,7 @@
       >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>
-      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="saving() || archiving()">
+      <button type="button" class="admin-edit__cancel" (click)="cancel()" [disabled]="archiving()">
         Cancelar
       </button>
       @if (!isNew() && !isArchived()) {

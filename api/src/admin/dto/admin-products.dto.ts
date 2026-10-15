@@ -12,6 +12,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
@@ -58,6 +59,7 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(999_999_999, { message: 'Preço máximo: R$ 9.999.999,99.' })
   priceCents!: number;
 
   @IsOptional()
@@ -142,6 +144,7 @@ export class UpdateProductDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(999_999_999, { message: 'Preço máximo: R$ 9.999.999,99.' })
   priceCents?: number;
 
   @IsOptional()

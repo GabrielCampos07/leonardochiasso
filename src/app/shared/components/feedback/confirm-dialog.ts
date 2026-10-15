@@ -17,9 +17,11 @@ import { ConfirmService } from '../../../core/feedback/confirm.service';
           <h2 id="lc-confirm-title" class="lc-confirm__title">{{ dlg.title }}</h2>
           <p class="lc-confirm__message">{{ dlg.message }}</p>
           <div class="lc-confirm__actions">
-            <button type="button" class="lc-confirm__btn" (click)="confirm.cancel()">
-              {{ dlg.cancelLabel }}
-            </button>
+            @if (!dlg.hideCancel) {
+              <button type="button" class="lc-confirm__btn" (click)="confirm.cancel()">
+                {{ dlg.cancelLabel }}
+              </button>
+            }
             <button
               type="button"
               class="lc-confirm__btn"
