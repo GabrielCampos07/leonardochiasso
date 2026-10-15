@@ -45,10 +45,15 @@ import { archiveAwareError, confirmArchivePiece, isArchivedAt } from '../../core
 import { ConfirmService } from '../../core/feedback/confirm.service';
 import { SAVE_TOAST_MS, ToastService } from '../../core/feedback/toast.service';
 import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
+import {
+  PRICE_REQUIRED_MESSAGE,
+  parsePricePtBr,
+} from '../../core/price-input';
 
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
 export const STOCK_NEGATIVE_MESSAGE = 'Estoque não pode ser negativo.';
+export { PRICE_REQUIRED_MESSAGE, PRICE_INVALID_MESSAGE, PRICE_NEGATIVE_MESSAGE } from '../../core/price-input';
 
 /** Parsed stock for the API — rounds, does not clamp negatives. */
 export function parseStockQty(raw: string | number | null | undefined): number {
@@ -62,6 +67,11 @@ export function stockQtyError(raw: string | number | null | undefined): string {
   const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(',', '.'));
   if (Number.isFinite(n) && n < 0) return STOCK_NEGATIVE_MESSAGE;
   return '';
+}
+
+export function formatPriceInput(reais: number): string {
+  if (!Number.isFinite(reais)) return '';
+  return reais.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function collectionLabelForSlug(slug: string, name?: string | null): Collection {
@@ -171,6 +181,8 @@ export class AdminProductForm implements OnInit {
   readonly uploadError = signal('');
   readonly saveError = signal('');
   readonly stockError = signal('');
+  readonly priceError = signal('');
+  priceText = '';
   readonly pendingFileLabel = signal('Escolher fotos');
   private pendingFiles: File[] = [];
 
@@ -231,6 +243,8 @@ export class AdminProductForm implements OnInit {
     this.detailsText = (p.details ?? []).join('\n');
     this.selectedSwatchIds = (p.colors ?? []).map((c) => c.id);
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
+    this.priceText = formatPriceInput(p.price);
+    this.priceError.set('');
   }
 
   currentStatus(): ProductStatusValue {
@@ -322,8 +336,14 @@ export class AdminProductForm implements OnInit {
   onPriceChange(raw: string | number): void {
     const p = this.draft();
     if (!p) return;
-    const n = typeof raw === 'number' ? raw : Number(String(raw).replace(/\D/g, '')) || 0;
-    this.draft.set({ ...p, ...syncPriceFields(n) });
+    this.priceText = String(raw ?? '');
+    const parsed = parsePricePtBr(raw);
+    if (!parsed.ok) {
+      this.priceError.set(parsed.error);
+      return;
+    }
+    this.priceError.set('');
+    this.draft.set({ ...p, ...syncPriceFields(parsed.reais) });
   }
 
   onStockQtyChange(raw: string | number): void {
@@ -552,6 +572,12 @@ export class AdminProductForm implements OnInit {
       this.toast.info(this.isNew() ? 'Selecione a coleção do produto.' : 'Selecione uma coleção.');
       return;
     }
+    const priceParsed = parsePricePtBr(this.priceText);
+    if (!priceParsed.ok) {
+      this.priceError.set(priceParsed.error);
+      return;
+    }
+    this.priceError.set('');
     const stockMessage = stockQtyError(p.stockQty);
     if (stockMessage) {
       this.stockError.set(stockMessage);
@@ -593,7 +619,7 @@ export class AdminProductForm implements OnInit {
       media: this.galleryItems(),
       stockQty: parseStockQty(p.stockQty),
       status: this.isArchived() ? 'archived' : this.currentStatus(),
-      ...syncPriceFields(p.price),
+      ...syncPriceFields(priceParsed.reais),
     };
 
     this.setSaving(true);
