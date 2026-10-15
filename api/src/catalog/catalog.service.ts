@@ -12,11 +12,28 @@ import {
   CollectionDto,
   ProductDto,
 } from './dto/catalog.dto';
-import {
-  orderCollectionMembersByGenderBlocks,
-  parseOptionalGenderList,
-  sortByPublicGenderBlocks,
-} from './gender';
+import { parseOptionalGenderList, sortByPublicGenderBlocks } from './gender';
+
+/** Membership `product_collections.sortOrder` for this collection slug. */
+export function membershipSortOrder(
+  product: { collections?: { slug: string; sortOrder?: number }[] | null },
+  collectionSlug: string,
+): number {
+  const hit = product.collections?.find((row) => row.slug === collectionSlug);
+  if (hit != null && Number.isFinite(hit.sortOrder)) return Number(hit.sortOrder);
+  return Number.MAX_SAFE_INTEGER;
+}
+
+/** sortOrder first; productId when two members share a sortOrder. */
+export function compareMembershipSortOrder(
+  a: { id: string; collections?: { slug: string; sortOrder?: number }[] | null },
+  b: { id: string; collections?: { slug: string; sortOrder?: number }[] | null },
+  collectionSlug: string,
+): number {
+  const byOrder = membershipSortOrder(a, collectionSlug) - membershipSortOrder(b, collectionSlug);
+  if (byOrder !== 0) return byOrder;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
 
 /** Coleção pública = publicada (publishedAt definido) e não arquivada. */
 export const publicCollectionWhere = {
@@ -78,6 +95,9 @@ export class CatalogService {
         orderBy: [{ recommendOrder: 'asc' }, { createdAt: 'asc' }],
       });
       const mapped = products.map(mapProduct);
+      if (collection) {
+        return [...mapped].sort((a, b) => compareMembershipSortOrder(a, b, collection));
+      }
       if (gender) return mapped;
       return sortByPublicGenderBlocks(mapped);
     });
@@ -125,13 +145,10 @@ export class CatalogService {
             where: {
               product: { status: ProductStatus.published, archivedAt: null },
             },
-            orderBy: { sortOrder: 'asc' },
+            orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
             include: {
               product: { include: publicProductInclude },
             },
-          },
-          genderOrders: {
-            orderBy: { sortOrder: 'asc' },
           },
         },
       });
@@ -147,15 +164,7 @@ export class CatalogService {
         publishedAt: collection.publishedAt?.toISOString() ?? null,
         archivedAt: null,
         coverImage: resolveCollectionCoverImage(collection.slug, collection.products),
-        products: orderCollectionMembersByGenderBlocks(
-          collection.products.map((pc) => ({
-            productId: pc.productId,
-            sortOrder: pc.sortOrder,
-            gender: pc.product.category.slug,
-            product: pc.product,
-          })),
-          collection.genderOrders,
-        ).map((member) => mapProduct(member.product)),
+        products: collection.products.map((pc) => mapProduct(pc.product)),
       };
     });
   }
