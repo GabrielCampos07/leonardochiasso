@@ -27,6 +27,11 @@ import {
   applySelectedSwatches,
   collectionSelectLabel,
   colorLabelFromSwatches,
+  CUSTOM_COLOR_DUPLICATE_MESSAGE,
+  CUSTOM_COLOR_REQUIRED_MESSAGE,
+  CUSTOM_COLOR_TOO_LONG_MESSAGE,
+  customColorError,
+  keepOrTrim,
   LEAVE_WHILE_SAVING_MESSAGE,
   LEAVE_WHILE_SAVING_TITLE,
   parseStockQty,
@@ -139,6 +144,20 @@ describe('selectedSwatchesFromProduct', () => {
     const colors = selectedSwatchesFromProduct({ color: 'Cru natural' }, ADMIN_SWATCH_OPTIONS);
     expect(colors.map((c) => c.name)).toEqual(['Cru natural']);
     expect(colorLabelFromSwatches(colors)).toBe('Cru natural');
+  });
+
+  it('validates a custom color: empty, too long, and case-insensitive duplicate', () => {
+    expect(customColorError('   ', [])).toBe(CUSTOM_COLOR_REQUIRED_MESSAGE);
+    expect(customColorError('A'.repeat(41), [])).toBe(CUSTOM_COLOR_TOO_LONG_MESSAGE);
+    expect(
+      customColorError('CRU NATURAL', [{ id: 'custom:cru natural', name: 'Cru natural', hex: '#ccc' }]),
+    ).toBe(CUSTOM_COLOR_DUPLICATE_MESSAGE);
+    expect(customColorError('Cru natural', [])).toBe('');
+  });
+
+  it('keeps the loaded string when the field was not edited', () => {
+    expect(keepOrTrim('  ÚNICO  ', '  ÚNICO  ')).toBe('  ÚNICO  ');
+    expect(keepOrTrim('  M  ', '  ÚNICO  ')).toBe('M');
   });
 
   it('drops custom: chips from the colors array kept for save', () => {
@@ -332,6 +351,97 @@ describe('AdminProductForm', () => {
     expect(spacedPayload.colors).toBeUndefined();
     expect(spacedPayload.color).toBe(spaced.color);
     expect(spacedPayload.colors).toEqual(spaced.colors);
+  });
+
+  it('adds a custom color from the text field without dropping the others', () => {
+    fixture.componentInstance.addSwatchById('off-white');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#atelier-product-color-custom')).toBeTruthy();
+
+    fixture.componentInstance.onCustomColorInput('  Cru natural  ');
+    fixture.componentInstance.addCustomColor();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe('');
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.name)).toEqual([
+      'Off-white',
+      'Cru natural',
+    ]);
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Off-white"]')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('[aria-label="Remover Cru natural"]')).toBeTruthy();
+
+    saveProduct$.and.returnValue(of(sampleProduct({ color: 'Off-white / Cru natural' })));
+    fixture.componentInstance.save();
+    const payload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(payload.color).toBe('Off-white / Cru natural');
+    expect(payload.colors?.map((c) => c.id)).toEqual(['off-white']);
+    expect(JSON.stringify(payload)).not.toContain('custom:');
+  });
+
+  it('adds a custom color on Enter and shows inline Portuguese errors', () => {
+    (fixture.nativeElement.querySelector('.admin-edit__custom-color-add') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe(CUSTOM_COLOR_REQUIRED_MESSAGE);
+    expect(fixture.nativeElement.querySelector('#atelier-product-color-custom-error')?.textContent?.trim()).toBe(
+      CUSTOM_COLOR_REQUIRED_MESSAGE,
+    );
+
+    fixture.componentInstance.onCustomColorInput('A'.repeat(41));
+    fixture.componentInstance.addCustomColor();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe(CUSTOM_COLOR_TOO_LONG_MESSAGE);
+
+    fixture.componentInstance.addSwatchById('black');
+    fixture.componentInstance.onCustomColorInput('BLACK');
+    fixture.componentInstance.addCustomColor();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.customColorError()).toBe(CUSTOM_COLOR_DUPLICATE_MESSAGE);
+
+    fixture.componentInstance.onCustomColorInput('off-white');
+    const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
+    spyOn(enter, 'preventDefault');
+    fixture.componentInstance.onCustomColorKeydown(enter);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(fixture.componentInstance.draft()?.colors?.map((c) => c.id)).toContain('off-white');
+    expect(fixture.componentInstance.customColorText).toBe('');
+  });
+
+  it('saves untouched padded fields exactly as stored', () => {
+    const stored = sampleProduct({
+      size: '  ÚNICO  ',
+      fabric: 'linho ',
+      season: ' Seasonless',
+      description: 'texto  ',
+      color: 'Cru natural',
+      colors: undefined,
+    });
+    fixture.componentRef.setInput('isNew', false);
+    fixture.componentRef.setInput('product', stored);
+    fixture.componentInstance.ngOnInit();
+    fixture.detectChanges();
+    saveProduct$.and.returnValue(of(stored));
+    fixture.componentInstance.save();
+    const payload = saveProduct$.calls.mostRecent().args[0] as Product;
+    expect(payload.size).toBe('  ÚNICO  ');
+    expect(payload.fabric).toBe('linho ');
+    expect(payload.season).toBe(' Seasonless');
+    expect(payload.description).toBe('texto  ');
+    expect(payload.color).toBe('Cru natural');
+    expect(payload.colors).toBeUndefined();
+  });
+
+  it('asks the browser before unload when dirty or saving', () => {
+    const event = { preventDefault: jasmine.createSpy('preventDefault'), returnValue: false };
+    fixture.componentInstance.onBeforeUnload(event as unknown as BeforeUnloadEvent);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+
+    fixture.componentInstance.onNameChange('Look alterado');
+    fixture.componentInstance.onBeforeUnload(event as unknown as BeforeUnloadEvent);
+    expect(event.preventDefault).toHaveBeenCalled();
+
+    event.preventDefault.calls.reset();
+    fixture.componentInstance['saving'].set(true);
+    fixture.componentInstance.onBeforeUnload(event as unknown as BeforeUnloadEvent);
+    expect(event.preventDefault).toHaveBeenCalled();
   });
 
   it('picks colors as chips, never mixed with the old text field', () => {

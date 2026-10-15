@@ -247,6 +247,34 @@
           />
         </div>
       }
+      <div class="admin-edit__field">
+        <label [class.is-invalid]="customColorError()">
+          Adicionar cor personalizada
+          <span class="admin-edit__custom-color">
+            <input
+              id="atelier-product-color-custom"
+              type="text"
+              [value]="customColorText"
+              (input)="onCustomColorInput($any($event.target).value)"
+              (keydown)="onCustomColorKeydown($event)"
+              name="customColor"
+              autocomplete="off"
+              [attr.maxlength]="customColorMax + 8"
+              [class.is-invalid]="customColorError()"
+              [attr.aria-invalid]="customColorError() ? 'true' : null"
+              [attr.aria-describedby]="customColorError() ? 'atelier-product-color-custom-error' : null"
+            />
+            <button type="button" class="admin-edit__custom-color-add" (click)="addCustomColor()">
+              Adicionar
+            </button>
+          </span>
+        </label>
+        @if (customColorError()) {
+          <p id="atelier-product-color-custom-error" class="admin-edit__upload-error" role="alert">
+            {{ customColorError() }}
+          </p>
+        }
+      </div>
     </fieldset>
 
     <fieldset>

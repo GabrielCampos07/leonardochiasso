@@ -56,6 +56,14 @@ describe('parsePricePtBr', () => {
     expect(parsePricePtBr('0,00')).toEqual({ ok: true, reais: 0 });
   });
 
+  it('parses "0,01" as 0.01', () => {
+    expect(parsePricePtBr('0,01')).toEqual({ ok: true, reais: 0.01 });
+  });
+
+  it('parses "1.000" as 1000.00', () => {
+    expect(parsePricePtBr('1.000')).toEqual({ ok: true, reais: 1000 });
+  });
+
   it('rejects values above R$ 9.999.999,99', () => {
     expect(parsePricePtBr('9.999.999,99')).toEqual({ ok: true, reais: 9_999_999.99 });
     expect(parsePricePtBr('10.000.000')).toEqual({ ok: false, error: PRICE_MAX_MESSAGE });

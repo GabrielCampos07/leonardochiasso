@@ -321,6 +321,36 @@
   cursor: pointer;
 }
 
+.admin-edit__custom-color {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.admin-edit__custom-color input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-edit__custom-color-add {
+  flex: none;
+  min-height: 48px;
+  padding: 10px 16px;
+  border: 1px solid var(--lc-void);
+  background: var(--lc-white);
+  color: var(--lc-void);
+  font-family: var(--lc-font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.admin-edit__custom-color-add:hover {
+  background: var(--lc-void);
+  color: var(--lc-white);
+}
+
 .admin-edit__add-piece {
   width: 100%;
   min-height: 52px;

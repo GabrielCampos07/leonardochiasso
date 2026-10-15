@@ -1,5 +1,5 @@
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, OnInit, computed, inject, input, output, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { LcListPicker, ListPickerOption } from '../../shared/components/list-picker/list-picker';
@@ -100,6 +100,28 @@ export const UNSAVED_MESSAGE = 'Há alterações que ainda não foram salvas.';
 export const LEAVE_WHILE_SAVING_TITLE = 'Sair agora?';
 export const LEAVE_WHILE_SAVING_MESSAGE = 'O salvamento ainda está em andamento.';
 export const CUSTOM_SWATCH_PREFIX = 'custom:';
+export const CUSTOM_COLOR_MAX = 40;
+export const CUSTOM_COLOR_REQUIRED_MESSAGE = 'Informe a cor.';
+export const CUSTOM_COLOR_TOO_LONG_MESSAGE = 'A cor pode ter no máximo 40 caracteres.';
+export const CUSTOM_COLOR_DUPLICATE_MESSAGE = 'Essa cor já foi adicionada.';
+
+export function keepOrTrim(current: string, loaded: string): string {
+  return current === loaded ? loaded : current.trim();
+}
+
+export function customColorError(
+  raw: string,
+  selected: readonly ProductColor[],
+): string {
+  const name = raw.trim();
+  if (!name) return CUSTOM_COLOR_REQUIRED_MESSAGE;
+  if (name.length > CUSTOM_COLOR_MAX) return CUSTOM_COLOR_TOO_LONG_MESSAGE;
+  const key = name.toLowerCase();
+  if (selected.some((c) => c.name.toLowerCase() === key || c.id.toLowerCase() === key)) {
+    return CUSTOM_COLOR_DUPLICATE_MESSAGE;
+  }
+  return '';
+}
 
 export function colorLabelFromSwatches(colors: readonly ProductColor[]): string {
   return colors.map((c) => c.name).join(' / ');
@@ -297,6 +319,9 @@ export class AdminProductForm implements OnInit {
   readonly collectionError = signal('');
   readonly priceError = signal('');
   priceText = '';
+  customColorText = '';
+  readonly customColorError = signal('');
+  readonly customColorMax = CUSTOM_COLOR_MAX;
   readonly pendingFileLabel = signal('Escolher fotos');
   private pendingFiles: File[] = [];
 
@@ -306,6 +331,20 @@ export class AdminProductForm implements OnInit {
   private loadedColor = '';
   private loadedColors: ProductColor[] | undefined;
   private loadedChipKey = '';
+  private loadedName = '';
+  private loadedSlug = '';
+  private loadedSize = '';
+  private loadedFabric = '';
+  private loadedSeason = '';
+  private loadedDescription = '';
+  private loadedDetails: string[] = [];
+  private loadedDetailsText = '';
+  private loadedThumb = '';
+  private loadedPrice = 0;
+  private loadedPriceCents = 0;
+  private loadedPriceLabel = '';
+  private loadedPriceText = '';
+  private loadedStockQty = 0;
 
   ngOnInit(): void {
     this.loadDraft(structuredClone(this.product()));
@@ -356,6 +395,20 @@ export class AdminProductForm implements OnInit {
     this.loadedColor = p.color ?? '';
     this.loadedColors = p.colors;
     this.loadedChipKey = chipKey(colors);
+    this.loadedName = p.name;
+    this.loadedSlug = p.slug;
+    this.loadedSize = p.size ?? '';
+    this.loadedFabric = p.fabric ?? '';
+    this.loadedSeason = p.season ?? '';
+    this.loadedDescription = p.description ?? '';
+    this.loadedDetails = [...(p.details ?? [])];
+    this.loadedDetailsText = (p.details ?? []).join('\n');
+    this.loadedThumb = p.thumb ?? '';
+    this.loadedPrice = p.price;
+    this.loadedPriceLabel = p.priceLabel;
+    this.loadedStockQty = p.stockQty ?? 0;
+    this.customColorText = '';
+    this.customColorError.set('');
     const cents = Number.isFinite(p.priceCents)
       ? Number(p.priceCents)
       : Math.round((p.price ?? 0) * 100);
@@ -371,9 +424,11 @@ export class AdminProductForm implements OnInit {
       ),
       ...syncPriceFields(cents / 100),
     });
-    this.detailsText = (p.details ?? []).join('\n');
+    this.detailsText = this.loadedDetailsText;
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
     this.priceText = formatPriceCentsInput(cents);
+    this.loadedPriceCents = cents;
+    this.loadedPriceText = this.priceText;
     this.priceError.set('');
     this.baseline = this.fingerprint();
   }
@@ -530,6 +585,30 @@ export class AdminProductForm implements OnInit {
   addSwatchById(id: string): void {
     const swatch = this.swatchOptions.find((s) => s.id === id);
     if (swatch) this.addSwatch(swatch);
+  }
+
+  onCustomColorInput(raw: string): void {
+    this.customColorText = raw;
+    if (this.customColorError()) {
+      this.customColorError.set(customColorError(raw, this.selectedColors()));
+    }
+  }
+
+  onCustomColorKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    this.addCustomColor();
+  }
+
+  addCustomColor(): void {
+    const error = customColorError(this.customColorText, this.selectedColors());
+    this.customColorError.set(error);
+    if (error) return;
+    const name = this.customColorText.trim();
+    const swatch = matchKnownColor(name, this.swatchOptions) ?? freeTextSwatch(name);
+    this.addSwatch(swatch);
+    this.customColorText = '';
+    this.customColorError.set('');
   }
 
   addSwatch(swatch: ProductColor): void {
@@ -734,8 +813,8 @@ export class AdminProductForm implements OnInit {
     this.saveError.set('');
     const p = this.draft();
     if (!p) return;
-    const name = p.name.trim();
-    if (!name) {
+    const name = keepOrTrim(p.name, this.loadedName);
+    if (!name.trim()) {
       this.nameError.set(NAME_REQUIRED_MESSAGE);
       queueMicrotask(() => document.getElementById('atelier-product-name')?.focus());
       return;
@@ -760,12 +839,15 @@ export class AdminProductForm implements OnInit {
       this.saveError.set(stockMessage);
     }
 
-    const details = this.detailsText
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const details =
+      this.detailsText === this.loadedDetailsText
+        ? this.loadedDetails
+        : this.detailsText
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean);
 
-    let slug = p.slug.trim();
+    let slug = this.isNew() ? p.slug.trim() : keepOrTrim(p.slug, this.loadedSlug);
     if (this.isNew()) {
       slug = uniqueAdminSlug(
         slug || p.name,
@@ -783,6 +865,14 @@ export class AdminProductForm implements OnInit {
 
     const galleryUrls = this.galleryItems().map((m) => m.cdnUrl);
     const chipsChanged = chipKey(p.colors ?? []) !== this.loadedChipKey;
+    const pricePatch =
+      this.priceText === this.loadedPriceText
+        ? {
+            price: this.loadedPrice,
+            priceCents: this.loadedPriceCents,
+            priceLabel: this.loadedPriceLabel,
+          }
+        : syncPriceFields(priceParsed.reais);
     const next: Product = {
       ...p,
       id: slug,
@@ -790,19 +880,23 @@ export class AdminProductForm implements OnInit {
       name,
       color: chipsChanged ? colorLabelFromSwatches(p.colors ?? []) : this.loadedColor,
       colors: chipsChanged ? paletteColorsForSave(p.colors ?? []) : this.loadedColors,
-      size: (p.size ?? '').trim(),
-      fabric: (p.fabric ?? '').trim(),
-      season: (p.season ?? '').trim(),
-      description: (p.description ?? '').trim(),
+      size: keepOrTrim(p.size ?? '', this.loadedSize),
+      fabric: keepOrTrim(p.fabric ?? '', this.loadedFabric),
+      season: keepOrTrim(p.season ?? '', this.loadedSeason),
+      description: keepOrTrim(p.description ?? '', this.loadedDescription),
       collectionSlug: p.collectionSlug || slugFromCollection(p.collection),
       gallery: galleryUrls.length ? galleryUrls : p.gallery,
       details,
-      thumb: p.thumb.trim() || galleryUrls[0] || p.thumb,
+      thumb:
+        p.thumb === this.loadedThumb
+          ? this.loadedThumb
+          : p.thumb.trim() || galleryUrls[0] || p.thumb,
       pieces: pieces.length ? pieces : undefined,
       media: this.galleryItems(),
-      stockQty: parseStockQty(p.stockQty),
+      stockQty:
+        p.stockQty === this.loadedStockQty ? this.loadedStockQty : parseStockQty(p.stockQty),
       status: this.isArchived() ? 'archived' : this.currentStatus(),
-      ...syncPriceFields(priceParsed.reais),
+      ...pricePatch,
     };
 
     this.setSaving(true);
@@ -850,6 +944,14 @@ export class AdminProductForm implements OnInit {
         );
       },
     });
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.saving() || this.isDirty()) {
+      event.preventDefault();
+      event.returnValue = true;
+    }
   }
 
   async cancel(): Promise<void> {
