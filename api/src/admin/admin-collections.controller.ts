@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -63,7 +64,23 @@ export class AdminCollectionsController {
     @Param('slug') slug: string,
     @Body() dto: SetCollectionProductsDto,
   ) {
-    return this.collections.setProducts(slug, dto.productSlugs, dto.keepMissing === true);
+    return this.collections.setProducts(slug, dto.productSlugs);
+  }
+
+  @Post(':slug/products/append')
+  appendProducts(
+    @Param('slug') slug: string,
+    @Body() dto: SetCollectionProductsDto,
+  ) {
+    return this.collections.appendProducts(slug, dto.productSlugs);
+  }
+
+  @Delete(':slug/products/:productSlug')
+  removeProduct(
+    @Param('slug') slug: string,
+    @Param('productSlug') productSlug: string,
+  ) {
+    return this.collections.removeProduct(slug, productSlug);
   }
 
   @Get(':slug/order')

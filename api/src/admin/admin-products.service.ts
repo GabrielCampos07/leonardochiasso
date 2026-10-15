@@ -364,7 +364,9 @@ export class AdminProductsService {
       const found = new Set(products.map((p) => p.slug));
       const missing = orderedSlugs.filter((s) => !found.has(s));
       throw new BadRequestException(
-        `Unknown product slugs: ${missing.join(', ')}`,
+        missing.length === 0
+          ? 'A lista de peças contém slugs repetidos.'
+          : `Unknown product slugs: ${missing.join(', ')}`,
       );
     }
 

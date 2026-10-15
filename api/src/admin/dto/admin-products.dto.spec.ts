@@ -5,6 +5,7 @@ import {
   CollectionGenderQueryDto,
   CreateProductDto,
   ReorderCollectionGenderDto,
+  SetCollectionProductsDto,
   UpdateProductDto,
 } from './admin-products.dto';
 
@@ -88,5 +89,19 @@ describe('admin product gender DTO', () => {
       plainToInstance(ReorderCollectionGenderDto, { productIds: ['not-a-uuid'] }),
     );
     expect(bad.length).toBeGreaterThan(0);
+  });
+
+  it('rejects duplicate slugs on PUT /products', async () => {
+    const ok = await validate(
+      plainToInstance(SetCollectionProductsDto, { productSlugs: ['peca-a', 'peca-b'] }),
+    );
+    expect(ok).toEqual([]);
+
+    const dup = await validate(
+      plainToInstance(SetCollectionProductsDto, {
+        productSlugs: ['peca-a', 'peca-a'],
+      }),
+    );
+    expect(JSON.stringify(dup)).toContain('A lista de peças contém slugs repetidos.');
   });
 });

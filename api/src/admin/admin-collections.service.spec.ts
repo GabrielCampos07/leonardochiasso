@@ -126,7 +126,7 @@ describe('AdminCollectionsService archive', () => {
     expect(prisma.collection.update).not.toHaveBeenCalled();
   });
 
-  it('keepMissing merges live order into full membership so archived stay linked', () => {
+  it('merges a live gender list into membership so archived keep their slot', () => {
     expect(mergeLiveOrderIntoMembership(['arquivo', 'a', 'b', 'c'], ['c', 'a', 'b'])).toEqual([
       'arquivo',
       'c',
