@@ -18,7 +18,6 @@ import {
 } from '../catalog/gender';
 import {
   mergeLiveOrderIntoMembership,
-  rewriteDerivedGenderOrders,
   sortMembersBySortOrder,
   syncDerivedGenderOrders,
 } from './membership-order';
@@ -141,95 +140,239 @@ export class AdminCollectionsService {
     productSlugs: string[],
     keepMissing = false,
   ): Promise<CollectionDto & { productSlugs: string[] }> {
-    const collection = await this.prisma.collection.findUnique({ where: { slug } });
-    if (!collection) {
-      throw new NotFoundException(`Collection not found: ${slug}`);
-    }
+    return this.prisma.$transaction(
+      async (tx) => {
+        const collection = await tx.collection.findUnique({ where: { slug } });
+        if (!collection) {
+          throw new NotFoundException(`Collection not found: ${slug}`);
+        }
 
-    const nextSlugs = await this.prisma.$transaction(async (tx) => {
-      const current = await tx.productCollection.findMany({
-        where: { collectionId: collection.id },
-        orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
-        include: { product: { select: { slug: true } } },
-      });
-      const ordered = keepMissing
-        ? mergeLiveOrderIntoMembership(
-            current.map((row) => row.product.slug),
-            productSlugs,
-          )
-        : productSlugs;
-
-      const products = await tx.product.findMany({
-        where: { slug: { in: ordered } },
-        select: { id: true, slug: true, category: { select: { slug: true } } },
-      });
-      if (products.length !== ordered.length) {
-        const found = new Set(products.map((p) => p.slug));
-        const missing = ordered.filter((s) => !found.has(s));
-        throw new BadRequestException(
-          `Unknown product slugs: ${missing.join(', ')}`,
-        );
-      }
-      const bySlug = new Map(products.map((p) => [p.slug, p]));
-      const nextIds = ordered.map(
-        (productSlug) => requireProductBySlug(bySlug, productSlug).id,
-      );
-      const nextIdSet = new Set(nextIds);
-      const currentIds = new Set(current.map((row) => row.productId));
-      const leaving = current
-        .map((row) => row.productId)
-        .filter((id) => !nextIdSet.has(id));
-      // keepMissing keeps every current member, so leaving is empty.
-      if (leaving.length > 0) {
-        await tx.productCollection.deleteMany({
-          where: { collectionId: collection.id, productId: { in: leaving } },
+        const current = await tx.productCollection.findMany({
+          where: { collectionId: collection.id },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          include: { product: { select: { slug: true } } },
         });
-      }
+        const ordered = keepMissing
+          ? mergeLiveOrderIntoMembership(
+              current.map((row) => row.product.slug),
+              productSlugs,
+            )
+          : productSlugs;
 
-      const newcomers: {
-        collectionId: string;
-        productId: string;
-        sortOrder: number;
-      }[] = [];
-      for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
-        const productId = nextIds[sortOrder]!;
-        if (currentIds.has(productId)) {
-          await tx.productCollection.update({
-            where: {
-              productId_collectionId: {
-                productId,
-                collectionId: collection.id,
-              },
-            },
-            data: { sortOrder },
-          });
-        } else {
-          newcomers.push({
-            collectionId: collection.id,
-            productId,
-            sortOrder,
+        const products = await tx.product.findMany({
+          where: { slug: { in: ordered } },
+          select: {
+            id: true,
+            slug: true,
+            status: true,
+            category: { select: { slug: true } },
+          },
+        });
+        if (products.length !== ordered.length) {
+          const found = new Set(products.map((p) => p.slug));
+          const missing = ordered.filter((s) => !found.has(s));
+          throw new BadRequestException(
+            `Unknown product slugs: ${missing.join(', ')}`,
+          );
+        }
+        const bySlug = new Map(products.map((p) => [p.slug, p]));
+        const nextIds = ordered.map(
+          (productSlug) => requireProductBySlug(bySlug, productSlug).id,
+        );
+        const nextIdSet = new Set(nextIds);
+        const currentById = new Map(current.map((row) => [row.productId, row]));
+        const leaving = current
+          .map((row) => row.productId)
+          .filter((id) => !nextIdSet.has(id));
+        if (leaving.length > 0) {
+          await tx.productCollection.deleteMany({
+            where: { collectionId: collection.id, productId: { in: leaving } },
           });
         }
-      }
-      if (newcomers.length > 0) {
-        await tx.productCollection.createMany({ data: newcomers });
-      }
 
-      await rewriteDerivedGenderOrders(
-        tx,
-        collection.id,
-        ordered.map((productSlug) => {
-          const product = requireProductBySlug(bySlug, productSlug);
-          return { productId: product.id, gender: product.category.slug };
-        }),
-      );
-      return ordered;
-    });
+        const newcomers: {
+          collectionId: string;
+          productId: string;
+          sortOrder: number;
+        }[] = [];
+        for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
+          const productId = nextIds[sortOrder]!;
+          const existing = currentById.get(productId);
+          if (existing) {
+            if (existing.sortOrder === sortOrder) continue;
+            await tx.productCollection.update({
+              where: {
+                productId_collectionId: {
+                  productId,
+                  collectionId: collection.id,
+                },
+              },
+              data: { sortOrder },
+            });
+          } else {
+            newcomers.push({
+              collectionId: collection.id,
+              productId,
+              sortOrder,
+            });
+          }
+        }
+        if (newcomers.length > 0) {
+          await tx.productCollection.createMany({ data: newcomers });
+        }
 
-    return {
-      ...mapCollection(collection, nextSlugs.length),
-      productSlugs: nextSlugs,
-    };
+        await syncDerivedGenderOrders(
+          tx,
+          collection.id,
+          ordered.map((productSlug) => {
+            const product = requireProductBySlug(bySlug, productSlug);
+            return { productId: product.id, gender: productGenderSlug(product) };
+          }),
+        );
+
+        return {
+          ...mapCollection(collection, ordered.length),
+          productSlugs: ordered,
+        };
+      },
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Add pieces at the end. Inserts only newcomers — never updates or
+   * deletes other `product_collections` rows (`keepMissing` semantics).
+   */
+  async appendProducts(
+    slug: string,
+    incomingSlugs: string[],
+  ): Promise<CollectionDto & { productSlugs: string[] }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const collection = await tx.collection.findUnique({ where: { slug } });
+        if (!collection) {
+          throw new NotFoundException(`Collection not found: ${slug}`);
+        }
+
+        const current = await tx.productCollection.findMany({
+          where: { collectionId: collection.id },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          include: {
+            product: { select: { slug: true, category: { select: { slug: true } } } },
+          },
+        });
+        const have = new Set(current.map((row) => row.product.slug));
+        const newcomers = uniqueSlugs(incomingSlugs).filter((item) => !have.has(item));
+        const keptSlugs = current.map((row) => row.product.slug);
+
+        if (newcomers.length === 0) {
+          return {
+            ...mapCollection(collection, keptSlugs.length),
+            productSlugs: keptSlugs,
+          };
+        }
+
+        const products = await tx.product.findMany({
+          where: { slug: { in: newcomers } },
+          select: { id: true, slug: true, status: true, category: { select: { slug: true } } },
+        });
+        if (products.length !== newcomers.length) {
+          const found = new Set(products.map((p) => p.slug));
+          const missing = newcomers.filter((item) => !found.has(item));
+          throw new BadRequestException(
+            `Unknown product slugs: ${missing.join(', ')}`,
+          );
+        }
+        const bySlug = new Map(products.map((p) => [p.slug, p]));
+        const maxSort = current.reduce((max, row) => Math.max(max, row.sortOrder), -1);
+        await tx.productCollection.createMany({
+          data: newcomers.map((productSlug, index) => ({
+            collectionId: collection.id,
+            productId: requireProductBySlug(bySlug, productSlug).id,
+            sortOrder: maxSort + 1 + index,
+          })),
+        });
+
+        const members = [
+          ...current.map((row) => ({
+            productId: row.productId,
+            gender: productGenderSlug(row.product),
+          })),
+          ...newcomers.map((productSlug) => {
+            const product = requireProductBySlug(bySlug, productSlug);
+            return { productId: product.id, gender: productGenderSlug(product) };
+          }),
+        ];
+        await syncDerivedGenderOrders(tx, collection.id, members);
+
+        return {
+          ...mapCollection(collection, keptSlugs.length + newcomers.length),
+          productSlugs: [...keptSlugs, ...newcomers],
+        };
+      },
+      { timeout: 15_000 },
+    );
+  }
+
+  /**
+   * Remove one member. Deletes only that `product_collections` row and
+   * that product's derived gender-order rows. Other pieces stay untouched.
+   */
+  async removeProduct(
+    slug: string,
+    productSlug: string,
+  ): Promise<CollectionDto & { productSlugs: string[] }> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const collection = await tx.collection.findUnique({ where: { slug } });
+        if (!collection) {
+          throw new NotFoundException(`Collection not found: ${slug}`);
+        }
+        const product = await tx.product.findUnique({
+          where: { slug: productSlug },
+          select: { id: true },
+        });
+        if (!product) {
+          throw new NotFoundException(`Product not found: ${productSlug}`);
+        }
+        const row = await tx.productCollection.findUnique({
+          where: {
+            productId_collectionId: {
+              productId: product.id,
+              collectionId: collection.id,
+            },
+          },
+        });
+        if (!row) {
+          throw new NotFoundException(
+            `Product ${productSlug} is not in collection ${slug}`,
+          );
+        }
+
+        await tx.productCollection.delete({
+          where: {
+            productId_collectionId: {
+              productId: product.id,
+              collectionId: collection.id,
+            },
+          },
+        });
+        await tx.collectionGenderOrder.deleteMany({
+          where: { collectionId: collection.id, productId: product.id },
+        });
+
+        const remaining = await tx.productCollection.findMany({
+          where: { collectionId: collection.id },
+          orderBy: [{ sortOrder: 'asc' }, { productId: 'asc' }],
+          include: { product: { select: { slug: true } } },
+        });
+        return {
+          ...mapCollection(collection, remaining.length),
+          productSlugs: remaining.map((item) => item.product.slug),
+        };
+      },
+      { timeout: 15_000 },
+    );
   }
 
   /** All members in `sortOrder`, including archived products. */
@@ -404,6 +547,31 @@ function requireProductBySlug<T extends { slug: string }>(
     throw new BadRequestException(`Unknown product slug: ${slug}`);
   }
   return product;
+}
+
+function productGenderSlug(product: {
+  slug?: string;
+  category?: { slug: string } | null;
+}): string {
+  const gender = product.category?.slug;
+  if (!gender) {
+    throw new BadRequestException(
+      `Product missing category: ${product.slug ?? 'unknown'}`,
+    );
+  }
+  return gender;
+}
+
+function uniqueSlugs(slugs: readonly string[]): string[] {
+  const next: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of slugs) {
+    const slug = raw.trim();
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    next.push(slug);
+  }
+  return next;
 }
 
 function mapCollection(
