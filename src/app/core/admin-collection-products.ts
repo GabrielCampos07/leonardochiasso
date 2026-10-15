@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, firstValueFrom, map, of, throwError } from 'rxjs';
-import { adminHttpErrorMessage } from './admin-catalog.service';
+import { Observable, catchError, firstValueFrom, from, map, of, switchMap, tap, throwError } from 'rxjs';
+import { AdminCatalogService, adminHttpErrorMessage } from './admin-catalog.service';
 import {
   LISTA_ORDER_MAINTENANCE_NOTICE,
   LISTA_REORDER_ENABLED,
@@ -11,6 +11,7 @@ import {
   AdminCollectionsApiService,
   SetCollectionProductsResult,
 } from './admin-collections-api.service';
+import { Product } from './product.model';
 
 /** Visual gap between hangers when several pieces are added in one confirm. */
 export const ADD_PIECE_STAGGER_MS = 80;
@@ -106,6 +107,28 @@ export interface CollectionProductAppendBatch {
   failed: { slug: string; message: string }[];
 }
 
+export type CollectionAddWrite =
+  | { kind: 'move'; productSlug: string; fromSlug: string; toSlug: string }
+  | { kind: 'append'; productSlug: string; toSlug: string };
+
+/**
+ * A piece belongs to one collection. Adding a hanger that already lives on
+ * another rack is a collection change (PATCH collectionSlug), not POST append.
+ */
+export function planCollectionAddWrite(
+  productSlug: string,
+  destSlug: string,
+  currentCollectionSlug?: string | null,
+): CollectionAddWrite {
+  const product = productSlug.trim();
+  const to = destSlug.trim();
+  const from = currentCollectionSlug?.trim() ?? '';
+  if (from && to && from !== to) {
+    return { kind: 'move', productSlug: product, fromSlug: from, toSlug: to };
+  }
+  return { kind: 'append', productSlug: product, toSlug: to };
+}
+
 export function partitionAppendResults(
   rows: readonly CollectionProductAppendItem[],
 ): CollectionProductAppendBatch {
@@ -156,6 +179,7 @@ export class SerialTaskQueue {
 @Injectable({ providedIn: 'root' })
 export class AdminCollectionProductsService {
   private readonly api = inject(AdminCollectionsApiService);
+  private readonly catalog = inject(AdminCatalogService);
   private readonly lock = new CollectionProductsLock();
   private readonly lists = new Map<string, string[]>();
 
@@ -187,6 +211,40 @@ export class AdminCollectionProductsService {
       return of({ productSlugs: this.current(collectionSlug) } as SetCollectionProductsResult);
     }
     return this.enqueue(collectionSlug, () => this.putFullMembership(collectionSlug, liveOrdered));
+  }
+
+  /**
+   * Add to a rack: PATCH collectionSlug when the piece already belongs to
+   * another collection (same single UPDATE as the piece edit form, at the end).
+   * Otherwise POST append.
+   */
+  persistAddedProduct(
+    destSlug: string,
+    productSlug: string,
+    currentCollectionSlug?: string | null,
+  ): Observable<Product | SetCollectionProductsResult> {
+    const plan = planCollectionAddWrite(productSlug, destSlug, currentCollectionSlug);
+    if (plan.kind === 'move') return this.moveToCollection(plan.productSlug, plan.fromSlug, plan.toSlug);
+    return this.append(plan.toSlug, [plan.productSlug]);
+  }
+
+  /**
+   * Same UPDATE as the product form collection change (`PATCH …/products/:slug`
+   * with `collectionSlug`). Puts the piece at the end of the destination.
+   */
+  moveToCollection(productSlug: string, fromSlug: string, toSlug: string): Observable<Product> {
+    return this.catalog.updateViaApi(productSlug, { collectionSlug: toSlug }).pipe(
+      tap(() => {
+        this.remember(toSlug, appendCollectionProductSlugs(this.current(toSlug), [productSlug]));
+        this.remember(
+          fromSlug,
+          this.current(fromSlug).filter((slug) => slug !== productSlug),
+        );
+      }),
+      catchError((err) =>
+        from(this.reloadBoth(fromSlug, toSlug)).pipe(switchMap(() => throwError(() => err))),
+      ),
+    );
   }
 
   /** POST /products/append — never a partial PUT. */
@@ -285,6 +343,11 @@ export class AdminCollectionProductsService {
     } catch {
       // Keep the last known list if the reload also fails.
     }
+  }
+
+  private async reloadBoth(fromSlug: string, toSlug: string): Promise<void> {
+    await this.reloadFromServer(fromSlug);
+    if (toSlug !== fromSlug) await this.reloadFromServer(toSlug);
   }
 
   private enqueue<T>(collectionSlug: string, task: () => Promise<T>): Observable<T> {

@@ -6,6 +6,7 @@ import {
   LISTA_REORDER_ENABLED,
   STOCKROOM_REORDER_ENABLED,
 } from './membership-order';
+import { AdminCatalogService } from './admin-catalog.service';
 import {
   ADD_PIECE_STAGGER_MS,
   AdminCollectionProductsService,
@@ -20,6 +21,7 @@ import {
   membershipWriteErrorMessage,
   mergeLiveOrderIntoMembership,
   partitionAppendResults,
+  planCollectionAddWrite,
 } from './admin-collection-products';
 import {
   AdminCollectionsApiService,
@@ -74,6 +76,30 @@ describe('mergeLiveOrderIntoMembership', () => {
     expect(
       mergeLiveOrderIntoMembership(['arquivo', 'draft-x', 'a', 'b', 'c'], ['c', 'a', 'b']),
     ).toEqual(['arquivo', 'draft-x', 'c', 'a', 'b']);
+  });
+});
+
+describe('planCollectionAddWrite', () => {
+  it('uses a collectionSlug PATCH move when the piece already belongs to another collection', () => {
+    expect(planCollectionAddWrite('vestido', 'niponic-dreams', 'organic-dreams')).toEqual({
+      kind: 'move',
+      productSlug: 'vestido',
+      fromSlug: 'organic-dreams',
+      toSlug: 'niponic-dreams',
+    });
+  });
+
+  it('uses POST append when the piece has no other collection', () => {
+    expect(planCollectionAddWrite('vestido', 'organic-dreams', '')).toEqual({
+      kind: 'append',
+      productSlug: 'vestido',
+      toSlug: 'organic-dreams',
+    });
+    expect(planCollectionAddWrite('vestido', 'organic-dreams', 'organic-dreams')).toEqual({
+      kind: 'append',
+      productSlug: 'vestido',
+      toSlug: 'organic-dreams',
+    });
   });
 });
 
@@ -154,7 +180,10 @@ describe('SerialTaskQueue', () => {
 describe('AdminCollectionProductsService', () => {
   afterEach(() => TestBed.resetTestingModule());
 
-  function setup(api: Partial<AdminCollectionsApiService>): AdminCollectionProductsService {
+  function setup(
+    api: Partial<AdminCollectionsApiService>,
+    catalog: Partial<{ updateViaApi: AdminCatalogService['updateViaApi'] }> = {},
+  ): AdminCollectionProductsService {
     TestBed.configureTestingModule({
       providers: [
         AdminCollectionProductsService,
@@ -166,6 +195,13 @@ describe('AdminCollectionProductsService', () => {
             appendProducts: () => of(result('organic-dreams', [])),
             removeProduct: () => of(result('organic-dreams', [])),
             ...api,
+          },
+        },
+        {
+          provide: AdminCatalogService,
+          useValue: {
+            updateViaApi: () => of({ slug: 'vestido', collectionSlug: 'niponic-dreams' }),
+            ...catalog,
           },
         },
       ],
@@ -309,6 +345,68 @@ describe('AdminCollectionProductsService', () => {
     expect(err.status).toBe(409);
     expect(membershipWriteErrorMessage(err)).toBe(MEMBERSHIP_WRITE_CONFLICT);
     expect(service.current('organic-dreams')).toEqual(['arquivo', 'a', 'b']);
+  });
+
+  it('moves a piece between collections with PATCH collectionSlug, not POST append', async () => {
+    const patches: { slug: string; payload: { collectionSlug?: string } }[] = [];
+    const appends: string[][] = [];
+    const service = setup(
+      {
+        appendProducts: (_slug, productSlugs) => {
+          appends.push([...productSlugs]);
+          return of(result('niponic-dreams', productSlugs));
+        },
+        getProducts: (slug) =>
+          of({
+            productSlugs: slug === 'organic-dreams' ? ['vestido'] : [],
+          }),
+      },
+      {
+        updateViaApi: (slug, payload) => {
+          patches.push({ slug, payload });
+          return of({ slug, collectionSlug: payload.collectionSlug ?? '' }) as ReturnType<
+            AdminCatalogService['updateViaApi']
+          >;
+        },
+      },
+    );
+    service.remember('organic-dreams', ['vestido']);
+    service.remember('niponic-dreams', ['jaqueta']);
+    await new Promise((resolve, reject) => {
+      service
+        .persistAddedProduct('niponic-dreams', 'vestido', 'organic-dreams')
+        .subscribe({ next: resolve, error: reject });
+    });
+    expect(patches).toEqual([{ slug: 'vestido', payload: { collectionSlug: 'niponic-dreams' } }]);
+    expect(appends).toEqual([]);
+    expect(service.current('organic-dreams')).toEqual([]);
+    expect(service.current('niponic-dreams')).toEqual(['jaqueta', 'vestido']);
+  });
+
+  it('reloads source and destination after a failed collection move', async () => {
+    const service = setup(
+      {
+        getProducts: (slug) =>
+          of({
+            productSlugs: slug === 'organic-dreams' ? ['vestido'] : ['jaqueta'],
+          }),
+        appendProducts: () => throwError(() => new Error('append must not run')),
+      },
+      {
+        updateViaApi: () => throwError(() => httpErr(409)),
+      },
+    );
+    service.remember('organic-dreams', []);
+    service.remember('niponic-dreams', ['jaqueta', 'vestido']);
+    const err = await new Promise<HttpErrorResponse>((resolve, reject) => {
+      service.persistAddedProduct('niponic-dreams', 'vestido', 'organic-dreams').subscribe({
+        next: () => reject(new Error('expected 409')),
+        error: (e: unknown) => resolve(e as HttpErrorResponse),
+      });
+    });
+    expect(err.status).toBe(409);
+    expect(service.current('organic-dreams')).toEqual(['vestido']);
+    expect(service.current('niponic-dreams')).toEqual(['jaqueta']);
   });
 });
 

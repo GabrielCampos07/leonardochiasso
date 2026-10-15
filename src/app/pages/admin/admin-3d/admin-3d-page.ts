@@ -1488,16 +1488,25 @@ export class Admin3dPage implements AfterViewInit, OnDestroy {
       this.addingSlugs.delete(slug);
       return;
     }
-    this.collectionProducts.append(collectionSlug, [slug]).subscribe({
-      next: () => this.addingSlugs.delete(slug),
-      error: (err) =>
-        this.failAddPiece(
-          unit,
-          slug,
-          membershipWriteErrorMessage(err, 'Não foi possível adicionar esta peça.'),
-          previous?.rackId ?? null,
-        ),
-    });
+    const sourceSlug =
+      product.collectionSlug?.trim() || collectionSlugFromUnitId(previous?.rackId ?? '') || null;
+    this.collectionProducts
+      .persistAddedProduct(collectionSlug, slug, sourceSlug)
+      .subscribe({
+        next: (saved) => {
+          if (saved && 'collectionSlug' in saved && saved.collectionSlug) {
+            this.productsBySlug.set(saved.slug, { ...product, ...saved });
+          }
+          this.addingSlugs.delete(slug);
+        },
+        error: (err) =>
+          this.failAddPiece(
+            unit,
+            slug,
+            membershipWriteErrorMessage(err, 'Não foi possível adicionar esta peça.'),
+            previous?.rackId ?? null,
+          ),
+      });
   }
 
   private addOneJoiaOptimistic(unit: SceneRack, slug: string): void {
