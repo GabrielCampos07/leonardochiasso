@@ -154,4 +154,103 @@ describe('AdminCollectionsService gender order', () => {
       `A ordem deve conter exatamente as peças ativas feminino (incluindo unissex) desta coleção (faltando ${UNI}).`,
     );
   });
+
+  it('rolls back membership when the derived copy rewrite throws (Lista PUT)', async () => {
+    const { service, store } = makeTransactional({ throwOnGenderCreate: true });
+    const before = snapshotStore(store);
+    await expect(
+      service.setGenderOrder('teste-ordem', 'feminino', [FEM, UNI]),
+    ).rejects.toThrow('derived copy failed');
+    expect(store).toEqual(before);
+  });
+
+  it('rolls back membership when the derived copy rewrite throws (3D PUT)', async () => {
+    const { service, store, prisma } = makeTransactional({ throwOnGenderCreate: true });
+    prisma.product.findMany.mockResolvedValue([
+      { id: FEM, slug: 'teste-fem', category: { slug: 'feminino' } },
+      { id: UNI, slug: 'teste-uni', category: { slug: 'unissex' } },
+      { id: MAS, slug: 'teste-masc', category: { slug: 'masculino' } },
+    ]);
+    const before = snapshotStore(store);
+    await expect(
+      service.setProducts('teste-ordem', ['teste-fem', 'teste-uni', 'teste-masc']),
+    ).rejects.toThrow('derived copy failed');
+    expect(store).toEqual(before);
+  });
 });
+
+type OrderStore = {
+  membership: { collectionId: string; productId: string; sortOrder: number }[];
+  genderOrders: {
+    collectionId: string;
+    productId: string;
+    gender: string;
+    sortOrder: number;
+  }[];
+};
+
+function snapshotStore(store: OrderStore): OrderStore {
+  return {
+    membership: store.membership.map((row) => ({ ...row })),
+    genderOrders: store.genderOrders.map((row) => ({ ...row })),
+  };
+}
+
+/** In-memory $transaction: commit only if the callback finishes. */
+function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
+  const store: OrderStore = {
+    membership: [
+      { collectionId: 'col-teste', productId: UNI, sortOrder: 0 },
+      { collectionId: 'col-teste', productId: MAS, sortOrder: 1 },
+      { collectionId: 'col-teste', productId: FEM, sortOrder: 2 },
+    ],
+    genderOrders: [
+      { collectionId: 'col-teste', productId: FEM, gender: 'feminino', sortOrder: 0 },
+    ],
+  };
+
+  function txFor(working: OrderStore) {
+    return {
+      productCollection: {
+        deleteMany: jest.fn(async ({ where }: { where: { collectionId: string } }) => {
+          working.membership = working.membership.filter(
+            (row) => row.collectionId !== where.collectionId,
+          );
+          return { count: 0 };
+        }),
+        createMany: jest.fn(async ({ data }: { data: OrderStore['membership'] }) => {
+          working.membership.push(...data);
+          return { count: data.length };
+        }),
+      },
+      collectionGenderOrder: {
+        deleteMany: jest.fn(async ({ where }: { where: { collectionId: string } }) => {
+          working.genderOrders = working.genderOrders.filter(
+            (row) => row.collectionId !== where.collectionId,
+          );
+          return { count: 0 };
+        }),
+        createMany: jest.fn(async ({ data }: { data: OrderStore['genderOrders'] }) => {
+          if (opts.throwOnGenderCreate) throw new Error('derived copy failed');
+          working.genderOrders.push(...data);
+          return { count: data.length };
+        }),
+      },
+    };
+  }
+
+  const prisma = {
+    collection: {
+      findUnique: jest.fn().mockResolvedValue(collectionWithMembers()),
+    },
+    product: { findMany: jest.fn().mockResolvedValue([]) },
+    $transaction: jest.fn(async (fn: (t: ReturnType<typeof txFor>) => Promise<unknown>) => {
+      const working = snapshotStore(store);
+      const result = await fn(txFor(working));
+      store.membership = working.membership;
+      store.genderOrders = working.genderOrders;
+      return result;
+    }),
+  };
+  return { service: new AdminCollectionsService(prisma as never), prisma, store };
+}
