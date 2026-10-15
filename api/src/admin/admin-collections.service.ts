@@ -17,6 +17,7 @@ import {
   parseGenderList,
 } from '../catalog/gender';
 import {
+  applyMembershipSortOrdersTwoPhase,
   mergeLiveOrderIntoMembership,
   sortMembersBySortOrder,
   syncDerivedGenderOrders,
@@ -195,20 +196,13 @@ export class AdminCollectionsService {
           productId: string;
           sortOrder: number;
         }[] = [];
+        const sortChanges: { productId: string; sortOrder: number }[] = [];
         for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
           const productId = nextIds[sortOrder]!;
           const existing = currentById.get(productId);
           if (existing) {
             if (existing.sortOrder === sortOrder) continue;
-            await tx.productCollection.update({
-              where: {
-                productId_collectionId: {
-                  productId,
-                  collectionId: collection.id,
-                },
-              },
-              data: { sortOrder },
-            });
+            sortChanges.push({ productId, sortOrder });
           } else {
             newcomers.push({
               collectionId: collection.id,
@@ -217,6 +211,7 @@ export class AdminCollectionsService {
             });
           }
         }
+        await applyMembershipSortOrdersTwoPhase(tx, collection.id, sortChanges);
         if (newcomers.length > 0) {
           await tx.productCollection.createMany({ data: newcomers });
         }
@@ -494,20 +489,14 @@ export class AdminCollectionsService {
         const nextIds = mergeLiveOrderIntoMembership(membership, liveIds);
         const byId = new Map(collection.products.map((pc) => [pc.productId, pc] as const));
 
+        const sortChanges: { productId: string; sortOrder: number }[] = [];
         for (let sortOrder = 0; sortOrder < nextIds.length; sortOrder++) {
           const productId = nextIds[sortOrder]!;
           const current = byId.get(productId);
           if (current && current.sortOrder === sortOrder) continue;
-          await tx.productCollection.update({
-            where: {
-              productId_collectionId: {
-                productId,
-                collectionId: collection.id,
-              },
-            },
-            data: { sortOrder },
-          });
+          sortChanges.push({ productId, sortOrder });
         }
+        await applyMembershipSortOrdersTwoPhase(tx, collection.id, sortChanges);
 
         await syncDerivedGenderOrders(
           tx,

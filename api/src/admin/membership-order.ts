@@ -131,6 +131,87 @@ export type SyncGenderOrderDb =
       };
     };
 
+export type MembershipSortDb = {
+  productCollection: {
+    update(args: {
+      where: {
+        productId_collectionId: { productId: string; collectionId: string };
+      };
+      data: { sortOrder: number };
+    }): Promise<unknown>;
+  };
+};
+
+export type MembershipSortChange = {
+  productId: string;
+  sortOrder: number;
+};
+
+/**
+ * Temporary sortOrder that cannot collide with any compact 0..n-1 final
+ * (or with another in-flight change). Used when a leftover unique on
+ * (collectionId, sortOrder) would reject A↔B in a single pass.
+ */
+export function tempSortOrder(finalSortOrder: number): number {
+  return -(finalSortOrder + 1);
+}
+
+async function applySortOrdersTwoPhase<T>(
+  changes: readonly T[],
+  apply: (item: T, sortOrder: number) => Promise<unknown>,
+  sortOrderOf: (item: T) => number,
+): Promise<void> {
+  if (changes.length === 0) return;
+  for (const change of changes) {
+    await apply(change, tempSortOrder(sortOrderOf(change)));
+  }
+  for (const change of changes) {
+    await apply(change, sortOrderOf(change));
+  }
+}
+
+/** Two-phase rewrite of `product_collections.sortOrder` inside the caller tx. */
+export async function applyMembershipSortOrdersTwoPhase(
+  db: MembershipSortDb,
+  collectionId: string,
+  changes: readonly MembershipSortChange[],
+): Promise<void> {
+  await applySortOrdersTwoPhase(
+    changes,
+    (change, sortOrder) =>
+      db.productCollection.update({
+        where: {
+          productId_collectionId: { productId: change.productId, collectionId },
+        },
+        data: { sortOrder },
+      }),
+    (change) => change.sortOrder,
+  );
+}
+
+/** Two-phase rewrite of `collection_gender_orders.sortOrder` inside the caller tx. */
+export async function applyGenderSortOrdersTwoPhase(
+  db: SyncGenderOrderDb,
+  collectionId: string,
+  changes: readonly DerivedGenderRow[],
+): Promise<void> {
+  await applySortOrdersTwoPhase(
+    changes,
+    (row, sortOrder) =>
+      db.collectionGenderOrder.update({
+        where: {
+          collectionId_gender_productId: {
+            collectionId,
+            gender: row.gender,
+            productId: row.productId,
+          },
+        },
+        data: { sortOrder },
+      }),
+    (row) => row.sortOrder,
+  );
+}
+
 /**
  * Derived copy of the one membership order into collection_gender_orders.
  * Gabriel: keep the table as a shadow (“mantém a cópia”). It is rewritten on
@@ -159,23 +240,16 @@ export async function syncDerivedGenderOrders(
   const want = new Map(desired.map((row) => [genderRowKey(row), row]));
   const have = new Map(existing.map((row) => [genderRowKey(row), row]));
 
+  const toCreate: DerivedGenderRow[] = [];
+  const toUpdate: DerivedGenderRow[] = [];
   for (const [key, row] of want) {
     const prev = have.get(key);
     if (!prev) {
-      await db.collectionGenderOrder.create({ data: row });
+      toCreate.push(row);
       continue;
     }
     if (prev.sortOrder === row.sortOrder) continue;
-    await db.collectionGenderOrder.update({
-      where: {
-        collectionId_gender_productId: {
-          collectionId,
-          gender: row.gender,
-          productId: row.productId,
-        },
-      },
-      data: { sortOrder: row.sortOrder },
-    });
+    toUpdate.push(row);
   }
 
   for (const row of existing) {
@@ -189,5 +263,11 @@ export async function syncDerivedGenderOrders(
         },
       },
     });
+  }
+
+  await applyGenderSortOrdersTwoPhase(db, collectionId, toUpdate);
+
+  for (const row of toCreate) {
+    await db.collectionGenderOrder.create({ data: row });
   }
 }

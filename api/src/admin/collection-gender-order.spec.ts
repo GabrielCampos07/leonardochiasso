@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AdminCollectionsService } from './admin-collections.service';
+import { tempSortOrder } from './membership-order';
 
 const FEM = '11111111-1111-4111-8111-111111111111';
 const UNI = '22222222-2222-4222-8222-222222222222';
@@ -122,15 +123,10 @@ describe('AdminCollectionsService gender order', () => {
     });
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).not.toHaveBeenCalled();
-    expect(tx.productCollection.update).toHaveBeenCalledTimes(2);
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(1, {
-      where: { productId_collectionId: { productId: FEM, collectionId: 'col-teste' } },
-      data: { sortOrder: 0 },
-    });
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(2, {
-      where: { productId_collectionId: { productId: UNI, collectionId: 'col-teste' } },
-      data: { sortOrder: 2 },
-    });
+    expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
+      { productId: FEM, sortOrder: 0 },
+      { productId: UNI, sortOrder: 2 },
+    ]);
     expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
     expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
     expect(tx.collectionGenderOrder.findMany).toHaveBeenCalledWith({
@@ -250,19 +246,11 @@ describe('AdminCollectionsService gender order', () => {
     });
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).not.toHaveBeenCalled();
-    expect(tx.productCollection.update).toHaveBeenCalledTimes(3);
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(1, {
-      where: { productId_collectionId: { productId: 'id-c', collectionId: 'col-teste' } },
-      data: { sortOrder: 1 },
-    });
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(2, {
-      where: { productId_collectionId: { productId: 'id-a', collectionId: 'col-teste' } },
-      data: { sortOrder: 2 },
-    });
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(3, {
-      where: { productId_collectionId: { productId: 'id-b', collectionId: 'col-teste' } },
-      data: { sortOrder: 3 },
-    });
+    expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
+      { productId: 'id-c', sortOrder: 1 },
+      { productId: 'id-a', sortOrder: 2 },
+      { productId: 'id-b', sortOrder: 3 },
+    ]);
     expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
     expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
     expect(tx.collectionGenderOrder.findMany).toHaveBeenCalled();
@@ -292,15 +280,10 @@ describe('AdminCollectionsService gender order', () => {
     expect(tx.productCollection.deleteMany).toHaveBeenCalledWith({
       where: { collectionId: 'col-teste', productId: { in: ['id-arquivo'] } },
     });
-    expect(tx.productCollection.update).toHaveBeenCalledTimes(2);
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(1, {
-      where: { productId_collectionId: { productId: 'id-b', collectionId: 'col-teste' } },
-      data: { sortOrder: 0 },
-    });
-    expect(tx.productCollection.update).toHaveBeenNthCalledWith(2, {
-      where: { productId_collectionId: { productId: 'id-a', collectionId: 'col-teste' } },
-      data: { sortOrder: 2 },
-    });
+    expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
+      { productId: 'id-b', sortOrder: 0 },
+      { productId: 'id-a', sortOrder: 2 },
+    ]);
     expect(tx.productCollection.createMany).toHaveBeenCalledTimes(1);
     expect(tx.productCollection.createMany).toHaveBeenCalledWith({
       data: [{ collectionId: 'col-teste', productId: 'id-novo', sortOrder: 1 }],
@@ -343,9 +326,90 @@ describe('AdminCollectionsService gender order', () => {
     expect(result.productSlugs).toEqual(['teste-o2', 'teste-o1']);
     expect(tx.productCollection.deleteMany).not.toHaveBeenCalled();
     expect(tx.productCollection.createMany).not.toHaveBeenCalled();
-    expect(tx.productCollection.update).toHaveBeenCalledTimes(2);
+    expectTwoPhaseMembershipUpdates(tx.productCollection.update, 'col-teste', [
+      { productId: 'id-o2', sortOrder: 0 },
+      { productId: 'id-o1', sortOrder: 1 },
+    ]);
     expect(tx.collectionGenderOrder.deleteMany).not.toHaveBeenCalled();
     expect(tx.collectionGenderOrder.createMany).not.toHaveBeenCalled();
+  });
+
+  it('swaps two pieces A<->B without colliding sortOrder (setProducts)', async () => {
+    const { service, store, productFindMany } = makeTransactional();
+    productFindMany.mockResolvedValue([
+      { id: 'id-a', slug: 'teste-a', category: { slug: 'feminino' } },
+      { id: 'id-b', slug: 'teste-b', category: { slug: 'feminino' } },
+    ]);
+    store.membership = [
+      { collectionId: 'col-teste', productId: 'id-a', sortOrder: 0 },
+      { collectionId: 'col-teste', productId: 'id-b', sortOrder: 1 },
+    ];
+    store.genderOrders = [
+      { collectionId: 'col-teste', productId: 'id-a', gender: 'feminino', sortOrder: 0 },
+      { collectionId: 'col-teste', productId: 'id-b', gender: 'feminino', sortOrder: 1 },
+    ];
+
+    const result = await service.setProducts('teste-ordem', ['teste-b', 'teste-a'], true);
+
+    expect(result.productSlugs).toEqual(['teste-b', 'teste-a']);
+    expect(sortedMembership(store)).toEqual([
+      { productId: 'id-b', sortOrder: 0 },
+      { productId: 'id-a', sortOrder: 1 },
+    ]);
+    expect(uniqueSortOrders(store.membership)).toEqual([0, 1]);
+    expect(sortedGender(store, 'feminino')).toEqual([
+      { productId: 'id-b', sortOrder: 0 },
+      { productId: 'id-a', sortOrder: 1 },
+    ]);
+  });
+
+  it('rotates three pieces A->B->C->A without colliding sortOrder (setProducts)', async () => {
+    const { service, store, productFindMany } = makeTransactional();
+    productFindMany.mockResolvedValue([
+      { id: 'id-a', slug: 'teste-a', category: { slug: 'feminino' } },
+      { id: 'id-b', slug: 'teste-b', category: { slug: 'feminino' } },
+      { id: 'id-c', slug: 'teste-c', category: { slug: 'feminino' } },
+    ]);
+    store.membership = [
+      { collectionId: 'col-teste', productId: 'id-a', sortOrder: 0 },
+      { collectionId: 'col-teste', productId: 'id-b', sortOrder: 1 },
+      { collectionId: 'col-teste', productId: 'id-c', sortOrder: 2 },
+    ];
+    store.genderOrders = [
+      { collectionId: 'col-teste', productId: 'id-a', gender: 'feminino', sortOrder: 0 },
+      { collectionId: 'col-teste', productId: 'id-b', gender: 'feminino', sortOrder: 1 },
+      { collectionId: 'col-teste', productId: 'id-c', gender: 'feminino', sortOrder: 2 },
+    ];
+
+    const result = await service.setProducts(
+      'teste-ordem',
+      ['teste-c', 'teste-a', 'teste-b'],
+      true,
+    );
+
+    expect(result.productSlugs).toEqual(['teste-c', 'teste-a', 'teste-b']);
+    expect(sortedMembership(store)).toEqual([
+      { productId: 'id-c', sortOrder: 0 },
+      { productId: 'id-a', sortOrder: 1 },
+      { productId: 'id-b', sortOrder: 2 },
+    ]);
+    expect(uniqueSortOrders(store.membership)).toEqual([0, 1, 2]);
+    expect(sortedGender(store, 'feminino')).toEqual([
+      { productId: 'id-c', sortOrder: 0 },
+      { productId: 'id-a', sortOrder: 1 },
+      { productId: 'id-b', sortOrder: 2 },
+    ]);
+  });
+
+  it('swaps two pieces A<->B without colliding sortOrder (setGenderOrder)', async () => {
+    const { service, store } = makeTransactional();
+    await service.setGenderOrder('teste-ordem', 'feminino', [FEM, UNI]);
+    expect(sortedMembership(store)).toEqual([
+      { productId: FEM, sortOrder: 0 },
+      { productId: MAS, sortOrder: 1 },
+      { productId: UNI, sortOrder: 2 },
+    ]);
+    expect(uniqueSortOrders(store.membership)).toEqual([0, 1, 2]);
   });
 
   it('two concurrent 3D PUTs commit without throwing and keep unique sortOrders', async () => {
@@ -430,7 +494,73 @@ const SLUG_BY_ID: Record<string, string> = {
   [FEM]: 'teste-o1',
   [UNI]: 'teste-o2',
   [MAS]: 'teste-masc',
+  'id-a': 'teste-a',
+  'id-b': 'teste-b',
+  'id-c': 'teste-c',
 };
+
+function expectTwoPhaseMembershipUpdates(
+  update: jest.Mock,
+  collectionId: string,
+  finals: { productId: string; sortOrder: number }[],
+) {
+  expect(update).toHaveBeenCalledTimes(finals.length * 2);
+  finals.forEach((change, i) => {
+    expect(update).toHaveBeenNthCalledWith(i + 1, {
+      where: { productId_collectionId: { productId: change.productId, collectionId } },
+      data: { sortOrder: tempSortOrder(change.sortOrder) },
+    });
+    expect(update).toHaveBeenNthCalledWith(finals.length + i + 1, {
+      where: { productId_collectionId: { productId: change.productId, collectionId } },
+      data: { sortOrder: change.sortOrder },
+    });
+  });
+}
+
+function sortedMembership(store: OrderStore) {
+  return [...store.membership]
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.productId.localeCompare(b.productId))
+    .map((row) => ({ productId: row.productId, sortOrder: row.sortOrder }));
+}
+
+function sortedGender(store: OrderStore, gender: string) {
+  return store.genderOrders
+    .filter((row) => row.gender === gender)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.productId.localeCompare(b.productId))
+    .map((row) => ({ productId: row.productId, sortOrder: row.sortOrder }));
+}
+
+function uniqueSortOrders(
+  rows: { collectionId: string; sortOrder: number; gender?: string }[],
+  gender?: string,
+) {
+  const scoped = rows.filter((row) => (gender ? row.gender === gender : true));
+  const orders = scoped.map((row) => row.sortOrder).sort((a, b) => a - b);
+  expect(new Set(orders).size).toBe(orders.length);
+  return orders;
+}
+
+function assertUniqueSort(
+  rows: { collectionId: string; productId: string; sortOrder: number; gender?: string }[],
+  row: { collectionId: string; productId: string; sortOrder: number; gender?: string },
+  nextSort: number,
+  byGender: boolean,
+) {
+  const clash = rows.some(
+    (item) =>
+      item !== row &&
+      item.collectionId === row.collectionId &&
+      item.sortOrder === nextSort &&
+      (!byGender || item.gender === row.gender),
+  );
+  if (clash) {
+    throw new Error(
+      byGender
+        ? `unique_sort_order: collection_gender_orders (collectionId, gender, sortOrder)`
+        : `unique_sort_order: product_collections (collectionId, sortOrder)=(${row.collectionId},${nextSort})`,
+    );
+  }
+}
 
 function snapshotStore(store: OrderStore): OrderStore {
   return {
@@ -524,13 +654,20 @@ function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
                 item.productId === where.productId_collectionId.productId &&
                 item.collectionId === where.productId_collectionId.collectionId,
             );
-            if (row) row.sortOrder = data.sortOrder;
+            if (!row) return null;
+            assertUniqueSort(working.membership, row, data.sortOrder, false);
+            row.sortOrder = data.sortOrder;
             return row;
           },
         ),
         findMany: jest.fn(async ({ where }: { where: { collectionId: string } }) =>
           working.membership
             .filter((row) => row.collectionId === where.collectionId)
+            .slice()
+            .sort(
+              (a, b) =>
+                a.sortOrder - b.sortOrder || a.productId.localeCompare(b.productId),
+            )
             .map((row) => ({
               ...row,
               product: { slug: SLUG_BY_ID[row.productId] ?? row.productId },
@@ -591,7 +728,9 @@ function makeTransactional(opts: { throwOnGenderCreate?: boolean } = {}) {
                 item.gender === where.collectionId_gender_productId.gender &&
                 item.productId === where.collectionId_gender_productId.productId,
             );
-            if (row) row.sortOrder = data.sortOrder;
+            if (!row) return null;
+            assertUniqueSort(working.genderOrders, row, data.sortOrder, true);
+            row.sortOrder = data.sortOrder;
             return row;
           },
         ),

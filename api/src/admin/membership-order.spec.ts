@@ -1,8 +1,10 @@
 import {
+  applyMembershipSortOrdersTwoPhase,
   mergeLiveOrderIntoMembership,
   rewriteDerivedGenderOrders,
   sortMembersBySortOrder,
   syncDerivedGenderOrders,
+  tempSortOrder,
 } from './membership-order';
 
 const PLUMARIA = 'id-teste-plumaria';
@@ -89,5 +91,97 @@ describe('membership-order (one collection order)', () => {
         },
       },
     });
+  });
+
+  it('two-phase membership swap parks A and B on temps before finals', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    await applyMembershipSortOrdersTwoPhase(
+      { productCollection: { update } },
+      'col-teste',
+      [
+        { productId: 'id-a', sortOrder: 1 },
+        { productId: 'id-b', sortOrder: 0 },
+      ],
+    );
+    expect(update).toHaveBeenCalledTimes(4);
+    expect(update.mock.calls.map((call) => call[0].data.sortOrder)).toEqual([
+      tempSortOrder(1),
+      tempSortOrder(0),
+      1,
+      0,
+    ]);
+  });
+
+  it('two-phase membership rotate parks three rows before writing 0,1,2', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    await applyMembershipSortOrdersTwoPhase(
+      { productCollection: { update } },
+      'col-teste',
+      [
+        { productId: 'id-a', sortOrder: 1 },
+        { productId: 'id-b', sortOrder: 2 },
+        { productId: 'id-c', sortOrder: 0 },
+      ],
+    );
+    expect(update).toHaveBeenNthCalledWith(1, {
+      where: { productId_collectionId: { productId: 'id-a', collectionId: 'col-teste' } },
+      data: { sortOrder: tempSortOrder(1) },
+    });
+    expect(update).toHaveBeenNthCalledWith(4, {
+      where: { productId_collectionId: { productId: 'id-a', collectionId: 'col-teste' } },
+      data: { sortOrder: 1 },
+    });
+    expect(update).toHaveBeenNthCalledWith(6, {
+      where: { productId_collectionId: { productId: 'id-c', collectionId: 'col-teste' } },
+      data: { sortOrder: 0 },
+    });
+    expect(update).toHaveBeenCalledTimes(6);
+  });
+
+  it('syncs a derived gender A<->B swap in two phases', async () => {
+    const rows = [
+      { productId: PLUMARIA, gender: 'feminino', sortOrder: 0 },
+      { productId: CALCA, gender: 'feminino', sortOrder: 1 },
+    ];
+    const findMany = jest.fn().mockResolvedValue(rows);
+    const create = jest.fn().mockResolvedValue({});
+    const del = jest.fn().mockResolvedValue({});
+    const update = jest.fn(
+      async ({
+        where,
+        data,
+      }: {
+        where: {
+          collectionId_gender_productId: { productId: string; gender: string };
+        };
+        data: { sortOrder: number };
+      }) => {
+        const row = rows.find(
+          (item) =>
+            item.productId === where.collectionId_gender_productId.productId &&
+            item.gender === where.collectionId_gender_productId.gender,
+        );
+        if (!row) return null;
+        const clash = rows.some((item) => item !== row && item.sortOrder === data.sortOrder);
+        if (clash) throw new Error(`unique_sort_order: ${data.sortOrder}`);
+        row.sortOrder = data.sortOrder;
+        return row;
+      },
+    );
+    await syncDerivedGenderOrders(
+      { collectionGenderOrder: { findMany, create, update, delete: del } },
+      'col-teste',
+      [
+        { productId: CALCA, gender: 'feminino' },
+        { productId: PLUMARIA, gender: 'feminino' },
+      ],
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(4);
+    expect(rows.map((row) => ({ productId: row.productId, sortOrder: row.sortOrder }))).toEqual([
+      { productId: PLUMARIA, sortOrder: 1 },
+      { productId: CALCA, sortOrder: 0 },
+    ]);
   });
 });
