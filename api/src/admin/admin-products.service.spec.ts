@@ -240,7 +240,7 @@ describe('AdminProductsService update (membership join)', () => {
       collectionGenderOrder: {
         findMany: jest.fn().mockResolvedValue([]),
         deleteMany: jest.fn(),
-        aggregate: jest.fn(),
+        aggregate: jest.fn().mockResolvedValue({ _max: { sortOrder: 0 } }),
         create: jest.fn(),
       },
       $transaction: jest.fn(),
