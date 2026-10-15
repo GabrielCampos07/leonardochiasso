@@ -47,8 +47,12 @@ import { ToastService } from '../../core/feedback/toast.service';
 import { PHOTO_UPLOAD_FAILED, photoUploadErrorMessage } from '../../core/photo-upload';
 import {
   PRICE_REQUIRED_MESSAGE,
+  formatPriceCentsInput,
+  formatPriceInput,
   parsePricePtBr,
 } from '../../core/price-input';
+
+export { formatPriceInput, formatPriceCentsInput };
 
 const KNOWN_COLLECTION_SLUGS = new Set<string>(Object.values(COLLECTION_SLUGS));
 
@@ -67,11 +71,6 @@ export function stockQtyError(raw: string | number | null | undefined): string {
   const n = typeof raw === 'number' ? raw : Number(String(raw ?? '').replace(',', '.'));
   if (Number.isFinite(n) && n < 0) return STOCK_NEGATIVE_MESSAGE;
   return '';
-}
-
-export function formatPriceInput(reais: number): string {
-  if (!Number.isFinite(reais)) return '';
-  return reais.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
 function collectionLabelForSlug(slug: string, name?: string | null): Collection {
@@ -341,7 +340,10 @@ export class AdminProductForm implements OnInit {
     );
     this.detailsText = (p.details ?? []).join('\n');
     this.galleryItems.set(this.adminCatalog.mediaOf(p));
-    this.priceText = formatPriceInput(p.price);
+    const cents = Number.isFinite(p.priceCents)
+      ? Number(p.priceCents)
+      : Math.round((p.price ?? 0) * 100);
+    this.priceText = formatPriceCentsInput(cents);
     this.priceError.set('');
     this.baseline = this.fingerprint();
   }

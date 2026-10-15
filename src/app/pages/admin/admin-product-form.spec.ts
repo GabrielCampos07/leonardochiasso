@@ -374,6 +374,25 @@ describe('AdminProductForm', () => {
     expect(trigger.textContent).not.toContain('teste-colecao2');
   });
 
+  it('loads priceCents 1480000 as 14.800,00 and saves the same cents with no edits', () => {
+    const loaded = sampleProduct({
+      price: 14800,
+      priceCents: 1480000,
+      priceLabel: 'R$ 14.800,00',
+    });
+    fixture.componentInstance.loadDraft(loaded);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.priceText).toBe('14.800,00');
+    const input = fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement;
+    expect(input.value).toBe('14.800,00');
+
+    saveProduct$.and.returnValue(of(loaded));
+    fixture.componentInstance.save();
+    expect(saveProduct$).toHaveBeenCalled();
+    expect(saveProduct$.calls.mostRecent().args[0].priceCents).toBe(1480000);
+  });
+
   it('parses pt-BR price text and shows inline errors', () => {
     const input = fixture.nativeElement.querySelector('#atelier-product-price') as HTMLInputElement;
     expect(input.type).toBe('text');
