@@ -409,12 +409,16 @@
           {{ saveError() }}
         </p>
       }
+      @if (saveIdle()) {
+        <span id="atelier-product-save-clean" class="lc-sr-only">{{ nothingToSaveHint }}</span>
+      }
       <button
         type="submit"
         class="admin-edit__save"
         [disabled]="saving() || archiving() || !isDirty()"
+        [attr.title]="saveIdle() ? nothingToSaveHint : null"
         [attr.aria-busy]="saving()"
-        [attr.aria-describedby]="saveError() ? 'atelier-product-save-error' : null"
+        [attr.aria-describedby]="saveDescribedBy()"
       >
         {{ saving() ? 'Salvando…' : isNew() ? 'Criar produto' : 'Salvar' }}
       </button>

@@ -133,11 +133,14 @@ export class PdpPage implements OnInit {
 
   ngOnInit(): void {
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
-    const known = this.catalog.products().find((item) => item.slug === slug) ?? null;
-    this.applyResolved(known);
-    if (known) return;
+    const apiCatalogReady = this.catalog.loaded() && !this.catalog.usingFallback();
+    if (apiCatalogReady) {
+      this.applyResolved(this.catalog.products().find((item) => item.slug === slug) ?? null);
+      return;
+    }
+    this.loading.set(true);
     this.catalog.getProductBySlug(slug).subscribe((p) => {
-      if (p) this.applyResolved(p);
+      this.applyResolved(p ?? null);
     });
   }
 

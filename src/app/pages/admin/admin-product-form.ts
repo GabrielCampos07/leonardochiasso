@@ -95,6 +95,7 @@ export const NAME_TOO_LONG_MESSAGE = 'O nome pode ter no máximo 200 caracteres.
 export const DESCRIPTION_MAX_LENGTH = 5000;
 export const COLLECTION_REQUIRED_MESSAGE = 'Selecione a coleção.';
 export const COLLECTION_PICKER_LOADING = 'Carregando…';
+export const NOTHING_TO_SAVE_HINT = 'Nada para salvar';
 export const SAVED_TOAST = 'Salvo.';
 export const UNSAVED_TITLE = 'Descartar alterações?';
 export const UNSAVED_MESSAGE = 'Há alterações que ainda não foram salvas.';
@@ -315,6 +316,7 @@ export class AdminProductForm implements OnInit {
   readonly uploading = signal(false);
   readonly uploadError = signal('');
   readonly saveError = signal('');
+  readonly nothingToSaveHint = NOTHING_TO_SAVE_HINT;
   readonly stockError = signal('');
   readonly nameError = signal('');
   readonly collectionError = signal('');
@@ -436,6 +438,17 @@ export class AdminProductForm implements OnInit {
 
   isDirty(): boolean {
     return this.fingerprint() !== this.baseline;
+  }
+
+  saveIdle(): boolean {
+    return !this.isDirty() && !this.saving();
+  }
+
+  saveDescribedBy(): string | null {
+    const ids: string[] = [];
+    if (this.saveError()) ids.push('atelier-product-save-error');
+    if (this.saveIdle()) ids.push('atelier-product-save-clean');
+    return ids.length ? ids.join(' ') : null;
   }
 
   private fingerprint(): string {

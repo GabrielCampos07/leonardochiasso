@@ -23,6 +23,7 @@ import {
   COLLECTION_REQUIRED_MESSAGE,
   NAME_MAX_LENGTH,
   NAME_REQUIRED_MESSAGE,
+  NOTHING_TO_SAVE_HINT,
   STOCK_NEGATIVE_MESSAGE,
   applySelectedSwatches,
   collectionSelectLabel,
@@ -931,13 +932,22 @@ describe('AdminProductForm', () => {
     expect(fixture.componentInstance.isDirty()).toBeFalse();
     const save = fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement;
     expect(save.disabled).toBeTrue();
+    expect(save.getAttribute('title')).toBe(NOTHING_TO_SAVE_HINT);
+    expect(save.getAttribute('aria-describedby')?.split(/\s+/)).toContain('atelier-product-save-clean');
+    expect(fixture.nativeElement.querySelector('#atelier-product-save-clean')?.textContent?.trim()).toBe(
+      NOTHING_TO_SAVE_HINT,
+    );
     const form = fixture.nativeElement.querySelector('.admin-edit__form') as HTMLElement;
     expect(parseFloat(getComputedStyle(form).paddingBottom)).toBeGreaterThanOrEqual(160);
 
     fixture.componentInstance.onNameChange('Look alterado');
     fixture.detectChanges();
     expect(fixture.componentInstance.isDirty()).toBeTrue();
-    expect((fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement).disabled).toBeFalse();
+    const dirtySave = fixture.nativeElement.querySelector('.admin-edit__save') as HTMLButtonElement;
+    expect(dirtySave.disabled).toBeFalse();
+    expect(dirtySave.getAttribute('title')).toBeNull();
+    expect(dirtySave.getAttribute('aria-describedby')).toBeNull();
+    expect(fixture.nativeElement.querySelector('#atelier-product-save-clean')).toBeNull();
   });
 
   it('asks before canceling when the form is dirty', async () => {
